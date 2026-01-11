@@ -1,0 +1,36 @@
+# Listening test UI – quy ước dùng chung mọi test
+
+Các component trong `app/listening/[setId]/[testId]/components/` được dùng chung cho **tất cả** bài listening (Cambridge 10, 20, …). Sửa style/behavior ở component shared = áp dụng cho mọi test.
+
+## Shared components và style
+
+- **questionStyles**: Nguồn chung Listening + Reading ở `components/ielts/shared/questionStyles.ts`. Listening re-export từ `app/listening/.../shared/questionStyles.ts`. Dùng `ieltsTitleClass`, `ieltsQuestionTextClass`, `ieltsOptionClass`, `ieltsRadioClass` (hoặc tên cũ `listeningTitleClass`, …) trong SingleChoiceSection / ChooseTwoSection.
+- **SingleChoiceSection**: "Choose the correct letter, A, B or C". Title/instruction **đậm**; câu hỏi chữ thường, nhạt; option **chỉ vòng tròn + nội dung** (không hiển thị chữ A,B,C bên cạnh).
+- **ChooseTwoSection**: "Choose TWO letters". Giống trên: title + câu hỏi đậm; option vòng tròn (checkbox `rounded-full`) + nội dung, không hiển thị A,B,C,D,E bên cạnh; chữ option nhạt.
+- **InstructionSubBold**: Dòng instruction dưới câu hỏi (vd. "Write ONE WORD ONLY...") render **plain text, không bold**.
+- **Part4Content**: Section 4 notes: trim `\n` ở đầu đoạn đầu mỗi section để giảm khoảng cách title–content; section gap nhỏ (mt-2 pt-1.5).
+
+## Transcript
+
+- **TranscriptWithHighlights**: Đúng = xanh (explanation-highlight), sai = đỏ toàn câu (transcript-sentence-wrong). Highlight theo từ/cụm đáp án trong `lib/engnovate-listening-generated/transcripts.ts` (chỉ sửa data, không tạo component riêng cho từng test).
+
+## Data
+
+- Nội dung từng test: `lib/engnovate-listening-generated/part-content.ts` hoặc override trong `lib/listening-part-content.ts` / `lib/listening-part-content-cam10-19.ts`. UI không phân nhánh theo test — chỉ đọc `content` từ `getPartContent(setId, testId)`.
+
+Khi thêm test mới hoặc chỉnh giao diện listening: giữ cùng quy ước trên; sửa style ở `components/ielts/shared/questionStyles.ts` hoặc component shared để mọi bài đồng bộ.
+
+---
+
+## Reading và Listening – style giống nhau cho dạng notes/ô trống
+
+Dạng bài **notes completion / fill-in-the-blank** (số câu + ô input + chữ) cần đồng bộ giữa Reading và Listening:
+
+- **Line height:** `leading-relaxed` / `leading-8` cho nội dung và đoạn nhiều dòng.
+- **Khoảng cách sau ô input:** có margin phải (vd. `mr-2`) giữa input và chữ phía sau.
+- **Khoảng cách giữa các dòng:** đủ để các ô input không chạm nhau (Listening: `mb-2` trên từng khối badge+input; Reading: `space-y-4` và `leading-8` cho block notes).
+
+**Listening:** `NotesCellParts` + `notesContentClass` từ `@/components/ielts` (Part 1–4).  
+**Reading:** `ReadingBlockRenderer` block type `notes` trong `components/reading/ReadingBlockRenderer.tsx`; dùng `inputClass`/`selectClass`/`tickClass` từ `@/components/ielts`.
+
+Khi chỉnh spacing/line-height cho một bên, áp dụng tương tự cho bên kia nếu cùng kiểu câu hỏi.

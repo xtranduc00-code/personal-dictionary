@@ -20,7 +20,7 @@
     ],
     "paths": {
       "@/*": ["./*"],
-      "~/*": ["./call-ken/*"]
+      "@gd/*": ["./features/google-drive/*"]
     }
   },
   "include": [
@@ -31,5 +31,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "real_timecall"]
+  "exclude": ["node_modules", "real_timecall", "google_drive_custom"]
 }

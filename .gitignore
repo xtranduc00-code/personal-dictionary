@@ -1,8 +1,10 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
-/.pnp
+node_modules/
+.pnpm-store/
+.pnpm/
+.pnp
 .pnp.*
 .yarn/*
 !.yarn/patches
@@ -10,35 +12,51 @@
 !.yarn/releases
 !.yarn/versions
 
+# lockfile: use npm (package-lock.json) for Netlify compatibility
+pnpm-lock.yaml
+
 # testing
 /coverage
 
 # next.js
-/.next/
-/out/
+.next/
+out/
 
 # embedded Call Ken app (built from real_timecall)
 /public/call-ken
 
+# Cambridge listening mp3 (1.3GB — tải bằng script hoặc host riêng)
+/public/audios/
+
 # production
 /build
 
+# cache / build rác
+.turbo/
+.cache/
+scripts/cache/
+*.tsbuildinfo
+next-env.d.ts
+
 # misc
 .DS_Store
+test.txt
 *.pem
+Thumbs.db
 
 # debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.log
 
-# env files (can opt-in for committing if needed)
+# env (không đẩy lên GitHub)
 .env*
+!.env.example
 
 # vercel
 .vercel
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# Cursor / IDE (tùy chọn — bỏ comment nếu muốn ẩn hẳn)
+# .cursor/
