@@ -1,8 +1,7 @@
 @import "tailwindcss";
-@import "../call-ken/styles/theme.css";
+@import "../features/call-ken/styles/theme.css";
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Call Ken keyframes */
 @keyframes voiceBar {
   0%, 100% { height: 4px; opacity: 0.45; }
   20% { height: 14px; opacity: 0.95; }
@@ -15,6 +14,21 @@
   50% { transform: scale(1.02); opacity: 1; }
 }
 
+@keyframes meet-toolbar-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.meet-toolbar-enter {
+  animation: meet-toolbar-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -23,8 +37,32 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+
+  
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.25rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.375rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.625rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 2rem;
+  --text-3xl: 1.875rem;
+  --text-3xl--line-height: 2.25rem;
+  --text-4xl: 2.25rem;
+  --text-4xl--line-height: 2.5rem;
+
+  
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
 }
 
 .dark {
@@ -35,7 +73,171 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
-  font-size: 16px;
-  line-height: 1.5;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.625;
+  letter-spacing: -0.01em;
 }
+
+.ielts-exam {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.625;
+  letter-spacing: -0.01em;
+}
+
+.ielts-transcript p {
+  margin-bottom: 0.875rem;
+  line-height: 1.7;
+}
+.ielts-transcript p:last-child {
+  margin-bottom: 0;
+}
+
+.explanation-highlight {
+  background: transparent !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  font-weight: 600;
+  color: #16a34a;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+.dark .explanation-highlight {
+  color: #22c55e;
+}
+
+.ielts-listening-explanation-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.4rem;
+  margin-left: 0.25rem;
+  border-radius: 0.375rem;
+  background: #ec4899;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: middle;
+  scroll-margin-top: 5rem;
+  box-shadow: 0 1px 3px rgba(236, 72, 153, 0.4);
+}
+
+.dark .ielts-listening-explanation-number {
+  background: #db2777;
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(219, 39, 119, 0.5);
+}
+
+.ielts-transcript p.transcript-sentence-wrong {
+  background-color: rgba(244, 63, 94, 0.15);
+  border-radius: 0.5rem;
+  padding: 0.25rem 0.4rem;
+}
+.dark .ielts-transcript p.transcript-sentence-wrong {
+  background-color: rgba(244, 63, 94, 0.2);
+}
+
+.ielts-transcript p:has(.explanation-highlight),
+.ielts-transcript p:has(.transcript-answer-wrong) {
+  padding: 0.25rem 0.4rem;
+  border-radius: 0.5rem;
+}
+
+.ielts-transcript p:has(.explanation-highlight) {
+  background-color: rgba(34, 197, 94, 0.12);
+}
+.dark .ielts-transcript p:has(.explanation-highlight) {
+  background-color: rgba(34, 197, 94, 0.18);
+}
+
+.ielts-transcript p:has(.transcript-answer-wrong) {
+  background-color: rgba(244, 63, 94, 0.12);
+}
+.dark .ielts-transcript p:has(.transcript-answer-wrong) {
+  background-color: rgba(244, 63, 94, 0.18);
+}
+
+.transcript-answer-wrong {
+  background: transparent !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  font-weight: 600;
+  color: #dc2626;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+.dark .transcript-answer-wrong {
+  color: #fb7185;
+}
+
+.transcript-badge-correct.ielts-listening-explanation-number,
+.ielts-listening-explanation-number.transcript-badge-correct {
+  background: #16a34a !important;
+  color: #fff !important;
+}
+.dark .transcript-badge-correct.ielts-listening-explanation-number,
+.dark .ielts-listening-explanation-number.transcript-badge-correct {
+  background: #22c55e !important;
+  color: #fff !important;
+}
+
+.transcript-badge-wrong.ielts-listening-explanation-number,
+.ielts-listening-explanation-number.transcript-badge-wrong {
+  background: #dc2626 !important;
+  color: #fff !important;
+}
+
+.dark .transcript-badge-wrong.ielts-listening-explanation-number,
+.dark .ielts-listening-explanation-number.transcript-badge-wrong {
+  background: #b91c1c !important;
+  color: #fecaca !important;
+}
+
+.ielts-transcript,
+.ielts-transcript *,
+.transcript-content,
+.transcript-content *,
+.highlight-segment,
+.highlight-segment * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -webkit-touch-callout: default !important;
+}
+.ielts-transcript .transcript-content,
+.ielts-transcript .highlight-segment {
+  cursor: text;
+}
+
+/* Scroll reveal: IntersectionObserver root = [data-main-scroll] (see useMainScrollReveal). */
+.scroll-reveal {
+  opacity: 0;
+  transform: translate3d(0, 12px, 0);
+}
+
+.scroll-reveal.scroll-reveal-visible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  transition:
+    opacity 0.48s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.52s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--scroll-reveal-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-reveal {
+    opacity: 1;
+    transform: none;
+  }
+
+  .scroll-reveal.scroll-reveal-visible {
+    transition: none;
+  }
+}
+
