@@ -7,5 +7,5 @@ export function getSiteUrl(): string {
       return `${u.protocol}//${u.host}`;
     } catch {}
   }
-  return "https://getmykfc.com";
+  return "https://kenworkspace.com";
 }
