@@ -20,7 +20,7 @@ const inter = Inter({
 
 const SITE_NAME = "Ken Workspace";
 const SITE_DESCRIPTION =
-    "All-in-one productivity app with flashcards, AI tools, and learning features.";
+    "All-in-one productivity app with IELTS vocabulary notes, AI tools, and learning features.";
 const googleVerification = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION?.trim();
 const hideFromSearch = blockSearchIndexing();
 
@@ -32,7 +32,8 @@ export const metadata: Metadata = {
     keywords: [
         "Ken Workspace",
         "productivity",
-        "flashcards",
+        "IELTS vocabulary",
+        "vocabulary notes",
         "dictionary",
         "IELTS",
         "notes",

@@ -18,7 +18,7 @@ export default function AboutPage() {
       </p>
       <p>
         The app includes productivity and English-learning tools such as notes,
-        flashcards, dictionary, IELTS practice, and optional integrations.
+        IELTS vocabulary notes, dictionary, IELTS practice, and optional integrations.
       </p>
     </section>);
 }

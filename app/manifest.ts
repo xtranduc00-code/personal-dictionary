@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
         id: "/",
         name: "Ken Workspace",
         short_name: "Ken",
-        description: "All-in-one productivity app with flashcards, AI tools, and learning features.",
+        description: "All-in-one productivity app with IELTS vocabulary notes, AI tools, and learning features.",
         start_url: "/",
         scope: "/",
         display: "standalone",

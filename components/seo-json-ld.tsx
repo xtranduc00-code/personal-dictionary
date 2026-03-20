@@ -2,7 +2,7 @@ import { getSiteUrl } from "@/lib/site-url";
 import { blockSearchIndexing } from "@/lib/search-indexing";
 
 const DESCRIPTION =
-    "All-in-one productivity app with flashcards, AI tools, and learning features.";
+    "All-in-one productivity app with IELTS vocabulary notes, AI tools, and learning features.";
 
 export function SeoJsonLd() {
     if (blockSearchIndexing()) {

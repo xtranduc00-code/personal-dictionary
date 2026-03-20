@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "react-toastify";
 import { createFlashcardSet, deleteFlashcard, deleteFlashcardSet, getFlashcardSets, getFlashcardsBySet, setFlashcardPinned, updateFlashcard, updateFlashcardSet, type Flashcard, type FlashcardSet, } from "@/lib/flashcard-storage";
-import { Check, Layers, MoreHorizontal, Pencil, Pin, Plus, Trash2, X } from "lucide-react";
+import { Check, Layers, MoreHorizontal, NotebookText, Pencil, Pin, Plus, Trash2, X } from "lucide-react";
 import { useI18n } from "@/components/i18n-provider";
 import { AddFlashcardModal } from "@/components/ielts";
 import { RichTextEditor } from "@/components/RichTextEditor";
@@ -138,8 +138,8 @@ export default function FlashcardsPage() {
     return (<div className="mx-auto max-w-4xl px-4 py-8">
       
       <h1 className="mb-8 flex items-center gap-2.5 text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-        <Layers className="h-6 w-6"/>
-        {t("flashcards")}
+        <NotebookText className="h-6 w-6"/>
+        {t("ieltsVocabNotes")}
       </h1>
 
       {sets.length === 0 ? (<div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-white py-20 text-center dark:border-zinc-700 dark:bg-zinc-900">

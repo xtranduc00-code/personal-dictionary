@@ -11,8 +11,8 @@ export default function PrivacyPage() {
       <p>Last updated: March 2026</p>
       <p>
         Ken Workspace is a demo project. We collect the minimum data needed to provide
-        account and app features (for example: username, email, notes, flashcards, and
-        settings).
+        account and app features (for example: username, email, notes, vocabulary
+        word lists, and settings).
       </p>
       <p>
         Third-party services may be used for specific features (for example Google OAuth,

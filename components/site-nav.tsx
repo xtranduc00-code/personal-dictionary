@@ -7,7 +7,7 @@ import { DriveIntegrationNavBlock } from "@/components/drive-integration-nav";
 import { NavAccountFooter } from "@/components/nav-account-footer";
 import { ProfileModal } from "@/components/profile-modal";
 import { SecurityModal } from "@/components/security-modal";
-import { BookOpen, BookMarked, BookText, Bot, CalendarClock, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Cloud, FileText, FolderOpen, GraduationCap, Headphones, Image as LucideImage, History, Home, Languages, LayoutDashboard, Layers, LayoutGrid, LibraryBig, LogIn, LogOut, Mail, Menu, Mic, Moon, PenLine, PhoneCall, Search, Sparkles, Star, Sun, UserCircle, Video, X, } from "lucide-react";
+import { BookOpen, BookMarked, BookText, Bot, CalendarClock, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Cloud, FileText, FolderOpen, GraduationCap, Headphones, Image as LucideImage, History, Home, Languages, LayoutDashboard, Layers, LayoutGrid, LibraryBig, LogIn, LogOut, Mail, Menu, Mic, Moon, NotebookText, PenLine, PhoneCall, Search, Sparkles, Star, Sun, UserCircle, Video, X, } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useMeetCallOptional } from "@/lib/meet-call-context";
 import { CLEAR_NAV_QUICK_SEARCH_EVENT } from "@/lib/nav-quick-search-events";
@@ -32,13 +32,18 @@ const ieltsAiSpeakingLink = {
     labelKey: "aiSpeakingNav" as TranslationKey,
     icon: Bot,
 };
+/** IELTS vocabulary notes (word + meaning sets); route `/flashcards` kept for bookmarks/API. */
+const ieltsVocabNotesLink = {
+    href: "/flashcards",
+    labelKey: "ieltsVocabNotes" as TranslationKey,
+    icon: NotebookText,
+};
 const studySectionLinks: {
     href: string;
     labelKey: TranslationKey;
     icon: typeof Layers;
 }[] = [
     { href: "/study-kit", labelKey: "studyKit", icon: Sparkles },
-    { href: "/flashcards", labelKey: "flashcards", icon: Layers },
     { href: "/notes", labelKey: "notes", icon: FileText },
 ];
 const scheduleSectionLinks: {
@@ -127,6 +132,8 @@ function isOthersDriveLinkActive(pathname: string, href: string, dashboard?: boo
 function isIeltsPath(pathname: string) {
     if (pathname.startsWith("/real-time-call"))
         return true;
+    if (pathname.startsWith("/flashcards"))
+        return true;
     return (ieltsSkillLinks.some((link) => pathname.startsWith(link.href)) ||
         pathname.startsWith("/ielts-speaking"));
 }
@@ -187,6 +194,15 @@ function IeltsExpandedNavLinks({ pathname, t, filterQuery = "", onLinkClick, }: 
         })}
       {matchKey(ieltsSpeakingHub.labelKey) ? (() => {
             const link = ieltsSpeakingHub;
+            const active = isActive(pathname, link.href);
+            const Icon = link.icon;
+            return (<Link key={link.href} href={link.href} onClick={onLinkClick} className={[rowBase, active ? rowActive : rowIdle].join(" ")}>
+            <Icon className={`h-4 w-4 shrink-0 ${active ? "opacity-90" : "opacity-70"}`}/>
+            <span>{t(link.labelKey)}</span>
+          </Link>);
+        })() : null}
+      {matchKey(ieltsVocabNotesLink.labelKey) ? (() => {
+            const link = ieltsVocabNotesLink;
             const active = isActive(pathname, link.href);
             const Icon = link.icon;
             return (<Link key={link.href} href={link.href} onClick={onLinkClick} className={[rowBase, active ? rowActive : rowIdle].join(" ")}>
@@ -302,6 +318,7 @@ export function SiteNav() {
         const ieltsLinksMatch = [
             ...ieltsSkillLinks,
             ieltsSpeakingHub,
+            ieltsVocabNotesLink,
             ieltsAiSpeakingLink,
         ].some((l) => match(t(l.labelKey)));
         const showIelts = !fq || match(t("ielts")) || ieltsLinksMatch;

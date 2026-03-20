@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FileText, Layers, Sparkles } from "lucide-react";
+import { FileText, NotebookText, Sparkles } from "lucide-react";
 import { useI18n } from "@/components/i18n-provider";
 
 export default function StudyKitPage() {
@@ -29,8 +29,8 @@ export default function StudyKitPage() {
             href="/flashcards"
             className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-4 text-base font-medium text-zinc-900 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/60 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-100 dark:hover:border-sky-500/30 dark:hover:bg-sky-950/30"
           >
-            <Layers className="h-5 w-5 shrink-0 text-blue-600 dark:text-sky-400" />
-            {t("flashcards")}
+            <NotebookText className="h-5 w-5 shrink-0 text-blue-600 dark:text-sky-400" />
+            {t("ieltsVocabNotes")}
           </Link>
         </li>
         <li>
