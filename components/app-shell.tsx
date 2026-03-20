@@ -7,8 +7,8 @@ import { MeetPersistentLayer } from "@/components/meet/MeetPersistentLayer";
 import { useMeetCall } from "@/lib/meet-call-context";
 import { meetPathMatchesRoom } from "@/lib/meet-call-path";
 
-/** Email links & OAuth return: no sidebar, no app chrome — same idea as `AUTH_FLOW_PUBLIC` in auth-gate. */
-const STANDALONE_AUTH_PATHS = new Set(["/reset-password", "/auth/google/finish"]);
+/** Password reset from email: no sidebar / minimal chrome — same idea as `AUTH_FLOW_PUBLIC` in auth-gate. */
+const STANDALONE_AUTH_PATHS = new Set(["/reset-password"]);
 
 export function AppShell({ children }: {
     children: React.ReactNode;

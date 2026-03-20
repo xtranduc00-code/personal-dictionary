@@ -61,7 +61,7 @@ export function ProfileModal({ open, onClose }: {
             return;
         const token = getAuthToken();
         if (!token) {
-            toast.error(t("googleAuthInvalid"));
+            toast.error(t("authSessionExpired"));
             return;
         }
         setAvatarBusy(true);
@@ -121,7 +121,7 @@ export function ProfileModal({ open, onClose }: {
             return;
         const token = getAuthToken();
         if (!token) {
-            toast.error(t("googleAuthInvalid"));
+            toast.error(t("authSessionExpired"));
             return;
         }
         setAvatarBusy(true);
