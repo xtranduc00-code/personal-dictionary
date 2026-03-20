@@ -64,6 +64,11 @@ function toastForCode(t: (key: TranslationKey) => string, code: string | undefin
     const map: Record<string, TranslationKey> = {
         NO_FILE: "studyKitErrNoFile",
         NO_PASTE: "studyKitErrNoPaste",
+        NO_URL: "studyKitErrNoUrl",
+        URL_INVALID: "studyKitErrUrlInvalid",
+        URL_BLOCKED: "studyKitErrUrlBlocked",
+        URL_TOO_LARGE: "studyKitErrUrlTooLarge",
+        URL_FETCH_FAILED: "studyKitErrUrlFetch",
         UNSUPPORTED_TYPE: "studyKitErrBadType",
         EMPTY_TEXT: "studyKitErrEmpty",
         FILE_TOO_LARGE: "studyKitErrLarge",
@@ -75,7 +80,7 @@ function toastForCode(t: (key: TranslationKey) => string, code: string | undefin
 }
 
 const segBtn =
-    "flex-1 rounded-xl px-3 py-2.5 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500";
+    "flex-1 rounded-xl px-2 py-2.5 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 sm:px-3 sm:text-sm";
 const segBtnOn =
     "bg-white text-zinc-900 shadow-sm dark:bg-zinc-900 dark:text-zinc-50";
 const segBtnOff =
@@ -96,9 +101,10 @@ const labelClass = "mb-2 block text-sm font-semibold text-zinc-800 dark:text-zin
 export default function StudyKitPage() {
     const { t } = useI18n();
     const { user, openAuthModal } = useAuth();
-    const [inputMode, setInputMode] = useState<"file" | "paste">("file");
+    const [inputMode, setInputMode] = useState<"file" | "paste" | "url">("file");
     const [file, setFile] = useState<File | null>(null);
     const [pastedText, setPastedText] = useState("");
+    const [sourceUrl, setSourceUrl] = useState("");
     const [preset, setPreset] = useState<StudyPreset>("summary_bullets");
     const [focus, setFocus] = useState<StudyFocusLevel>("general");
     const [optQuiz, setOptQuiz] = useState(false);
@@ -137,10 +143,28 @@ export default function StudyKitPage() {
                 return;
             }
         }
-        else {
+        else if (inputMode === "paste") {
             const plain = stripHtmlToText(pastedText);
             if (!plain) {
                 toast.error(t("studyKitErrNoPaste"));
+                return;
+            }
+        }
+        else {
+            const u = sourceUrl.trim();
+            if (!u) {
+                toast.error(t("studyKitErrNoUrl"));
+                return;
+            }
+            try {
+                const parsed = new URL(u);
+                if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+                    toast.error(t("studyKitErrUrlInvalid"));
+                    return;
+                }
+            }
+            catch {
+                toast.error(t("studyKitErrUrlInvalid"));
                 return;
             }
         }
@@ -159,6 +183,8 @@ export default function StudyKitPage() {
                 fd.set("file", file);
             if (inputMode === "paste")
                 fd.set("pastedText", stripHtmlToText(pastedText));
+            if (inputMode === "url")
+                fd.set("sourceUrl", sourceUrl.trim());
             const res = await authFetch("/api/study-kit/summarize", {
                 method: "POST",
                 body: fd,
@@ -182,6 +208,7 @@ export default function StudyKitPage() {
         inputMode,
         file,
         pastedText,
+        sourceUrl,
         preset,
         focus,
         optQuiz,
@@ -216,6 +243,9 @@ export default function StudyKitPage() {
             <button type="button" onClick={() => setInputMode("paste")} className={[segBtn, inputMode === "paste" ? segBtnOn : segBtnOff].join(" ")}>
               {t("studyKitInputModePaste")}
             </button>
+            <button type="button" onClick={() => setInputMode("url")} className={[segBtn, inputMode === "url" ? segBtnOn : segBtnOff].join(" ")}>
+              {t("studyKitInputModeUrl")}
+            </button>
           </div>
 
           {inputMode === "file" ? (<div className="mt-4">
@@ -223,19 +253,25 @@ export default function StudyKitPage() {
                 {t("studyKitFileLabel")}
               </label>
               <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">{t("studyKitFileHint")}</p>
-              <input id="study-kit-file" type="file" accept=".txt,.pdf,.pptx,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation" onChange={(e) => {
+              <input id="study-kit-file" type="file" accept=".txt,.pdf,.docx,.xlsx,.pptx,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation" onChange={(e) => {
                 setFile(e.target.files?.[0] ?? null);
             }} className="block w-full cursor-pointer rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-6 text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-zinc-900 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white hover:border-zinc-400 dark:border-zinc-600 dark:bg-zinc-900/50 dark:file:bg-zinc-200 dark:file:text-zinc-900"/>
               {file ? (<p className="mt-2 flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-400">
                   <FileUp className="h-3.5 w-3.5 shrink-0" aria-hidden/>
                   <span className="truncate">{file.name}</span>
                 </p>) : null}
-            </div>) : (<div className="mt-4">
+            </div>) : inputMode === "paste" ? (<div className="mt-4">
               <label htmlFor="study-kit-paste" className={labelClass}>
                 {t("studyKitPasteLabel")}
               </label>
               <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">{t("studyKitPasteHint")}</p>
               <textarea id="study-kit-paste" value={pastedText} onChange={(e) => setPastedText(e.target.value)} placeholder={t("studyKitPastePlaceholder")} rows={10} className={`${fieldClass} min-h-[200px] resize-y font-mono text-[13px] leading-relaxed`}/>
+            </div>) : (<div className="mt-4">
+              <label htmlFor="study-kit-url" className={labelClass}>
+                {t("studyKitUrlLabel")}
+              </label>
+              <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">{t("studyKitUrlHint")}</p>
+              <input id="study-kit-url" type="url" inputMode="url" autoComplete="url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder={t("studyKitUrlPlaceholder")} className={fieldClass}/>
             </div>)}
         </div>
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { getAuthUser } from "@/lib/get-auth-user";
 import { extractDocumentText, preparePlainText } from "@/lib/study-kit-extract";
+import { fetchDocumentFromUrl } from "@/lib/study-kit-fetch-url";
 import {
     buildStudyKitSystemMessage,
     parseStudyFocus,
@@ -21,6 +22,15 @@ function formBool(form: FormData, key: string): boolean {
     return v === "true" || v === "1" || v === "on";
 }
 
+function parseInputMode(form: FormData): "file" | "paste" | "url" {
+    const m = typeof form.get("inputMode") === "string" ? (form.get("inputMode") as string).trim() : "";
+    if (m === "paste")
+        return "paste";
+    if (m === "url")
+        return "url";
+    return "file";
+}
+
 export async function POST(req: Request) {
     const user = await getAuthUser(req);
     if (!user)
@@ -35,7 +45,7 @@ export async function POST(req: Request) {
     catch {
         return NextResponse.json({ code: "BAD_FORM" }, { status: 400 });
     }
-    const inputMode = form.get("inputMode") === "paste" ? "paste" : "file";
+    const inputMode = parseInputMode(form);
     const preset = parseStudyPreset(typeof form.get("preset") === "string" ? form.get("preset") as string : null);
     const focus = parseStudyFocus(typeof form.get("focus") === "string" ? form.get("focus") as string : null);
     const optQuiz = formBool(form, "optQuiz");
@@ -44,6 +54,7 @@ export async function POST(req: Request) {
     const promptOpts = { preset, focus, optQuiz, optHighlight, optStripFluff };
 
     let extracted: Awaited<ReturnType<typeof extractDocumentText>> | ReturnType<typeof preparePlainText>;
+
     if (inputMode === "paste") {
         const pastedRaw = typeof form.get("pastedText") === "string" ? form.get("pastedText") as string : "";
         const pasted = pastedRaw.trim();
@@ -58,6 +69,38 @@ export async function POST(req: Request) {
             if (msg === "EMPTY_TEXT")
                 return NextResponse.json({ code: "EMPTY_TEXT" }, { status: 400 });
             throw e;
+        }
+    }
+    else if (inputMode === "url") {
+        const sourceUrl = typeof form.get("sourceUrl") === "string" ? (form.get("sourceUrl") as string).trim() : "";
+        if (!sourceUrl)
+            return NextResponse.json({ code: "NO_URL" }, { status: 400 });
+        let fetched: Awaited<ReturnType<typeof fetchDocumentFromUrl>>;
+        try {
+            fetched = await fetchDocumentFromUrl(sourceUrl);
+        }
+        catch (e: unknown) {
+            const code = e instanceof Error ? e.message : "";
+            if (code === "URL_EMPTY" || code === "URL_INVALID" || code === "URL_PROTOCOL")
+                return NextResponse.json({ code: "URL_INVALID" }, { status: 400 });
+            if (code === "URL_HOST_BLOCKED")
+                return NextResponse.json({ code: "URL_BLOCKED" }, { status: 400 });
+            if (code === "URL_TOO_LARGE")
+                return NextResponse.json({ code: "URL_TOO_LARGE" }, { status: 413 });
+            console.error("study-kit url fetch", e);
+            return NextResponse.json({ code: "URL_FETCH_FAILED" }, { status: 400 });
+        }
+        try {
+            extracted = await extractDocumentText(fetched.buffer, fetched.fileName, fetched.contentType);
+        }
+        catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : "";
+            if (msg === "UNSUPPORTED_TYPE")
+                return NextResponse.json({ code: "UNSUPPORTED_TYPE" }, { status: 400 });
+            if (msg === "EMPTY_TEXT")
+                return NextResponse.json({ code: "EMPTY_TEXT" }, { status: 400 });
+            console.error("study-kit url extract", e);
+            return NextResponse.json({ code: "EXTRACT_FAILED" }, { status: 400 });
         }
     }
     else {

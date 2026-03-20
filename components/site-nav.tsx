@@ -7,7 +7,7 @@ import { DriveIntegrationNavBlock } from "@/components/drive-integration-nav";
 import { NavAccountFooter } from "@/components/nav-account-footer";
 import { ProfileModal } from "@/components/profile-modal";
 import { SecurityModal } from "@/components/security-modal";
-import { BookOpen, BookMarked, BookText, Bot, CalendarClock, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Cloud, FileText, FolderOpen, GraduationCap, Headphones, Image as LucideImage, History, Home, Languages, LayoutDashboard, Layers, LayoutGrid, LibraryBig, LogIn, LogOut, Mail, Menu, Mic, Moon, NotebookText, PenLine, PhoneCall, Search, Sparkles, Star, Sun, UserCircle, Video, X, } from "lucide-react";
+import { BookOpen, BookMarked, BookText, Bot, CalendarClock, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Cloud, FileText, FolderOpen, GraduationCap, Headphones, Image as LucideImage, History, Home, Languages, LayoutDashboard, Layers, LayoutGrid, LibraryBig, LogIn, LogOut, Mail, Menu, Mic, Moon, NotebookText, PenLine, PhoneCall, Search, Sparkles, Star, Sun, UserCircle, Video, X, type LucideIcon, } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useMeetCallOptional } from "@/lib/meet-call-context";
 import { CLEAR_NAV_QUICK_SEARCH_EVENT } from "@/lib/nav-quick-search-events";
@@ -41,18 +41,18 @@ const ieltsVocabNotesLink = {
 const studySectionLinks: {
     href: string;
     labelKey: TranslationKey;
-    icon: typeof Layers;
+    icon: LucideIcon;
 }[] = [
     { href: "/study-kit", labelKey: "studyKit", icon: Sparkles },
-    { href: "/notes", labelKey: "notes", icon: FileText },
 ];
 const scheduleSectionLinks: {
     href: string;
     labelKey: TranslationKey;
-    icon: typeof CalendarDays;
+    icon: LucideIcon;
 }[] = [
     { href: "/calendar", labelKey: "calendar", icon: CalendarDays },
     { href: "/call", labelKey: "meets", icon: PhoneCall },
+    { href: "/notes", labelKey: "notes", icon: FileText },
 ];
 const portfolioSectionLinks: {
     href: string;
@@ -316,11 +316,14 @@ export function SiteNav() {
             !fq || match(t("navStudySection")) || match(t("studyKit")) || studyLinks.length > 0;
         const scheduleLinks = !fq
             ? scheduleSectionLinks
-            : match(t("navScheduleSection"))
+            : match(t("navScheduleSection")) || match(t("notes"))
                 ? scheduleSectionLinks
                 : scheduleSectionLinks.filter((l) => match(t(l.labelKey)));
         const showSchedule =
-            !fq || match(t("navScheduleSection")) || scheduleLinks.length > 0;
+            !fq ||
+            match(t("navScheduleSection")) ||
+            match(t("notes")) ||
+            scheduleLinks.length > 0;
         const ieltsLinksMatch = [
             ...ieltsSkillLinks,
             ieltsSpeakingHub,

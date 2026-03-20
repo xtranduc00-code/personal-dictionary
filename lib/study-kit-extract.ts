@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import * as XLSX from "xlsx";
 import { PDFParse } from "pdf-parse";
 
 const MAX_EXTRACT_CHARS = 120_000;
@@ -40,6 +41,24 @@ async function extractPptxText(buffer: Buffer): Promise<string> {
     return chunks.join(" ");
 }
 
+async function extractDocxText(buffer: Buffer): Promise<string> {
+    const mammoth = await import("mammoth");
+    const { value } = await mammoth.extractRawText({ buffer });
+    return value ?? "";
+}
+
+function extractXlsxText(buffer: Buffer): string {
+    const wb = XLSX.read(buffer, { type: "buffer", cellDates: true });
+    const parts: string[] = [];
+    for (const name of wb.SheetNames) {
+        const sheet = wb.Sheets[name];
+        if (!sheet)
+            continue;
+        parts.push(`## ${name}\n`, XLSX.utils.sheet_to_csv(sheet));
+    }
+    return parts.join("\n");
+}
+
 async function extractPdfText(buffer: Buffer): Promise<string> {
     const parser = new PDFParse({ data: new Uint8Array(buffer) });
     try {
@@ -74,6 +93,14 @@ export async function extractDocumentText(buffer: Buffer, fileName: string, mime
     else if (lower.endsWith(".pptx") ||
         mime === "application/vnd.openxmlformats-officedocument.presentationml.presentation") {
         raw = await extractPptxText(buffer);
+    }
+    else if (lower.endsWith(".docx") ||
+        mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+        raw = await extractDocxText(buffer);
+    }
+    else if (lower.endsWith(".xlsx") ||
+        mime === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") {
+        raw = extractXlsxText(buffer);
     }
     else {
         const err = new Error("UNSUPPORTED_TYPE");
