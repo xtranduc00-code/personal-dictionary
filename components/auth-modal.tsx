@@ -5,7 +5,6 @@ import { toast } from "react-toastify";
 import { useAuth, getLastStoredUsername } from "@/lib/auth-context";
 import { useI18n } from "@/components/i18n-provider";
 import type { TranslationKey } from "@/lib/i18n";
-import { GoogleGlyph } from "@/components/google-glyph";
 import { normalizeUsername, USERNAME_MIN, USERNAME_MAX, PASSWORD_MIN, PASSWORD_MAX, emailValidationError, normalizeEmail, } from "@/lib/auth-credentials";
 import { maskEmailForDisplay } from "@/lib/mask-email";
 
@@ -74,7 +73,6 @@ export function AuthModal() {
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [loading, setLoading] = useState(false);
-    const [googleLoading, setGoogleLoading] = useState(false);
     const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
     const [serverError, setServerError] = useState<string | null>(null);
     const [showPassword, setShowPassword] = useState(false);
@@ -93,7 +91,6 @@ export function AuthModal() {
         setForgotResendCooldown(0);
         setRegisterSuccess(false);
         setLoading(false);
-        setGoogleLoading(false);
     }, []);
     useEffect(() => {
         if (authModalOpen) {
@@ -380,22 +377,6 @@ export function AuthModal() {
                 {serverError ? (<p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200" role="alert">
                     {serverError}
                   </p>) : null}
-                {mode === "login" ? (<div className="mb-2 flex flex-col gap-3">
-                    <button type="button" disabled={loading || googleLoading} aria-busy={googleLoading} onClick={() => {
-                        setGoogleLoading(true);
-                        setServerError(null);
-                        window.location.href = "/api/auth/google";
-                    }} className="inline-flex w-full items-center justify-center gap-3 rounded-xl border-2 border-zinc-200 bg-white py-3.5 text-base font-semibold text-zinc-800 shadow-sm transition-all duration-200 hover:-translate-y-px hover:border-zinc-300 hover:shadow-md active:translate-y-0 active:shadow-sm disabled:opacity-60 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:border-zinc-500 dark:hover:bg-zinc-700 dark:hover:shadow-lg">
-                      {googleLoading ? <Loader2 className="h-5 w-5 shrink-0 animate-spin text-zinc-600 dark:text-zinc-300" aria-hidden/> : <GoogleGlyph />}
-                      {googleLoading ? t("pleaseWait") : t("continueWithGoogle")}
-                    </button>
-                    <p className="text-center text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">{t("authGoogleHelper")}</p>
-                    <div className="flex items-center gap-3 py-1" role="separator" aria-label={t("authDividerOr")}>
-                      <span className="h-px min-w-[2.5rem] flex-1 bg-zinc-200 dark:bg-zinc-600" aria-hidden/>
-                      <span className="shrink-0 text-sm font-bold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">{t("authDividerOr")}</span>
-                      <span className="h-px min-w-[2.5rem] flex-1 bg-zinc-200 dark:bg-zinc-600" aria-hidden/>
-                    </div>
-                  </div>) : null}
                 <form onSubmit={handleSubmit} className="flex flex-col gap-5" noValidate>
                   {mode === "login" ? (<div>
                       <label htmlFor="auth-login-id" className="mb-2 block text-base font-semibold text-zinc-800 dark:text-zinc-200">
@@ -465,7 +446,7 @@ export function AuthModal() {
                             </p>) : null}
                         </div>) : null}
                     </>) : null}
-                  <button type="submit" disabled={loading || googleLoading} aria-busy={loading} className="mt-2 inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-4 text-lg font-semibold text-white shadow-lg shadow-zinc-900/25 transition-all duration-200 hover:bg-zinc-800 hover:shadow-xl hover:shadow-zinc-900/30 active:scale-[0.99] disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:shadow-zinc-950/40 dark:hover:bg-zinc-200 dark:hover:shadow-lg">
+                  <button type="submit" disabled={loading} aria-busy={loading} className="mt-2 inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-4 text-lg font-semibold text-white shadow-lg shadow-zinc-900/25 transition-all duration-200 hover:bg-zinc-800 hover:shadow-xl hover:shadow-zinc-900/30 active:scale-[0.99] disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:shadow-zinc-950/40 dark:hover:bg-zinc-200 dark:hover:shadow-lg">
                     {loading ? (<>
                         <Loader2 className="h-5 w-5 shrink-0 animate-spin" aria-hidden/>
                         <span>{t("pleaseWait")}</span>

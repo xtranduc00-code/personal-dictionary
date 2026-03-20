@@ -4,8 +4,8 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/components/i18n-provider";
 const PORTFOLIO_PUBLIC = new Set(["/", "/profile", "/contact", "/about", "/resume"]);
-/** Must render children while logged out (OAuth callback UI, reset link, …). */
-const AUTH_FLOW_PUBLIC = new Set(["/auth/google/finish", "/reset-password"]);
+/** Must render children while logged out (e.g. password reset link). */
+const AUTH_FLOW_PUBLIC = new Set(["/reset-password"]);
 function isPublicPath(pathname: string | null) {
     if (!pathname)
         return false;

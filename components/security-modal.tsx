@@ -59,7 +59,7 @@ export function SecurityModal({ open, onClose }: {
         try {
             const token = getAuthToken();
             if (!token) {
-                toast.error(t("googleAuthInvalid"));
+                toast.error(t("authSessionExpired"));
                 return;
             }
             const res = await fetch("/api/auth/change-password", {

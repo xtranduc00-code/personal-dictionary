@@ -57,7 +57,7 @@ Edit `.env.local` as needed. **Per-variable documentation** is in `.env.example`
 | AI APIs (dictionary, translation, speaking, …) | `OPENAI_API_KEY` |
 | Avatar uploads with Storage RLS | `SUPABASE_JWT_SECRET` (+ `/api/auth/storage-jwt` flow) |
 | Server-side DB writes when RLS blocks anon | `SUPABASE_SERVICE_ROLE_KEY` — **server only**, never in client code |
-| Google sign-in / Drive | `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` (+ correct redirect URIs for host/port) |
+| Google Drive OAuth | `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` (+ `/api/drive-auth/callback/google` URIs for host/port) |
 | Video calls (LiveKit) | `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `NEXT_PUBLIC_LIVEKIT_URL` |
 
 ### 2. Database (Supabase)

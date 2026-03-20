@@ -4,7 +4,7 @@ export type AuthUser = {
     id: string;
     username: string;
     email?: string | null;
-    /** False for Google-only accounts until they set a password. */
+    /** False until the user has set a password (e.g. invited or legacy account). */
     hasPassword?: boolean;
     avatarUrl?: string | null;
 };
