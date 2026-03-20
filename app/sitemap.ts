@@ -10,6 +10,7 @@ const PATHS: { path: string; changeFrequency: ChangeFreq; priority: number }[] =
     { path: "/profile", changeFrequency: "monthly", priority: 0.9 },
     { path: "/contact", changeFrequency: "monthly", priority: 0.85 },
     { path: "/dictionary", changeFrequency: "weekly", priority: 0.95 },
+    { path: "/study-kit", changeFrequency: "weekly", priority: 0.88 },
     { path: "/flashcards", changeFrequency: "weekly", priority: 0.9 },
     { path: "/library", changeFrequency: "weekly", priority: 0.85 },
     { path: "/calendar", changeFrequency: "weekly", priority: 0.85 },

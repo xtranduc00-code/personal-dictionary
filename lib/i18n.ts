@@ -77,7 +77,13 @@ export const translations = {
     invalidResetLink: "This reset link is invalid or expired.",
     appTaglinePrimary: "All-in-One Productivity App",
     ielts: "IELTS",
-    studyTools: "Study Tools",
+    /** Sidebar section: dictionary, translate, library, history (short label). */
+    navLanguageSection: "Language",
+    navStudySection: "Study",
+    navScheduleSection: "Schedule",
+    studyKit: "Study Kit",
+    studyKitPageSubtitle:
+      "Shortcuts to flashcards, notes, and more study tools in one place.",
     navQuickSearchPlaceholder: "Quick search…",
     navQuickSearchAria: "Search navigation",
     navSearchNoResults: "No matching items. Try another word.",
@@ -90,7 +96,7 @@ export const translations = {
     notes: "Notes",
     calendar: "Calendar",
     meets: "Meets",
-    meetsHubBadge: "Study Tools",
+    meetsHubBadge: "Schedule",
     meetsHubTitle: "Video meeting",
     meetsHubSubtitle:
       "Start a new room in one tap, or join with a name you agreed on with your group. Same room name = same call.",
@@ -889,7 +895,12 @@ export const translations = {
     invalidResetLink: "Link đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.",
     appTaglinePrimary: "Ứng dụng năng suất All-in-One",
     ielts: "IELTS",
-    studyTools: "Công cụ học",
+    navLanguageSection: "Ngôn ngữ",
+    navStudySection: "Học",
+    navScheduleSection: "Lịch & gọi",
+    studyKit: "Bộ học",
+    studyKitPageSubtitle:
+      "Lối tắt tới flashcards, ghi chú và các công cụ học khác.",
     navQuickSearchPlaceholder: "Tìm nhanh…",
     navQuickSearchAria: "Tìm trong menu",
     navSearchNoResults: "Không có mục nào khớp. Thử từ khác.",
@@ -902,7 +913,7 @@ export const translations = {
     notes: "Ghi chú",
     calendar: "Lịch học",
     meets: "Họp nhóm",
-    meetsHubBadge: "Công cụ học",
+    meetsHubBadge: "Lịch & gọi",
     meetsHubTitle: "Họp video",
     meetsHubSubtitle:
       "Tạo phòng mới một chạm, hoặc nhập tên phòng đã thống nhất với nhóm. Cùng tên = cùng cuộc gọi.",

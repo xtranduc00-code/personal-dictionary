@@ -7,7 +7,7 @@ import { DriveIntegrationNavBlock } from "@/components/drive-integration-nav";
 import { NavAccountFooter } from "@/components/nav-account-footer";
 import { ProfileModal } from "@/components/profile-modal";
 import { SecurityModal } from "@/components/security-modal";
-import { BookOpen, BookMarked, BookText, Bot, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Cloud, FileText, FolderOpen, GraduationCap, Headphones, Image as LucideImage, History, Home, Languages, LayoutDashboard, Layers, LayoutGrid, LibraryBig, LogIn, LogOut, Mail, Menu, Mic, Moon, PenLine, PhoneCall, Search, Star, Sun, UserCircle, Video, X, } from "lucide-react";
+import { BookOpen, BookMarked, BookText, Bot, CalendarClock, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Cloud, FileText, FolderOpen, GraduationCap, Headphones, Image as LucideImage, History, Home, Languages, LayoutDashboard, Layers, LayoutGrid, LibraryBig, LogIn, LogOut, Mail, Menu, Mic, Moon, PenLine, PhoneCall, Search, Sparkles, Star, Sun, UserCircle, Video, X, } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useMeetCallOptional } from "@/lib/meet-call-context";
 import { CLEAR_NAV_QUICK_SEARCH_EVENT } from "@/lib/nav-quick-search-events";
@@ -32,13 +32,20 @@ const ieltsAiSpeakingLink = {
     labelKey: "aiSpeakingNav" as TranslationKey,
     icon: Bot,
 };
-const studyToolsSectionLinks: {
+const studySectionLinks: {
     href: string;
     labelKey: TranslationKey;
     icon: typeof Layers;
 }[] = [
+    { href: "/study-kit", labelKey: "studyKit", icon: Sparkles },
     { href: "/flashcards", labelKey: "flashcards", icon: Layers },
     { href: "/notes", labelKey: "notes", icon: FileText },
+];
+const scheduleSectionLinks: {
+    href: string;
+    labelKey: TranslationKey;
+    icon: typeof CalendarDays;
+}[] = [
     { href: "/calendar", labelKey: "calendar", icon: CalendarDays },
     { href: "/call", labelKey: "meets", icon: PhoneCall },
 ];
@@ -123,8 +130,11 @@ function isIeltsPath(pathname: string) {
     return (ieltsSkillLinks.some((link) => pathname.startsWith(link.href)) ||
         pathname.startsWith("/ielts-speaking"));
 }
-function isStudyToolsPath(pathname: string) {
-    return studyToolsSectionLinks.some((link) => pathname.startsWith(link.href));
+function isStudyPath(pathname: string) {
+    return studySectionLinks.some((link) => pathname.startsWith(link.href));
+}
+function isSchedulePath(pathname: string) {
+    return scheduleSectionLinks.some((link) => pathname.startsWith(link.href));
 }
 function isDictionaryPath(pathname: string) {
     return dictionarySectionLinks.some((link) => link.href === "/dictionary"
@@ -251,7 +261,8 @@ export function SiteNav() {
     const [mobileOpen, setMobileOpen] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [ieltsOpen, setIeltsOpen] = useState(true);
-    const [studyToolsOpen, setStudyToolsOpen] = useState(true);
+    const [studyOpen, setStudyOpen] = useState(true);
+    const [scheduleOpen, setScheduleOpen] = useState(true);
     const [dictionaryOpen, setDictionaryOpen] = useState(true);
     const [portfolioOpen, setPortfolioOpen] = useState(true);
     const [othersOpen, setOthersOpen] = useState(true);
@@ -269,16 +280,25 @@ export function SiteNav() {
         const showPortfolio = !fq || match(t("portfolio")) || plinks.length > 0;
         const dlinks = !fq
             ? dictionarySectionLinks
-            : match(t("dictionary"))
+            : match(t("navLanguageSection")) || match(t("dictionary"))
                 ? dictionarySectionLinks
                 : dictionarySectionLinks.filter((l) => match(t(l.labelKey)));
-        const showDictionary = !fq || match(t("dictionary")) || dlinks.length > 0;
-        const slinks = !fq
-            ? studyToolsSectionLinks
-            : match(t("studyTools"))
-                ? studyToolsSectionLinks
-                : studyToolsSectionLinks.filter((l) => match(t(l.labelKey)));
-        const showStudyTools = !fq || match(t("studyTools")) || slinks.length > 0;
+        const showDictionary =
+            !fq || match(t("navLanguageSection")) || match(t("dictionary")) || dlinks.length > 0;
+        const studyLinks = !fq
+            ? studySectionLinks
+            : match(t("navStudySection")) || match(t("studyKit"))
+                ? studySectionLinks
+                : studySectionLinks.filter((l) => match(t(l.labelKey)));
+        const showStudy =
+            !fq || match(t("navStudySection")) || match(t("studyKit")) || studyLinks.length > 0;
+        const scheduleLinks = !fq
+            ? scheduleSectionLinks
+            : match(t("navScheduleSection"))
+                ? scheduleSectionLinks
+                : scheduleSectionLinks.filter((l) => match(t(l.labelKey)));
+        const showSchedule =
+            !fq || match(t("navScheduleSection")) || scheduleLinks.length > 0;
         const ieltsLinksMatch = [
             ...ieltsSkillLinks,
             ieltsSpeakingHub,
@@ -298,17 +318,20 @@ export function SiteNav() {
             showPortfolio ||
             showDictionary ||
             showIelts ||
-            showStudyTools ||
+            showStudy ||
+            showSchedule ||
             showOthers;
         return {
             fq,
             plinks,
             dlinks,
-            slinks,
+            studyLinks,
+            scheduleLinks,
             showPortfolio,
             showDictionary,
             showIelts,
-            showStudyTools,
+            showStudy,
+            showSchedule,
             showOthers,
             anyShown,
         };
@@ -320,7 +343,8 @@ export function SiteNav() {
         setPortfolioOpen(true);
         setDictionaryOpen(true);
         setIeltsOpen(true);
-        setStudyToolsOpen(true);
+        setStudyOpen(true);
+        setScheduleOpen(true);
         setOthersOpen(true);
     }, [navSearch]);
     useEffect(() => {
@@ -362,9 +386,21 @@ export function SiteNav() {
             setPortfolioOpen(saved === "true");
     }, []);
     useEffect(() => {
-        const saved = window.localStorage.getItem("studyToolsSectionOpen");
-        if (saved !== null)
-            setStudyToolsOpen(saved === "true");
+        const savedStudy = window.localStorage.getItem("studySectionOpen");
+        const savedSchedule = window.localStorage.getItem("scheduleSectionOpen");
+        const legacy = window.localStorage.getItem("studyToolsSectionOpen");
+        if (savedStudy !== null) {
+            setStudyOpen(savedStudy === "true");
+        }
+        else if (legacy !== null) {
+            setStudyOpen(legacy === "true");
+        }
+        if (savedSchedule !== null) {
+            setScheduleOpen(savedSchedule === "true");
+        }
+        else if (legacy !== null) {
+            setScheduleOpen(legacy === "true");
+        }
     }, []);
     useEffect(() => {
         const saved = window.localStorage.getItem("othersSectionOpen");
@@ -376,8 +412,12 @@ export function SiteNav() {
             setIeltsOpen(true);
     }, [pathname]);
     useEffect(() => {
-        if (isStudyToolsPath(pathname))
-            setStudyToolsOpen(true);
+        if (isStudyPath(pathname))
+            setStudyOpen(true);
+    }, [pathname]);
+    useEffect(() => {
+        if (isSchedulePath(pathname))
+            setScheduleOpen(true);
     }, [pathname]);
     useEffect(() => {
         if (isDictionaryPath(pathname))
@@ -396,10 +436,15 @@ export function SiteNav() {
         setIeltsOpen(next);
         window.localStorage.setItem("ieltsSectionOpen", String(next));
     }
-    function toggleStudyToolsSection() {
-        const next = !studyToolsOpen;
-        setStudyToolsOpen(next);
-        window.localStorage.setItem("studyToolsSectionOpen", String(next));
+    function toggleStudySection() {
+        const next = !studyOpen;
+        setStudyOpen(next);
+        window.localStorage.setItem("studySectionOpen", String(next));
+    }
+    function toggleScheduleSection() {
+        const next = !scheduleOpen;
+        setScheduleOpen(next);
+        window.localStorage.setItem("scheduleSectionOpen", String(next));
     }
     function toggleDictionarySection() {
         const next = !dictionaryOpen;
@@ -542,7 +587,7 @@ export function SiteNav() {
             ].join(" ")}>
                       <BookMarked className="h-5 w-5"/>
                     </span>
-                    <span>{t("dictionary")}</span>
+                    <span>{t("navLanguageSection")}</span>
                   </span>
                   <ChevronDown className={[
                 "h-5 w-5 shrink-0 transition-transform text-zinc-400",
@@ -591,33 +636,72 @@ export function SiteNav() {
                 {ieltsOpen && (<IeltsExpandedNavLinks pathname={pathname} t={t} filterQuery={navSearch} onLinkClick={clearQuickSearch}/>)}
               </div>) : null}
 
-              {navFilter.showIelts && navFilter.showStudyTools ? (<div className="my-2 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
+              {navFilter.showIelts && navFilter.showStudy ? (<div className="my-2 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
 
-              {navFilter.showStudyTools ? (<div className="flex flex-col gap-0.5">
-                <button type="button" onClick={toggleStudyToolsSection} className={[
+              {navFilter.showStudy ? (<div className="flex flex-col gap-0.5">
+                <button type="button" onClick={toggleStudySection} className={[
                 "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
-                isStudyToolsPath(pathname)
+                isStudyPath(pathname)
                     ? "bg-zinc-100 text-zinc-900 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
                     : "text-zinc-500 hover:bg-blue-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
             ].join(" ")}>
                   <span className="flex items-center gap-3">
                     <span className={[
                 "flex h-10 w-10 items-center justify-center rounded-xl transition",
-                isStudyToolsPath(pathname)
+                isStudyPath(pathname)
                     ? "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900"
                     : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
             ].join(" ")}>
                       <GraduationCap className="h-5 w-5"/>
                     </span>
-                    <span>{t("studyTools")}</span>
+                    <span>{t("navStudySection")}</span>
                   </span>
                   <ChevronDown className={[
                 "h-5 w-5 shrink-0 transition-transform text-zinc-400",
-                studyToolsOpen ? "rotate-180" : "",
+                studyOpen ? "rotate-180" : "",
             ].join(" ")}/>
                 </button>
-                {studyToolsOpen &&
-                navFilter.slinks.map((link) => {
+                {studyOpen &&
+                navFilter.studyLinks.map((link) => {
+                    const active = isActive(pathname, link.href);
+                    const Icon = link.icon;
+                    return (<Link key={link.href} href={link.href} onClick={clearQuickSearch} className={[
+                            "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200",
+                            active ? NAV_LINK_ROW_ACTIVE : NAV_LINK_ROW_IDLE,
+                        ].join(" ")}>
+                        <Icon className={`h-4 w-4 shrink-0 ${active ? "opacity-90" : "opacity-70"}`}/>
+                        <span>{t(link.labelKey)}</span>
+                      </Link>);
+                })}
+              </div>) : null}
+
+              {navFilter.showStudy && navFilter.showSchedule ? (<div className="my-2 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
+
+              {navFilter.showSchedule ? (<div className="flex flex-col gap-0.5">
+                <button type="button" onClick={toggleScheduleSection} className={[
+                "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
+                isSchedulePath(pathname)
+                    ? "bg-zinc-100 text-zinc-900 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
+                    : "text-zinc-500 hover:bg-blue-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+            ].join(" ")}>
+                  <span className="flex items-center gap-3">
+                    <span className={[
+                "flex h-10 w-10 items-center justify-center rounded-xl transition",
+                isSchedulePath(pathname)
+                    ? "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900"
+                    : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
+            ].join(" ")}>
+                      <CalendarClock className="h-5 w-5"/>
+                    </span>
+                    <span>{t("navScheduleSection")}</span>
+                  </span>
+                  <ChevronDown className={[
+                "h-5 w-5 shrink-0 transition-transform text-zinc-400",
+                scheduleOpen ? "rotate-180" : "",
+            ].join(" ")}/>
+                </button>
+                {scheduleOpen &&
+                navFilter.scheduleLinks.map((link) => {
                     const active = isActive(pathname, link.href);
                     const meetsLive = link.href === "/call" && meetInProgress;
                     const Icon = link.icon;
@@ -637,7 +721,7 @@ export function SiteNav() {
                 })}
               </div>) : null}
 
-              {navFilter.showStudyTools && navFilter.showOthers ? (<div className="my-2 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
+              {navFilter.showSchedule && navFilter.showOthers ? (<div className="my-2 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
 
               {navFilter.showOthers ? (<div className="flex flex-col gap-0.5">
                 <button type="button" onClick={toggleOthersSection} className={[
@@ -770,7 +854,7 @@ export function SiteNav() {
         ].join(" ")}>
                     <BookMarked className="h-5 w-5"/>
                   </span>
-                  <span>{t("dictionary")}</span>
+                  <span>{t("navLanguageSection")}</span>
                 </span>
                 <ChevronDown className={[
             "h-5 w-5 shrink-0 transition-transform text-zinc-400",
@@ -819,33 +903,72 @@ export function SiteNav() {
               {ieltsOpen && (<IeltsExpandedNavLinks pathname={pathname} t={t} filterQuery={navSearch} onLinkClick={clearQuickSearch}/>)}
             </div>) : null}
 
-            {navFilter.showIelts && navFilter.showStudyTools ? (<div className="my-2 shrink-0 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
+            {navFilter.showIelts && navFilter.showStudy ? (<div className="my-2 shrink-0 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
 
-            {navFilter.showStudyTools ? (<div className="flex shrink-0 flex-col gap-0.5">
-              <button type="button" onClick={toggleStudyToolsSection} className={[
+            {navFilter.showStudy ? (<div className="flex shrink-0 flex-col gap-0.5">
+              <button type="button" onClick={toggleStudySection} className={[
             "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
-            isStudyToolsPath(pathname)
+            isStudyPath(pathname)
                 ? "bg-white text-zinc-900 shadow-sm ring-1 ring-blue-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
                 : "text-zinc-500 hover:bg-blue-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
         ].join(" ")}>
                 <span className="flex items-center gap-3">
                   <span className={[
             "flex h-10 w-10 items-center justify-center rounded-xl transition",
-            isStudyToolsPath(pathname)
+            isStudyPath(pathname)
                 ? "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900"
                 : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
         ].join(" ")}>
                     <GraduationCap className="h-5 w-5"/>
                   </span>
-                  <span>{t("studyTools")}</span>
+                  <span>{t("navStudySection")}</span>
                 </span>
                 <ChevronDown className={[
             "h-5 w-5 shrink-0 transition-transform text-zinc-400",
-            studyToolsOpen ? "rotate-180" : "",
+            studyOpen ? "rotate-180" : "",
         ].join(" ")}/>
               </button>
-              {studyToolsOpen &&
-            navFilter.slinks.map((link) => {
+              {studyOpen &&
+            navFilter.studyLinks.map((link) => {
+                const active = isActive(pathname, link.href);
+                const Icon = link.icon;
+                return (<Link key={link.href} href={link.href} onClick={clearQuickSearch} className={[
+                        "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200",
+                        active ? NAV_LINK_ROW_ACTIVE : NAV_LINK_ROW_IDLE,
+                    ].join(" ")}>
+                      <Icon className={`h-4 w-4 shrink-0 ${active ? "opacity-90" : "opacity-70"}`}/>
+                      <span>{t(link.labelKey)}</span>
+                    </Link>);
+            })}
+            </div>) : null}
+
+            {navFilter.showStudy && navFilter.showSchedule ? (<div className="my-2 shrink-0 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
+
+            {navFilter.showSchedule ? (<div className="flex shrink-0 flex-col gap-0.5">
+              <button type="button" onClick={toggleScheduleSection} className={[
+            "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
+            isSchedulePath(pathname)
+                ? "bg-white text-zinc-900 shadow-sm ring-1 ring-blue-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
+                : "text-zinc-500 hover:bg-blue-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+        ].join(" ")}>
+                <span className="flex items-center gap-3">
+                  <span className={[
+            "flex h-10 w-10 items-center justify-center rounded-xl transition",
+            isSchedulePath(pathname)
+                ? "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900"
+                : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
+        ].join(" ")}>
+                    <CalendarClock className="h-5 w-5"/>
+                  </span>
+                  <span>{t("navScheduleSection")}</span>
+                </span>
+                <ChevronDown className={[
+            "h-5 w-5 shrink-0 transition-transform text-zinc-400",
+            scheduleOpen ? "rotate-180" : "",
+        ].join(" ")}/>
+              </button>
+              {scheduleOpen &&
+            navFilter.scheduleLinks.map((link) => {
                 const active = isActive(pathname, link.href);
                 const meetsLive = link.href === "/call" && meetInProgress;
                 const Icon = link.icon;
@@ -865,7 +988,7 @@ export function SiteNav() {
             })}
             </div>) : null}
 
-            {navFilter.showStudyTools && navFilter.showOthers ? (<div className="my-2 shrink-0 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
+            {navFilter.showSchedule && navFilter.showOthers ? (<div className="my-2 shrink-0 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
 
             {navFilter.showOthers ? (<div className="flex shrink-0 flex-col gap-0.5">
               <button type="button" onClick={toggleOthersSection} className={[
