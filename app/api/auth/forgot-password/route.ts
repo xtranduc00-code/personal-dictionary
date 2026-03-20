@@ -98,6 +98,9 @@ export async function POST(req: Request) {
         const base = publicOriginForEmailLinks(req);
         const resetUrl = `${base}/reset-password?token=${encodeURIComponent(token)}`;
         const { sent, mailError } = await sendPasswordResetEmail({ to: email, resetUrl });
+        if (!sent) {
+            console.error("[auth/forgot-password] reset email not sent:", mailError ?? "unknown");
+        }
         /** Never return the reset URL to the client — user must open the link from email only. */
         return NextResponse.json(devForgotBody(payload, {
             userFound: true,
@@ -106,12 +109,10 @@ export async function POST(req: Request) {
             hasSmtp,
             mailError: sent ? undefined : mailError,
             hint: sent
-                ? "Provider accepted the message — check inbox, spam, and resend.com → Emails."
-                : mailError?.includes("only send testing emails")
-                    ? "Resend test mode: you can only send TO the email tied to your Resend account — or verify a domain and use AUTH_EMAIL_FROM on that domain."
-                    : hasResendKey || hasSmtp
-                        ? "Mail API failed — see debug.mailError."
-                        : "No RESEND_API_KEY and no SMTP_* — add one and restart dev server.",
+                ? "Provider accepted — check inbox and spam."
+                : hasResendKey || hasSmtp
+                    ? "Mail API failed — full error is in the server log."
+                    : "Add RESEND_API_KEY or SMTP_* and restart the dev server.",
         }));
     }
     catch (e) {

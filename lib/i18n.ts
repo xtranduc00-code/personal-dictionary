@@ -66,6 +66,8 @@ export const translations = {
     toastLoggedIn: "Logged in.",
     toastResetEmailSent: "If that account exists, we’ve sent a reset link.",
     toastResetEmailResent: "If that account exists, we’ve sent another reset link.",
+    toastForgotMailFailedDev:
+        "Could not send reset email. Check the dev server terminal for details (RESEND_API_KEY, AUTH_EMAIL_FROM).",
     toastLoggedInAs: 'Logged in as "{name}".',
     toastLoggedOut: "Logged out.",
     toastAccountCreated: "Account created.",
@@ -874,6 +876,8 @@ export const translations = {
     toastLoggedIn: "Đăng nhập thành công.",
     toastResetEmailSent: "Nếu có tài khoản, chúng tôi đã gửi link đặt lại.",
     toastResetEmailResent: "Nếu có tài khoản, chúng tôi đã gửi thêm một link đặt lại.",
+    toastForgotMailFailedDev:
+        "Không gửi được email đặt lại mật khẩu. Xem log terminal (RESEND_API_KEY, AUTH_EMAIL_FROM).",
     toastLoggedInAs: 'Đã đăng nhập: "{name}".',
     toastLoggedOut: "Đăng xuất thành công.",
     toastAccountCreated: "Tạo tài khoản thành công.",

@@ -132,7 +132,17 @@ export function AuthModal() {
         try {
             const minWait = new Promise<void>((r) => setTimeout(r, FORGOT_MIN_UI_MS));
             let res: Response;
-            let data: { ok?: boolean; error?: string } = {};
+            type ForgotPayload = {
+                ok?: boolean;
+                error?: string;
+                debug?: {
+                    userFound?: boolean;
+                    mailSent?: boolean;
+                    mailError?: string;
+                    hint?: string;
+                };
+            };
+            let data: ForgotPayload = {};
             try {
                 const fetchResult = await Promise.all([
                     (async () => {
@@ -141,7 +151,7 @@ export function AuthModal() {
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ email }),
                         });
-                        const d = (await r.json().catch(() => ({}))) as typeof data;
+                        const d = (await r.json().catch(() => ({}))) as ForgotPayload;
                         return { res: r, data: d };
                     })(),
                     minWait,
@@ -150,13 +160,18 @@ export function AuthModal() {
                 data = fetchResult[0].data;
             }
             catch {
-                toast.success(isResend ? t("toastResetEmailResent") : t("toastResetEmailSent"));
-                setForgotSuccess(true);
-                setForgotResendCooldown(FORGOT_RESEND_COOLDOWN_SEC);
+                toast.error(t("networkErrorTryAgain"));
                 return;
             }
             if (res.status === 400 && typeof data.error === "string" && data.error) {
                 setFieldErrors((prev) => ({ ...prev, email: data.error as string }));
+                return;
+            }
+            if (process.env.NODE_ENV === "development" && data.debug && !data.debug.mailSent) {
+                if (data.debug.mailError) {
+                    console.error("[forgot-password]", data.debug.mailError);
+                }
+                toast.error(t("toastForgotMailFailedDev"));
                 return;
             }
             toast.success(isResend ? t("toastResetEmailResent") : t("toastResetEmailSent"));
