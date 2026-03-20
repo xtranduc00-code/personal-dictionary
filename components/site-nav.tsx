@@ -183,6 +183,12 @@ function IeltsExpandedNavLinks({ pathname, t, filterQuery = "", onLinkClick, }: 
     const ieltsHit = !q || navMatches(t("ielts"), filterQuery);
     const matchKey = (key: TranslationKey) =>
         !q || ieltsHit || navMatches(t(key), filterQuery);
+    /** Sub-item of Speaking: show when AI label matches or parent Speaking matches. */
+    const showAiUnderSpeaking =
+        !q ||
+        ieltsHit ||
+        navMatches(t(ieltsAiSpeakingLink.labelKey), filterQuery) ||
+        navMatches(t(ieltsSpeakingHub.labelKey), filterQuery);
     return (<>
       {ieltsSkillLinks.filter((link) => matchKey(link.labelKey)).map((link) => {
             const active = isActive(pathname, link.href);
@@ -201,21 +207,21 @@ function IeltsExpandedNavLinks({ pathname, t, filterQuery = "", onLinkClick, }: 
             <span>{t(link.labelKey)}</span>
           </Link>);
         })() : null}
+      {showAiUnderSpeaking ? (() => {
+            const link = ieltsAiSpeakingLink;
+            const active = isActive(pathname, link.href);
+            const Icon = link.icon;
+            return (<Link key={link.href} href={link.href} onClick={onLinkClick} className={[subBase, active ? subActive : subIdle].join(" ")}>
+            <Icon className={`h-3.5 w-3.5 shrink-0 ${active ? "opacity-90" : "opacity-70"}`}/>
+            <span>{t(link.labelKey)}</span>
+          </Link>);
+        })() : null}
       {matchKey(ieltsVocabNotesLink.labelKey) ? (() => {
             const link = ieltsVocabNotesLink;
             const active = isActive(pathname, link.href);
             const Icon = link.icon;
             return (<Link key={link.href} href={link.href} onClick={onLinkClick} className={[rowBase, active ? rowActive : rowIdle].join(" ")}>
             <Icon className={`h-4 w-4 shrink-0 ${active ? "opacity-90" : "opacity-70"}`}/>
-            <span>{t(link.labelKey)}</span>
-          </Link>);
-        })() : null}
-      {matchKey(ieltsAiSpeakingLink.labelKey) ? (() => {
-            const link = ieltsAiSpeakingLink;
-            const active = isActive(pathname, link.href);
-            const Icon = link.icon;
-            return (<Link key={link.href} href={link.href} onClick={onLinkClick} className={[subBase, active ? subActive : subIdle].join(" ")}>
-            <Icon className={`h-3.5 w-3.5 shrink-0 ${active ? "opacity-90" : "opacity-70"}`}/>
             <span>{t(link.labelKey)}</span>
           </Link>);
         })() : null}
