@@ -45,6 +45,8 @@ export const translations = {
     resetPasswordSuccessTitle: "Password updated successfully",
     resetPasswordSuccessBody: "You can sign in with your new password.",
     resetPasswordGoToLogin: "Go to log in",
+    forgotNoAccountEmail:
+        "No account uses this email. Sign up first or check the spelling.",
     authForgotHint: "Enter your email address.",
     authForgotSentGeneric: "If an account exists, use the reset flow your admin configured.",
     pleaseWait: "Please wait…",
@@ -855,6 +857,8 @@ export const translations = {
     resetPasswordSuccessTitle: "Đã cập nhật mật khẩu",
     resetPasswordSuccessBody: "Bạn có thể đăng nhập bằng mật khẩu mới.",
     resetPasswordGoToLogin: "Đi tới đăng nhập",
+    forgotNoAccountEmail:
+        "Không có tài khoản với email này. Hãy đăng ký hoặc kiểm tra lại chính tả.",
     authForgotHint: "Nhập địa chỉ email của bạn.",
     authForgotSentGeneric: "Nếu có tài khoản, hãy làm theo bước reset mà quản trị đã cấu hình.",
     pleaseWait: "Đang xử lý…",
