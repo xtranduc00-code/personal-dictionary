@@ -167,6 +167,10 @@ export function AuthModal() {
                 setFieldErrors((prev) => ({ ...prev, email: data.error as string }));
                 return;
             }
+            if (res.status === 404 && data.error === "FORGOT_NO_ACCOUNT") {
+                setFieldErrors((prev) => ({ ...prev, email: t("forgotNoAccountEmail") }));
+                return;
+            }
             if (process.env.NODE_ENV === "development" && data.debug && !data.debug.mailSent) {
                 if (data.debug.mailError) {
                     console.error("[forgot-password]", data.debug.mailError);

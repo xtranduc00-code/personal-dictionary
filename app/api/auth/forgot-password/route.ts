@@ -48,7 +48,9 @@ function devForgotBody(base: { ok: true }, debug: DevForgotDebug) {
     return { ...base, debug };
 }
 
-/** Same JSON whether or not the account exists (anti user enumeration). Production never includes `debug`. */
+const ERR_NO_ACCOUNT = "FORGOT_NO_ACCOUNT";
+
+/** `debug` only in development (mail pipeline). */
 export async function POST(req: Request) {
     try {
         const body = await req.json();
@@ -66,13 +68,7 @@ export async function POST(req: Request) {
         const payload = { ok: true as const };
         const { hasResendKey, hasSmtp } = mailEnvFlags();
         if (!user) {
-            return NextResponse.json(devForgotBody(payload, {
-                userFound: false,
-                mailSent: false,
-                hasResendKey,
-                hasSmtp,
-                hint: "No auth_users row with this exact email — Resend was not called. Sign up with this email or fix the address in DB.",
-            }));
+            return NextResponse.json({ error: ERR_NO_ACCOUNT }, { status: 404 });
         }
         const token = randomHex(TOKEN_BYTES);
         const token_hash = sha256Hex(token);
