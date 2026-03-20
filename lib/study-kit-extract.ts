@@ -51,6 +51,17 @@ async function extractPdfText(buffer: Buffer): Promise<string> {
     }
 }
 
+/** Plain pasted text (Word/HTML stripped by client is ideal); same length limits as file extract. */
+export function preparePlainText(raw: string, fileName: string): ExtractedDocument {
+    const cleaned = raw.replace(/\u0000/g, "").trim();
+    if (!cleaned) {
+        const err = new Error("EMPTY_TEXT");
+        throw err;
+    }
+    const { text, truncated } = truncate(cleaned);
+    return { text, truncated, fileName: fileName.trim() || "pasted.txt" };
+}
+
 export async function extractDocumentText(buffer: Buffer, fileName: string, mime: string): Promise<ExtractedDocument> {
     const lower = fileName.toLowerCase();
     let raw = "";
