@@ -84,8 +84,6 @@ export const translations = {
     /** IELTS: word + meaning lists (not flip-card study mode). */
     ieltsVocabNotes: "Vocabulary notes",
     studyKit: "Study Kit",
-    studyKitPageSubtitle:
-      "Shortcuts to IELTS vocabulary notes, general notes, and more study tools in one place.",
     navQuickSearchPlaceholder: "Quick search…",
     navQuickSearchAria: "Search navigation",
     navSearchNoResults: "No matching items. Try another word.",
@@ -901,8 +899,6 @@ export const translations = {
     navScheduleSection: "Lịch & gọi",
     ieltsVocabNotes: "Ghi chú từ vựng",
     studyKit: "Bộ học",
-    studyKitPageSubtitle:
-      "Lối tắt tới ghi chú từ vựng IELTS, ghi chú chung và các công cụ học khác.",
     navQuickSearchPlaceholder: "Tìm nhanh…",
     navQuickSearchAria: "Tìm trong menu",
     navSearchNoResults: "Không có mục nào khớp. Thử từ khác.",
