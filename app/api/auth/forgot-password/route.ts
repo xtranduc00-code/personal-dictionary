@@ -3,11 +3,12 @@ import { supabaseForUserData } from "@/lib/supabase-server";
 import { randomHex, sha256Hex } from "@/lib/auth-crypto";
 import { normalizeEmail, emailValidationError } from "@/lib/auth-credentials";
 import { sendPasswordResetEmail } from "@/lib/send-reset-email";
+import { getSiteUrl } from "@/lib/site-url";
 const TOKEN_BYTES = 32;
 const RESET_TTL_MS = 60 * 60 * 1000;
 
-/** Base URL for links inside transactional email (reset password). */
-function publicOriginForEmailLinks(req: Request): string {
+/** Base URL for links inside transactional email (reset password). Never use request host so dev mail matches production. */
+function publicOriginForEmailLinks(): string {
     const candidates = [process.env.AUTH_APP_BASE_URL?.trim(), process.env.NEXT_PUBLIC_SITE_URL?.trim()];
     for (const raw of candidates) {
         if (!raw) {
@@ -20,7 +21,7 @@ function publicOriginForEmailLinks(req: Request): string {
             /* next */
         }
     }
-    return new URL(req.url).origin;
+    return getSiteUrl();
 }
 
 function mailEnvFlags() {
@@ -95,7 +96,7 @@ export async function POST(req: Request) {
                 hint: "Could not save reset token (check SUPABASE_SERVICE_ROLE_KEY and RLS). Resend not called.",
             }));
         }
-        const base = publicOriginForEmailLinks(req);
+        const base = publicOriginForEmailLinks();
         const resetUrl = `${base}/reset-password?token=${encodeURIComponent(token)}`;
         const { sent, mailError } = await sendPasswordResetEmail({ to: email, resetUrl });
         if (!sent) {
