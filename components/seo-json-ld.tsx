@@ -1,9 +1,13 @@
 import { getSiteUrl } from "@/lib/site-url";
+import { blockSearchIndexing } from "@/lib/search-indexing";
 
 const DESCRIPTION =
     "All-in-one productivity app with flashcards, AI tools, and learning features.";
 
 export function SeoJsonLd() {
+    if (blockSearchIndexing()) {
+        return null;
+    }
     const url = getSiteUrl();
     const graph = [
         {

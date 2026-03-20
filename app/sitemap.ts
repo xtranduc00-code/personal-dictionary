@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { getSiteUrl } from "@/lib/site-url";
+import { blockSearchIndexing } from "@/lib/search-indexing";
 
 type ChangeFreq = NonNullable<MetadataRoute.Sitemap[number]["changeFrequency"]>;
 
@@ -24,6 +25,9 @@ const PATHS: { path: string; changeFrequency: ChangeFreq; priority: number }[] =
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {
+    if (blockSearchIndexing()) {
+        return [];
+    }
     const base = getSiteUrl().replace(/\/$/, "");
     const now = new Date();
     return PATHS.map(({ path, changeFrequency, priority }) => ({

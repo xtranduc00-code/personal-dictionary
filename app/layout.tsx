@@ -9,6 +9,7 @@ import { AppShell } from "@/components/app-shell";
 import { MeetCallProvider } from "@/lib/meet-call-context";
 import { SeoJsonLd } from "@/components/seo-json-ld";
 import { getSiteUrl } from "@/lib/site-url";
+import { blockSearchIndexing } from "@/lib/search-indexing";
 
 const inter = Inter({
     variable: "--font-inter",
@@ -21,6 +22,7 @@ const SITE_NAME = "Ken Workspace";
 const SITE_DESCRIPTION =
     "All-in-one productivity app with flashcards, AI tools, and learning features.";
 const googleVerification = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION?.trim();
+const hideFromSearch = blockSearchIndexing();
 
 export const metadata: Metadata = {
     metadataBase: new URL(getSiteUrl()),
@@ -41,17 +43,19 @@ export const metadata: Metadata = {
     creator: SITE_NAME,
     publisher: SITE_NAME,
     formatDetection: { email: false, address: false, telephone: false },
-    robots: {
-        index: true,
-        follow: true,
-        googleBot: {
-            index: true,
-            follow: true,
-            "max-video-preview": -1,
-            "max-image-preview": "large",
-            "max-snippet": -1,
-        },
-    },
+    robots: hideFromSearch
+        ? { index: false, follow: false, googleBot: { index: false, follow: false } }
+        : {
+              index: true,
+              follow: true,
+              googleBot: {
+                  index: true,
+                  follow: true,
+                  "max-video-preview": -1,
+                  "max-image-preview": "large",
+                  "max-snippet": -1,
+              },
+          },
     alternates: { canonical: "/" },
     openGraph: {
         type: "website",

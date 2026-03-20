@@ -1,3 +1,0 @@
-User-agent: *
-Allow: /
-Sitemap: https://getmykfc.com/sitemap.xml
