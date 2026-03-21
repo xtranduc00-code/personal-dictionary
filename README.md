@@ -1,6 +1,6 @@
 # Ken Workspace
 
-All-in-One productivity app — full-stack personal productivity and **IELTS preparation**: English dictionary, Listening / Reading / Writing / Speaking practice, flashcards, notes, calendar, translation, **Google Drive** integration, and an **AI realtime speaking partner** (voice).
+All-in-One productivity app — full-stack personal productivity and **IELTS preparation**: English dictionary, Listening / Reading / Writing / Speaking practice, flashcards, notes, calendar, translation, **Google Drive** integration, and **AI realtime speaking** (voice).
 
 Built for production-style deployment (e.g. Vercel + Supabase + OpenAI).
 
@@ -102,7 +102,7 @@ npm run build:drive-css
 | `/` | Portfolio landing |
 | `/dictionary`, `/translate`, `/library`, `/history` | Vocabulary and lookup history |
 | `/listening`, `/ielts-reading`, `/ielts-writing`, `/ielts-speaking` | IELTS skills |
-| `/real-time-call` | AI speaking partner (realtime) — implementation in `features/call-ken/` |
+| `/real-time-call` | AI speaking (realtime) — implementation in `features/call-ken/` |
 | `/drive` | Embedded Google Drive browser |
 | `/flashcards`, `/notes`, `/calendar` | Study tools |
 

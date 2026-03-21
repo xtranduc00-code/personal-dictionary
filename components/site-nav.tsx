@@ -1,13 +1,19 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { toast } from "react-toastify";
 import { DriveIntegrationNavBlock } from "@/components/drive-integration-nav";
+import {
+    NavLabelsProvider,
+    NavSectionEditableTitle,
+    NavSectionHeader,
+    NavSidebarRow,
+    useNavLabels,
+} from "@/components/nav-sidebar-custom-labels";
 import { NavAccountFooter } from "@/components/nav-account-footer";
 import { ProfileModal } from "@/components/profile-modal";
 import { SecurityModal } from "@/components/security-modal";
-import { BookOpen, BookMarked, BookText, Bot, CalendarClock, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Cloud, FileText, FolderOpen, GraduationCap, Headphones, Image as LucideImage, History, Home, Languages, LayoutDashboard, Layers, LayoutGrid, LibraryBig, LogIn, LogOut, Mail, Menu, Mic, Moon, NotebookText, PenLine, PhoneCall, Search, Sparkles, Star, Sun, UserCircle, Video, X, type LucideIcon, } from "lucide-react";
+import { BookOpen, BookMarked, BookText, Bot, CalendarClock, CalendarDays, ChevronLeft, ChevronRight, Cloud, FileText, FolderOpen, GraduationCap, Headphones, Image as LucideImage, History, Home, Languages, LayoutDashboard, Layers, LayoutGrid, LibraryBig, LogIn, LogOut, Mail, Menu, Mic, Moon, NotebookText, PenLine, PhoneCall, Search, Sparkles, Star, Sun, UserCircle, Video, X, type LucideIcon, } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useMeetCallOptional } from "@/lib/meet-call-context";
 import { CLEAR_NAV_QUICK_SEARCH_EVENT } from "@/lib/nav-quick-search-events";
@@ -38,12 +44,15 @@ const ieltsVocabNotesLink = {
     labelKey: "ieltsVocabNotes" as TranslationKey,
     icon: NotebookText,
 };
-const studySectionLinks: {
+const studyNavEntries: {
     href: string;
     labelKey: TranslationKey;
     icon: LucideIcon;
+    sub: boolean;
 }[] = [
-    { href: "/study-kit", labelKey: "studyKit", icon: Sparkles },
+    { href: "/study-kit", labelKey: "studyKit", icon: Sparkles, sub: false },
+    { href: "/study-kit/history", labelKey: "studyKitSessionHistory", icon: History, sub: true },
+    { href: "/study-kit/saved", labelKey: "studyKitSavedFolder", icon: FolderOpen, sub: false },
 ];
 const scheduleSectionLinks: {
     href: string;
@@ -109,6 +118,9 @@ function isActive(pathname: string, href: string) {
         return pathname === "/";
     if (href === "/dictionary")
         return pathname === "/dictionary";
+    /** `/study-kit` is not active on `/study-kit/saved` or `/study-kit/result`. */
+    if (href === "/study-kit")
+        return pathname === "/study-kit" || pathname === "/study-kit/";
     return pathname.startsWith(href);
 }
 function isPortfolioPath(pathname: string) {
@@ -138,7 +150,7 @@ function isIeltsPath(pathname: string) {
         pathname.startsWith("/ielts-speaking"));
 }
 function isStudyPath(pathname: string) {
-    return studySectionLinks.some((link) => pathname.startsWith(link.href));
+    return pathname.startsWith("/study-kit");
 }
 function isSchedulePath(pathname: string) {
     return scheduleSectionLinks.some((link) => pathname.startsWith(link.href));
@@ -193,38 +205,54 @@ function IeltsExpandedNavLinks({ pathname, t, filterQuery = "", onLinkClick, }: 
       {ieltsSkillLinks.filter((link) => matchKey(link.labelKey)).map((link) => {
             const active = isActive(pathname, link.href);
             const Icon = link.icon;
-            return (<Link key={link.href} href={link.href} onClick={onLinkClick} className={[rowBase, active ? rowActive : rowIdle].join(" ")}>
-            <Icon className={`h-4 w-4 shrink-0 ${active ? "opacity-90" : "opacity-70"}`}/>
-            <span>{t(link.labelKey)}</span>
-          </Link>);
+            return (<NavSidebarRow key={link.href} href={link.href} labelKey={link.labelKey} onLinkClick={onLinkClick} className={[rowBase, active ? rowActive : rowIdle].join(" ")} active={active} icon={Icon}/>);
         })}
       {matchKey(ieltsSpeakingHub.labelKey) ? (() => {
             const link = ieltsSpeakingHub;
             const active = isActive(pathname, link.href);
             const Icon = link.icon;
-            return (<Link key={link.href} href={link.href} onClick={onLinkClick} className={[rowBase, active ? rowActive : rowIdle].join(" ")}>
-            <Icon className={`h-4 w-4 shrink-0 ${active ? "opacity-90" : "opacity-70"}`}/>
-            <span>{t(link.labelKey)}</span>
-          </Link>);
+            return (<NavSidebarRow key={link.href} href={link.href} labelKey={link.labelKey} onLinkClick={onLinkClick} className={[rowBase, active ? rowActive : rowIdle].join(" ")} active={active} icon={Icon}/>);
         })() : null}
       {showAiUnderSpeaking ? (() => {
             const link = ieltsAiSpeakingLink;
             const active = isActive(pathname, link.href);
             const Icon = link.icon;
-            return (<Link key={link.href} href={link.href} onClick={onLinkClick} className={[subBase, active ? subActive : subIdle].join(" ")}>
-            <Icon className={`h-3.5 w-3.5 shrink-0 ${active ? "opacity-90" : "opacity-70"}`}/>
-            <span>{t(link.labelKey)}</span>
-          </Link>);
+            return (<NavSidebarRow key={link.href} href={link.href} labelKey={link.labelKey} onLinkClick={onLinkClick} className={[subBase, active ? subActive : subIdle].join(" ")} active={active} sub icon={Icon}/>);
         })() : null}
       {matchKey(ieltsVocabNotesLink.labelKey) ? (() => {
             const link = ieltsVocabNotesLink;
             const active = isActive(pathname, link.href);
             const Icon = link.icon;
-            return (<Link key={link.href} href={link.href} onClick={onLinkClick} className={[rowBase, active ? rowActive : rowIdle].join(" ")}>
-            <Icon className={`h-4 w-4 shrink-0 ${active ? "opacity-90" : "opacity-70"}`}/>
-            <span>{t(link.labelKey)}</span>
-          </Link>);
+            return (<NavSidebarRow key={link.href} href={link.href} labelKey={link.labelKey} onLinkClick={onLinkClick} className={[rowBase, active ? rowActive : rowIdle].join(" ")} active={active} icon={Icon}/>);
         })() : null}
+    </>);
+}
+function StudyExpandedNavLinks({ pathname, t, filterQuery = "", onLinkClick, links, }: {
+    pathname: string;
+    t: (key: TranslationKey) => string;
+    filterQuery?: string;
+    onLinkClick?: () => void;
+    links: typeof studyNavEntries;
+}) {
+    const rowBase = "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200";
+    const subBase = "group flex items-center gap-3 rounded-r-xl py-2 pr-4 text-sm transition-all duration-200";
+    const rowActive = NAV_LINK_ROW_ACTIVE;
+    const rowIdle = NAV_LINK_ROW_IDLE;
+    const subActive = NAV_LINK_SUB_ACTIVE;
+    const subIdle = NAV_LINK_SUB_IDLE;
+    const fq = filterQuery.trim();
+    const studyHit = !fq || navMatches(t("navStudySection"), filterQuery);
+    const matchKey = (key: TranslationKey) =>
+        !fq || studyHit || navMatches(t(key), filterQuery);
+    return (<>
+      {links.filter((e) => matchKey(e.labelKey)).map((e) => {
+            const active = isActive(pathname, e.href);
+            const Icon = e.icon;
+            const base = e.sub ? subBase : rowBase;
+            const act = e.sub ? subActive : rowActive;
+            const idl = e.sub ? subIdle : rowIdle;
+            return (<NavSidebarRow key={e.href} href={e.href} labelKey={e.labelKey} onLinkClick={onLinkClick} className={[base, active ? act : idl].join(" ")} active={active} sub={e.sub} icon={Icon}/>);
+        })}
     </>);
 }
 function OthersExpandedNavLinks({ pathname, t, filterQuery = "", onLinkClick, }: {
@@ -258,22 +286,25 @@ function OthersExpandedNavLinks({ pathname, t, filterQuery = "", onLinkClick, }:
     return (<>
       {showGdriveHeader ? (<div className={`${rowBase} border-l-2 border-transparent pl-8 font-medium text-zinc-500 dark:text-zinc-400`} role="presentation">
         <Cloud className="h-4 w-4 shrink-0 opacity-70"/>
-        <span>{t("portfolioGoogleDrive")}</span>
+        <NavSectionEditableTitle labelKey="portfolioGoogleDrive" className="text-base font-medium text-zinc-500 dark:text-zinc-400"/>
       </div>) : null}
       {driveLinksToShow.map((link) => {
             const active = isOthersDriveLinkActive(pathname, link.href, link.dashboard);
             const Icon = link.icon;
-            return (<Link key={link.href} href={link.href} onClick={onLinkClick} className={[rowBase, active ? driveChildActive : driveChildIdle].join(" ")}>
-            <Icon className={`h-4 w-4 shrink-0 ${active ? "opacity-90" : "opacity-70"}`}/>
-            <span>{t(link.labelKey)}</span>
-          </Link>);
+            return (<NavSidebarRow key={link.href} href={link.href} labelKey={link.labelKey} onLinkClick={onLinkClick} className={[rowBase, active ? driveChildActive : driveChildIdle].join(" ")} active={active} icon={Icon}/>);
         })}
       {showDriveIntegration ? <DriveIntegrationNavBlock onLinkClick={onLinkClick}/> : null}
     </>);
 }
 export function SiteNav() {
+    return (<NavLabelsProvider>
+      <SiteNavInner />
+    </NavLabelsProvider>);
+}
+function SiteNavInner() {
     const pathname = usePathname();
     const { t, locale, setLocale } = useI18n();
+    const { navT } = useNavLabels();
     const { user, isLoading: authLoading, signOut, openAuthModal } = useAuth();
     const [profileOpen, setProfileOpen] = useState(false);
     const [securityOpen, setSecurityOpen] = useState(false);
@@ -296,48 +327,56 @@ export function SiteNav() {
         const match = (text: string) => navMatches(text, navQ);
         const plinks = !fq
             ? portfolioSectionLinks
-            : match(t("portfolio"))
+            : match(navT("portfolio"))
                 ? portfolioSectionLinks
-                : portfolioSectionLinks.filter((l) => match(t(l.labelKey)));
-        const showPortfolio = !fq || match(t("portfolio")) || plinks.length > 0;
+                : portfolioSectionLinks.filter((l) => match(navT(l.labelKey)));
+        const showPortfolio = !fq || match(navT("portfolio")) || plinks.length > 0;
         const dlinks = !fq
             ? dictionarySectionLinks
-            : match(t("navLanguageSection")) || match(t("dictionary"))
+            : match(navT("navLanguageSection")) || match(navT("dictionary"))
                 ? dictionarySectionLinks
-                : dictionarySectionLinks.filter((l) => match(t(l.labelKey)));
+                : dictionarySectionLinks.filter((l) => match(navT(l.labelKey)));
         const showDictionary =
-            !fq || match(t("navLanguageSection")) || match(t("dictionary")) || dlinks.length > 0;
+            !fq || match(navT("navLanguageSection")) || match(navT("dictionary")) || dlinks.length > 0;
         const studyLinks = !fq
-            ? studySectionLinks
-            : match(t("navStudySection")) || match(t("studyKit"))
-                ? studySectionLinks
-                : studySectionLinks.filter((l) => match(t(l.labelKey)));
+            ? studyNavEntries
+            : match(navT("navStudySection")) ||
+                match(navT("studyKit")) ||
+                match(navT("studyKitSessionHistory")) ||
+                match(navT("studyKitSavedFolder"))
+              ? studyNavEntries
+              : studyNavEntries.filter((l) => match(navT(l.labelKey)));
         const showStudy =
-            !fq || match(t("navStudySection")) || match(t("studyKit")) || studyLinks.length > 0;
+            !fq ||
+            match(navT("navStudySection")) ||
+            match(navT("studyKit")) ||
+            match(navT("studyKitSessionHistory")) ||
+            match(navT("studyKitSavedFolder")) ||
+            studyLinks.length > 0;
         const scheduleLinks = !fq
             ? scheduleSectionLinks
-            : match(t("navScheduleSection")) || match(t("notes"))
+            : match(navT("navScheduleSection")) || match(navT("notes"))
                 ? scheduleSectionLinks
-                : scheduleSectionLinks.filter((l) => match(t(l.labelKey)));
+                : scheduleSectionLinks.filter((l) => match(navT(l.labelKey)));
         const showSchedule =
             !fq ||
-            match(t("navScheduleSection")) ||
-            match(t("notes")) ||
+            match(navT("navScheduleSection")) ||
+            match(navT("notes")) ||
             scheduleLinks.length > 0;
         const ieltsLinksMatch = [
             ...ieltsSkillLinks,
             ieltsSpeakingHub,
             ieltsVocabNotesLink,
             ieltsAiSpeakingLink,
-        ].some((l) => match(t(l.labelKey)));
-        const showIelts = !fq || match(t("ielts")) || ieltsLinksMatch;
+        ].some((l) => match(navT(l.labelKey)));
+        const showIelts = !fq || match(navT("ielts")) || ieltsLinksMatch;
         const othersLinksMatch = othersDriveChildLinks.some((l) =>
-            match(t(l.labelKey)),
+            match(navT(l.labelKey)),
         );
         const showOthers =
             !fq ||
-            match(t("others")) ||
-            match(t("portfolioGoogleDrive")) ||
+            match(navT("others")) ||
+            match(navT("portfolioGoogleDrive")) ||
             match(t("driveIntegrationTitle")) ||
             othersLinksMatch;
         const anyShown =
@@ -361,7 +400,7 @@ export function SiteNav() {
             showOthers,
             anyShown,
         };
-    }, [navSearch, t, locale]);
+    }, [navSearch, navT, t, locale]);
     useEffect(() => {
         if (!navSearch.trim()) {
             return;
@@ -559,220 +598,131 @@ export function SiteNav() {
                 {t("navSearchNoResults")}
               </p>) : null}
               {navFilter.showPortfolio ? (<div className="flex flex-col gap-0.5">
-                <button type="button" onClick={togglePortfolioSection} className={[
+                <NavSectionHeader isOpen={portfolioOpen} onToggle={togglePortfolioSection} icon={LayoutDashboard} labelKey="portfolio" outerClass={[
                 "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
                 isPortfolioPath(pathname)
                     ? "bg-zinc-100 text-zinc-900 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
                     : "text-zinc-500 hover:bg-blue-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
-            ].join(" ")}>
-                  <span className="flex items-center gap-3">
-                    <span className={[
+            ].join(" ")} iconBoxClass={[
                 "flex h-10 w-10 items-center justify-center rounded-xl transition",
                 isPortfolioPath(pathname)
                     ? "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900"
                     : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
-            ].join(" ")}>
-                      <LayoutDashboard className="h-5 w-5"/>
-                    </span>
-                    <span>{t("portfolio")}</span>
-                  </span>
-                  <ChevronDown className={[
-                "h-5 w-5 shrink-0 transition-transform text-zinc-400",
-                portfolioOpen ? "rotate-180" : "",
             ].join(" ")}/>
-                </button>
                 {portfolioOpen &&
                 navFilter.plinks.map((link) => {
                     const active = isActive(pathname, link.href);
                     const Icon = link.icon;
-                    return (<Link key={link.href} href={link.href} onClick={clearQuickSearch} className={[
+                    return (<NavSidebarRow key={link.href} href={link.href} labelKey={link.labelKey} onLinkClick={clearQuickSearch} className={[
                             "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200",
                             active ? NAV_LINK_ROW_ACTIVE : NAV_LINK_ROW_IDLE,
-                        ].join(" ")}>
-                        <Icon className={`h-4 w-4 shrink-0 ${active ? "opacity-90" : "opacity-70"}`}/>
-                        <span>{t(link.labelKey)}</span>
-                      </Link>);
+                        ].join(" ")} active={active} icon={Icon}/>);
                 })}
               </div>) : null}
 
               {navFilter.showPortfolio && navFilter.showDictionary ? (<div className="my-2 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
 
               {navFilter.showDictionary ? (<div className="flex flex-col gap-0.5">
-                <button type="button" onClick={toggleDictionarySection} className={[
+                <NavSectionHeader isOpen={dictionaryOpen} onToggle={toggleDictionarySection} icon={BookMarked} labelKey="navLanguageSection" outerClass={[
                 "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
                 isDictionaryPath(pathname)
                     ? "bg-zinc-100 text-zinc-900 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
                     : "text-zinc-500 hover:bg-blue-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
-            ].join(" ")}>
-                  <span className="flex items-center gap-3">
-                    <span className={[
+            ].join(" ")} iconBoxClass={[
                 "flex h-10 w-10 items-center justify-center rounded-xl transition",
                 isDictionaryPath(pathname)
                     ? "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900"
                     : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
-            ].join(" ")}>
-                      <BookMarked className="h-5 w-5"/>
-                    </span>
-                    <span>{t("navLanguageSection")}</span>
-                  </span>
-                  <ChevronDown className={[
-                "h-5 w-5 shrink-0 transition-transform text-zinc-400",
-                dictionaryOpen ? "rotate-180" : "",
             ].join(" ")}/>
-                </button>
                 {dictionaryOpen &&
                 navFilter.dlinks.map((link) => {
                     const active = isActive(pathname, link.href);
                     const Icon = link.icon;
-                    return (<Link key={link.href} href={link.href} onClick={clearQuickSearch} className={[
+                    return (<NavSidebarRow key={link.href} href={link.href} labelKey={link.labelKey} onLinkClick={clearQuickSearch} className={[
                             "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200",
                             active ? NAV_LINK_ROW_ACTIVE : NAV_LINK_ROW_IDLE,
-                        ].join(" ")}>
-                        <Icon className={`h-4 w-4 shrink-0 ${active ? "opacity-90" : "opacity-70"}`}/>
-                        <span>{t(link.labelKey)}</span>
-                      </Link>);
+                        ].join(" ")} active={active} icon={Icon}/>);
                 })}
               </div>) : null}
 
               {navFilter.showDictionary && navFilter.showIelts ? (<div className="my-2 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
 
               {navFilter.showIelts ? (<div className="flex flex-col gap-0.5">
-                <button type="button" onClick={toggleIeltsSection} className={[
+                <NavSectionHeader isOpen={ieltsOpen} onToggle={toggleIeltsSection} icon={BookOpen} labelKey="ielts" outerClass={[
                 "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
                 isIeltsPath(pathname)
                     ? "bg-zinc-100 text-zinc-900 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
                     : "text-zinc-500 hover:bg-blue-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
-            ].join(" ")}>
-                  <span className="flex items-center gap-3">
-                    <span className={[
+            ].join(" ")} iconBoxClass={[
                 "flex h-10 w-10 items-center justify-center rounded-xl transition",
                 isIeltsPath(pathname)
                     ? "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900"
                     : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
-            ].join(" ")}>
-                      <BookOpen className="h-5 w-5"/>
-                    </span>
-                    <span>{t("ielts")}</span>
-                  </span>
-                  <ChevronDown className={[
-                "h-5 w-5 shrink-0 transition-transform text-zinc-400",
-                ieltsOpen ? "rotate-180" : "",
             ].join(" ")}/>
-                </button>
-                {ieltsOpen && (<IeltsExpandedNavLinks pathname={pathname} t={t} filterQuery={navSearch} onLinkClick={clearQuickSearch}/>)}
+                {ieltsOpen && (<IeltsExpandedNavLinks pathname={pathname} t={navT} filterQuery={navSearch} onLinkClick={clearQuickSearch}/>)}
               </div>) : null}
 
               {navFilter.showIelts && navFilter.showStudy ? (<div className="my-2 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
 
               {navFilter.showStudy ? (<div className="flex flex-col gap-0.5">
-                <button type="button" onClick={toggleStudySection} className={[
+                <NavSectionHeader isOpen={studyOpen} onToggle={toggleStudySection} icon={GraduationCap} labelKey="navStudySection" outerClass={[
                 "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
                 isStudyPath(pathname)
                     ? "bg-zinc-100 text-zinc-900 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
                     : "text-zinc-500 hover:bg-blue-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
-            ].join(" ")}>
-                  <span className="flex items-center gap-3">
-                    <span className={[
+            ].join(" ")} iconBoxClass={[
                 "flex h-10 w-10 items-center justify-center rounded-xl transition",
                 isStudyPath(pathname)
                     ? "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900"
                     : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
-            ].join(" ")}>
-                      <GraduationCap className="h-5 w-5"/>
-                    </span>
-                    <span>{t("navStudySection")}</span>
-                  </span>
-                  <ChevronDown className={[
-                "h-5 w-5 shrink-0 transition-transform text-zinc-400",
-                studyOpen ? "rotate-180" : "",
             ].join(" ")}/>
-                </button>
-                {studyOpen &&
-                navFilter.studyLinks.map((link) => {
-                    const active = isActive(pathname, link.href);
-                    const Icon = link.icon;
-                    return (<Link key={link.href} href={link.href} onClick={clearQuickSearch} className={[
-                            "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200",
-                            active ? NAV_LINK_ROW_ACTIVE : NAV_LINK_ROW_IDLE,
-                        ].join(" ")}>
-                        <Icon className={`h-4 w-4 shrink-0 ${active ? "opacity-90" : "opacity-70"}`}/>
-                        <span>{t(link.labelKey)}</span>
-                      </Link>);
-                })}
+                {studyOpen && (<StudyExpandedNavLinks pathname={pathname} t={navT} filterQuery={navSearch} onLinkClick={clearQuickSearch} links={navFilter.studyLinks}/>)}
               </div>) : null}
 
               {navFilter.showStudy && navFilter.showSchedule ? (<div className="my-2 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
 
               {navFilter.showSchedule ? (<div className="flex flex-col gap-0.5">
-                <button type="button" onClick={toggleScheduleSection} className={[
+                <NavSectionHeader isOpen={scheduleOpen} onToggle={toggleScheduleSection} icon={CalendarClock} labelKey="navScheduleSection" outerClass={[
                 "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
                 isSchedulePath(pathname)
                     ? "bg-zinc-100 text-zinc-900 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
                     : "text-zinc-500 hover:bg-blue-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
-            ].join(" ")}>
-                  <span className="flex items-center gap-3">
-                    <span className={[
+            ].join(" ")} iconBoxClass={[
                 "flex h-10 w-10 items-center justify-center rounded-xl transition",
                 isSchedulePath(pathname)
                     ? "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900"
                     : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
-            ].join(" ")}>
-                      <CalendarClock className="h-5 w-5"/>
-                    </span>
-                    <span>{t("navScheduleSection")}</span>
-                  </span>
-                  <ChevronDown className={[
-                "h-5 w-5 shrink-0 transition-transform text-zinc-400",
-                scheduleOpen ? "rotate-180" : "",
             ].join(" ")}/>
-                </button>
                 {scheduleOpen &&
                 navFilter.scheduleLinks.map((link) => {
                     const active = isActive(pathname, link.href);
                     const meetsLive = link.href === "/call" && meetInProgress;
                     const Icon = link.icon;
-                    return (<Link key={link.href} href={link.href} onClick={clearQuickSearch} className={[
+                    return (<NavSidebarRow key={link.href} href={link.href} labelKey={link.labelKey} onLinkClick={clearQuickSearch} className={[
                             "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200",
                             meetsLive ? NAV_LINK_ROW_MEETS_LIVE : active ? NAV_LINK_ROW_ACTIVE : NAV_LINK_ROW_IDLE,
-                        ].join(" ")}>
-                        <Icon className={`h-4 w-4 shrink-0 ${active || meetsLive ? "opacity-90" : "opacity-70"}`}/>
-                        <span className="flex min-w-0 flex-wrap items-center gap-2">
-                          {t(link.labelKey)}
-                          {meetsLive ? (<span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm ring-1 ring-red-400/50 dark:bg-red-500 dark:ring-red-300/40" title={t("meetsCallInProgress")}>
+                        ].join(" ")} active={active} meetsLive={meetsLive} icon={Icon} badge={meetsLive ? (<span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm ring-1 ring-red-400/50 dark:bg-red-500 dark:ring-red-300/40" title={t("meetsCallInProgress")}>
                                 <span className="leading-none" aria-hidden>🔴</span>
                                 {t("meetsLiveBadge")}
-                              </span>) : null}
-                        </span>
-                      </Link>);
+                              </span>) : undefined}/>);
                 })}
               </div>) : null}
 
               {navFilter.showSchedule && navFilter.showOthers ? (<div className="my-2 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
 
               {navFilter.showOthers ? (<div className="flex flex-col gap-0.5">
-                <button type="button" onClick={toggleOthersSection} className={[
+                <NavSectionHeader isOpen={othersOpen} onToggle={toggleOthersSection} icon={Cloud} labelKey="others" outerClass={[
                 "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
                 isOthersPath(pathname)
                     ? "bg-zinc-100 text-zinc-900 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
                     : "text-zinc-500 hover:bg-blue-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
-            ].join(" ")}>
-                  <span className="flex items-center gap-3">
-                    <span className={[
+            ].join(" ")} iconBoxClass={[
                 "flex h-10 w-10 items-center justify-center rounded-xl transition",
                 isOthersPath(pathname)
                     ? "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900"
                     : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
-            ].join(" ")}>
-                      <Cloud className="h-5 w-5"/>
-                    </span>
-                    <span>{t("others")}</span>
-                  </span>
-                  <ChevronDown className={[
-                "h-5 w-5 shrink-0 transition-transform text-zinc-400",
-                othersOpen ? "rotate-180" : "",
             ].join(" ")}/>
-                </button>
-                {othersOpen && (<OthersExpandedNavLinks pathname={pathname} t={t} filterQuery={navSearch} onLinkClick={clearQuickSearch}/>)}
+                {othersOpen && (<OthersExpandedNavLinks pathname={pathname} t={navT} filterQuery={navSearch} onLinkClick={clearQuickSearch}/>)}
               </div>) : null}
             </nav>
             <NavAccountFooter variant="drawer" onOpenProfile={() => setProfileOpen(true)} onOpenSecurity={() => setSecurityOpen(true)}/>
@@ -826,220 +776,131 @@ export function SiteNav() {
               {t("navSearchNoResults")}
             </p>) : null}
             {navFilter.showPortfolio ? (<div className="flex shrink-0 flex-col gap-0.5">
-              <button type="button" onClick={togglePortfolioSection} className={[
+              <NavSectionHeader isOpen={portfolioOpen} onToggle={togglePortfolioSection} icon={LayoutDashboard} labelKey="portfolio" outerClass={[
             "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
             isPortfolioPath(pathname)
                 ? "bg-white text-zinc-900 shadow-sm ring-1 ring-blue-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
                 : "text-zinc-500 hover:bg-blue-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
-        ].join(" ")}>
-                <span className="flex items-center gap-3">
-                  <span className={[
+        ].join(" ")} iconBoxClass={[
             "flex h-10 w-10 items-center justify-center rounded-xl transition",
             isPortfolioPath(pathname)
                 ? "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900"
                 : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
-        ].join(" ")}>
-                    <LayoutDashboard className="h-5 w-5"/>
-                  </span>
-                  <span>{t("portfolio")}</span>
-                </span>
-                <ChevronDown className={[
-            "h-5 w-5 shrink-0 transition-transform text-zinc-400",
-            portfolioOpen ? "rotate-180" : "",
         ].join(" ")}/>
-              </button>
               {portfolioOpen &&
             navFilter.plinks.map((link) => {
                 const active = isActive(pathname, link.href);
                 const Icon = link.icon;
-                return (<Link key={link.href} href={link.href} onClick={clearQuickSearch} className={[
+                return (<NavSidebarRow key={link.href} href={link.href} labelKey={link.labelKey} onLinkClick={clearQuickSearch} className={[
                         "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200",
                         active ? NAV_LINK_ROW_ACTIVE : NAV_LINK_ROW_IDLE,
-                    ].join(" ")}>
-                      <Icon className={`h-4 w-4 shrink-0 ${active ? "opacity-90" : "opacity-70"}`}/>
-                      <span>{t(link.labelKey)}</span>
-                    </Link>);
+                    ].join(" ")} active={active} icon={Icon}/>);
             })}
             </div>) : null}
 
             {navFilter.showPortfolio && navFilter.showDictionary ? (<div className="my-2 shrink-0 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
 
             {navFilter.showDictionary ? (<div className="flex shrink-0 flex-col gap-0.5">
-              <button type="button" onClick={toggleDictionarySection} className={[
+              <NavSectionHeader isOpen={dictionaryOpen} onToggle={toggleDictionarySection} icon={BookMarked} labelKey="navLanguageSection" outerClass={[
             "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
             isDictionaryPath(pathname)
                 ? "bg-white text-zinc-900 shadow-sm ring-1 ring-blue-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
                 : "text-zinc-500 hover:bg-blue-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
-        ].join(" ")}>
-                <span className="flex items-center gap-3">
-                  <span className={[
+        ].join(" ")} iconBoxClass={[
             "flex h-10 w-10 items-center justify-center rounded-xl transition",
             isDictionaryPath(pathname)
                 ? "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900"
                 : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
-        ].join(" ")}>
-                    <BookMarked className="h-5 w-5"/>
-                  </span>
-                  <span>{t("navLanguageSection")}</span>
-                </span>
-                <ChevronDown className={[
-            "h-5 w-5 shrink-0 transition-transform text-zinc-400",
-            dictionaryOpen ? "rotate-180" : "",
         ].join(" ")}/>
-              </button>
               {dictionaryOpen &&
             navFilter.dlinks.map((link) => {
                 const active = isActive(pathname, link.href);
                 const Icon = link.icon;
-                return (<Link key={link.href} href={link.href} onClick={clearQuickSearch} className={[
+                return (<NavSidebarRow key={link.href} href={link.href} labelKey={link.labelKey} onLinkClick={clearQuickSearch} className={[
                         "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200",
                         active ? NAV_LINK_ROW_ACTIVE : NAV_LINK_ROW_IDLE,
-                    ].join(" ")}>
-                      <Icon className={`h-4 w-4 shrink-0 ${active ? "opacity-90" : "opacity-70"}`}/>
-                      <span>{t(link.labelKey)}</span>
-                    </Link>);
+                    ].join(" ")} active={active} icon={Icon}/>);
             })}
             </div>) : null}
 
             {navFilter.showDictionary && navFilter.showIelts ? (<div className="my-2 shrink-0 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
 
             {navFilter.showIelts ? (<div className="flex shrink-0 flex-col gap-0.5">
-              <button type="button" onClick={toggleIeltsSection} className={[
+              <NavSectionHeader isOpen={ieltsOpen} onToggle={toggleIeltsSection} icon={BookOpen} labelKey="ielts" outerClass={[
             "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
             isIeltsPath(pathname)
                 ? "bg-white text-zinc-900 shadow-sm ring-1 ring-blue-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
                 : "text-zinc-500 hover:bg-blue-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
-        ].join(" ")}>
-                <span className="flex items-center gap-3">
-                  <span className={[
+        ].join(" ")} iconBoxClass={[
             "flex h-10 w-10 items-center justify-center rounded-xl transition",
             isIeltsPath(pathname)
                 ? "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900"
                 : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
-        ].join(" ")}>
-                    <BookOpen className="h-5 w-5"/>
-                  </span>
-                  <span>{t("ielts")}</span>
-                </span>
-                <ChevronDown className={[
-            "h-5 w-5 shrink-0 transition-transform text-zinc-400",
-            ieltsOpen ? "rotate-180" : "",
         ].join(" ")}/>
-              </button>
-              {ieltsOpen && (<IeltsExpandedNavLinks pathname={pathname} t={t} filterQuery={navSearch} onLinkClick={clearQuickSearch}/>)}
+              {ieltsOpen && (<IeltsExpandedNavLinks pathname={pathname} t={navT} filterQuery={navSearch} onLinkClick={clearQuickSearch}/>)}
             </div>) : null}
 
             {navFilter.showIelts && navFilter.showStudy ? (<div className="my-2 shrink-0 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
 
             {navFilter.showStudy ? (<div className="flex shrink-0 flex-col gap-0.5">
-              <button type="button" onClick={toggleStudySection} className={[
+              <NavSectionHeader isOpen={studyOpen} onToggle={toggleStudySection} icon={GraduationCap} labelKey="navStudySection" outerClass={[
             "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
             isStudyPath(pathname)
                 ? "bg-white text-zinc-900 shadow-sm ring-1 ring-blue-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
                 : "text-zinc-500 hover:bg-blue-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
-        ].join(" ")}>
-                <span className="flex items-center gap-3">
-                  <span className={[
+        ].join(" ")} iconBoxClass={[
             "flex h-10 w-10 items-center justify-center rounded-xl transition",
             isStudyPath(pathname)
                 ? "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900"
                 : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
-        ].join(" ")}>
-                    <GraduationCap className="h-5 w-5"/>
-                  </span>
-                  <span>{t("navStudySection")}</span>
-                </span>
-                <ChevronDown className={[
-            "h-5 w-5 shrink-0 transition-transform text-zinc-400",
-            studyOpen ? "rotate-180" : "",
         ].join(" ")}/>
-              </button>
-              {studyOpen &&
-            navFilter.studyLinks.map((link) => {
-                const active = isActive(pathname, link.href);
-                const Icon = link.icon;
-                return (<Link key={link.href} href={link.href} onClick={clearQuickSearch} className={[
-                        "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200",
-                        active ? NAV_LINK_ROW_ACTIVE : NAV_LINK_ROW_IDLE,
-                    ].join(" ")}>
-                      <Icon className={`h-4 w-4 shrink-0 ${active ? "opacity-90" : "opacity-70"}`}/>
-                      <span>{t(link.labelKey)}</span>
-                    </Link>);
-            })}
+              {studyOpen && (<StudyExpandedNavLinks pathname={pathname} t={navT} filterQuery={navSearch} onLinkClick={clearQuickSearch} links={navFilter.studyLinks}/>)}
             </div>) : null}
 
             {navFilter.showStudy && navFilter.showSchedule ? (<div className="my-2 shrink-0 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
 
             {navFilter.showSchedule ? (<div className="flex shrink-0 flex-col gap-0.5">
-              <button type="button" onClick={toggleScheduleSection} className={[
+              <NavSectionHeader isOpen={scheduleOpen} onToggle={toggleScheduleSection} icon={CalendarClock} labelKey="navScheduleSection" outerClass={[
             "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
             isSchedulePath(pathname)
                 ? "bg-white text-zinc-900 shadow-sm ring-1 ring-blue-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
                 : "text-zinc-500 hover:bg-blue-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
-        ].join(" ")}>
-                <span className="flex items-center gap-3">
-                  <span className={[
+        ].join(" ")} iconBoxClass={[
             "flex h-10 w-10 items-center justify-center rounded-xl transition",
             isSchedulePath(pathname)
                 ? "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900"
                 : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
-        ].join(" ")}>
-                    <CalendarClock className="h-5 w-5"/>
-                  </span>
-                  <span>{t("navScheduleSection")}</span>
-                </span>
-                <ChevronDown className={[
-            "h-5 w-5 shrink-0 transition-transform text-zinc-400",
-            scheduleOpen ? "rotate-180" : "",
         ].join(" ")}/>
-              </button>
               {scheduleOpen &&
             navFilter.scheduleLinks.map((link) => {
                 const active = isActive(pathname, link.href);
                 const meetsLive = link.href === "/call" && meetInProgress;
                 const Icon = link.icon;
-                return (<Link key={link.href} href={link.href} onClick={clearQuickSearch} className={[
+                return (<NavSidebarRow key={link.href} href={link.href} labelKey={link.labelKey} onLinkClick={clearQuickSearch} className={[
                         "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200",
                         meetsLive ? NAV_LINK_ROW_MEETS_LIVE : active ? NAV_LINK_ROW_ACTIVE : NAV_LINK_ROW_IDLE,
-                    ].join(" ")}>
-                      <Icon className={`h-4 w-4 shrink-0 ${active || meetsLive ? "opacity-90" : "opacity-70"}`}/>
-                      <span className="flex min-w-0 flex-wrap items-center gap-2">
-                        {t(link.labelKey)}
-                        {meetsLive ? (<span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm ring-1 ring-red-400/50 dark:bg-red-500 dark:ring-red-300/40" title={t("meetsCallInProgress")}>
-                                <span className="leading-none" aria-hidden>🔴</span>
-                                {t("meetsLiveBadge")}
-                              </span>) : null}
-                      </span>
-                    </Link>);
+                    ].join(" ")} active={active} meetsLive={meetsLive} icon={Icon} badge={meetsLive ? (<span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm ring-1 ring-red-400/50 dark:bg-red-500 dark:ring-red-300/40" title={t("meetsCallInProgress")}>
+                              <span className="leading-none" aria-hidden>🔴</span>
+                              {t("meetsLiveBadge")}
+                            </span>) : undefined}/>);
             })}
             </div>) : null}
 
             {navFilter.showSchedule && navFilter.showOthers ? (<div className="my-2 shrink-0 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
 
             {navFilter.showOthers ? (<div className="flex shrink-0 flex-col gap-0.5">
-              <button type="button" onClick={toggleOthersSection} className={[
+              <NavSectionHeader isOpen={othersOpen} onToggle={toggleOthersSection} icon={Cloud} labelKey="others" outerClass={[
             "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
             isOthersPath(pathname)
                 ? "bg-white text-zinc-900 shadow-sm ring-1 ring-blue-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
                 : "text-zinc-500 hover:bg-blue-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
-        ].join(" ")}>
-                <span className="flex items-center gap-3">
-                  <span className={[
+        ].join(" ")} iconBoxClass={[
             "flex h-10 w-10 items-center justify-center rounded-xl transition",
             isOthersPath(pathname)
                 ? "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900"
                 : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
-        ].join(" ")}>
-                    <Cloud className="h-5 w-5"/>
-                  </span>
-                  <span>{t("others")}</span>
-                </span>
-                <ChevronDown className={[
-            "h-5 w-5 shrink-0 transition-transform text-zinc-400",
-            othersOpen ? "rotate-180" : "",
         ].join(" ")}/>
-              </button>
-              {othersOpen && (<OthersExpandedNavLinks pathname={pathname} t={t} filterQuery={navSearch} onLinkClick={clearQuickSearch}/>)}
+              {othersOpen && (<OthersExpandedNavLinks pathname={pathname} t={navT} filterQuery={navSearch} onLinkClick={clearQuickSearch}/>)}
             </div>) : null}
             </nav>
 
