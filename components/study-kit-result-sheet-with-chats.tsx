@@ -40,7 +40,7 @@ export function StudyKitResultSheetWithChats({
                     const m = /^sk-sec-(\d+)$/.exec(e.target.id);
                     if (!m)
                         continue;
-                    const idx = Number(m[1], 10);
+                    const idx = Number.parseInt(m[1]!, 10);
                     visibilityRatios.current.set(idx, e.intersectionRatio);
                 }
                 let bestIdx = 0;
