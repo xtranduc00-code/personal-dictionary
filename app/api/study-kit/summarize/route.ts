@@ -52,6 +52,7 @@ export async function POST(req: Request) {
     console.info(`${SK_LOG} start`, {
         inputMode: parsed.data.inputMode,
         presets: parsed.data.presets.join(","),
+        quizDepth: parsed.data.quizDepth,
         async: useAsyncPipeline,
     });
 
@@ -87,6 +88,7 @@ export async function POST(req: Request) {
             extracted,
             parsed.data.presets,
             parsed.data.customScope,
+            parsed.data.quizDepth,
         );
         console.info(`${SK_LOG} success`, { summaryChars: summary.length });
         return NextResponse.json({

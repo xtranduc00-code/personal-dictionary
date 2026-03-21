@@ -113,6 +113,7 @@ export async function enqueueStudyKitSummarizeJob(
             status: "pending",
             input_mode: data.inputMode,
             presets_csv: presetsToCsv(data.presets),
+            quiz_depth: data.quizDepth,
             custom_scope: data.customScope,
             sources_json: sourcesJson,
         });

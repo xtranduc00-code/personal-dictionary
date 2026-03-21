@@ -50,6 +50,8 @@ const PRE_CODE_MERMAID =
     /<pre>\s*<code[^>]*class="[^"]*language-mermaid[^"]*"[^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi;
 const PRE_CODE_TREE =
     /<pre>\s*<code[^>]*class="[^"]*language-tree[^"]*"[^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi;
+const PRE_CODE_MINDMAP_JSON =
+    /<pre>\s*<code[^>]*class="[^"]*language-mindmap-json[^"]*"[^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi;
 
 /**
  * Turn fenced `mermaid` / `tree` code blocks into export-friendly markup (Mermaid runs in the browser when the file is opened).
@@ -61,9 +63,11 @@ export function postprocessStudyKitExportBodyHtml(html: string): { html: string;
         const chart = decodeHtmlEntities(inner).trim();
         return `<div class="mermaid-wrap">${chart ? `<div class="mermaid">${escapeHtmlTextContent(chart)}</div>` : ""}</div>`;
     });
-    out = out.replace(PRE_CODE_TREE, (_, inner: string) => {
-        const raw = decodeHtmlEntities(inner);
-        return `<figure class="export-tree"><figcaption class="export-tree-cap">Mind map (tree list)</figcaption><pre class="export-tree-pre"><code>${escapeHtmlTextContent(raw)}</code></pre></figure>`;
+    out = out.replace(PRE_CODE_MINDMAP_JSON, () => {
+        return `<figure class="export-mm-placeholder"><p class="export-mm-placeholder-p">Mind map: open this sheet in the app to view the interactive diagram. Raw map data is not included in the HTML export.</p></figure>`;
+    });
+    out = out.replace(PRE_CODE_TREE, () => {
+        return "";
     });
     return { html: out, hasMermaid };
 }
@@ -180,9 +184,8 @@ body {
 .sheet pre code { background: none; padding: 0; }
 .mermaid-wrap { margin: 0.75rem 0; overflow-x: auto; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: #f8fafc; padding: 0.75rem; }
 .mermaid-wrap .mermaid { display: flex; justify-content: center; }
-.export-tree { margin: 0.75rem 0; border-radius: 0.5rem; border: 1px solid #e9d5ff; background: #faf5ff; padding: 0.5rem 0.75rem; }
-.export-tree-cap { margin: 0 0 0.35rem; font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: #6b21a8; }
-.export-tree-pre { margin: 0; padding: 0.5rem; border-radius: 0.35rem; background: #fff; border: 1px solid #ede9fe; font-size: 12px; line-height: 1.45; overflow-x: auto; white-space: pre; color: #334155; }
+.export-mm-placeholder { margin: 0.75rem 0; border-radius: 0.5rem; border: 1px solid #e9d5ff; background: #faf5ff; padding: 0.65rem 0.85rem; }
+.export-mm-placeholder-p { margin: 0; font-size: 0.8125rem; line-height: 1.5; color: #5b21b6; }
 .sheet .katex { font-size: 1.05em; color: #0f172a; }
 .sheet .katex-display { margin: 0.75rem 0; overflow-x: auto; }
 .sheet table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 0.75rem 0; }

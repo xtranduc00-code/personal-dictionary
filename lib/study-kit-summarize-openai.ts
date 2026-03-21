@@ -3,6 +3,7 @@ import type { ExtractedDocument } from "@/lib/study-kit-extract";
 import {
     buildExamRevisionSystemMessage,
     type StudyPreset,
+    type StudyQuizDepth,
     studyKitMaxOutputTokens,
 } from "@/lib/study-kit-prompt";
 import {
@@ -72,12 +73,13 @@ export async function summarizeStudyKitWithOpenAI(
     extracted: ExtractedDocument,
     presets: StudyPreset[],
     customScope: string,
+    quizDepth: StudyQuizDepth = "review",
 ): Promise<string> {
     const model =
         process.env.STUDY_KIT_OPENAI_MODEL?.trim() || "gpt-5.4";
     const reasoningEffort = studyKitReasoningEffort();
     const verbosity = studyKitVerbosity();
-    const system = buildExamRevisionSystemMessage(presets, customScope || undefined);
+    const system = buildExamRevisionSystemMessage(presets, customScope || undefined, quizDepth);
     const maxTokens = studyKitMaxOutputTokens(presets);
     const userContent = `Source label: ${extracted.fileName}
 ${extracted.truncated

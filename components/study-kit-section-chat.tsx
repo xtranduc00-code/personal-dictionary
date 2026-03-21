@@ -9,7 +9,7 @@ import {
     type FormEvent,
     type SetStateAction,
 } from "react";
-import { ChevronRight, Loader2, Send } from "lucide-react";
+import { Loader2, MessageSquareText, Send } from "lucide-react";
 import { toast } from "react-toastify";
 import { useI18n } from "@/components/i18n-provider";
 import { StudyKitChatMarkdown } from "@/components/study-kit-chat-markdown";
@@ -49,13 +49,7 @@ export function StudyKitSectionChat({
     const { user, openAuthModal } = useAuth();
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
-    const [panelOpen, setPanelOpen] = useState(() => messages.length > 0);
     const messagesScrollRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        if (messages.length > 0)
-            setPanelOpen(true);
-    }, [messages.length]);
 
     useEffect(() => {
         const el = messagesScrollRef.current;
@@ -130,22 +124,15 @@ export function StudyKitSectionChat({
     const fieldId = `study-kit-sec-chat-${instanceId}`;
 
     return (
-        <details
-            open={panelOpen}
-            onToggle={(e) => setPanelOpen(e.currentTarget.open)}
-            className="group mt-0 shrink-0 rounded-xl border border-zinc-200/80 bg-zinc-50/40 dark:border-white/10 dark:bg-zinc-900/25"
-        >
-            <summary
-                className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-left text-[12px] font-semibold text-[#334155] transition hover:bg-zinc-100/80 dark:text-zinc-200 dark:hover:bg-zinc-800/50 [&::-webkit-details-marker]:hidden"
-                aria-label={toggleLabel}
-            >
-                <ChevronRight
-                    className="h-4 w-4 shrink-0 text-blue-600 transition group-open:rotate-90 dark:text-sky-400"
+        <div className="mt-0 shrink-0 rounded-xl border border-zinc-200/80 bg-zinc-50/40 dark:border-white/10 dark:bg-zinc-900/25">
+            <h2 className="m-0 flex items-center gap-2 border-b border-zinc-200/80 px-3 py-2.5 text-left text-[12px] font-semibold text-[#334155] dark:border-white/10 dark:text-zinc-200">
+                <MessageSquareText
+                    className="h-4 w-4 shrink-0 text-blue-600 dark:text-sky-400"
                     aria-hidden
                 />
                 <span className="min-w-0">{toggleLabel}</span>
-            </summary>
-            <div className="border-t border-zinc-200/80 px-3 pb-3 pt-2 dark:border-white/10">
+            </h2>
+            <div className="px-3 pb-3 pt-2">
                 <p className="mb-2 text-[11px] leading-relaxed text-[#64748B] dark:text-zinc-500">{hint}</p>
                 <div className="mb-2 flex flex-wrap gap-1.5">
                     {STUDY_KIT_QUICK_ACTIONS.map((q) => (
@@ -236,6 +223,6 @@ export function StudyKitSectionChat({
                     </button>
                 </form>
             </div>
-        </details>
+        </div>
     );
 }

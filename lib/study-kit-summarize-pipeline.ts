@@ -7,7 +7,7 @@ import {
 } from "@/lib/study-kit-extract";
 import { fetchDocumentFromUrl } from "@/lib/study-kit-fetch-url";
 import { extractStudyKitSource } from "@/lib/study-kit-source-with-ocr";
-import { parseStudyPresets, type StudyPreset } from "@/lib/study-kit-prompt";
+import { parseStudyPresets, parseStudyQuizDepth, type StudyPreset, type StudyQuizDepth } from "@/lib/study-kit-prompt";
 import {
     MAX_CUSTOM_SCOPE_CHARS,
     MAX_FILE_BYTES,
@@ -20,6 +20,7 @@ import {
 export type StudyKitParsedForm = {
     inputMode: "file" | "paste" | "url" | "mixed";
     presets: StudyPreset[];
+    quizDepth: StudyQuizDepth;
     customScope: string;
     files: { name: string; mime: string; buffer: Buffer }[];
     urls: string[];
@@ -38,6 +39,9 @@ export async function parseStudyKitSummarizeForm(
     const presetsField = typeof form.get("presets") === "string" ? form.get("presets") as string : "";
     const legacyPreset = typeof form.get("preset") === "string" ? form.get("preset") as string : null;
     const presets = parseStudyPresets(presetsField.trim() || null, legacyPreset);
+    const quizDepthField =
+        typeof form.get("quizDepth") === "string" ? (form.get("quizDepth") as string) : "";
+    const quizDepth = parseStudyQuizDepth(quizDepthField.trim() || null);
     const customScopeRaw = typeof form.get("customScope") === "string" ? form.get("customScope") as string : (typeof form.get("lectureContext") === "string" ? form.get("lectureContext") as string : "");
     const customScope = customScopeRaw.trim().slice(0, MAX_CUSTOM_SCOPE_CHARS);
 
@@ -84,6 +88,7 @@ export async function parseStudyKitSummarizeForm(
             data: {
                 inputMode: "mixed",
                 presets,
+                quizDepth,
                 customScope,
                 files,
                 urls: urlList,
@@ -101,6 +106,7 @@ export async function parseStudyKitSummarizeForm(
             data: {
                 inputMode: "paste",
                 presets,
+                quizDepth,
                 customScope,
                 files: [],
                 urls: [],
@@ -123,6 +129,7 @@ export async function parseStudyKitSummarizeForm(
             data: {
                 inputMode: "url",
                 presets,
+                quizDepth,
                 customScope,
                 files: [],
                 urls: urlList,
@@ -151,6 +158,7 @@ export async function parseStudyKitSummarizeForm(
         data: {
             inputMode: "file",
             presets,
+            quizDepth,
             customScope,
             files,
             urls: [],

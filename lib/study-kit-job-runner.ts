@@ -11,7 +11,7 @@ import {
 } from "@/lib/study-kit-summarize-openai";
 import { SK_LOG, STUDY_KIT_ASYNC_BUCKET } from "@/lib/study-kit-summarize-shared";
 import type { StudyKitJobSourcesJson } from "@/lib/study-kit-async-jobs";
-import { parseStudyPresets } from "@/lib/study-kit-prompt";
+import { parseStudyPresets, parseStudyQuizDepth } from "@/lib/study-kit-prompt";
 
 const JOB_LOG = "[study-kit/job]";
 
@@ -78,9 +78,10 @@ export async function processStudyKitSummarizeJob(jobId: string): Promise<void> 
         return;
     }
 
-    const row = claimed as {
+    const row = claimed as unknown as {
         input_mode: string;
         presets_csv: string;
+        quiz_depth?: string | null;
         custom_scope: string;
         sources_json: unknown;
     };
@@ -133,6 +134,7 @@ export async function processStudyKitSummarizeJob(jobId: string): Promise<void> 
     const parsed: StudyKitParsedForm = {
         inputMode: row.input_mode,
         presets: parseStudyPresets(row.presets_csv?.trim() || null, null),
+        quizDepth: parseStudyQuizDepth(row.quiz_depth ?? null),
         customScope: row.custom_scope ?? "",
         files: downloaded,
         urls: sources.urls,
@@ -185,6 +187,7 @@ export async function processStudyKitSummarizeJob(jobId: string): Promise<void> 
             extracted,
             parsed.presets,
             parsed.customScope,
+            parsed.quizDepth,
         );
         console.info(`${SK_LOG} success`, { jobId, summaryChars: summary.length });
         await sb

@@ -12,6 +12,7 @@ create table if not exists public.study_kit_summarize_jobs (
     check (status in ('pending', 'processing', 'completed', 'failed')),
   input_mode text not null,
   presets_csv text not null,
+  quiz_depth text not null default 'review',
   custom_scope text not null default '',
   sources_json jsonb not null default '{}'::jsonb,
   result_summary text,

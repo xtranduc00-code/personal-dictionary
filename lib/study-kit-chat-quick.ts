@@ -1,3 +1,4 @@
+import { normalizeStudyKitSheetMarkdown } from "@/lib/study-kit-markdown-normalize";
 import { extractMarkdownSection } from "@/lib/study-kit-section";
 import type { TranslationKey } from "@/lib/i18n";
 
@@ -32,7 +33,8 @@ export function buildQuickUserMessageForSection(
     const focus = sectionTitle?.trim() ?? "";
     if (!focus)
         return prompt;
-    let block = extractMarkdownSection(studyContext, focus);
+    const ctx = normalizeStudyKitSheetMarkdown(studyContext);
+    let block = extractMarkdownSection(ctx, focus);
     if (!block)
         block = `## ${focus}`;
     if (block.length > QUICK_SECTION_BODY_MAX) {
