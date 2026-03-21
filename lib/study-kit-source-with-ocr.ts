@@ -4,7 +4,11 @@ import {
     toExtractedDocument,
     type ExtractedDocument,
 } from "./study-kit-extract";
-import { ocrPdfBufferWithOpenAI, ocrRasterImageWithOpenAI } from "./study-kit-vision-ocr";
+import {
+    ocrPdfBufferWithOpenAI,
+    ocrRasterImageWithOpenAI,
+    pdfPageRasterizationForOcrEnabled,
+} from "./study-kit-vision-ocr";
 
 function isRasterImageFile(fileName: string, mime: string): boolean {
     const lower = fileName.toLowerCase();
@@ -39,6 +43,8 @@ export async function extractStudyKitSource(
     }
     catch (e: unknown) {
         if (e instanceof Error && e.message === "PDF_NO_TEXT") {
+            if (!pdfPageRasterizationForOcrEnabled())
+                throw new Error("PDF_NO_TEXT");
             try {
                 const text = await ocrPdfBufferWithOpenAI(openai, buffer, fileName);
                 return toExtractedDocument(text, fileName);

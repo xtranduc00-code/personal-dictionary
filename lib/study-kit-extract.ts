@@ -1,3 +1,4 @@
+import "./study-kit-pdfjs-polyfill";
 import JSZip from "jszip";
 import * as XLSX from "xlsx";
 import { PDFParse } from "pdf-parse";

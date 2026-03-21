@@ -26,6 +26,7 @@
     "@radix-ui/react-toast": "^1.2.2",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@supabase/supabase-js": "^2.99.1",
+    "@thednp/dommatrix": "^3.0.3",
     "@tiptap/extension-highlight": "^3.20.2",
     "@tiptap/extension-image": "^3.20.4",
     "@tiptap/extension-link": "^3.20.2",
@@ -88,9 +89,9 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3",
     "@netlify/functions": "^4",
     "@netlify/plugin-nextjs": "^5",
-    "@aws-sdk/client-s3": "^3",
     "@tailwindcss/postcss": "^4",
     "@tailwindcss/typography": "^0.5.16",
     "@types/bcryptjs": "^2.4.6",

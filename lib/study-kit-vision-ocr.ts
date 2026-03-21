@@ -1,5 +1,26 @@
+import "./study-kit-pdfjs-polyfill";
 import type OpenAI from "openai";
 import { PDFParse } from "pdf-parse";
+
+/**
+ * Rasterizing PDF pages for Vision OCR needs @napi-rs/canvas + pdfjs render pipeline — unreliable on Netlify/AWS.
+ * Text-layer PDFs still work via getText(). Image uploads still use Vision OCR (no pdfjs render).
+ */
+export function pdfPageRasterizationForOcrEnabled(): boolean {
+    if (process.env.STUDY_KIT_DISABLE_PDF_RASTER === "1" || process.env.STUDY_KIT_DISABLE_PDF_RASTER === "true")
+        return false;
+    if (process.env.STUDY_KIT_ENABLE_PDF_RASTER === "1" || process.env.STUDY_KIT_ENABLE_PDF_RASTER === "true")
+        return true;
+    if (process.env.NETLIFY === "true")
+        return false;
+    if ((process.env.DEPLOY_ID?.trim().length ?? 0) > 0)
+        return false;
+    if (process.env.AWS_LAMBDA_FUNCTION_NAME)
+        return false;
+    if (process.env.VERCEL === "1")
+        return false;
+    return true;
+}
 
 function visionModel(): string {
     return process.env.STUDY_KIT_VISION_MODEL?.trim() || "gpt-4o-mini";
@@ -85,6 +106,8 @@ export async function ocrPdfBufferWithOpenAI(
     buffer: Buffer,
     fileName: string,
 ): Promise<string> {
+    if (!pdfPageRasterizationForOcrEnabled())
+        throw new Error("PDF_RASTER_DISABLED");
     const model = visionModel();
     const maxPages = ocrMaxPages();
     const batchSize = ocrBatchSize();
