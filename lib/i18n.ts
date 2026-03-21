@@ -204,7 +204,7 @@ export const translations = {
     studyKitErrAiFailed: "Could not generate notes (AI error). Check API key, model access, and billing, then try again.",
     studyKitErrBadResponse: "The server returned an unexpected response. Try again or check hosting logs.",
     studyKitErrBadResponseHttp:
-      "HTTP {status}: reply was not JSON (Netlify often returns HTML on timeout or a hard crash). Paying for a plan does not auto-increase the limit: Netlify → Site → Project configuration → Functions → raise Function timeout (try 60–120s), Save, then redeploy. In Functions logs search [study-kit/summarize]. Or set env STUDY_KIT_OPENAI_MODEL=gpt-4o and STUDY_KIT_OCR_MAX_PAGES=6.",
+      "HTTP {status}: reply was not JSON (Netlify often returns HTML on timeout or a hard crash). Exam Notes async: set env STUDY_KIT_ASYNC=1 plus STUDY_KIT_INTERNAL_SECRET and SUPABASE_SERVICE_ROLE_KEY (custom domains often skip async without this). Or shorten work: STUDY_KIT_OPENAI_MODEL=gpt-4o and STUDY_KIT_OCR_MAX_PAGES=6. Logs: search [study-kit/summarize]; raise function timeout in Netlify UI if you stay on sync.",
     studyKitAsyncStarted:
         "Job queued — OCR and notes run in the background (no HTTP timeout). This page will open when ready.",
     studyKitJobTimeout: "Still processing after a long wait. Check back in History or try again with fewer pages.",
@@ -1224,7 +1224,7 @@ export const translations = {
         "Không tạo được bài (lỗi AI). Kiểm tra API key, quyền model và thanh toán OpenAI, rồi thử lại.",
     studyKitErrBadResponse: "Máy chủ trả về dữ liệu không đúng. Thử lại hoặc xem log hosting.",
     studyKitErrBadResponseHttp:
-      "HTTP {status}: không phải JSON (Netlify hay trả HTML khi timeout hoặc crash). Trả phí vẫn phải chỉnh tay: Netlify → Site → Project configuration → Functions → tăng Function timeout (thử 60–120s), Lưu, rồi deploy lại. Trong Functions logs tìm [study-kit/summarize]. Hoặc env STUDY_KIT_OPENAI_MODEL=gpt-4o và STUDY_KIT_OCR_MAX_PAGES=6.",
+      "HTTP {status}: không phải JSON (Netlify hay trả HTML khi timeout hoặc crash). Exam Notes async: đặt env STUDY_KIT_ASYNC=1 cùng STUDY_KIT_INTERNAL_SECRET và SUPABASE_SERVICE_ROLE_KEY (domain tùy chỉnh hay không bật async nếu thiếu). Hoặc rút ngắn: STUDY_KIT_OPENAI_MODEL=gpt-4o và STUDY_KIT_OCR_MAX_PAGES=6. Log: tìm [study-kit/summarize]; tăng function timeout trên Netlify nếu vẫn chạy sync.",
     studyKitAsyncStarted:
         "Đã xếp hàng — OCR và tạo bài chạy nền (tránh timeout HTTP). Trang kết quả sẽ mở khi xong.",
     studyKitJobTimeout: "Chờ quá lâu vẫn chưa xong. Thử xem Lịch sử hoặc chạy lại với ít trang hơn.",

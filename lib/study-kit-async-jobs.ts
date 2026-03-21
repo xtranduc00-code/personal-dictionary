@@ -12,17 +12,28 @@ export type StudyKitJobSourcesJson = {
     pastes: string[];
 };
 
-/** Netlify deploy + service role + shared secret + background function URL. */
+/**
+ * Use background job + Storage instead of doing OCR+OpenAI in one HTTP request.
+ *
+ * Important: Next.js serverless on Netlify often does **not** set `NETLIFY=true` (especially with a
+ * custom primary URL like kenworkspace.com). Rely on `STUDY_KIT_ASYNC=1`, `DEPLOY_ID`, or `NETLIFY`.
+ */
 export function studyKitAsyncPipelineEnabled(): boolean {
     if (process.env.STUDY_KIT_FORCE_SYNC === "true" || process.env.STUDY_KIT_FORCE_SYNC === "1")
-        return false;
-    if (process.env.NETLIFY !== "true")
         return false;
     if (!process.env.STUDY_KIT_INTERNAL_SECRET?.trim())
         return false;
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY?.trim())
         return false;
-    return true;
+    const asyncFlag = process.env.STUDY_KIT_ASYNC?.trim().toLowerCase();
+    if (asyncFlag === "1" || asyncFlag === "true" || asyncFlag === "yes")
+        return true;
+    if (process.env.NETLIFY === "true")
+        return true;
+    const deployId = process.env.DEPLOY_ID?.trim();
+    if (deployId && deployId.length > 0)
+        return true;
+    return false;
 }
 
 async function removeStoragePaths(paths: string[]): Promise<void> {
