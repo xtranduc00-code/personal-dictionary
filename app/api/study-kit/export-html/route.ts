@@ -4,6 +4,7 @@ import { getAuthUser } from "@/lib/get-auth-user";
 import {
     buildStudyKitExportDocument,
     markdownToStudyKitHtmlFragment,
+    postprocessStudyKitExportBodyHtml,
 } from "@/lib/study-kit-export-html";
 
 export const runtime = "nodejs";
@@ -15,6 +16,8 @@ const bodySchema = z.object({
     markdown: z.string().min(1).max(MAX_MARKDOWN_CHARS),
     title: z.string().max(200).optional(),
     lang: z.enum(["en", "vi"]).optional(),
+    /** Shown above the sheet in the HTML file (plain text). */
+    exportNote: z.string().max(900).optional(),
 });
 
 export async function POST(req: Request) {
@@ -34,13 +37,16 @@ export async function POST(req: Request) {
     if (!parsed.success)
         return NextResponse.json({ code: "BAD_BODY" }, { status: 400 });
 
-    const { markdown, title, lang } = parsed.data;
+    const { markdown, title, lang, exportNote } = parsed.data;
     try {
-        const bodyHtml = await markdownToStudyKitHtmlFragment(markdown);
+        const bodyHtmlRaw = await markdownToStudyKitHtmlFragment(markdown);
+        const { html: bodyHtml, hasMermaid } = postprocessStudyKitExportBodyHtml(bodyHtmlRaw);
         const doc = buildStudyKitExportDocument({
             title: title?.trim() || "Study sheet",
             lang: lang ?? "en",
             bodyHtml,
+            generatedNote: exportNote?.trim() || undefined,
+            includeMermaidRuntime: hasMermaid,
         });
         return NextResponse.json({ html: doc });
     }

@@ -66,7 +66,7 @@ export function MainScrollShell({ children }: PropsWithChildren) {
         <div
             ref={containerRef}
             data-main-scroll
-            className="min-w-0 w-full max-w-full md:h-full md:overflow-y-auto md:overflow-x-hidden md:pr-2"
+            className="min-h-0 min-w-0 w-full max-w-full md:flex-1 md:overflow-y-auto md:overflow-x-hidden md:pr-2"
         >
             {children}
         </div>

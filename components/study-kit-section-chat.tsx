@@ -49,10 +49,19 @@ export function StudyKitSectionChat({
     const { user, openAuthModal } = useAuth();
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
-    const listEndRef = useRef<HTMLDivElement>(null);
+    const [panelOpen, setPanelOpen] = useState(() => messages.length > 0);
+    const messagesScrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        listEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        if (messages.length > 0)
+            setPanelOpen(true);
+    }, [messages.length]);
+
+    useEffect(() => {
+        const el = messagesScrollRef.current;
+        if (!el)
+            return;
+        el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
     }, [messages, loading]);
 
     const send = useCallback(
@@ -119,7 +128,11 @@ export function StudyKitSectionChat({
     const fieldId = `study-kit-sec-chat-${instanceId}`;
 
     return (
-        <details className="group mt-4 rounded-xl border border-zinc-200/80 bg-zinc-50/40 dark:border-white/10 dark:bg-zinc-900/25">
+        <details
+            open={panelOpen}
+            onToggle={(e) => setPanelOpen(e.currentTarget.open)}
+            className="group mt-0 shrink-0 rounded-xl border border-zinc-200/80 bg-zinc-50/40 dark:border-white/10 dark:bg-zinc-900/25"
+        >
             <summary
                 className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-left text-[12px] font-semibold text-[#334155] transition hover:bg-zinc-100/80 dark:text-zinc-200 dark:hover:bg-zinc-800/50 [&::-webkit-details-marker]:hidden"
                 aria-label={toggleLabel}
@@ -147,7 +160,10 @@ export function StudyKitSectionChat({
                         </button>
                     ))}
                 </div>
-                <div className="mb-2 max-h-[min(40vh,320px)] space-y-2 overflow-y-auto rounded-lg border border-zinc-200/60 bg-white/80 px-2 py-2 dark:border-white/10 dark:bg-zinc-950/40">
+                <div
+                    ref={messagesScrollRef}
+                    className="mb-2 max-h-[min(40vh,320px)] space-y-2 overflow-y-auto rounded-lg border border-zinc-200/60 bg-white/80 px-2 py-2 dark:border-white/10 dark:bg-zinc-950/40 lg:max-h-[min(52vh,420px)]"
+                >
                     {messages.length === 0 ? (
                         <p className="px-1 text-center text-[11px] text-[#94A3B8] dark:text-zinc-500">
                             {t("studyKitChatEmpty")}
@@ -191,7 +207,6 @@ export function StudyKitSectionChat({
                             {t("studyKitChatThinking")}
                         </div>
                     ) : null}
-                    <div ref={listEndRef} />
                 </div>
                 <form onSubmit={onSubmit} className="space-y-2">
                     <label htmlFor={fieldId} className="sr-only">

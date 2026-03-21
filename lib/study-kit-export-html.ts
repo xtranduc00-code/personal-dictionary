@@ -28,6 +28,61 @@ export async function markdownToStudyKitHtmlFragment(markdown: string): Promise<
     return String(file);
 }
 
+function decodeHtmlEntities(s: string): string {
+    return s
+        .replace(/&#x([0-9A-Fa-f]+);/g, (_, h) => String.fromCharCode(Number.parseInt(h, 16)))
+        .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number.parseInt(n, 10)))
+        .replace(/&quot;/g, "\"")
+        .replace(/&apos;/g, "'")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&amp;/g, "&");
+}
+
+function escapeHtmlTextContent(s: string): string {
+    return s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+}
+
+const PRE_CODE_MERMAID =
+    /<pre>\s*<code[^>]*class="[^"]*language-mermaid[^"]*"[^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi;
+const PRE_CODE_TREE =
+    /<pre>\s*<code[^>]*class="[^"]*language-tree[^"]*"[^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi;
+
+/**
+ * Turn fenced `mermaid` / `tree` code blocks into export-friendly markup (Mermaid runs in the browser when the file is opened).
+ */
+export function postprocessStudyKitExportBodyHtml(html: string): { html: string; hasMermaid: boolean } {
+    let hasMermaid = false;
+    let out = html.replace(PRE_CODE_MERMAID, (_, inner: string) => {
+        hasMermaid = true;
+        const chart = decodeHtmlEntities(inner).trim();
+        return `<div class="mermaid-wrap">${chart ? `<div class="mermaid">${escapeHtmlTextContent(chart)}</div>` : ""}</div>`;
+    });
+    out = out.replace(PRE_CODE_TREE, (_, inner: string) => {
+        const raw = decodeHtmlEntities(inner);
+        return `<figure class="export-tree"><figcaption class="export-tree-cap">Mind map (tree list)</figcaption><pre class="export-tree-pre"><code>${escapeHtmlTextContent(raw)}</code></pre></figure>`;
+    });
+    return { html: out, hasMermaid };
+}
+
+const MERMAID_ESM = "https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.esm.min.mjs";
+
+const MERMAID_BOOTSTRAP = `
+<script type="module">
+import mermaid from "${MERMAID_ESM}";
+mermaid.initialize({
+  startOnLoad: false,
+  theme: "neutral",
+  securityLevel: "loose",
+  fontFamily: "ui-sans-serif, system-ui, sans-serif",
+});
+await mermaid.run({ querySelector: ".mermaid" });
+</script>
+`.trim();
+
 const KATEX_CDN = "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css";
 
 /** Light, print-friendly styles approximating `exam-notes-markdown` / study sheet UI. */
@@ -123,6 +178,11 @@ body {
   color: #334155;
 }
 .sheet pre code { background: none; padding: 0; }
+.mermaid-wrap { margin: 0.75rem 0; overflow-x: auto; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: #f8fafc; padding: 0.75rem; }
+.mermaid-wrap .mermaid { display: flex; justify-content: center; }
+.export-tree { margin: 0.75rem 0; border-radius: 0.5rem; border: 1px solid #e9d5ff; background: #faf5ff; padding: 0.5rem 0.75rem; }
+.export-tree-cap { margin: 0 0 0.35rem; font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: #6b21a8; }
+.export-tree-pre { margin: 0; padding: 0.5rem; border-radius: 0.35rem; background: #fff; border: 1px solid #ede9fe; font-size: 12px; line-height: 1.45; overflow-x: auto; white-space: pre; color: #334155; }
 .sheet .katex { font-size: 1.05em; color: #0f172a; }
 .sheet .katex-display { margin: 0.75rem 0; overflow-x: auto; }
 .sheet table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 0.75rem 0; }
@@ -153,11 +213,14 @@ export function buildStudyKitExportDocument(opts: {
     lang: string;
     bodyHtml: string;
     generatedNote?: string;
+    /** Append Mermaid ESM bootstrap so diagrams render when the file is opened in a browser (needs network for CDN). */
+    includeMermaidRuntime?: boolean;
 }): string {
     const title = escapeHtmlAttr(opts.title);
     const note = opts.generatedNote
         ? `<p class="meta">${escapeHtmlAttr(opts.generatedNote)}</p>`
         : "";
+    const mermaidScript = opts.includeMermaidRuntime ? `\n${MERMAID_BOOTSTRAP}\n` : "";
     return `<!DOCTYPE html>
 <html lang="${escapeHtmlAttr(opts.lang)}">
 <head>
@@ -173,7 +236,7 @@ ${note}
 <div class="sheet exam-notes-markdown">
 ${opts.bodyHtml}
 </div>
-</div>
+</div>${mermaidScript}
 </body>
 </html>`;
 }

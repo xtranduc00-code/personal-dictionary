@@ -42,8 +42,9 @@ export function parseStudyPresets(
 export function studyKitMaxOutputTokens(presets: StudyPreset[]): number {
     const p = normalizePresetList(presets);
     let n = 4096;
+    /** 30 full-stem questions + key need more headroom than a short 10-Q sheet. */
     if (p.includes("quiz"))
-        n = Math.max(n, 8192);
+        n = Math.max(n, 12288);
     if (p.length >= 2)
         n = Math.min(16384, n + 2048 * (p.length - 1));
     return n;
@@ -126,7 +127,10 @@ export function buildExamRevisionSystemMessage(
             "MIND MAP BLOCK (`## Mind map`):",
             "- If a summary precedes this, leave a blank line before `## Mind map`.",
             "- Output ONLY one fenced code block with language tag exactly `tree` (three backticks + tree).",
-            "- Inside: one line per node; each line starts with `- `; nest children with exactly two more leading spaces per level (no tabs); max depth 4; short labels; faithful to source structure.",
+            "- Inside: one line per node; each line starts with `- `; nest children with exactly two more leading spaces per level (no tabs); max depth 4; faithful to source structure.",
+            "- **Branching:** use **one top-level `-` branch per major concept** (e.g. routing table vs Dijkstra vs Bellman–Ford), not one giant list that mixes them.",
+            "- **Algorithm / procedure lines** must read as an **action flow**, not a paragraph: each node label is a **short step** (about **2–5 words**), e.g. `Init`, `Pick min unvisited`, `Relax edges`, `Repeat until done` — never long clauses like “Needs global topology…” as a single node.",
+            "- **Color tags (use on branch roots so the UI can group visually):** start the visible label with exactly one of `[rt] ` (routing table / forwarding / FIB), `[dj] ` (Dijkstra / link-state), or `[bf] ` (Bellman–Ford / distance-vector) on **each separate top-level `-` line** and again when a nested branch switches topic. Example: `- [rt] Routing table` … `- [dj] Dijkstra` … `- Init` … `- Pick min` … Children inherit the same idea until you introduce another `[tag] ` line.",
             "- Do not put the mind map in a paragraph outside the fence.",
         );
     }
@@ -136,8 +140,12 @@ export function buildExamRevisionSystemMessage(
             "",
             "QUIZ BLOCK:",
             "- If prior sections exist, blank line before `## Quiz`.",
-            "- Under `## Quiz`: mix short-answer and multiple-choice; for MCQ list options clearly; all grounded in the source.",
-            "- Then heading exactly `## Answer key` with correct answers and brief explanations (≤15 words each unless a precise definition is required).",
+            "- Output **exactly 30 numbered questions** under `## Quiz`: use `1.` … `30.` (one question per number, no skipping).",
+            "- **Diversity (spread across all 30):** include several **multiple-choice** (clear A/B/C/D or listed options), several **short free-response** (define / compare / explain briefly), **numeric or table-style** items where the source supports them, and at least a few **true/false or “which statement is wrong?”** if appropriate. Do not let one format dominate (avoid 25 MCQs only).",
+            "- **Computational & exam-style exercises (priority when the source covers them):** for topics like **shortest-path / Dijkstra / link-state**, **distance-vector / Bellman–Ford**, **routing tables**, or any worked examples in the source, include **multiple full exercise stems** — e.g. a **small graph or edge list with weights**, then ask for **shortest path, path cost, or next-hop** from a given start (or one relaxation step). Reuse only **numbers/edges that you state in the question**; if the source lacks a graph, you may invent a **tiny consistent toy example** (≤6 nodes) that matches the algorithm taught.",
+            "- Each question must be **self-contained**: reader can answer without opening other files; paste any needed data (graph, table header, distances) **inside that question**.",
+            "- **Diagrams in the quiz (not optional for graph-style topics):** whenever a question depends on **network topology, weighted edges, or algorithm flow**, include a fenced block with language tag exactly `mermaid` **inside that same question** (before or after the stem). Use `graph LR` / `flowchart TD` with **≤8 nodes** and **edge labels for weights** where relevant. At least **several** questions on routing / shortest-path / Dijkstra / Bellman–Ford must ship with a Mermaid figure — do **not** rely on prose-only or loose ASCII for those.",
+            "- Then heading exactly `## Answer key` with **30 matching entries** (`1.` … `30.`) — correct answer plus a **brief** explanation (≤15 words when possible; allow a short numeric line or one equation for calculation items).",
         );
     }
 
@@ -146,7 +154,9 @@ export function buildExamRevisionSystemMessage(
         "GLOBAL:",
         "- Use only what the source supports.",
         "- No meta commentary about your process.",
-        "- **Brevity over coverage:** the user needs a **short** sheet they can skim before an exam — if in doubt, shorten.",
+        p.includes("quiz")
+            ? "- **Brevity** applies to **summary and mind map** (keep those skimmable). **Do not** shorten or merge away the quiz: the `## Quiz` + `## Answer key` must still deliver **30 distinct questions** with the mix and exercise depth required in QUIZ BLOCK."
+            : "- **Brevity over coverage:** the user needs a **short** sheet they can skim before an exam — if in doubt, shorten.",
     );
 
     const scope = customScope?.trim();

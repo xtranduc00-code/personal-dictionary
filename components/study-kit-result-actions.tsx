@@ -31,6 +31,23 @@ export function StudyKitResultActions({
     const [exporting, setExporting] = useState(false);
     const [saveOpen, setSaveOpen] = useState(false);
 
+    const onExportMarkdown = useCallback(() => {
+        if (!summary.trim())
+            return;
+        const title = defaultTitleFromMarkdown(summary);
+        const blob = new Blob([summary], { type: "text/markdown;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${safeFileBase(title)}.md`;
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        toast.success(t("studyKitExportMarkdownDone"));
+    }, [summary, t]);
+
     const onExportHtml = useCallback(async () => {
         if (!user) {
             openAuthModal();
@@ -47,6 +64,7 @@ export function StudyKitResultActions({
                     markdown: summary,
                     title,
                     lang: locale,
+                    exportNote: t("studyKitExportFullSheetNote"),
                 }),
             });
             const data = (await res.json()) as { html?: string; code?: string };
@@ -97,6 +115,15 @@ export function StudyKitResultActions({
                         <Download className="h-3.5 w-3.5" aria-hidden />
                     )}
                     {t("studyKitExportHtml")}
+                </button>
+                <button
+                    type="button"
+                    disabled={!summary.trim()}
+                    onClick={() => onExportMarkdown()}
+                    className={btn}
+                >
+                    <Download className="h-3.5 w-3.5" aria-hidden />
+                    {t("studyKitExportMarkdown")}
                 </button>
                 <button
                     type="button"

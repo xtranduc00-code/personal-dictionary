@@ -1,6 +1,10 @@
 import { SignJWT } from "jose";
-/** Short-lived JWT so the browser Supabase client acts as `authenticated` (Storage RLS + RPC). Signed with Dashboard → Settings → API → JWT Secret (same as legacy `JWT_SECRET`). NOT the service_role key. */
-const EXP_SEC = 900;
+/**
+ * Browser Supabase client uses this JWT as `authenticated` (Storage RLS + RPC).
+ * Signed with Dashboard → Settings → API → JWT Secret (same as legacy `JWT_SECRET`). NOT service_role.
+ * Long TTL so users aren’t cut off mid-session; scope is still per-user + RLS.
+ */
+const EXP_SEC = 90 * 24 * 60 * 60;
 export async function mintSupabaseUserJwt(userId: string): Promise<{
   token: string;
   expiresIn: number;
