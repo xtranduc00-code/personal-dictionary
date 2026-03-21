@@ -5,6 +5,7 @@
 # Set duration in this file (recommended). Netlify caps `timeout` by plan — if deploy warns, lower it.
 # Docs: https://docs.netlify.com/build/functions/overview/ (sync function limits; Background Functions for 15m async).
 # Logs: Functions → search "[study-kit/summarize]" after Generate.
+# Long OCR+AI: optional Background Function `study-kit-summarize-background` (15m) + job table (see scripts/sql + .env.example).
 
 # Next.js App Router on Netlify (install: npm i -D @netlify/plugin-nextjs)
 [[plugins]]

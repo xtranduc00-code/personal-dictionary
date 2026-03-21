@@ -22,7 +22,21 @@ type SummarizeResponse = {
     fileName?: string;
     code?: string;
     detail?: string;
+    jobId?: string;
+    async?: boolean;
 };
+
+type JobPollResponse = {
+    status: string;
+    summary?: string;
+    truncated?: boolean;
+    fileName?: string;
+    code?: string;
+    detail?: string;
+};
+
+const ASYNC_POLL_MS = 2000;
+const ASYNC_MAX_POLLS = 450;
 
 const MAX_SOURCES = 10;
 
@@ -89,6 +103,9 @@ function toastForCode(t: (key: TranslationKey) => string, code: string | undefin
         SERVER_CONFIG: "studyKitErrServerConfig",
         UNAUTHORIZED: "studyKitErrUnauthorized",
         SUMMARIZE_FAILED: "studyKitErrAiFailed",
+        JOB_CREATE_FAILED: "studyKitErrJobEnqueue",
+        STORAGE_UPLOAD_FAILED: "studyKitErrStorageUpload",
+        NOT_FOUND: "studyKitErrGeneric",
     };
     const translationKey: TranslationKey =
         code && map[code] ? map[code]! : "studyKitErrGeneric";
@@ -377,6 +394,56 @@ function StudyKitPageInner() {
                         return;
                     }
                 }
+                if (res.status === 202 && data.jobId) {
+                    toast.info(t("studyKitAsyncStarted"));
+                    for (let poll = 0; poll < ASYNC_MAX_POLLS; poll++) {
+                        await new Promise((r) => setTimeout(r, ASYNC_POLL_MS));
+                        const jr = await authFetch(
+                            `/api/study-kit/summarize/jobs/${encodeURIComponent(data.jobId!)}`,
+                        );
+                        const rawJ = await jr.text();
+                        let job: JobPollResponse = { status: "unknown" };
+                        if (rawJ) {
+                            try {
+                                job = JSON.parse(rawJ) as JobPollResponse;
+                            }
+                            catch {
+                                toast.error(
+                                    t("studyKitErrBadResponseHttp").replace("{status}", String(jr.status)),
+                                );
+                                return;
+                            }
+                        }
+                        if (!jr.ok) {
+                            if (job.detail)
+                                toast.error(job.detail);
+                            else
+                                toastForCode(t, job.code);
+                            return;
+                        }
+                        if (job.status === "completed") {
+                            const summaryText = job.summary ?? "";
+                            const isTruncated = Boolean(job.truncated);
+                            if (summaryText) {
+                                sessionStorage.setItem(STORAGE_KEY, summaryText);
+                                sessionStorage.setItem(STORAGE_TRUNCATED_KEY, String(isTruncated));
+                                sessionStorage.setItem("study-kit-result-fresh", "1");
+                                router.push("/study-kit/result");
+                            }
+                            return;
+                        }
+                        if (job.status === "failed") {
+                            if (job.detail)
+                                toast.error(job.detail);
+                            else
+                                toastForCode(t, job.code);
+                            return;
+                        }
+                    }
+                    toast.error(t("studyKitJobTimeout"));
+                    return;
+                }
+
                 if (!res.ok) {
                     if (data.detail)
                         toast.error(data.detail);

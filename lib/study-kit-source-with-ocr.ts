@@ -3,8 +3,8 @@ import {
     extractDocumentText,
     toExtractedDocument,
     type ExtractedDocument,
-} from "@/lib/study-kit-extract";
-import { ocrPdfBufferWithOpenAI, ocrRasterImageWithOpenAI } from "@/lib/study-kit-vision-ocr";
+} from "./study-kit-extract";
+import { ocrPdfBufferWithOpenAI, ocrRasterImageWithOpenAI } from "./study-kit-vision-ocr";
 
 function isRasterImageFile(fileName: string, mime: string): boolean {
     const lower = fileName.toLowerCase();

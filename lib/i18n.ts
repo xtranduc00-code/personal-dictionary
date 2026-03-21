@@ -205,6 +205,11 @@ export const translations = {
     studyKitErrBadResponse: "The server returned an unexpected response. Try again or check hosting logs.",
     studyKitErrBadResponseHttp:
       "HTTP {status}: reply was not JSON (Netlify often returns HTML on timeout or a hard crash). Paying for a plan does not auto-increase the limit: Netlify → Site → Project configuration → Functions → raise Function timeout (try 60–120s), Save, then redeploy. In Functions logs search [study-kit/summarize]. Or set env STUDY_KIT_OPENAI_MODEL=gpt-4o and STUDY_KIT_OCR_MAX_PAGES=6.",
+    studyKitAsyncStarted:
+        "Job queued — OCR and notes run in the background (no HTTP timeout). This page will open when ready.",
+    studyKitJobTimeout: "Still processing after a long wait. Check back in History or try again with fewer pages.",
+    studyKitErrJobEnqueue: "Could not start background job (database or storage). Check Supabase SQL + Storage bucket study-kit-async-jobs.",
+    studyKitErrStorageUpload: "Could not upload files for background processing. Check Storage bucket and policies.",
     studyKitTruncatedBanner: "Only the start of the source was used (length limit).",
     studyKitMindmapDiagramTitle: "Mind map",
     studyKitMindmapPanHint: "Scroll or click-drag to pan; +/− adjusts size.",
@@ -1220,6 +1225,12 @@ export const translations = {
     studyKitErrBadResponse: "Máy chủ trả về dữ liệu không đúng. Thử lại hoặc xem log hosting.",
     studyKitErrBadResponseHttp:
       "HTTP {status}: không phải JSON (Netlify hay trả HTML khi timeout hoặc crash). Trả phí vẫn phải chỉnh tay: Netlify → Site → Project configuration → Functions → tăng Function timeout (thử 60–120s), Lưu, rồi deploy lại. Trong Functions logs tìm [study-kit/summarize]. Hoặc env STUDY_KIT_OPENAI_MODEL=gpt-4o và STUDY_KIT_OCR_MAX_PAGES=6.",
+    studyKitAsyncStarted:
+        "Đã xếp hàng — OCR và tạo bài chạy nền (tránh timeout HTTP). Trang kết quả sẽ mở khi xong.",
+    studyKitJobTimeout: "Chờ quá lâu vẫn chưa xong. Thử xem Lịch sử hoặc chạy lại với ít trang hơn.",
+    studyKitErrJobEnqueue:
+        "Không khởi tạo được job nền (database hoặc storage). Kiểm tra SQL Supabase + bucket study-kit-async-jobs.",
+    studyKitErrStorageUpload: "Không tải được tệp lên để xử lý nền. Kiểm tra bucket Storage và quyền.",
     studyKitTruncatedBanner: "Chỉ dùng phần đầu nguồn (giới hạn độ dài).",
     studyKitMindmapDiagramTitle: "Sơ đồ cây",
     studyKitMindmapPanHint: "Cuộn hoặc kéo để di chuyển; +/− để phóng to/thu nhỏ.",
