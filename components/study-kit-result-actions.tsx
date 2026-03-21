@@ -140,7 +140,7 @@ export function StudyKitResultActions({
                 onClose={() => setSaveOpen(false)}
                 summary={summary}
                 truncated={truncated}
-                onSaved={() => toast.success(t("studyKitSavedToast"))}
+                onSaved={undefined}
             />
         </>
     );

@@ -7,15 +7,21 @@ import {
     ArrowLeft,
     ExternalLink,
     FileText,
+    Loader2,
     Pencil,
     Trash2,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { useI18n } from "@/components/i18n-provider";
+import { useAuth } from "@/lib/auth-context";
+import {
+    apiDeleteSheet,
+    apiFetchSavedTopic,
+    apiUpdateSheet,
+} from "@/lib/study-kit-saved-remote";
 import {
     deleteSheetFromTopic,
     getStudyTopic,
-    loadStudyTopics,
     updateSheetInTopic,
     type StudySavedSheet,
     type StudySavedTopic,
@@ -41,12 +47,14 @@ function SheetRow({
     topicId,
     sheet,
     locale,
+    storage,
     onChanged,
     t,
 }: {
     topicId: string;
     sheet: StudySavedSheet;
     locale: string;
+    storage: "local" | "remote";
     onChanged: () => void;
     t: (k: import("@/lib/i18n").TranslationKey) => string;
 }) {
@@ -74,25 +82,46 @@ function SheetRow({
         }
     };
 
-    const saveEdit = () => {
-        const ok = updateSheetInTopic(topicId, sheet.id, {
-            title: editTitle,
-            markdown: editMd,
-        });
-        if (!ok) {
-            toast.error(t("studyKitSheetUpdateErr"));
-            return;
+    const saveEdit = async () => {
+        if (storage === "remote") {
+            const ok = await apiUpdateSheet(topicId, sheet.id, {
+                title: editTitle,
+                markdown: editMd,
+            });
+            if (!ok) {
+                toast.error(t("studyKitSheetUpdateErr"));
+                return;
+            }
+        }
+        else {
+            const ok = updateSheetInTopic(topicId, sheet.id, {
+                title: editTitle,
+                markdown: editMd,
+            });
+            if (!ok) {
+                toast.error(t("studyKitSheetUpdateErr"));
+                return;
+            }
         }
         setEditing(false);
         onChanged();
     };
 
-    const remove = () => {
-        if (typeof window !== "undefined" && window.confirm(t("studyKitConfirmDeleteSheet"))) {
-            deleteSheetFromTopic(topicId, sheet.id);
-            onChanged();
-            toast.info(t("studyKitSavedRemoved"));
+    const remove = async () => {
+        if (typeof window === "undefined" || !window.confirm(t("studyKitConfirmDeleteSheet")))
+            return;
+        if (storage === "remote") {
+            const ok = await apiDeleteSheet(topicId, sheet.id);
+            if (!ok) {
+                toast.error(t("studyKitSheetUpdateErr"));
+                return;
+            }
         }
+        else {
+            deleteSheetFromTopic(topicId, sheet.id);
+        }
+        onChanged();
+        toast.info(t("studyKitSavedRemoved"));
     };
 
     return (
@@ -186,24 +215,54 @@ export default function StudyKitSavedTopicPage() {
     const params = useParams();
     const topicId = typeof params.topicId === "string" ? params.topicId : "";
     const { t, locale } = useI18n();
+    const { user, isLoading: authLoading } = useAuth();
     const [topic, setTopic] = useState<StudySavedTopic | null>(null);
     const [mounted, setMounted] = useState(false);
+    const [topicReady, setTopicReady] = useState(false);
 
-    const refresh = useCallback(() => {
+    const refresh = useCallback(async () => {
         if (!topicId) {
             setTopic(null);
             return;
         }
-        setTopic(getStudyTopic(topicId) ?? null);
-    }, [topicId]);
+        if (user)
+            setTopic(await apiFetchSavedTopic(topicId));
+        else
+            setTopic(getStudyTopic(topicId) ?? null);
+    }, [topicId, user]);
 
     useEffect(() => {
         setMounted(true);
-        refresh();
-    }, [refresh]);
+    }, []);
 
-    if (!mounted)
-        return null;
+    useEffect(() => {
+        if (!mounted || authLoading)
+            return;
+        let cancelled = false;
+        (async () => {
+            if (!topicId) {
+                setTopic(null);
+                if (!cancelled)
+                    setTopicReady(true);
+                return;
+            }
+            if (user)
+                setTopicReady(false);
+            await refresh();
+            if (!cancelled)
+                setTopicReady(true);
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [mounted, authLoading, topicId, user, refresh]);
+
+    if (!mounted || authLoading || !topicReady)
+        return (
+            <div className="mx-auto flex max-w-4xl justify-center px-4 py-16 text-zinc-500 dark:text-zinc-400">
+                <Loader2 className="h-8 w-8 animate-spin" aria-hidden />
+            </div>
+        );
 
     if (!topicId || !topic) {
         return (
@@ -257,7 +316,8 @@ export default function StudyKitSavedTopicPage() {
                             topicId={topicId}
                             sheet={s}
                             locale={locale}
-                            onChanged={refresh}
+                            storage={user ? "remote" : "local"}
+                            onChanged={() => void refresh()}
                             t={t}
                         />
                     ))}

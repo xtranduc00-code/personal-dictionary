@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { ChevronDown, LogIn, LogOut, Shield, User } from "lucide-react";
 import { toast } from "react-toastify";
 import { useAuth, getDisplayName } from "@/lib/auth-context";
@@ -12,23 +11,6 @@ type NavAccountFooterProps = {
     /** 'drawer' = mobile drawer (plain buttons); 'sidebar' = desktop row + dropdown */
     variant: "drawer" | "sidebar";
 };
-function BrandDisclaimer() {
-    return (<div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-[11px] leading-relaxed text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-400">
-      <p>This website is not affiliated with any real brand.</p>
-      <p>This is a demo project.</p>
-      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
-        <Link href="/about" className="underline underline-offset-2 hover:text-zinc-700 dark:hover:text-zinc-200">
-          About
-        </Link>
-        <Link href="/privacy" className="underline underline-offset-2 hover:text-zinc-700 dark:hover:text-zinc-200">
-          Privacy Policy
-        </Link>
-        <Link href="/terms" className="underline underline-offset-2 hover:text-zinc-700 dark:hover:text-zinc-200">
-          Terms of Service
-        </Link>
-      </div>
-    </div>);
-}
 function AccountTrigger({ avatarMark, name, menuOpen, onToggle, ariaLabel, }: {
     avatarMark: React.ReactNode;
     name: string;
@@ -110,7 +92,6 @@ export function NavAccountFooter({ onOpenProfile, onOpenSecurity, variant }: Nav
               <LogIn className="h-4 w-4"/>
               {t("logIn")}
             </button>)}
-          <BrandDisclaimer />
         </div>);
     }
     return (<div className="mt-4 shrink-0 border-t border-zinc-200 pt-3 dark:border-zinc-700">
@@ -126,6 +107,5 @@ export function NavAccountFooter({ onOpenProfile, onOpenSecurity, variant }: Nav
           <LogIn className="h-4 w-4"/>
           {t("logIn")}
         </button>)}
-      <BrandDisclaimer />
     </div>);
 }

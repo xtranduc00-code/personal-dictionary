@@ -1,3 +1,8 @@
+import {
+    mergeStudyKitSheetsMarkdown,
+    normalizeSheetTitleForMerge,
+} from "@/lib/study-kit-merge-markdown";
+
 /** Client-only: Study saved folder — subjects (topics) each containing sheets (markdown files). */
 
 export const STUDY_KIT_SAVED_V1_KEY = "study-kit-saved-v1";
@@ -20,6 +25,8 @@ export type StudySavedTopic = {
     name: string;
     createdAt: string;
     sheets: StudySavedSheet[];
+    /** From API list endpoint when sheets are not loaded */
+    sheetCount?: number;
 };
 
 type SavedStateV2 = {
@@ -295,6 +302,51 @@ export function deleteSheetFromTopic(topicId: string, sheetId: string): void {
 export function sheetCountForTopic(topicId: string): number {
     const t = getStudyTopic(topicId);
     return t?.sheets.length ?? 0;
+}
+
+/** Newest-first: first match = most recently saved with same loose title. */
+export function findMergeCandidateInSheets(
+    sheets: StudySavedSheet[],
+    sheetTitle: string,
+): StudySavedSheet | null {
+    const want = normalizeSheetTitleForMerge(sheetTitle);
+    if (!want)
+        return null;
+    for (const s of sheets) {
+        if (normalizeSheetTitleForMerge(s.title) === want)
+            return s;
+    }
+    return null;
+}
+
+export function findMergeCandidateSheet(
+    topicId: string,
+    sheetTitle: string,
+): StudySavedSheet | null {
+    const topic = getStudyTopic(topicId);
+    if (!topic)
+        return null;
+    return findMergeCandidateInSheets(topic.sheets, sheetTitle);
+}
+
+export function mergeIntoExistingSheet(
+    topicId: string,
+    sheetId: string,
+    incoming: { title: string; markdown: string; truncated: boolean },
+): boolean {
+    const state = loadStateRaw();
+    const topic = state.topics.find((t) => t.id === topicId);
+    if (!topic)
+        return false;
+    const sheet = topic.sheets.find((s) => s.id === sheetId);
+    if (!sheet)
+        return false;
+    const merged = mergeStudyKitSheetsMarkdown(sheet.markdown, incoming.markdown);
+    return updateSheetInTopic(topicId, sheetId, {
+        title: incoming.title.trim() || sheet.title,
+        markdown: merged,
+        truncated: sheet.truncated || incoming.truncated,
+    });
 }
 
 export function defaultTitleFromMarkdown(markdown: string): string {

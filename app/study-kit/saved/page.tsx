@@ -3,9 +3,17 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FolderOpen, GraduationCap, Pencil, Plus, Trash2 } from "lucide-react";
+import { FolderOpen, GraduationCap, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "react-toastify";
 import { useI18n } from "@/components/i18n-provider";
+import { useAuth } from "@/lib/auth-context";
+import {
+    apiCreateSavedTopic,
+    apiDeleteSavedTopic,
+    apiImportLocalTopicsIfEmpty,
+    apiListSavedTopics,
+    apiRenameSavedTopic,
+} from "@/lib/study-kit-saved-remote";
 import {
     addStudyTopic,
     deleteStudyTopic,
@@ -31,7 +39,7 @@ function StudyTopicFolder({
 }) {
     const [editing, setEditing] = useState(false);
     const [editName, setEditName] = useState(topic.name);
-    const n = topic.sheets.length;
+    const n = topic.sheetCount ?? topic.sheets.length;
 
     function saveRename() {
         const trimmed = editName.trim();
@@ -112,25 +120,76 @@ function StudyTopicFolder({
 
 export default function StudyKitSavedPage() {
     const { t } = useI18n();
+    const { user, isLoading: authLoading } = useAuth();
     const router = useRouter();
     const [topics, setTopics] = useState<StudySavedTopic[]>([]);
     const [newTopicName, setNewTopicName] = useState("");
     const [adding, setAdding] = useState(false);
     const [mounted, setMounted] = useState(false);
+    /** False until local or server topics have been loaded for the current auth mode. */
+    const [listReady, setListReady] = useState(false);
 
-    const refresh = useCallback(() => {
+    const refreshLocal = useCallback(() => {
         setTopics(loadStudyTopics());
     }, []);
 
     useEffect(() => {
         setMounted(true);
-        refresh();
-    }, [refresh]);
+    }, []);
 
-    function handleAddTopic() {
+    useEffect(() => {
+        if (!mounted || authLoading)
+            return;
+        let cancelled = false;
+        (async () => {
+            if (!user) {
+                refreshLocal();
+                if (!cancelled)
+                    setListReady(true);
+                return;
+            }
+            setListReady(false);
+            let list = await apiListSavedTopics();
+            if (cancelled)
+                return;
+            if (list.length === 0) {
+                const local = loadStudyTopics();
+                if (local.length > 0) {
+                    const imp = await apiImportLocalTopicsIfEmpty(local);
+                    if (cancelled)
+                        return;
+                    if (imp === "imported")
+                        toast.success(t("studyKitSavedRestoredFromBrowser"));
+                    else if (imp === "failed")
+                        toast.error(t("studyKitSavedLoadServerErr"));
+                    list = await apiListSavedTopics();
+                }
+            }
+            if (cancelled)
+                return;
+            setTopics(list);
+            setListReady(true);
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [mounted, authLoading, user, refreshLocal, t]);
+
+    async function handleAddTopic() {
         const name = newTopicName.trim();
         if (!name)
             return;
+        if (user) {
+            const row = await apiCreateSavedTopic(name);
+            if (!row) {
+                toast.warning(t("studyKitTopicLimit"));
+                return;
+            }
+            setNewTopicName("");
+            setAdding(false);
+            setTopics(await apiListSavedTopics());
+            return;
+        }
         const row = addStudyTopic(name);
         if (!row) {
             toast.warning(t("studyKitTopicLimit"));
@@ -138,23 +197,45 @@ export default function StudyKitSavedPage() {
         }
         setNewTopicName("");
         setAdding(false);
-        refresh();
+        refreshLocal();
     }
 
-    function handleRenameTopic(id: string, name: string) {
-        updateStudyTopic(id, name);
-        refresh();
-    }
-
-    function handleDeleteTopic(id: string) {
-        if (typeof window !== "undefined" && window.confirm(t("studyKitConfirmDeleteSubject"))) {
-            deleteStudyTopic(id);
-            refresh();
+    async function handleRenameTopic(id: string, name: string) {
+        if (user) {
+            const ok = await apiRenameSavedTopic(id, name);
+            if (!ok) {
+                toast.error(t("studyKitSavedLoadServerErr"));
+                return;
+            }
+            setTopics(await apiListSavedTopics());
+            return;
         }
+        updateStudyTopic(id, name);
+        refreshLocal();
     }
 
-    if (!mounted)
-        return null;
+    async function handleDeleteTopic(id: string) {
+        if (typeof window === "undefined" || !window.confirm(t("studyKitConfirmDeleteSubject")))
+            return;
+        if (user) {
+            const ok = await apiDeleteSavedTopic(id);
+            if (!ok) {
+                toast.error(t("studyKitSavedLoadServerErr"));
+                return;
+            }
+            setTopics(await apiListSavedTopics());
+            return;
+        }
+        deleteStudyTopic(id);
+        refreshLocal();
+    }
+
+    if (!mounted || authLoading || !listReady)
+        return (
+            <div className="mx-auto flex max-w-4xl justify-center px-4 py-16 text-zinc-500 dark:text-zinc-400">
+                <Loader2 className="h-8 w-8 animate-spin" aria-hidden />
+            </div>
+        );
 
     return (
         <div className="mx-auto max-w-4xl space-y-8 px-4 py-8 sm:px-6">
@@ -166,7 +247,7 @@ export default function StudyKitSavedPage() {
                     </h1>
                 </div>
                 <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-                    {t("studyKitSavedIntro")}
+                    {t(user ? "studyKitSavedIntroCloud" : "studyKitSavedIntro")}
                 </p>
                 <button
                     type="button"

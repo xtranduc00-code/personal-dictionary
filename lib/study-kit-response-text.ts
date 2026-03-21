@@ -21,10 +21,19 @@ function isAssistantMessage(o: unknown): o is OutputMessage {
 }
 
 function textChunksFromMessage(m: OutputMessage): string[] {
-    return (m.content ?? [])
-        .filter((c) => c.type === "output_text" && typeof c.text === "string")
-        .map((c) => c.text!.replace(/\r\n/g, "\n").trim())
-        .filter(Boolean);
+    const out: string[] = [];
+    for (const c of m.content ?? []) {
+        if (!c || typeof c !== "object")
+            continue;
+        const part = c as OutputContentPart & { type?: string };
+        const t = typeof part.text === "string" ? part.text.replace(/\r\n/g, "\n").trim() : "";
+        if (!t)
+            continue;
+        /** GPT-5 Responses: `output_text`; some snapshots use `text`. */
+        if (part.type === "output_text" || part.type === "text")
+            out.push(t);
+    }
+    return out.filter(Boolean);
 }
 
 /** Join adjacent model chunks — missing newlines cause tokens like `SCTP/M` + `Transport`. */
@@ -128,6 +137,31 @@ export function extractStudyKitResponsesText(response: {
     let text = pieces.join("\n\n").trim();
     if (!text)
         text = (response.output_text ?? "").replace(/\r\n/g, "\n").trim();
+    /** Last resort: walk any assistant-shaped items and pull string `text` fields. */
+    if (!text && Array.isArray(response.output)) {
+        const acc: string[] = [];
+        for (const item of response.output) {
+            if (!item || typeof item !== "object")
+                continue;
+            const o = item as Record<string, unknown>;
+            if (o.type !== "message" || o.role !== "assistant")
+                continue;
+            const content = o.content;
+            if (!Array.isArray(content))
+                continue;
+            for (const part of content) {
+                if (!part || typeof part !== "object")
+                    continue;
+                const p = part as Record<string, unknown>;
+                if (typeof p.text === "string") {
+                    const s = p.text.replace(/\r\n/g, "\n").trim();
+                    if (s)
+                        acc.push(s);
+                }
+            }
+        }
+        text = acc.join("\n\n").trim();
+    }
 
     return sanitizeStudyKitModelOutput(text);
 }
@@ -135,6 +169,32 @@ export function extractStudyKitResponsesText(response: {
 /** One blank line before `##` when the model glued a bullet straight into the next section. */
 function ensureBlankLineBeforeH2(text: string): string {
     return text.replace(/([^\n])\n(##\s)/g, "$1\n\n$2");
+}
+
+/**
+ * Chat Completions may return `content` as a string or as an array of `{ type: "text", text: "..." }`
+ * (especially with newer API versions). Reading only `.content` as string yields "" and breaks the pipeline.
+ */
+export function chatCompletionAssistantText(message: {
+    content?: string | null | unknown;
+} | null | undefined): string {
+    if (!message)
+        return "";
+    const c = message.content;
+    if (typeof c === "string")
+        return c.replace(/\r\n/g, "\n").trim();
+    if (Array.isArray(c)) {
+        const parts: string[] = [];
+        for (const p of c) {
+            if (!p || typeof p !== "object")
+                continue;
+            const o = p as { type?: string; text?: string };
+            if (o.type === "text" && typeof o.text === "string")
+                parts.push(o.text);
+        }
+        return parts.join("").replace(/\r\n/g, "\n").trim();
+    }
+    return "";
 }
 
 export function sanitizeStudyKitModelOutput(text: string): string {

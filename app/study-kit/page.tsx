@@ -82,8 +82,13 @@ function toastForCode(t: (key: TranslationKey) => string, code: string | undefin
         NO_SOURCES: "studyKitErrNoSources",
         UNSUPPORTED_TYPE: "studyKitErrBadType",
         EMPTY_TEXT: "studyKitErrEmpty",
+        PDF_NO_TEXT: "studyKitErrPdfNoText",
         FILE_TOO_LARGE: "studyKitErrLarge",
         EXTRACT_FAILED: "studyKitErrExtract",
+        OCR_FAILED: "studyKitErrOcrFailed",
+        SERVER_CONFIG: "studyKitErrServerConfig",
+        UNAUTHORIZED: "studyKitErrUnauthorized",
+        SUMMARIZE_FAILED: "studyKitErrAiFailed",
     };
     const translationKey: TranslationKey =
         code && map[code] ? map[code]! : "studyKitErrGeneric";
@@ -359,7 +364,17 @@ function StudyKitPageInner() {
                     method: "POST",
                     body: fd,
                 });
-                const data = (await res.json()) as SummarizeResponse;
+                const raw = await res.text();
+                let data: SummarizeResponse = {};
+                if (raw) {
+                    try {
+                        data = JSON.parse(raw) as SummarizeResponse;
+                    }
+                    catch {
+                        toast.error(t("studyKitErrBadResponse"));
+                        return;
+                    }
+                }
                 if (!res.ok) {
                     if (data.detail)
                         toast.error(data.detail);
@@ -462,7 +477,7 @@ function StudyKitPageInner() {
                                             id="study-kit-file"
                                             type="file"
                                             multiple
-                                            accept=".txt,.pdf,.docx,.xlsx,.pptx,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                                            accept=".txt,.pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg,.webp,.gif,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation,image/png,image/jpeg,image/webp,image/gif"
                                             onChange={addFilesFromInput}
                                             className={fileDropClass}
                                         />
