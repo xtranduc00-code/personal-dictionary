@@ -411,9 +411,8 @@ function StudyKitPageInner() {
                         data = JSON.parse(raw) as SummarizeResponse;
                     }
                     catch {
-                        toast.error(
-                            t("studyKitErrBadResponseHttp").replace("{status}", String(res.status)),
-                        );
+                        console.error("[study-kit/summarize] non-json body", res.status, raw.slice(0, 400));
+                        toast.error(t("studyKitErrUnexpectedReply"));
                         return;
                     }
                 }
@@ -433,17 +432,15 @@ function StudyKitPageInner() {
                                 job = JSON.parse(rawJ) as JobPollResponse;
                             }
                             catch {
-                                toast.error(
-                                    t("studyKitErrBadResponseHttp").replace("{status}", String(jr.status)),
-                                );
+                                console.error("[study-kit/job] non-json body", jr.status, rawJ.slice(0, 400));
+                                toast.error(t("studyKitErrUnexpectedReply"));
                                 return;
                             }
                         }
                         if (!jr.ok) {
                             if (job.detail)
-                                toast.error(job.detail);
-                            else
-                                toastForCode(t, job.code);
+                                console.error("[study-kit/job] error", job.code, job.detail);
+                            toastForCode(t, job.code);
                             return;
                         }
                         if (job.status === "completed") {
@@ -452,9 +449,8 @@ function StudyKitPageInner() {
                         }
                         if (job.status === "failed") {
                             if (job.detail)
-                                toast.error(job.detail);
-                            else
-                                toastForCode(t, job.code);
+                                console.error("[study-kit/job] failed", job.code, job.detail);
+                            toastForCode(t, job.code);
                             return;
                         }
                     }
@@ -464,14 +460,14 @@ function StudyKitPageInner() {
 
                 if (!res.ok) {
                     if (data.detail)
-                        toast.error(data.detail);
-                    else
-                        toastForCode(t, data.code);
+                        console.error("[study-kit/summarize] error", data.code, data.detail);
+                    toastForCode(t, data.code);
                     return;
                 }
                 applyResultAndGo(data.summary ?? "", Boolean(data.truncated));
             }
-            catch {
+            catch (e) {
+                console.error("[study-kit/summarize] submit", e);
                 toast.error(t("studyKitErrGeneric"));
             }
             finally {

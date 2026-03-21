@@ -192,24 +192,19 @@ export const translations = {
     studyKitErrUrlFetch: "Could not download that URL. Check the link or try uploading the file instead.",
     studyKitErrExtract: "Could not read that file.",
     studyKitErrEmpty: "No usable text in that source.",
-    studyKitErrPdfNoText:
-        "No text could be extracted from this PDF even after OCR. The file may be encrypted, corrupted, or unreadable.",
-    studyKitErrOcrFailed:
-        "Could not read this PDF or image with vision OCR. Try another file, smaller PDF (fewer pages), or check your OpenAI vision access and billing.",
+    studyKitErrPdfNoText: "No readable text in this PDF. Try another file or a version with selectable text.",
+    studyKitErrOcrFailed: "Couldn’t read this file. Try another file or a smaller document.",
     studyKitErrLarge: "File is too large (max 8 MB).",
     studyKitErrGeneric: "Something went wrong. Try again.",
-    studyKitErrServerConfig:
-        "This server is not configured for AI (missing OPENAI_API_KEY). Add it in your host’s environment variables.",
+    studyKitErrUnexpectedReply: "We couldn’t read the server response. Please try again.",
+    studyKitErrServerConfig: "This feature isn’t available right now. Please try again later.",
     studyKitErrUnauthorized: "Sign in again — your session may have expired.",
-    studyKitErrAiFailed: "Could not generate notes (AI error). Check API key, model access, and billing, then try again.",
-    studyKitErrBadResponse: "The server returned an unexpected response. Try again or check hosting logs.",
-    studyKitErrBadResponseHttp:
-      "HTTP {status}: reply was not JSON (Netlify often returns HTML on timeout or a hard crash). Exam Notes async: set env STUDY_KIT_ASYNC=1 plus STUDY_KIT_INTERNAL_SECRET and SUPABASE_SERVICE_ROLE_KEY (custom domains often skip async without this). Or shorten work: STUDY_KIT_OPENAI_MODEL=gpt-4o and STUDY_KIT_OCR_MAX_PAGES=6. Logs: search [study-kit/summarize]; raise function timeout in Netlify UI if you stay on sync.",
-    studyKitAsyncStarted:
-        "Job queued — OCR and notes run in the background (no HTTP timeout). This page will open when ready.",
+    studyKitErrAiFailed: "Couldn’t generate notes. Please try again.",
+    studyKitErrBadResponse: "Something went wrong. Please try again.",
+    studyKitAsyncStarted: "Processing in the background — your results will open when ready.",
     studyKitJobTimeout: "Still processing after a long wait. Check back in History or try again with fewer pages.",
-    studyKitErrJobEnqueue: "Could not start background job (database or storage). Check Supabase SQL + Storage bucket study-kit-async-jobs.",
-    studyKitErrStorageUpload: "Could not upload files for background processing. Check Storage bucket and policies.",
+    studyKitErrJobEnqueue: "Couldn’t start processing. Please try again.",
+    studyKitErrStorageUpload: "Couldn’t upload your files. Please try again.",
     studyKitTruncatedBanner: "Only the start of the source was used (length limit).",
     studyKitMindmapDiagramTitle: "Mind map",
     studyKitMindmapPanHint: "Scroll or click-drag to pan; +/− adjusts size.",
@@ -709,10 +704,8 @@ export const translations = {
     noContent: "No content",
     confirmDeleteNote: "Delete this note?",
     noNotesYet: "No notes yet.",
-    notesLoadEnvHint:
-      "Local app uses a different database than production. Copy NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY from your host (e.g. Vercel) into .env.local, restart the dev server, and sign in with the same account.",
-    notesSaveFailed:
-      "Could not save note. Check you’re logged in and Supabase is configured.",
+    notesLoadFailed: "Couldn’t load notes. Please try again.",
+    notesSaveFailed: "Couldn’t save your note. Please try again.",
     clickNewNoteToStart: 'Click "New note" to start.',
     untitled: "Untitled",
     pinNote: "Pin note",
@@ -1211,26 +1204,19 @@ export const translations = {
     studyKitErrUrlFetch: "Không tải được URL. Kiểm tra link hoặc thử tải tệp lên trực tiếp.",
     studyKitErrExtract: "Không đọc được tệp này.",
     studyKitErrEmpty: "Không có chữ khả dụng trong nguồn đó.",
-    studyKitErrPdfNoText:
-        "Không trích được chữ từ PDF kể cả sau OCR. File có thể bị mã hóa, hỏng hoặc không đọc được.",
-    studyKitErrOcrFailed:
-        "Không đọc được PDF/ảnh bằng vision OCR. Thử tệp khác, PDF ít trang hơn, hoặc kiểm tra quyền model vision và thanh toán OpenAI.",
+    studyKitErrPdfNoText: "PDF không có chữ đọc được. Thử tệp khác hoặc bản có thể copy được chữ.",
+    studyKitErrOcrFailed: "Không đọc được tệp này. Thử tệp khác hoặc tài liệu nhỏ hơn.",
     studyKitErrLarge: "Tệp quá lớn (tối đa 8 MB).",
     studyKitErrGeneric: "Có lỗi xảy ra. Thử lại.",
-    studyKitErrServerConfig:
-        "Máy chủ chưa cấu hình AI (thiếu OPENAI_API_KEY). Thêm biến này trong môi trường hosting (Vercel, v.v.).",
+    studyKitErrUnexpectedReply: "Không đọc được phản hồi từ máy chủ. Thử lại sau.",
+    studyKitErrServerConfig: "Tính năng này tạm không khả dụng. Thử lại sau.",
     studyKitErrUnauthorized: "Đăng nhập lại — phiên có thể đã hết hạn.",
-    studyKitErrAiFailed:
-        "Không tạo được bài (lỗi AI). Kiểm tra API key, quyền model và thanh toán OpenAI, rồi thử lại.",
-    studyKitErrBadResponse: "Máy chủ trả về dữ liệu không đúng. Thử lại hoặc xem log hosting.",
-    studyKitErrBadResponseHttp:
-      "HTTP {status}: không phải JSON (Netlify hay trả HTML khi timeout hoặc crash). Exam Notes async: đặt env STUDY_KIT_ASYNC=1 cùng STUDY_KIT_INTERNAL_SECRET và SUPABASE_SERVICE_ROLE_KEY (domain tùy chỉnh hay không bật async nếu thiếu). Hoặc rút ngắn: STUDY_KIT_OPENAI_MODEL=gpt-4o và STUDY_KIT_OCR_MAX_PAGES=6. Log: tìm [study-kit/summarize]; tăng function timeout trên Netlify nếu vẫn chạy sync.",
-    studyKitAsyncStarted:
-        "Đã xếp hàng — OCR và tạo bài chạy nền (tránh timeout HTTP). Trang kết quả sẽ mở khi xong.",
+    studyKitErrAiFailed: "Không tạo được bài. Thử lại sau.",
+    studyKitErrBadResponse: "Có lỗi xảy ra. Thử lại.",
+    studyKitAsyncStarted: "Đang xử lý nền — trang kết quả sẽ mở khi xong.",
     studyKitJobTimeout: "Chờ quá lâu vẫn chưa xong. Thử xem Lịch sử hoặc chạy lại với ít trang hơn.",
-    studyKitErrJobEnqueue:
-        "Không khởi tạo được job nền (database hoặc storage). Kiểm tra SQL Supabase + bucket study-kit-async-jobs.",
-    studyKitErrStorageUpload: "Không tải được tệp lên để xử lý nền. Kiểm tra bucket Storage và quyền.",
+    studyKitErrJobEnqueue: "Không khởi tạo được xử lý. Thử lại sau.",
+    studyKitErrStorageUpload: "Không tải được tệp lên. Thử lại sau.",
     studyKitTruncatedBanner: "Chỉ dùng phần đầu nguồn (giới hạn độ dài).",
     studyKitMindmapDiagramTitle: "Sơ đồ cây",
     studyKitMindmapPanHint: "Cuộn hoặc kéo để di chuyển; +/− để phóng to/thu nhỏ.",
@@ -1727,10 +1713,8 @@ export const translations = {
     noContent: "Không có nội dung",
     confirmDeleteNote: "Xóa ghi chú này?",
     noNotesYet: "Chưa có ghi chú.",
-    notesLoadEnvHint:
-      "Bản chạy trên máy đang trỏ Supabase khác với bản web. Copy NEXT_PUBLIC_SUPABASE_URL và NEXT_PUBLIC_SUPABASE_ANON_KEY từ Vercel (hoặc host) vào .env.local, chạy lại dev server, rồi đăng nhập cùng tài khoản như trên web.",
-    notesSaveFailed:
-      "Không lưu được ghi chú. Kiểm tra đã đăng nhập và cấu hình Supabase.",
+    notesLoadFailed: "Không tải được ghi chú. Thử lại sau.",
+    notesSaveFailed: "Không lưu được ghi chú. Thử lại sau.",
     clickNewNoteToStart: 'Bấm "Ghi chú mới" để bắt đầu.',
     untitled: "Không có tiêu đề",
     pinNote: "Ghim",
