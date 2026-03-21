@@ -3,7 +3,12 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Nunito } from "next/font/google";
 import type { Editor } from "@tiptap/core";
-import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
+import {
+  EditorContent,
+  useEditor,
+  useEditorState,
+  type UseEditorOptions,
+} from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -233,7 +238,8 @@ export function RichTextEditor({
     [placeholder],
   );
   const editor = useEditor({
-    extensions,
+    /** Single hoisted `@tiptap/core` via package.json overrides; cast silences duplicate-path type noise. */
+    extensions: extensions as NonNullable<UseEditorOptions["extensions"]>,
     content: value || "",
     immediatelyRender: false,
     editable: !readOnly,
