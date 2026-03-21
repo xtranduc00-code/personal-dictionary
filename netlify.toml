@@ -1,9 +1,10 @@
 [build]
   command = "npm run build"
 
-# Exam Notes (/api/study-kit/summarize) can run 30–120s+ (OpenAI + optional PDF OCR).
-# Set duration in this file (recommended). Netlify caps `timeout` by plan — if deploy warns, lower it.
-# Docs: https://docs.netlify.com/build/functions/overview/ (sync function limits; Background Functions for 15m async).
+# Exam Notes: long work uses async Background Function (see .env.example). Sync Next routes may still hit
+# the default Lambda limit — raise timeout in Netlify UI: Project configuration → Functions → Function timeout
+# (toml `timeout = 120` under [functions] is rejected by current config parsers).
+# Docs: https://docs.netlify.com/build/functions/overview/
 # Logs: Functions → search "[study-kit/summarize]" after Generate.
 # Long OCR+AI: optional Background Function `study-kit-summarize-background` (15m) + job table (see scripts/sql + .env.example).
 
@@ -18,5 +19,3 @@
 # Native addons for PDF text + screenshot OCR — keep out of the JS bundle where possible
 [functions]
   external_node_modules = ["@napi-rs/canvas", "pdf-parse", "pdfjs-dist"]
-  # Seconds. Netlify Build supports this key (see netlify/build#5683). Reduce on Free if deploy errors.
-  timeout = 120
