@@ -371,7 +371,9 @@ function StudyKitPageInner() {
                         data = JSON.parse(raw) as SummarizeResponse;
                     }
                     catch {
-                        toast.error(t("studyKitErrBadResponse"));
+                        toast.error(
+                            t("studyKitErrBadResponseHttp").replace("{status}", String(res.status)),
+                        );
                         return;
                     }
                 }

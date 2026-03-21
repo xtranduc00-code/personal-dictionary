@@ -203,6 +203,8 @@ export const translations = {
     studyKitErrUnauthorized: "Sign in again — your session may have expired.",
     studyKitErrAiFailed: "Could not generate notes (AI error). Check API key, model access, and billing, then try again.",
     studyKitErrBadResponse: "The server returned an unexpected response. Try again or check hosting logs.",
+    studyKitErrBadResponseHttp:
+      "HTTP {status}: reply was not JSON (often a crashed or timed-out serverless function). On Netlify Free, functions often stop at ~10s — Study Kit + AI needs longer: upgrade the site plan / raise the function timeout, then check Functions logs. You can also set STUDY_KIT_OCR_MAX_PAGES=6 or STUDY_KIT_OPENAI_MODEL=gpt-4o to finish faster.",
     studyKitTruncatedBanner: "Only the start of the source was used (length limit).",
     studyKitMindmapDiagramTitle: "Mind map",
     studyKitMindmapPanHint: "Scroll or click-drag to pan; +/− adjusts size.",
@@ -1216,6 +1218,8 @@ export const translations = {
     studyKitErrAiFailed:
         "Không tạo được bài (lỗi AI). Kiểm tra API key, quyền model và thanh toán OpenAI, rồi thử lại.",
     studyKitErrBadResponse: "Máy chủ trả về dữ liệu không đúng. Thử lại hoặc xem log hosting.",
+    studyKitErrBadResponseHttp:
+      "HTTP {status}: phản hồi không phải JSON (thường do function bị timeout hoặc crash). Netlify gói Free thường giới hạn ~10s — Exam Notes + AI cần lâu hơn: nâng gói / tăng timeout function, xem Functions logs. Hoặc giảm STUDY_KIT_OCR_MAX_PAGES=6 hoặc dùng STUDY_KIT_OPENAI_MODEL=gpt-4o để nhanh hơn.",
     studyKitTruncatedBanner: "Chỉ dùng phần đầu nguồn (giới hạn độ dài).",
     studyKitMindmapDiagramTitle: "Sơ đồ cây",
     studyKitMindmapPanHint: "Cuộn hoặc kéo để di chuyển; +/− để phóng to/thu nhỏ.",

@@ -1,2 +1,14 @@
 [build]
   command = "npm run build"
+
+# Next.js App Router on Netlify (install: npm i -D @netlify/plugin-nextjs)
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[build.environment]
+  # pdf-parse declares: node >=20.16 <21 || >=22.3
+  NODE_VERSION = "22"
+
+# Native addons for PDF text + screenshot OCR — keep out of the JS bundle where possible
+[functions]
+  external_node_modules = ["@napi-rs/canvas", "pdf-parse", "pdfjs-dist"]
