@@ -3,12 +3,53 @@ import * as XLSX from "xlsx";
 import { PDFParse } from "pdf-parse";
 
 const MAX_EXTRACT_CHARS = 120_000;
+/** After merging multiple uploads / URLs, cap total text sent to the model. */
+const MAX_COMBINED_SOURCE_CHARS = 200_000;
 
 export type ExtractedDocument = {
     text: string;
     truncated: boolean;
     fileName: string;
 };
+
+/** Split textarea input: one URL per line and/or comma- or semicolon-separated; deduped in order. */
+export function parseSourceUrlList(raw: string): string[] {
+    const parts = raw.split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean);
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const u of parts) {
+        if (seen.has(u))
+            continue;
+        seen.add(u);
+        out.push(u);
+    }
+    return out;
+}
+
+export function combineExtractedDocuments(parts: ExtractedDocument[]): ExtractedDocument {
+    if (parts.length === 0) {
+        const err = new Error("NO_PARTS");
+        throw err;
+    }
+    if (parts.length === 1)
+        return parts[0]!;
+    const chunks: string[] = [];
+    let truncated = parts.some((p) => p.truncated);
+    for (let i = 0; i < parts.length; i++) {
+        const p = parts[i]!;
+        chunks.push(`### Source ${i + 1}: ${p.fileName}\n\n${p.text}`);
+    }
+    let text = chunks.join("\n\n---\n\n");
+    if (text.length > MAX_COMBINED_SOURCE_CHARS) {
+        text = text.slice(0, MAX_COMBINED_SOURCE_CHARS);
+        truncated = true;
+    }
+    return {
+        text,
+        truncated,
+        fileName: `${parts.length} sources`,
+    };
+}
 
 function truncate(raw: string): { text: string; truncated: boolean } {
     const t = raw.replace(/\u0000/g, "").trim();

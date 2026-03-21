@@ -1,14 +1,8 @@
-export const STUDY_PRESETS = [
-    "summary_bullets",
-    "exam_notes",
-    "quiz",
-    "flashcards",
-    "definitions",
-] as const;
+export const STUDY_PRESETS = ["summary_bullets", "mindmap", "quiz"] as const;
 export type StudyPreset = (typeof STUDY_PRESETS)[number];
 
-export const STUDY_FOCUS_LEVELS = ["general", "important", "exam"] as const;
-export type StudyFocusLevel = (typeof STUDY_FOCUS_LEVELS)[number];
+/** Stable order in the model output and in UI checkboxes. */
+export const PRESET_OUTPUT_ORDER: StudyPreset[] = ["summary_bullets", "mindmap", "quiz"];
 
 export function parseStudyPreset(v: string | null | undefined): StudyPreset {
     const s = (v ?? "").trim();
@@ -17,73 +11,152 @@ export function parseStudyPreset(v: string | null | undefined): StudyPreset {
         : "summary_bullets";
 }
 
-export function parseStudyFocus(v: string | null | undefined): StudyFocusLevel {
-    const s = (v ?? "").trim();
-    return (STUDY_FOCUS_LEVELS as readonly string[]).includes(s)
-        ? (s as StudyFocusLevel)
-        : "general";
+function normalizePresetList(presets: StudyPreset[]): StudyPreset[] {
+    const set = new Set(presets.filter((p) => (STUDY_PRESETS as readonly string[]).includes(p)));
+    const ordered = PRESET_OUTPUT_ORDER.filter((p) => set.has(p));
+    return ordered.length > 0 ? ordered : ["summary_bullets"];
 }
 
-export type StudyKitPromptOptions = {
-    preset: StudyPreset;
-    focus: StudyFocusLevel;
-    optQuiz: boolean;
-    optHighlight: boolean;
-    optStripFluff: boolean;
-};
+/** Comma-separated presets, or legacy single `preset`. Dedupes, orders, defaults to summary. */
+export function parseStudyPresets(
+    rawList: string | null | undefined,
+    legacySingle: string | null | undefined,
+): StudyPreset[] {
+    const raw = (rawList ?? "").trim();
+    const tokens = raw
+        ? raw.split(",").map((s) => s.trim()).filter(Boolean)
+        : legacySingle?.trim()
+          ? [legacySingle.trim()]
+          : [];
+    const seen = new Set<string>();
+    const picked: StudyPreset[] = [];
+    for (const tok of tokens) {
+        if (!(STUDY_PRESETS as readonly string[]).includes(tok) || seen.has(tok))
+            continue;
+        seen.add(tok);
+        picked.push(tok as StudyPreset);
+    }
+    return normalizePresetList(picked);
+}
 
-const PRESET_BLOCK: Record<StudyPreset, string> = {
-    summary_bullets:
-        "Primary deliverable: Markdown with clear headings and bullet lists that capture the main ideas, steps, and takeaways. Keep a logical hierarchy.",
-    exam_notes:
-        'Primary deliverable: "Exam-ready" revision notes with sections such as: Overview, Key definitions & facts, Relationships or comparisons (if relevant), Pitfalls or common mistakes (only if grounded in the text), and a short recap checklist.',
-    quiz: "Primary deliverable: A practice quiz built strictly from the document. Mix short-answer and multiple-choice style items (list options for MCQs). Finish with a separate section titled exactly ## Answer key listing correct answers and 1–2 sentence explanations grounded in the document.",
-    flashcards:
-        "Primary deliverable: Markdown flashcard-style items. For each card use two lines: **Front:** … then **Back:** … One concept per card; cover key terms and ideas from the document only.",
-    definitions:
-        "Primary deliverable: A glossary of important terms from the document. Format: **Term** — concise definition. Group or alphabetize if helpful. Omit terms not present in the source.",
-};
+export function studyKitMaxOutputTokens(presets: StudyPreset[]): number {
+    const p = normalizePresetList(presets);
+    let n = 4096;
+    if (p.includes("quiz"))
+        n = Math.max(n, 8192);
+    if (p.length >= 2)
+        n = Math.min(16384, n + 2048 * (p.length - 1));
+    return n;
+}
 
-const FOCUS_BLOCK: Record<StudyFocusLevel, string> = {
-    general:
-        "Depth: Balanced coverage — explain main ideas without over-speculating about what an exam might ask.",
-    important:
-        "Depth: Emphasize central themes, core definitions, and relationships that hold the material together.",
-    exam: "Depth: Optimize for tests — prioritize high-yield, recall-friendly facts, comparisons, dates, formulas, and crisp phrasing a student could rehearse before an exam.",
-};
-
-export function buildStudyKitSystemMessage(o: StudyKitPromptOptions): string {
-    const parts = [
-        "You are a study-kit assistant for learners preparing for exams.",
-        "Rules:",
-        "- Use ONLY what the source text supports. If the text is ambiguous, say so briefly instead of inventing.",
-        "- Do not fabricate citations, quotations, or facts.",
-        "- Write in Markdown (headings, bullets, tables when useful).",
-        "- If the source is very short, keep the output proportionate.",
+/**
+ * Exam-oriented system message; only requested outputs (summary / mindmap / quiz) are included.
+ */
+export function buildExamRevisionSystemMessage(
+    presets: StudyPreset[],
+    customScope?: string,
+): string {
+    const p = normalizePresetList(presets);
+    const parts: string[] = [
+        "You are an exam-revision compression engine. Transform the source into only the outputs requested below. Do not include sections the user did not ask for (no empty headings).",
         "",
-        FOCUS_BLOCK[o.focus],
-        "",
-        PRESET_BLOCK[o.preset],
+        "Do this internally (never list these steps in the output):",
+        "1) Remove filler: greetings, thanks, apologies, housekeeping, off-topic chat, transcription noise, repetition.",
+        "2) Extract and regroup by concept for exam recall — not by lecture order.",
+        "3) Compress: short phrases; drop examples unless they lock a definition or trap.",
     ];
-    if (o.optStripFluff) {
-        parts.push("");
-        parts.push("Editing: Omit anecdotes, humor, off-topic asides, and repetitive examples unless they are essential to understand a tested idea.");
-    }
-    if (o.optHighlight) {
-        parts.push("");
-        parts.push('Emphasis: Use **bold** for must-know terms, formulas, dates, laws, and critical claims the learner should memorize.');
-    }
-    if (o.optQuiz && o.preset !== "quiz") {
-        parts.push("");
-        parts.push('Add-on: After the primary deliverable, add sections ## Practice quiz and ## Answer key with 5–12 new questions (varied types) grounded only in the document, then answers with brief explanations.');
-    }
-    return parts.join("\n");
-}
 
-export function studyKitMaxOutputTokens(o: StudyKitPromptOptions): number {
-    if (o.preset === "quiz" || o.optQuiz)
-        return 8192;
-    if (o.preset === "flashcards" || o.preset === "exam_notes")
-        return 6144;
-    return 4096;
+    parts.push("", "OUTPUT ORDER — include only requested parts, in this sequence:");
+    let orderN = 1;
+    if (p.includes("summary_bullets")) {
+        parts.push(`${orderN}) Summary sheet (numbered topical sections — SUMMARY BLOCK below).`);
+        orderN++;
+    }
+    if (p.includes("mindmap")) {
+        parts.push(`${orderN}) One section \`## Mind map\` with a single \`\`\`tree\`\`\` fence.`);
+        orderN++;
+    }
+    if (p.includes("quiz")) {
+        parts.push(`${orderN}) \`## Quiz\` then \`## Answer key\`.`);
+        orderN++;
+    }
+
+    parts.push(
+        "",
+        "First line of the document must be exactly: `# ` + a clear sheet title from the source (e.g. `# Week 3 – Transport protocols (summary)`). Then one blank line before the next heading.",
+    );
+
+    if (p.includes("summary_bullets")) {
+        parts.push(
+            "",
+            "SUMMARY BLOCK — **compact and skimmable**: one fast pass must be enough to revise; avoid long notes or many tiny headings.",
+            "- Use **numbered topical sections** only: `## 1. Short topic name`, `## 2. …`. Target **5–6** sections for a typical source; **hard max 7** sections — aggressively **merge** related ideas; never split into thin micro-sections.",
+            "- **Under each `## N.`**: after the anchor line (below), use ONLY `-` bullets (no prose paragraphs). **Hard max 3 bullets** per section (aim **2–3**). One exam-recall idea per line; **≤ 9 words** per bullet when possible — phrasing you could **rewrite from memory in an exam**.",
+            "- **Cut scope:** if the source is long, **drop** secondary examples, edge cases, and “nice to know” lines. Prefer fewer sections with fewer bullets over completeness.",
+            "- **Order:** most important bullets first. **Avoid nested sub-bullets** unless absolutely necessary (at most **one** indented sub-line under **one** bullet in the whole summary, only if it prevents confusion).",
+            "",
+            "ANCHOR LINE (required once per section, for fast recall):",
+            "- Right after the blank line following `## N. Title`, output **exactly one** Markdown blockquote line: `> ` + a single **equation-style** recall phrase using `=` and `+` where it fits, e.g. `> Transport = reliability + control + multiplexing`. **≤ 12 words.** No bullet `-` on this line.",
+            "- Then one blank line, then the `-` bullets. The anchor is not part of the bullet list.",
+            "",
+            "WHITESPACE & LAYOUT (critical — user must be able to scan on screen):",
+            "- Each `##` heading on its **own line** — never concatenate multiple headings or run a heading into bullet text on the same line.",
+            "- **Blank line** immediately after every `##` line before the anchor `>` line.",
+            "- **Blank line** after the last bullet of a section before the next `##`.",
+            "- Never output the summary as one continuous paragraph. Never omit newlines between sections.",
+            "",
+            "CONTENT:",
+            "- Group by **topic/concept** (e.g. \"Packet errors\", \"Sequence numbers\", \"TCP handshake\"), not by vague buckets like \"Overview\" only.",
+            "- **Sharpen bullets:** prefer **one mechanism per line** over comma-stuffed lines; use parentheses for exam hooks (e.g. split into separate bullets: reliability (ACK + retransmission), flow control (receiver window), congestion control (network load)).",
+            "- **Exam-grade formulas (math / algorithms):** use **KaTeX**, not backticks, so notation renders cleanly: inline `$...$`, display on its own lines as `$$...$$`. Example inline: `$D(w)=\\min(D(w),\\,D(v)+c(v,w))$` (escape backslashes in Markdown). For Bellman-Ford / distance-vector or Dijkstra relaxation, write the **exact** recurrence the course uses.",
+            "- **Instant-read gloss (required when you show a formula):** add **one separate bullet** right after, in **plain English only** (no `$…$`), e.g. `**Read:** Best distance to w = min(current estimate, distance-to-v plus cost of edge v–w).` or `**Read:** Relaxation — keep the smaller of old distance and route through neighbor v.` The reader must get the idea **before** reading symbols.",
+            "- **Tiny example after math:** still add **at most one** bullet with numbers or one substitution line when the source allows; keep the sheet compact.",
+            "- **Mini diagrams (optional, max 1–2 per summary when it clarifies graphs / routing / flows):** use one fenced code block with language tag exactly `mermaid` (small flowchart or graph, ≤8 nodes). If Mermaid is awkward, use a short ASCII sketch in a fenced `text` block instead. Do not invent unrelated diagrams.",
+            "- **Merge redundancy:** if two bullets say almost the same thing (e.g. two Go-Back-N sentences), combine into **one** sharper line (e.g. \"Go-Back-N: resend first missing + all packets after it\").",
+            "- Optional **one** comparison block only if essential: `## Key comparison` or final `## N.` — **max 3 bullets** total (e.g. `**TCP:** …` / `**UDP:** …`). Put `**CORE:**` or `**Exam:**` on **1–2** lines only.",
+            "- Markers (use on bullets that must pop at a glance; still keep the sheet sparse): `**CORE:**` (essential concept), `**MUST:**` (memorize exactly), `**Trap:**` (common mistake), `**Exam:**` (likely question angle). Optional: `**KNOW:**` for supporting context only.",
+            "- After any marker (`**CORE:**`, `**Trap:**`, etc.), the **rest of that bullet** must start with a **capital letter** (sentence case), e.g. `**CORE:** Loss is…` not `**CORE:** loss is…`. Same for every normal `-` bullet line: start the phrase with a capital unless it is a proper formula/symbol.",
+            "- **Do not** use the old four-part layout (Overview / Mechanisms / Comparisons / Must remember) for this summary.",
+        );
+    }
+
+    if (p.includes("mindmap")) {
+        parts.push(
+            "",
+            "MIND MAP BLOCK (`## Mind map`):",
+            "- If a summary precedes this, leave a blank line before `## Mind map`.",
+            "- Output ONLY one fenced code block with language tag exactly `tree` (three backticks + tree).",
+            "- Inside: one line per node; each line starts with `- `; nest children with exactly two more leading spaces per level (no tabs); max depth 4; short labels; faithful to source structure.",
+            "- Do not put the mind map in a paragraph outside the fence.",
+        );
+    }
+
+    if (p.includes("quiz")) {
+        parts.push(
+            "",
+            "QUIZ BLOCK:",
+            "- If prior sections exist, blank line before `## Quiz`.",
+            "- Under `## Quiz`: mix short-answer and multiple-choice; for MCQ list options clearly; all grounded in the source.",
+            "- Then heading exactly `## Answer key` with correct answers and brief explanations (≤15 words each unless a precise definition is required).",
+        );
+    }
+
+    parts.push(
+        "",
+        "GLOBAL:",
+        "- Use only what the source supports.",
+        "- No meta commentary about your process.",
+        "- **Brevity over coverage:** the user needs a **short** sheet they can skim before an exam — if in doubt, shorten.",
+    );
+
+    const scope = customScope?.trim();
+    if (scope) {
+        parts.push(
+            "",
+            "CUSTOM SCOPE (apply only when the source clearly supports it; do not invent from skipped parts):",
+            scope,
+        );
+    }
+
+    return parts.join("\n");
 }
