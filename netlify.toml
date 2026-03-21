@@ -1,6 +1,11 @@
 [build]
   command = "npm run build"
 
+# Exam Notes (/api/study-kit/summarize) can run 30–120s+ (OpenAI + optional PDF OCR).
+# Upgrading billing does NOT raise this: set it explicitly:
+#   Netlify Dashboard → Site (kenworkspace) → Project configuration → Functions → Function timeout → e.g. 120 (seconds) → Save → trigger a new deploy.
+# Logs: Functions → search "[study-kit/summarize]" after clicking Generate.
+
 # Next.js App Router on Netlify (install: npm i -D @netlify/plugin-nextjs)
 [[plugins]]
   package = "@netlify/plugin-nextjs"
