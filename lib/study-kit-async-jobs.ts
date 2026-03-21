@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseServiceClient } from "@/lib/supabase-server";
 import {
     presetsToCsv,
@@ -36,11 +37,36 @@ export function studyKitAsyncPipelineEnabled(): boolean {
     return false;
 }
 
-async function removeStoragePaths(paths: string[]): Promise<void> {
-    const sb = getSupabaseServiceClient();
-    if (!sb || paths.length === 0)
+async function removeStoragePaths(paths: string[], sb?: SupabaseClient | null): Promise<void> {
+    const client = sb ?? getSupabaseServiceClient();
+    if (!client || paths.length === 0)
         return;
-    await sb.storage.from(STUDY_KIT_ASYNC_BUCKET).remove(paths);
+    await client.storage.from(STUDY_KIT_ASYNC_BUCKET).remove(paths);
+}
+
+async function uploadOneJobFile(
+    sb: SupabaseClient,
+    basePath: string,
+    f: StudyKitParsedForm["files"][number],
+    index: number,
+): Promise<{ storagePath: string; name: string; mime: string }> {
+    const safe = sanitizeJobFileName(f.name || "document");
+    const storagePath = `${basePath}/f${index}-${safe}`;
+    const { error: upErr } = await sb.storage
+        .from(STUDY_KIT_ASYNC_BUCKET)
+        .upload(storagePath, f.buffer, {
+            contentType: f.mime || "application/octet-stream",
+            upsert: false,
+        });
+    if (upErr) {
+        console.error("[study-kit/async] storage upload", upErr);
+        throw new Error("STORAGE_UPLOAD_FAILED");
+    }
+    return {
+        storagePath,
+        name: f.name || "document",
+        mime: f.mime || "",
+    };
 }
 
 export async function enqueueStudyKitSummarizeJob(
@@ -58,27 +84,23 @@ export async function enqueueStudyKitSummarizeJob(
     const uploadedPaths: string[] = [];
     const filesMeta: StudyKitJobSourcesJson["files"] = [];
     try {
-        for (let i = 0; i < data.files.length; i++) {
-            const f = data.files[i]!;
-            const safe = sanitizeJobFileName(f.name || "document");
-            const storagePath = `${basePath}/f${i}-${safe}`;
-            const { error: upErr } = await sb.storage
-                .from(STUDY_KIT_ASYNC_BUCKET)
-                .upload(storagePath, f.buffer, {
-                    contentType: f.mime || "application/octet-stream",
-                    upsert: false,
+        if (data.files.length > 0) {
+            const settled = await Promise.allSettled(
+                data.files.map((f, i) => uploadOneJobFile(sb, basePath, f, i)),
+            );
+            for (let i = 0; i < settled.length; i++) {
+                const s = settled[i]!;
+                if (s.status === "rejected") {
+                    await removeStoragePaths(uploadedPaths, sb);
+                    return { ok: false, code: "STORAGE_UPLOAD_FAILED", status: 500 };
+                }
+                filesMeta.push({
+                    storagePath: s.value.storagePath,
+                    name: s.value.name,
+                    mime: s.value.mime,
                 });
-            if (upErr) {
-                console.error("[study-kit/async] storage upload", upErr);
-                await removeStoragePaths(uploadedPaths);
-                return { ok: false, code: "STORAGE_UPLOAD_FAILED", status: 500 };
+                uploadedPaths.push(s.value.storagePath);
             }
-            uploadedPaths.push(storagePath);
-            filesMeta.push({
-                storagePath,
-                name: f.name || "document",
-                mime: f.mime || "",
-            });
         }
         const sourcesJson: StudyKitJobSourcesJson = {
             files: filesMeta,
@@ -96,13 +118,13 @@ export async function enqueueStudyKitSummarizeJob(
         });
         if (insErr) {
             console.error("[study-kit/async] insert job", insErr);
-            await removeStoragePaths(uploadedPaths);
+            await removeStoragePaths(uploadedPaths, sb);
             return { ok: false, code: "JOB_CREATE_FAILED", status: 500 };
         }
     }
     catch (e) {
         console.error("[study-kit/async] enqueue", e);
-        await removeStoragePaths(uploadedPaths);
+        await removeStoragePaths(uploadedPaths, sb);
         return { ok: false, code: "JOB_CREATE_FAILED", status: 500 };
     }
     void triggerStudyKitSummarizeBackground(jobId);

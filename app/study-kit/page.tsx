@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlignLeft, FileUp, Link2, Loader2, Sparkles, X } from "lucide-react";
 import { toast } from "react-toastify";
@@ -37,6 +37,10 @@ type JobPollResponse = {
 
 const ASYNC_POLL_MS = 2000;
 const ASYNC_MAX_POLLS = 450;
+
+function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 const MAX_SOURCES = 10;
 
@@ -166,6 +170,13 @@ function StudyKitPageInner() {
     const [customScope, setCustomScope] = useState("");
     const [formats, setFormats] = useState<Record<StudyPreset, boolean>>(defaultFormats);
     const [loading, setLoading] = useState(false);
+    const submitGenRef = useRef(0);
+
+    useEffect(() => {
+        return () => {
+            submitGenRef.current += 1;
+        };
+    }, []);
 
     useEffect(() => {
         if (!resumeId || !user)
@@ -353,7 +364,19 @@ function StudyKitPageInner() {
                 return;
             }
             setLoading(true);
+            const gen = ++submitGenRef.current;
             try {
+                const applyResultAndGo = (summaryText: string, isTruncated: boolean) => {
+                    const text = summaryText.trim();
+                    if (!text) {
+                        toast.error(t("studyKitErrGeneric"));
+                        return;
+                    }
+                    sessionStorage.setItem(STORAGE_KEY, text);
+                    sessionStorage.setItem(STORAGE_TRUNCATED_KEY, String(isTruncated));
+                    sessionStorage.setItem("study-kit-result-fresh", "1");
+                    router.push("/study-kit/result");
+                };
                 try {
                     sessionStorage.setItem(
                         STUDY_KIT_WIP_META_KEY,
@@ -397,7 +420,9 @@ function StudyKitPageInner() {
                 if (res.status === 202 && data.jobId) {
                     toast.info(t("studyKitAsyncStarted"));
                     for (let poll = 0; poll < ASYNC_MAX_POLLS; poll++) {
-                        await new Promise((r) => setTimeout(r, ASYNC_POLL_MS));
+                        await sleep(ASYNC_POLL_MS);
+                        if (gen !== submitGenRef.current)
+                            return;
                         const jr = await authFetch(
                             `/api/study-kit/summarize/jobs/${encodeURIComponent(data.jobId!)}`,
                         );
@@ -422,14 +447,7 @@ function StudyKitPageInner() {
                             return;
                         }
                         if (job.status === "completed") {
-                            const summaryText = job.summary ?? "";
-                            const isTruncated = Boolean(job.truncated);
-                            if (summaryText) {
-                                sessionStorage.setItem(STORAGE_KEY, summaryText);
-                                sessionStorage.setItem(STORAGE_TRUNCATED_KEY, String(isTruncated));
-                                sessionStorage.setItem("study-kit-result-fresh", "1");
-                                router.push("/study-kit/result");
-                            }
+                            applyResultAndGo(job.summary ?? "", Boolean(job.truncated));
                             return;
                         }
                         if (job.status === "failed") {
@@ -451,14 +469,7 @@ function StudyKitPageInner() {
                         toastForCode(t, data.code);
                     return;
                 }
-                const summaryText = data.summary ?? "";
-                const isTruncated = Boolean(data.truncated);
-                if (summaryText) {
-                    sessionStorage.setItem(STORAGE_KEY, summaryText);
-                    sessionStorage.setItem(STORAGE_TRUNCATED_KEY, String(isTruncated));
-                    sessionStorage.setItem("study-kit-result-fresh", "1");
-                    router.push("/study-kit/result");
-                }
+                applyResultAndGo(data.summary ?? "", Boolean(data.truncated));
             }
             catch {
                 toast.error(t("studyKitErrGeneric"));

@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseServiceClient } from "@/lib/supabase-server";
 import {
     extractFromStudyKitParsedForm,
@@ -19,27 +20,26 @@ function isJobInputMode(m: string): m is StudyKitParsedForm["inputMode"] {
 }
 
 async function downloadJobFiles(
+    sb: SupabaseClient,
     sources: StudyKitJobSourcesJson,
 ): Promise<{ name: string; mime: string; buffer: Buffer }[]> {
-    const sb = getSupabaseServiceClient();
-    if (!sb)
-        throw new Error("SERVER_CONFIG");
-    const out: { name: string; mime: string; buffer: Buffer }[] = [];
-    for (const f of sources.files) {
-        const { data, error } = await sb.storage.from(STUDY_KIT_ASYNC_BUCKET).download(f.storagePath);
-        if (error || !data) {
-            console.error(JOB_LOG, "download", f.storagePath, error);
-            throw new Error("STORAGE_DOWNLOAD_FAILED");
-        }
-        const buf = Buffer.from(await data.arrayBuffer());
-        out.push({ name: f.name, mime: f.mime, buffer: buf });
-    }
-    return out;
+    if (sources.files.length === 0)
+        return [];
+    return Promise.all(
+        sources.files.map(async (f) => {
+            const { data, error } = await sb.storage.from(STUDY_KIT_ASYNC_BUCKET).download(f.storagePath);
+            if (error || !data) {
+                console.error(JOB_LOG, "download", f.storagePath, error);
+                throw new Error("STORAGE_DOWNLOAD_FAILED");
+            }
+            const buf = Buffer.from(await data.arrayBuffer());
+            return { name: f.name, mime: f.mime, buffer: buf };
+        }),
+    );
 }
 
-async function deleteJobStorageFiles(sources: StudyKitJobSourcesJson): Promise<void> {
-    const sb = getSupabaseServiceClient();
-    if (!sb || sources.files.length === 0)
+async function deleteJobStorageFiles(sb: SupabaseClient, sources: StudyKitJobSourcesJson): Promise<void> {
+    if (sources.files.length === 0)
         return;
     const paths = sources.files.map((f) => f.storagePath);
     await sb.storage.from(STUDY_KIT_ASYNC_BUCKET).remove(paths);
@@ -113,7 +113,7 @@ export async function processStudyKitSummarizeJob(jobId: string): Promise<void> 
 
     let downloaded: { name: string; mime: string; buffer: Buffer }[] = [];
     try {
-        downloaded = await downloadJobFiles(sources);
+        downloaded = await downloadJobFiles(sb, sources);
     }
     catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -126,6 +126,7 @@ export async function processStudyKitSummarizeJob(jobId: string): Promise<void> 
                 updated_at: new Date().toISOString(),
             })
             .eq("id", jobId);
+        await deleteJobStorageFiles(sb, sources);
         return;
     }
 
@@ -148,7 +149,7 @@ export async function processStudyKitSummarizeJob(jobId: string): Promise<void> 
                 updated_at: new Date().toISOString(),
             })
             .eq("id", jobId);
-        await deleteJobStorageFiles(sources);
+        await deleteJobStorageFiles(sb, sources);
         return;
     }
 
@@ -167,7 +168,7 @@ export async function processStudyKitSummarizeJob(jobId: string): Promise<void> 
                 updated_at: new Date().toISOString(),
             })
             .eq("id", jobId);
-        await deleteJobStorageFiles(sources);
+        await deleteJobStorageFiles(sb, sources);
         return;
     }
 
@@ -213,6 +214,6 @@ export async function processStudyKitSummarizeJob(jobId: string): Promise<void> 
             .eq("id", jobId);
     }
     finally {
-        await deleteJobStorageFiles(sources);
+        await deleteJobStorageFiles(sb, sources);
     }
 }

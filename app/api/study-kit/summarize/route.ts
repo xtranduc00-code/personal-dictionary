@@ -12,6 +12,18 @@ import {
 } from "@/lib/study-kit-summarize-openai";
 import { SK_LOG } from "@/lib/study-kit-summarize-shared";
 
+const SYNC_EXTRACT_CLIENT_CODES = new Set([
+    "UNSUPPORTED_TYPE",
+    "EMPTY_TEXT",
+    "PDF_NO_TEXT",
+    "OCR_FAILED",
+    "URL_INVALID",
+    "URL_BLOCKED",
+    "URL_TOO_LARGE",
+    "URL_FETCH_FAILED",
+    "EXTRACT_FAILED",
+]);
+
 export const runtime = "nodejs";
 /** Vision OCR on many PDF pages can exceed 120s; async pipeline avoids sync wall time on Netlify. */
 export const maxDuration = 300;
@@ -36,13 +48,14 @@ export async function POST(req: Request) {
     if (!parsed.ok)
         return NextResponse.json({ code: parsed.err.code }, { status: parsed.err.status });
 
+    const useAsyncPipeline = studyKitAsyncPipelineEnabled();
     console.info(`${SK_LOG} start`, {
         inputMode: parsed.data.inputMode,
         presets: parsed.data.presets.join(","),
-        async: studyKitAsyncPipelineEnabled(),
+        async: useAsyncPipeline,
     });
 
-    if (studyKitAsyncPipelineEnabled()) {
+    if (useAsyncPipeline) {
         const q = await enqueueStudyKitSummarizeJob(user.id, parsed.data);
         if (!q.ok)
             return NextResponse.json({ code: q.code }, { status: q.status });
@@ -56,18 +69,7 @@ export async function POST(req: Request) {
     }
     catch (e: unknown) {
         const code = e instanceof Error ? e.message : "EXTRACT_FAILED";
-        const clientCodes = new Set([
-            "UNSUPPORTED_TYPE",
-            "EMPTY_TEXT",
-            "PDF_NO_TEXT",
-            "OCR_FAILED",
-            "URL_INVALID",
-            "URL_BLOCKED",
-            "URL_TOO_LARGE",
-            "URL_FETCH_FAILED",
-            "EXTRACT_FAILED",
-        ]);
-        if (clientCodes.has(code))
+        if (SYNC_EXTRACT_CLIENT_CODES.has(code))
             return NextResponse.json({ code }, { status: 400 });
         console.error(`${SK_LOG} extract_error`, e);
         return NextResponse.json({ code: "EXTRACT_FAILED" }, { status: 400 });
