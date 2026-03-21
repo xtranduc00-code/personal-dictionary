@@ -97,7 +97,9 @@ export function StudyKitSectionChat({
                 });
                 const data = (await res.json()) as { reply?: string; code?: string; detail?: string };
                 if (!res.ok) {
-                    toast.error(data.detail ?? t("studyKitChatErr"));
+                    if (data.detail)
+                        console.error("[study-kit/chat]", res.status, data.code, data.detail);
+                    toast.error(t("studyKitChatErr"));
                     onMessagesChange(priorThread);
                     return;
                 }

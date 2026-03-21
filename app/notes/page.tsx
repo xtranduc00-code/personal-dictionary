@@ -276,7 +276,8 @@ export default function NotesPage() {
       }
       if (!res.ok) {
         lastServerByNoteIdRef.current.clear();
-        toast.error(t("notesLoadEnvHint"));
+        console.error("[notes] load failed", res.status);
+        toast.error(t("notesLoadFailed"));
         setNotes([]);
         return;
       }
@@ -306,10 +307,11 @@ export default function NotesPage() {
       } else {
         setHydratedNoteId(null);
       }
-    } catch {
+    } catch (e) {
       if (gen === loadNotesGenRef.current) {
         lastServerByNoteIdRef.current.clear();
-        toast.error(t("notesLoadEnvHint"));
+        console.error("[notes] load exception", e);
+        toast.error(t("notesLoadFailed"));
         setNotes([]);
         setHydratedNoteId(null);
       }
