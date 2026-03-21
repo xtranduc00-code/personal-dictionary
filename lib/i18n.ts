@@ -132,6 +132,9 @@ export const translations = {
     studyKitSavedMergedToast: "Merged into your existing sheet with the same name (sections combined).",
     studyKitSaveMergeSameTitle:
         "If a sheet with the same name already exists in this subject, merge into it (combine summary, mind map, quiz, etc.) instead of creating a second file.",
+    studyKitSaveMergeShort: "Merge if a sheet with this name already exists",
+    studyKitSaveMergeHelp:
+        "Combines content into one sheet (summary, mind map, quiz, etc.) instead of creating a duplicate file.",
     studyKitExportDone: "Download started.",
     studyKitExportErr: "Could not export. Try again.",
     studyKitExportSignIn: "Sign in to export.",
@@ -154,13 +157,17 @@ export const translations = {
     studyKitSheetPlural: "{n} sheets",
     studyKitSaveModalTitle: "Save to subject",
     studyKitSaveModalHint:
-      "Pick a subject or type a new one. You can rename subjects and edit sheet text later.",
-    studyKitSaveSubjectLabel: "Save under subject",
-    studyKitSaveNewSubjectLabel: "Or create new subject",
+      "Choose an existing subject or create a new one. You can rename subjects and edit the sheet later.",
+    studyKitSaveSubjectExisting: "Use existing subject",
+    studyKitSaveSubjectNew: "Create new subject",
+    studyKitSaveSubjectPickLabel: "Subject",
+    studyKitSaveNewSubjectLabel: "New subject name",
     studyKitSaveNewSubjectPlaceholder: "e.g. Algorithms",
     studyKitSaveSheetNameLabel: "Sheet name",
+    studyKitSaveSheetNameHint: "You can edit this title before saving.",
     studyKitSaveModalConfirm: "Save",
-    studyKitSaveNoSubjectsYet: "No subjects yet — type a new subject name below.",
+    studyKitSaveNoSubjectsYet: "No subjects yet — create your first subject below.",
+    studyKitSaveMergeHelpAria: "More about merging sheets",
     studyKitBackToSubjects: "All subjects",
     studyKitSheetsInSubjectHint:
       "Open a sheet to view it like the live page. Edit to change title or Markdown.",
@@ -1145,6 +1152,9 @@ export const translations = {
     studyKitSavedMergedToast: "Đã gộp vào bài cùng tên trong môn (các phần được kết hợp).",
     studyKitSaveMergeSameTitle:
         "Nếu trong môn đã có bài trùng tên, gộp nội dung mới vào bài đó (tóm tắt, mind map, quiz…) thay vì tạo thêm một bài thứ hai.",
+    studyKitSaveMergeShort: "Gộp nếu đã có bài cùng tên",
+    studyKitSaveMergeHelp:
+        "Kết hợp nội dung vào một bài (tóm tắt, mind map, quiz…) thay vì tạo bài trùng.",
     studyKitExportDone: "Đang tải xuống.",
     studyKitExportErr: "Không xuất được. Thử lại.",
     studyKitExportSignIn: "Đăng nhập để xuất file.",
@@ -1166,13 +1176,17 @@ export const translations = {
     studyKitSheetPlural: "{n} bài",
     studyKitSaveModalTitle: "Lưu vào môn học",
     studyKitSaveModalHint:
-      "Chọn môn hoặc gõ tên môn mới. Sau này có thể đổi tên môn và sửa nội dung Markdown.",
-    studyKitSaveSubjectLabel: "Lưu vào môn",
-    studyKitSaveNewSubjectLabel: "Hoặc tạo môn mới",
+      "Chọn môn có sẵn hoặc tạo môn mới. Sau này có thể đổi tên môn và sửa bài.",
+    studyKitSaveSubjectExisting: "Dùng môn đã có",
+    studyKitSaveSubjectNew: "Tạo môn mới",
+    studyKitSaveSubjectPickLabel: "Môn học",
+    studyKitSaveNewSubjectLabel: "Tên môn mới",
     studyKitSaveNewSubjectPlaceholder: "VD: Thuật toán",
     studyKitSaveSheetNameLabel: "Tên bài",
+    studyKitSaveSheetNameHint: "Bạn có thể sửa tiêu đề trước khi lưu.",
     studyKitSaveModalConfirm: "Lưu",
-    studyKitSaveNoSubjectsYet: "Chưa có môn — gõ tên môn mới bên dưới.",
+    studyKitSaveNoSubjectsYet: "Chưa có môn — tạo môn đầu tiên bên dưới.",
+    studyKitSaveMergeHelpAria: "Giải thích gộp bài",
     studyKitBackToSubjects: "Tất cả môn",
     studyKitSheetsInSubjectHint:
       "Mở bài để xem như trang kết quả. Sửa để đổi tiêu đề hoặc Markdown.",
