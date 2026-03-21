@@ -204,7 +204,7 @@ export const translations = {
     studyKitErrAiFailed: "Could not generate notes (AI error). Check API key, model access, and billing, then try again.",
     studyKitErrBadResponse: "The server returned an unexpected response. Try again or check hosting logs.",
     studyKitErrBadResponseHttp:
-      "HTTP {status}: reply was not JSON (often a crashed or timed-out serverless function). On Netlify Free, functions often stop at ~10s — Study Kit + AI needs longer: upgrade the site plan / raise the function timeout, then check Functions logs. You can also set STUDY_KIT_OCR_MAX_PAGES=6 or STUDY_KIT_OPENAI_MODEL=gpt-4o to finish faster.",
+      "HTTP {status}: reply was not JSON (Netlify often returns HTML on timeout or a hard crash). Paying for a plan does not auto-increase the limit: Netlify → Site → Project configuration → Functions → raise Function timeout (try 60–120s), Save, then redeploy. In Functions logs search [study-kit/summarize]. Or set env STUDY_KIT_OPENAI_MODEL=gpt-4o and STUDY_KIT_OCR_MAX_PAGES=6.",
     studyKitTruncatedBanner: "Only the start of the source was used (length limit).",
     studyKitMindmapDiagramTitle: "Mind map",
     studyKitMindmapPanHint: "Scroll or click-drag to pan; +/− adjusts size.",
@@ -1219,7 +1219,7 @@ export const translations = {
         "Không tạo được bài (lỗi AI). Kiểm tra API key, quyền model và thanh toán OpenAI, rồi thử lại.",
     studyKitErrBadResponse: "Máy chủ trả về dữ liệu không đúng. Thử lại hoặc xem log hosting.",
     studyKitErrBadResponseHttp:
-      "HTTP {status}: phản hồi không phải JSON (thường do function bị timeout hoặc crash). Netlify gói Free thường giới hạn ~10s — Exam Notes + AI cần lâu hơn: nâng gói / tăng timeout function, xem Functions logs. Hoặc giảm STUDY_KIT_OCR_MAX_PAGES=6 hoặc dùng STUDY_KIT_OPENAI_MODEL=gpt-4o để nhanh hơn.",
+      "HTTP {status}: không phải JSON (Netlify hay trả HTML khi timeout hoặc crash). Trả phí vẫn phải chỉnh tay: Netlify → Site → Project configuration → Functions → tăng Function timeout (thử 60–120s), Lưu, rồi deploy lại. Trong Functions logs tìm [study-kit/summarize]. Hoặc env STUDY_KIT_OPENAI_MODEL=gpt-4o và STUDY_KIT_OCR_MAX_PAGES=6.",
     studyKitTruncatedBanner: "Chỉ dùng phần đầu nguồn (giới hạn độ dài).",
     studyKitMindmapDiagramTitle: "Sơ đồ cây",
     studyKitMindmapPanHint: "Cuộn hoặc kéo để di chuyển; +/− để phóng to/thu nhỏ.",
