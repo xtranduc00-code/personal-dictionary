@@ -29,6 +29,8 @@ const MAX_SOURCES = 10;
 /** Hard cap on pasted characters before server-side truncate pipeline. */
 const MAX_PASTE_CHARS = 400_000;
 const MAX_CUSTOM_SCOPE_CHARS = 3000;
+/** Netlify/Vercel: search Functions logs for this string to find Exam Notes generate runs. */
+const SK_LOG = "[study-kit/summarize]";
 const REASONING_EFFORTS = ["none", "low", "medium", "high", "xhigh"] as const;
 type StudyKitReasoningEffort = (typeof REASONING_EFFORTS)[number];
 const VERBOSITIES = ["low", "medium", "high"] as const;
@@ -117,6 +119,8 @@ export async function POST(req: Request) {
     const customScopeRaw = typeof form.get("customScope") === "string" ? form.get("customScope") as string : (typeof form.get("lectureContext") === "string" ? form.get("lectureContext") as string : "");
     const customScope = customScopeRaw.trim().slice(0, MAX_CUSTOM_SCOPE_CHARS);
 
+    console.info(`${SK_LOG} start`, { inputMode, presets: presets.join(",") });
+
     let extracted: ExtractedDocument | ReturnType<typeof preparePlainText>;
 
     if (inputMode === "mixed") {
@@ -136,6 +140,11 @@ export async function POST(req: Request) {
             return NextResponse.json({ code: "NO_SOURCES" }, { status: 400 });
         if (nSources > MAX_SOURCES)
             return NextResponse.json({ code: "TOO_MANY_SOURCES" }, { status: 400 });
+        console.info(`${SK_LOG} sources`, {
+            files: rawFiles.length,
+            urls: urlList.length,
+            pastes: pasteCount,
+        });
         for (const u of urlList) {
             try {
                 const parsed = new URL(u);
@@ -171,7 +180,7 @@ export async function POST(req: Request) {
                     return NextResponse.json({ code: "PDF_NO_TEXT" }, { status: 400 });
                 if (msg === "OCR_FAILED")
                     return NextResponse.json({ code: "OCR_FAILED" }, { status: 400 });
-                console.error("study-kit extract", e);
+                console.error(`${SK_LOG} extract_error`, e);
                 return NextResponse.json({ code: "EXTRACT_FAILED" }, { status: 400 });
             }
         }
@@ -188,7 +197,7 @@ export async function POST(req: Request) {
                     return NextResponse.json({ code: "URL_BLOCKED" }, { status: 400 });
                 if (code === "URL_TOO_LARGE")
                     return NextResponse.json({ code: "URL_TOO_LARGE" }, { status: 413 });
-                console.error("study-kit url fetch", e);
+                console.error(`${SK_LOG} url_fetch_error`, e);
                 return NextResponse.json({ code: "URL_FETCH_FAILED" }, { status: 400 });
             }
             try {
@@ -211,7 +220,7 @@ export async function POST(req: Request) {
                     return NextResponse.json({ code: "PDF_NO_TEXT" }, { status: 400 });
                 if (msg === "OCR_FAILED")
                     return NextResponse.json({ code: "OCR_FAILED" }, { status: 400 });
-                console.error("study-kit url extract", e);
+                console.error(`${SK_LOG} url_extract_error`, e);
                 return NextResponse.json({ code: "EXTRACT_FAILED" }, { status: 400 });
             }
         }
@@ -274,7 +283,7 @@ export async function POST(req: Request) {
                     return NextResponse.json({ code: "URL_BLOCKED" }, { status: 400 });
                 if (code === "URL_TOO_LARGE")
                     return NextResponse.json({ code: "URL_TOO_LARGE" }, { status: 413 });
-                console.error("study-kit url fetch", e);
+                console.error(`${SK_LOG} url_fetch_error`, e);
                 return NextResponse.json({ code: "URL_FETCH_FAILED" }, { status: 400 });
             }
             try {
@@ -297,7 +306,7 @@ export async function POST(req: Request) {
                     return NextResponse.json({ code: "PDF_NO_TEXT" }, { status: 400 });
                 if (msg === "OCR_FAILED")
                     return NextResponse.json({ code: "OCR_FAILED" }, { status: 400 });
-                console.error("study-kit url extract", e);
+                console.error(`${SK_LOG} url_extract_error`, e);
                 return NextResponse.json({ code: "EXTRACT_FAILED" }, { status: 400 });
             }
         }
@@ -335,12 +344,18 @@ export async function POST(req: Request) {
                     return NextResponse.json({ code: "PDF_NO_TEXT" }, { status: 400 });
                 if (msg === "OCR_FAILED")
                     return NextResponse.json({ code: "OCR_FAILED" }, { status: 400 });
-                console.error("study-kit extract", e);
+                console.error(`${SK_LOG} extract_error`, e);
                 return NextResponse.json({ code: "EXTRACT_FAILED" }, { status: 400 });
             }
         }
         extracted = combineExtractedDocuments(parts);
     }
+
+    console.info(`${SK_LOG} extracted_ok`, {
+        sourceChars: extracted.text.length,
+        truncated: extracted.truncated,
+        label: extracted.fileName.slice(0, 80),
+    });
 
     const model =
         process.env.STUDY_KIT_OPENAI_MODEL?.trim() || "gpt-5.4";
@@ -385,7 +400,7 @@ ${extracted.text}
                     if (e.status === 401 || e.status === 429)
                         throw e;
                     if (e.status === 400 || e.status === 404 || e.status === 403) {
-                        console.warn(`study-kit: chat model "${m}" failed (${e.status}), trying next`, e.message);
+                        console.warn(`${SK_LOG} chat_model_retry`, m, e.status, e.message);
                         continue;
                     }
                 }
@@ -394,6 +409,8 @@ ${extracted.text}
         }
         throw lastErr ?? new Error("empty completion");
     }
+
+    console.info(`${SK_LOG} openai_call`, { model, maxTokens });
 
     try {
         let summary: string;
@@ -414,13 +431,15 @@ ${extracted.text}
                     throw new Error("empty assistant output");
             }
             catch (responsesErr) {
-                console.warn("study-kit: Responses API failed, using chat fallbacks", responsesErr);
+                console.warn(`${SK_LOG} responses_failed_fallback_chat`, responsesErr);
                 summary = await summarizeChatWithFallback("gpt-4o");
             }
         }
         else {
             summary = await summarizeChatWithFallback(model);
         }
+
+        console.info(`${SK_LOG} success`, { summaryChars: summary.length });
 
         return NextResponse.json({
             summary,
@@ -429,7 +448,7 @@ ${extracted.text}
         });
     }
     catch (err) {
-        console.error("study-kit summarize", err);
+        console.error(`${SK_LOG} openai_failed`, err);
         const payload = summarizeFailedPayload(err);
         return NextResponse.json(payload, { status: 500 });
     }
