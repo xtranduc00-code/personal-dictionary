@@ -1,13 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type SetStateAction,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "react-toastify";
 import { useI18n } from "@/components/i18n-provider";
 import { StudyKitResultActions } from "@/components/study-kit-result-actions";
 import { StudyKitResultSheetWithChats } from "@/components/study-kit-result-sheet-with-chats";
+import { StudyKitSectionChat } from "@/components/study-kit-section-chat";
 import { StudyKitSessionHistoryAside } from "@/components/study-kit-session-history-aside";
+import {
+    countStudyKitQuizQuestions,
+    sliceStudyKitQuizMarkdown,
+    studyKitMarkdownHasQuiz,
+} from "@/lib/study-kit-quiz-slice";
+import { splitMarkdownByTopLevelH2 } from "@/lib/study-kit-section";
 import type { StudyKitChatMsg } from "@/lib/study-kit-chat-types";
 import { STUDY_KIT_WIP_META_KEY } from "@/lib/study-kit-session-meta";
 import { authFetch, useAuth } from "@/lib/auth-context";
@@ -34,6 +48,7 @@ export function StudyKitResultContent() {
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [sectionThreads, setSectionThreads] = useState<Record<string, StudyKitChatMsg[]>>({});
     const [sheetMode, setSheetMode] = useState<"view" | "edit">("view");
+    const [quizDisplayCount, setQuizDisplayCount] = useState(30);
     const loadGen = useRef(0);
     const summaryBaselineRef = useRef("");
     const threadsBaselineRef = useRef("");
@@ -269,10 +284,36 @@ export function StudyKitResultContent() {
 
     const onSelectHistorySession = useCallback(
         (id: string) => {
-            router.push(`/study-kit/result?session=${encodeURIComponent(id)}`);
+            router.push(`/study-kit/result?session=${encodeURIComponent(id)}`, { scroll: false });
         },
         [router],
     );
+
+    const hasSavedChats = useMemo(
+        () => Object.values(sectionThreads).some((thread) => thread.length > 0),
+        [sectionThreads],
+    );
+
+    const sheetHasH2Sections = useMemo(
+        () => splitMarkdownByTopLevelH2(summary).sections.length > 0,
+        [summary],
+    );
+
+    const hasQuizSection = useMemo(() => studyKitMarkdownHasQuiz(summary), [summary]);
+    const quizTotalInSheet = useMemo(() => countStudyKitQuizQuestions(summary), [summary]);
+    const sheetViewMarkdown = useMemo(() => {
+        if (sheetMode !== "view" || !hasQuizSection)
+            return summary;
+        return sliceStudyKitQuizMarkdown(summary, quizDisplayCount);
+    }, [summary, sheetMode, hasQuizSection, quizDisplayCount]);
+
+    const onWholeSheetMessagesChange = useCallback((action: SetStateAction<StudyKitChatMsg[]>) => {
+        setSectionThreads((map) => {
+            const cur = map.whole ?? [];
+            const next = typeof action === "function" ? action(cur) : action;
+            return { ...map, whole: next };
+        });
+    }, []);
 
     if (!mounted || !summary)
         return null;
@@ -337,11 +378,46 @@ export function StudyKitResultContent() {
                     </p>
                 </div>
 
+                {sheetMode === "edit" && hasSavedChats ? (
+                    <div
+                        role="status"
+                        className="mb-3 rounded-xl border border-sky-200/85 bg-sky-50/90 px-3 py-2.5 text-[11px] leading-snug text-sky-950 dark:border-sky-500/25 dark:bg-sky-950/35 dark:text-sky-100"
+                    >
+                        {t("studyKitResultSavedChatsUsePreview")}
+                    </div>
+                ) : null}
+
+                {sheetMode === "view" && hasQuizSection ? (
+                    <div className="mb-3 flex flex-col gap-2 rounded-xl border border-zinc-200/80 bg-zinc-50/80 px-3 py-2.5 dark:border-white/10 dark:bg-zinc-900/40 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+                        <label className="flex items-center gap-2 text-[11px] font-semibold text-[#334155] dark:text-zinc-200">
+                            <span className="shrink-0">{t("studyKitQuizShowCountLabel")}</span>
+                            <select
+                                value={quizDisplayCount}
+                                onChange={(e) => setQuizDisplayCount(Number(e.target.value))}
+                                className="rounded-lg border border-zinc-200/90 bg-white px-2 py-1.5 text-xs font-medium text-[#0f172a] shadow-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:border-white/15 dark:bg-zinc-900/80 dark:text-zinc-100 dark:focus:border-sky-500/50"
+                            >
+                                {[5, 10, 15, 20, 25, 30].map((n) => (
+                                    <option key={n} value={n}>
+                                        {n}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                        <span className="text-[11px] text-[#64748B] dark:text-zinc-400">
+                            {t("studyKitQuizTotalInSheet").replace("{n}", String(quizTotalInSheet))}
+                        </span>
+                        <p className="text-[10px] leading-snug text-[#94A3B8] dark:text-zinc-500 sm:ml-auto sm:max-w-md">
+                            {t("studyKitQuizShowCountHint")}
+                        </p>
+                    </div>
+                ) : null}
+
                 <div className="mt-2 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(280px,320px)] lg:items-start lg:gap-8">
-                    <div className="min-w-0">
+                    <div className="min-h-0 min-w-0">
                         {sheetMode === "view" ? (
                             <StudyKitResultSheetWithChats
-                                markdown={summary}
+                                markdown={sheetViewMarkdown}
+                                studyContextMarkdown={summary}
                                 sectionThreads={sectionThreads}
                                 setSectionThreads={setSectionThreads}
                             />
@@ -360,11 +436,24 @@ export function StudyKitResultContent() {
                             </div>
                         )}
                     </div>
-                    <StudyKitSessionHistoryAside
-                        sessionId={sessionId}
-                        onSelectSession={onSelectHistorySession}
-                        className="mt-8 lg:sticky lg:top-24 lg:mt-0 lg:min-h-0 lg:max-h-[calc(100dvh-7rem)]"
-                    />
+                    <div className="mt-8 flex min-h-0 min-w-0 flex-col gap-6 lg:mt-0">
+                        {sheetMode === "view" && !sheetHasH2Sections ? (
+                            <StudyKitSectionChat
+                                studyContext={summary}
+                                sectionTitle={null}
+                                toggleLabel={t("studyKitSheetChatToggle")}
+                                hint={t("studyKitSheetChatHint")}
+                                instanceId="whole"
+                                messages={sectionThreads.whole ?? []}
+                                onMessagesChange={onWholeSheetMessagesChange}
+                            />
+                        ) : null}
+                        <StudyKitSessionHistoryAside
+                            sessionId={sessionId}
+                            onSelectSession={onSelectHistorySession}
+                            className="min-h-0 shrink-0 lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)]"
+                        />
+                    </div>
                 </div>
             </div>
         </div>

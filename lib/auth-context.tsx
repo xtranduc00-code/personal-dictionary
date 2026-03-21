@@ -96,14 +96,25 @@ export function AuthProvider({ children }: {
     const bumpAvatarDisplay = useCallback(() => {
         setAvatarDisplayRev((r) => r + 1);
     }, []);
-    const fetchMe = useCallback(async (token: string) => {
-        const res = await fetch("/api/auth/me", {
-            headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok)
-            return null;
-        const data = await res.json();
-        return data.user as AuthUser;
+    type MeResult =
+        | { ok: true; user: AuthUser }
+        | { ok: false; clearAuth: boolean };
+
+    const fetchMe = useCallback(async (token: string): Promise<MeResult> => {
+        try {
+            const res = await fetch("/api/auth/me", {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (res.status === 401)
+                return { ok: false, clearAuth: true };
+            if (!res.ok)
+                return { ok: false, clearAuth: false };
+            const data = await res.json();
+            return { ok: true, user: data.user as AuthUser };
+        }
+        catch {
+            return { ok: false, clearAuth: false };
+        }
     }, []);
     const refreshUser = useCallback(async () => {
         if (typeof window === "undefined")
@@ -111,10 +122,15 @@ export function AuthProvider({ children }: {
         const token = window.localStorage.getItem(AUTH_TOKEN_KEY);
         if (!token)
             return;
-        const u = await fetchMe(token);
-        if (u) {
-            setUser(u);
-            window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(u));
+        const r = await fetchMe(token);
+        if (r.ok) {
+            setUser(r.user);
+            window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(r.user));
+        }
+        else if (r.clearAuth) {
+            window.localStorage.removeItem(AUTH_TOKEN_KEY);
+            window.localStorage.removeItem(AUTH_USER_KEY);
+            setUser(null);
         }
     }, [fetchMe]);
     useEffect(() => {
@@ -124,14 +140,18 @@ export function AuthProvider({ children }: {
             setIsLoading(false);
             return;
         }
-        fetchMe(token).then((u) => {
-            setUser(u ?? null);
-            if (!u && typeof window !== "undefined") {
+        if (storedUser)
+            setUser(storedUser);
+        fetchMe(token).then((r) => {
+            if (r.ok) {
+                setUser(r.user);
+                if (typeof window !== "undefined")
+                    window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(r.user));
+            }
+            else if (r.clearAuth && typeof window !== "undefined") {
+                setUser(null);
                 window.localStorage.removeItem(AUTH_TOKEN_KEY);
                 window.localStorage.removeItem(AUTH_USER_KEY);
-            }
-            else if (u) {
-                window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(u));
             }
             setIsLoading(false);
         });

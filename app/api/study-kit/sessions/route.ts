@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/get-auth-user";
+import { markdownToPlainPreview } from "@/lib/study-kit-plain-preview";
 import { defaultTitleFromMarkdown } from "@/lib/study-kit-saved";
 import { sanitizeMetaForStore } from "@/lib/study-kit-session-meta";
 import { packLegacyFlatMessages, packSessionMessages, sanitizeSectionThreadsRecord } from "@/lib/study-kit-session-messages";
@@ -33,7 +34,7 @@ export async function GET(req: Request) {
             id: r.id,
             title: r.title || defaultTitleFromMarkdown(r.summary_markdown),
             truncated: Boolean(r.truncated),
-            preview: r.summary_markdown.slice(0, 160),
+            preview: markdownToPlainPreview(r.summary_markdown, 240),
             createdAt: r.created_at,
             updatedAt: r.updated_at,
         }));
