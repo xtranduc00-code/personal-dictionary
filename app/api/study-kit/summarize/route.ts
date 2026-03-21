@@ -3,21 +3,26 @@ import OpenAI, { APIError } from "openai";
 import { getAuthUser } from "@/lib/get-auth-user";
 import {
     combineExtractedDocuments,
-    extractDocumentText,
     parseSourceUrlList,
     preparePlainText,
     type ExtractedDocument,
 } from "@/lib/study-kit-extract";
 import { fetchDocumentFromUrl } from "@/lib/study-kit-fetch-url";
+import { extractStudyKitSource } from "@/lib/study-kit-source-with-ocr";
 import {
     buildExamRevisionSystemMessage,
     parseStudyPresets,
     studyKitMaxOutputTokens,
 } from "@/lib/study-kit-prompt";
-import { extractStudyKitResponsesText, sanitizeStudyKitModelOutput } from "@/lib/study-kit-response-text";
+import {
+    chatCompletionAssistantText,
+    extractStudyKitResponsesText,
+    sanitizeStudyKitModelOutput,
+} from "@/lib/study-kit-response-text";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+/** Vision OCR on many PDF pages can exceed 120s; lower STUDY_KIT_OCR_MAX_PAGES if your host caps duration. */
+export const maxDuration = 300;
 
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
 const MAX_SOURCES = 10;
@@ -63,10 +68,20 @@ function summarizeFailedPayload(err: unknown): { code: string; detail?: string }
                   ? "OpenAI rejected the API key (check OPENAI_API_KEY)."
                   : err.status === 429
                     ? "OpenAI quota or rate limit — check billing at platform.openai.com or retry shortly."
-                    : undefined,
+                    : err.message
+                      ? err.message.slice(0, 280)
+                      : undefined,
         };
     }
-    return { code: "SUMMARIZE_FAILED", detail: dev ? String(err) : undefined };
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+        code: "SUMMARIZE_FAILED",
+        detail: dev
+            ? msg
+            : msg.includes("empty") || msg.includes("assistant")
+              ? "The model returned no text. Set STUDY_KIT_OPENAI_MODEL=gpt-4o or check OpenAI status."
+              : msg.slice(0, 200),
+    };
 }
 
 function parseInputMode(form: FormData): "file" | "paste" | "url" | "mixed" {
@@ -87,6 +102,7 @@ export async function POST(req: Request) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey)
         return NextResponse.json({ code: "SERVER_CONFIG" }, { status: 500 });
+    const openai = new OpenAI({ apiKey });
     let form: FormData;
     try {
         form = await req.formData();
@@ -101,7 +117,7 @@ export async function POST(req: Request) {
     const customScopeRaw = typeof form.get("customScope") === "string" ? form.get("customScope") as string : (typeof form.get("lectureContext") === "string" ? form.get("lectureContext") as string : "");
     const customScope = customScopeRaw.trim().slice(0, MAX_CUSTOM_SCOPE_CHARS);
 
-    let extracted: Awaited<ReturnType<typeof extractDocumentText>> | ReturnType<typeof preparePlainText>;
+    let extracted: ExtractedDocument | ReturnType<typeof preparePlainText>;
 
     if (inputMode === "mixed") {
         const rawFiles = form.getAll("file").filter((x): x is File => x instanceof File);
@@ -136,7 +152,14 @@ export async function POST(req: Request) {
                 return NextResponse.json({ code: "FILE_TOO_LARGE" }, { status: 413 });
             const buffer = Buffer.from(await file.arrayBuffer());
             try {
-                parts.push(await extractDocumentText(buffer, file.name || "document", file.type || ""));
+                parts.push(
+                    await extractStudyKitSource(
+                        buffer,
+                        file.name || "document",
+                        file.type || "",
+                        openai,
+                    ),
+                );
             }
             catch (e: unknown) {
                 const msg = e instanceof Error ? e.message : "";
@@ -144,6 +167,10 @@ export async function POST(req: Request) {
                     return NextResponse.json({ code: "UNSUPPORTED_TYPE" }, { status: 400 });
                 if (msg === "EMPTY_TEXT")
                     return NextResponse.json({ code: "EMPTY_TEXT" }, { status: 400 });
+                if (msg === "PDF_NO_TEXT")
+                    return NextResponse.json({ code: "PDF_NO_TEXT" }, { status: 400 });
+                if (msg === "OCR_FAILED")
+                    return NextResponse.json({ code: "OCR_FAILED" }, { status: 400 });
                 console.error("study-kit extract", e);
                 return NextResponse.json({ code: "EXTRACT_FAILED" }, { status: 400 });
             }
@@ -165,7 +192,14 @@ export async function POST(req: Request) {
                 return NextResponse.json({ code: "URL_FETCH_FAILED" }, { status: 400 });
             }
             try {
-                parts.push(await extractDocumentText(fetched.buffer, fetched.fileName, fetched.contentType));
+                parts.push(
+                    await extractStudyKitSource(
+                        fetched.buffer,
+                        fetched.fileName,
+                        fetched.contentType,
+                        openai,
+                    ),
+                );
             }
             catch (e: unknown) {
                 const msg = e instanceof Error ? e.message : "";
@@ -173,6 +207,10 @@ export async function POST(req: Request) {
                     return NextResponse.json({ code: "UNSUPPORTED_TYPE" }, { status: 400 });
                 if (msg === "EMPTY_TEXT")
                     return NextResponse.json({ code: "EMPTY_TEXT" }, { status: 400 });
+                if (msg === "PDF_NO_TEXT")
+                    return NextResponse.json({ code: "PDF_NO_TEXT" }, { status: 400 });
+                if (msg === "OCR_FAILED")
+                    return NextResponse.json({ code: "OCR_FAILED" }, { status: 400 });
                 console.error("study-kit url extract", e);
                 return NextResponse.json({ code: "EXTRACT_FAILED" }, { status: 400 });
             }
@@ -240,7 +278,14 @@ export async function POST(req: Request) {
                 return NextResponse.json({ code: "URL_FETCH_FAILED" }, { status: 400 });
             }
             try {
-                parts.push(await extractDocumentText(fetched.buffer, fetched.fileName, fetched.contentType));
+                parts.push(
+                    await extractStudyKitSource(
+                        fetched.buffer,
+                        fetched.fileName,
+                        fetched.contentType,
+                        openai,
+                    ),
+                );
             }
             catch (e: unknown) {
                 const msg = e instanceof Error ? e.message : "";
@@ -248,6 +293,10 @@ export async function POST(req: Request) {
                     return NextResponse.json({ code: "UNSUPPORTED_TYPE" }, { status: 400 });
                 if (msg === "EMPTY_TEXT")
                     return NextResponse.json({ code: "EMPTY_TEXT" }, { status: 400 });
+                if (msg === "PDF_NO_TEXT")
+                    return NextResponse.json({ code: "PDF_NO_TEXT" }, { status: 400 });
+                if (msg === "OCR_FAILED")
+                    return NextResponse.json({ code: "OCR_FAILED" }, { status: 400 });
                 console.error("study-kit url extract", e);
                 return NextResponse.json({ code: "EXTRACT_FAILED" }, { status: 400 });
             }
@@ -267,7 +316,14 @@ export async function POST(req: Request) {
                 return NextResponse.json({ code: "FILE_TOO_LARGE" }, { status: 413 });
             const buffer = Buffer.from(await file.arrayBuffer());
             try {
-                parts.push(await extractDocumentText(buffer, file.name || "document", file.type || ""));
+                parts.push(
+                    await extractStudyKitSource(
+                        buffer,
+                        file.name || "document",
+                        file.type || "",
+                        openai,
+                    ),
+                );
             }
             catch (e: unknown) {
                 const msg = e instanceof Error ? e.message : "";
@@ -275,6 +331,10 @@ export async function POST(req: Request) {
                     return NextResponse.json({ code: "UNSUPPORTED_TYPE" }, { status: 400 });
                 if (msg === "EMPTY_TEXT")
                     return NextResponse.json({ code: "EMPTY_TEXT" }, { status: 400 });
+                if (msg === "PDF_NO_TEXT")
+                    return NextResponse.json({ code: "PDF_NO_TEXT" }, { status: 400 });
+                if (msg === "OCR_FAILED")
+                    return NextResponse.json({ code: "OCR_FAILED" }, { status: 400 });
                 console.error("study-kit extract", e);
                 return NextResponse.json({ code: "EXTRACT_FAILED" }, { status: 400 });
             }
@@ -282,7 +342,6 @@ export async function POST(req: Request) {
         extracted = combineExtractedDocuments(parts);
     }
 
-    const openai = new OpenAI({ apiKey });
     const model =
         process.env.STUDY_KIT_OPENAI_MODEL?.trim() || "gpt-5.4";
     const reasoningEffort = studyKitReasoningEffort();
@@ -307,7 +366,7 @@ ${extracted.text}
                 { role: "user", content: userContent },
             ],
         });
-        const raw = response.choices?.[0]?.message?.content?.trim() ?? "";
+        const raw = chatCompletionAssistantText(response.choices?.[0]?.message);
         return sanitizeStudyKitModelOutput(raw);
     }
 

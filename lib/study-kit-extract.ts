@@ -51,6 +51,16 @@ export function combineExtractedDocuments(parts: ExtractedDocument[]): Extracted
     };
 }
 
+export function toExtractedDocument(raw: string, fileName: string): ExtractedDocument {
+    const cleaned = raw.replace(/\u0000/g, "").trim();
+    if (!cleaned) {
+        const err = new Error("EMPTY_TEXT");
+        throw err;
+    }
+    const { text, truncated } = truncate(cleaned);
+    return { text, truncated, fileName };
+}
+
 function truncate(raw: string): { text: string; truncated: boolean } {
     const t = raw.replace(/\u0000/g, "").trim();
     if (t.length <= MAX_EXTRACT_CHARS)
@@ -149,7 +159,8 @@ export async function extractDocumentText(buffer: Buffer, fileName: string, mime
     }
     raw = raw.replace(/\u0000/g, "").trim();
     if (!raw) {
-        const err = new Error("EMPTY_TEXT");
+        const isPdf = lower.endsWith(".pdf") || mime === "application/pdf";
+        const err = new Error(isPdf ? "PDF_NO_TEXT" : "EMPTY_TEXT");
         throw err;
     }
     const { text, truncated } = truncate(raw);

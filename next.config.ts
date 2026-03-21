@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
-    serverExternalPackages: ["pdf-parse", "pdfjs-dist", "mammoth", "xlsx"],
+    serverExternalPackages: [
+        "pdf-parse",
+        "pdfjs-dist",
+        "@napi-rs/canvas",
+        "mammoth",
+        "xlsx",
+    ],
     turbopack: {},
     async headers() {
         return [

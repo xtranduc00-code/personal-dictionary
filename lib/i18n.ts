@@ -103,7 +103,8 @@ export const translations = {
     studyKitInputModePaste: "Paste",
     studyKitInputModeUrl: "URL",
     studyKitFileLabel: "File",
-    studyKitFileHint: "One or more files: TXT, PDF, DOCX, XLSX, or PPTX — each max 8 MB (up to 10 files)",
+    studyKitFileHint:
+      "Files: TXT, PDF (incl. scanned — OCR), DOCX, XLSX, PPTX, or images PNG/JPEG/WebP/GIF — each max 8 MB (up to 10)",
     studyKitPasteLabel: "Pasted text",
     studyKitPasteHint:
       "Lecture transcript, readings, or notes. HTML from browsers is stripped to plain text.",
@@ -128,6 +129,9 @@ export const translations = {
     studyKitExportHtml: "Export HTML",
     studyKitSaveToFolder: "Save to subject",
     studyKitSavedToast: "Saved under this subject.",
+    studyKitSavedMergedToast: "Merged into your existing sheet with the same name (sections combined).",
+    studyKitSaveMergeSameTitle:
+        "If a sheet with the same name already exists in this subject, merge into it (combine summary, mind map, quiz, etc.) instead of creating a second file.",
     studyKitExportDone: "Download started.",
     studyKitExportErr: "Could not export. Try again.",
     studyKitExportSignIn: "Sign in to export.",
@@ -138,6 +142,11 @@ export const translations = {
     studyKitSavedTitle: "Subjects",
     studyKitSavedIntro:
       "Organize sheets by subject (course). Open a subject to add, edit, or remove notes. Stored in this browser only.",
+    studyKitSavedIntroCloud:
+      "Organize sheets by subject (course). Open a subject to add, edit, or remove notes. While signed in, subjects sync to your account.",
+    studyKitSavedRestoredFromBrowser:
+      "Restored subjects from this browser into your account.",
+    studyKitSavedLoadServerErr: "Could not load subjects from the server. Try again.",
     studyKitConfirmDeleteSubject:
       "Delete this subject and all sheets inside?",
     studyKitConfirmDeleteSheet: "Delete this sheet?",
@@ -168,22 +177,32 @@ export const translations = {
     studyKitSignInCta: "Sign in to turn your materials into exam-ready notes.",
     studyKitUrlLabel: "Document URL",
     studyKitUrlHint:
-      "One URL per line, or separate with commas/semicolons. Direct HTTPS links to files the server can download (e.g. shared .pdf, .docx). Up to 10 links. HTML pages and private networks are not supported.",
+      "One URL per line, or separate with commas/semicolons. Direct HTTPS links to files (e.g. .pdf, .docx, .png). Scanned PDFs use OCR. Up to 10 links. HTML pages and private networks are not supported.",
     studyKitUrlPlaceholder:
       "https://example.com/week1.pdf\nhttps://example.com/week2.pdf",
     studyKitErrNoFile: "Choose at least one file.",
     studyKitErrNoPaste: "Paste some text first.",
     studyKitErrNoUrl: "Enter at least one document URL.",
     studyKitErrTooManySources: "Use at most 10 files or URLs at once.",
-    studyKitErrBadType: "This file type is not supported. Use txt, pdf, docx, xlsx, or pptx.",
+    studyKitErrBadType:
+      "This file type is not supported. Use txt, pdf, docx, xlsx, pptx, or an image (png, jpg, webp, gif).",
     studyKitErrUrlInvalid: "That URL is not valid or the protocol is not allowed.",
     studyKitErrUrlBlocked: "That host cannot be fetched (blocked for security).",
     studyKitErrUrlTooLarge: "Downloaded file is too large (max 8 MB).",
     studyKitErrUrlFetch: "Could not download that URL. Check the link or try uploading the file instead.",
     studyKitErrExtract: "Could not read that file.",
     studyKitErrEmpty: "No usable text in that source.",
+    studyKitErrPdfNoText:
+        "No text could be extracted from this PDF even after OCR. The file may be encrypted, corrupted, or unreadable.",
+    studyKitErrOcrFailed:
+        "Could not read this PDF or image with vision OCR. Try another file, smaller PDF (fewer pages), or check your OpenAI vision access and billing.",
     studyKitErrLarge: "File is too large (max 8 MB).",
     studyKitErrGeneric: "Something went wrong. Try again.",
+    studyKitErrServerConfig:
+        "This server is not configured for AI (missing OPENAI_API_KEY). Add it in your host’s environment variables.",
+    studyKitErrUnauthorized: "Sign in again — your session may have expired.",
+    studyKitErrAiFailed: "Could not generate notes (AI error). Check API key, model access, and billing, then try again.",
+    studyKitErrBadResponse: "The server returned an unexpected response. Try again or check hosting logs.",
     studyKitTruncatedBanner: "Only the start of the source was used (length limit).",
     studyKitMindmapDiagramTitle: "Mind map",
     studyKitMindmapPanHint: "Scroll or click-drag to pan; +/− adjusts size.",
@@ -1097,7 +1116,8 @@ export const translations = {
     studyKitInputModePaste: "Dán",
     studyKitInputModeUrl: "URL",
     studyKitFileLabel: "Tệp",
-    studyKitFileHint: "Một hoặc nhiều tệp: TXT, PDF, DOCX, XLSX hoặc PPTX — mỗi tệp tối đa 8 MB (tối đa 10 tệp)",
+    studyKitFileHint:
+      "Tệp: TXT, PDF (kể cả scan — OCR), DOCX, XLSX, PPTX hoặc ảnh PNG/JPEG/WebP/GIF — mỗi tệp tối đa 8 MB (tối đa 10)",
     studyKitPasteLabel: "Chữ đã dán",
     studyKitPasteHint:
       "Transcript buổi học, bài đọc hoặc ghi chú. HTML từ trình duyệt sẽ được lược bỏ, chỉ giữ chữ.",
@@ -1122,6 +1142,9 @@ export const translations = {
     studyKitExportHtml: "Xuất file HTML",
     studyKitSaveToFolder: "Lưu vào môn",
     studyKitSavedToast: "Đã lưu vào môn học.",
+    studyKitSavedMergedToast: "Đã gộp vào bài cùng tên trong môn (các phần được kết hợp).",
+    studyKitSaveMergeSameTitle:
+        "Nếu trong môn đã có bài trùng tên, gộp nội dung mới vào bài đó (tóm tắt, mind map, quiz…) thay vì tạo thêm một bài thứ hai.",
     studyKitExportDone: "Đang tải xuống.",
     studyKitExportErr: "Không xuất được. Thử lại.",
     studyKitExportSignIn: "Đăng nhập để xuất file.",
@@ -1132,6 +1155,11 @@ export const translations = {
     studyKitSavedTitle: "Môn học",
     studyKitSavedIntro:
       "Mỗi môn học là một nhóm bài. Mở môn để thêm, sửa hoặc xóa ghi chú. Dữ liệu chỉ lưu trên trình duyệt này.",
+    studyKitSavedIntroCloud:
+      "Mỗi môn học là một nhóm bài. Mở môn để thêm, sửa hoặc xóa ghi chú. Khi đã đăng nhập, môn học được đồng bộ với tài khoản.",
+    studyKitSavedRestoredFromBrowser:
+      "Đã nhập môn học từ trình duyệt này vào tài khoản.",
+    studyKitSavedLoadServerErr: "Không tải được môn học từ máy chủ. Thử lại.",
     studyKitConfirmDeleteSubject: "Xóa môn này và toàn bộ bài bên trong?",
     studyKitConfirmDeleteSheet: "Xóa bài này?",
     studyKitSheetSingular: "1 bài",
@@ -1161,22 +1189,33 @@ export const translations = {
     studyKitSignInCta: "Đăng nhập để biến tài liệu thành ghi chú thi.",
     studyKitUrlLabel: "URL tài liệu",
     studyKitUrlHint:
-      "Mỗi dòng một URL, hoặc cách nhau bằng dấu phẩy/chấm phẩy. Link HTTPS trỏ thẳng tới tệp có thể tải (vd. .pdf, .docx). Tối đa 10 link. Trang HTML và mạng nội bộ không hỗ trợ.",
+      "Mỗi dòng một URL, hoặc cách nhau bằng dấu phẩy/chấm phẩy. Link HTTPS tới tệp (.pdf, .docx, .png…). PDF scan dùng OCR. Tối đa 10 link. Trang HTML và mạng nội bộ không hỗ trợ.",
     studyKitUrlPlaceholder:
       "https://example.com/tuan1.pdf\nhttps://example.com/tuan2.pdf",
     studyKitErrNoFile: "Hãy chọn ít nhất một tệp.",
     studyKitErrNoPaste: "Hãy dán nội dung vào.",
     studyKitErrNoUrl: "Nhập ít nhất một URL tài liệu.",
     studyKitErrTooManySources: "Tối đa 10 tệp hoặc URL mỗi lần.",
-    studyKitErrBadType: "Định dạng tệp không hỗ trợ. Dùng txt, pdf, docx, xlsx hoặc pptx.",
+    studyKitErrBadType:
+      "Định dạng tệp không hỗ trợ. Dùng txt, pdf, docx, xlsx, pptx hoặc ảnh (png, jpg, webp, gif).",
     studyKitErrUrlInvalid: "URL không hợp lệ hoặc giao thức không được phép.",
     studyKitErrUrlBlocked: "Không thể tải host đó (chặn vì bảo mật).",
     studyKitErrUrlTooLarge: "Tệp tải về quá lớn (tối đa 8 MB).",
     studyKitErrUrlFetch: "Không tải được URL. Kiểm tra link hoặc thử tải tệp lên trực tiếp.",
     studyKitErrExtract: "Không đọc được tệp này.",
     studyKitErrEmpty: "Không có chữ khả dụng trong nguồn đó.",
+    studyKitErrPdfNoText:
+        "Không trích được chữ từ PDF kể cả sau OCR. File có thể bị mã hóa, hỏng hoặc không đọc được.",
+    studyKitErrOcrFailed:
+        "Không đọc được PDF/ảnh bằng vision OCR. Thử tệp khác, PDF ít trang hơn, hoặc kiểm tra quyền model vision và thanh toán OpenAI.",
     studyKitErrLarge: "Tệp quá lớn (tối đa 8 MB).",
     studyKitErrGeneric: "Có lỗi xảy ra. Thử lại.",
+    studyKitErrServerConfig:
+        "Máy chủ chưa cấu hình AI (thiếu OPENAI_API_KEY). Thêm biến này trong môi trường hosting (Vercel, v.v.).",
+    studyKitErrUnauthorized: "Đăng nhập lại — phiên có thể đã hết hạn.",
+    studyKitErrAiFailed:
+        "Không tạo được bài (lỗi AI). Kiểm tra API key, quyền model và thanh toán OpenAI, rồi thử lại.",
+    studyKitErrBadResponse: "Máy chủ trả về dữ liệu không đúng. Thử lại hoặc xem log hosting.",
     studyKitTruncatedBanner: "Chỉ dùng phần đầu nguồn (giới hạn độ dài).",
     studyKitMindmapDiagramTitle: "Sơ đồ cây",
     studyKitMindmapPanHint: "Cuộn hoặc kéo để di chuyển; +/− để phóng to/thu nhỏ.",

@@ -4,11 +4,19 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { toast } from "react-toastify";
 import { useI18n } from "@/components/i18n-provider";
+import { useAuth } from "@/lib/auth-context";
+import {
+    apiCreateSavedTopic,
+    apiListSavedTopics,
+    apiMergeOrAddSheet,
+} from "@/lib/study-kit-saved-remote";
 import {
     addSheetToTopic,
     addStudyTopic,
     defaultTitleFromMarkdown,
+    findMergeCandidateSheet,
     loadStudyTopics,
+    mergeIntoExistingSheet,
     type StudySavedTopic,
 } from "@/lib/study-kit-saved";
 
@@ -26,43 +34,65 @@ export function StudyKitSaveToFolderModal({
     onSaved?: () => void;
 }) {
     const { t } = useI18n();
+    const { user } = useAuth();
     const [topics, setTopics] = useState<StudySavedTopic[]>([]);
     const [topicId, setTopicId] = useState("");
     const [newSubjectName, setNewSubjectName] = useState("");
     const [sheetTitle, setSheetTitle] = useState("");
+    const [mergeSameTitle, setMergeSameTitle] = useState(true);
 
     useEffect(() => {
         if (!open)
             return;
-        setTopics(loadStudyTopics());
         const defTitle = defaultTitleFromMarkdown(summary);
         setSheetTitle(defTitle);
-        const list = loadStudyTopics();
-        setTopicId(list[0]?.id ?? "");
         setNewSubjectName("");
-    }, [open, summary]);
+        setMergeSameTitle(true);
+        let cancelled = false;
+        (async () => {
+            const list = user ? await apiListSavedTopics() : loadStudyTopics();
+            if (cancelled)
+                return;
+            setTopics(list);
+            setTopicId(list[0]?.id ?? "");
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [open, summary, user]);
 
     if (!open)
         return null;
 
-    const refreshTopics = () => {
-        const list = loadStudyTopics();
+    const refreshTopics = async () => {
+        const list = user ? await apiListSavedTopics() : loadStudyTopics();
         setTopics(list);
         if (!list.some((x) => x.id === topicId))
             setTopicId(list[0]?.id ?? "");
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         let tid = topicId;
         const newName = newSubjectName.trim();
         if (newName) {
-            const created = addStudyTopic(newName);
-            if (!created) {
-                toast.warning(t("studyKitTopicLimit"));
-                return;
+            if (user) {
+                const created = await apiCreateSavedTopic(newName);
+                if (!created) {
+                    toast.warning(t("studyKitTopicLimit"));
+                    return;
+                }
+                tid = created.id;
+                await refreshTopics();
             }
-            tid = created.id;
-            refreshTopics();
+            else {
+                const created = addStudyTopic(newName);
+                if (!created) {
+                    toast.warning(t("studyKitTopicLimit"));
+                    return;
+                }
+                tid = created.id;
+                await refreshTopics();
+            }
             setNewSubjectName("");
         }
         if (!tid) {
@@ -70,6 +100,42 @@ export function StudyKitSaveToFolderModal({
             return;
         }
         const title = sheetTitle.trim() || defaultTitleFromMarkdown(summary);
+        if (user) {
+            const result = await apiMergeOrAddSheet(tid, {
+                title,
+                markdown: summary,
+                truncated,
+                mergeSameTitle,
+            });
+            if (result === "failed") {
+                toast.warning(t("studyKitSheetLimit"));
+                return;
+            }
+            toast.success(
+                result === "merged" ? t("studyKitSavedMergedToast") : t("studyKitSavedToast"),
+            );
+            onSaved?.();
+            onClose();
+            return;
+        }
+        if (mergeSameTitle) {
+            const existing = findMergeCandidateSheet(tid, title);
+            if (existing) {
+                const ok = mergeIntoExistingSheet(tid, existing.id, {
+                    title,
+                    markdown: summary,
+                    truncated,
+                });
+                if (!ok) {
+                    toast.warning(t("studyKitSheetLimit"));
+                    return;
+                }
+                toast.success(t("studyKitSavedMergedToast"));
+                onSaved?.();
+                onClose();
+                return;
+            }
+        }
         const row = addSheetToTopic(tid, {
             title,
             markdown: summary,
@@ -79,6 +145,7 @@ export function StudyKitSaveToFolderModal({
             toast.warning(t("studyKitSheetLimit"));
             return;
         }
+        toast.success(t("studyKitSavedToast"));
         onSaved?.();
         onClose();
     };
@@ -154,6 +221,16 @@ export function StudyKitSaveToFolderModal({
                     onChange={(e) => setSheetTitle(e.target.value)}
                     className="mt-1 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                 />
+
+                <label className="mt-4 flex cursor-pointer items-start gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+                    <input
+                        type="checkbox"
+                        checked={mergeSameTitle}
+                        onChange={(e) => setMergeSameTitle(e.target.checked)}
+                        className="mt-1 h-4 w-4 shrink-0 rounded border-zinc-300"
+                    />
+                    <span>{t("studyKitSaveMergeSameTitle")}</span>
+                </label>
 
                 <div className="mt-6 flex flex-wrap gap-2">
                     <button
