@@ -182,6 +182,25 @@ export const CallControls = memo(function CallControls({
                             )}
                         </button>
                     </Tooltip>
+                    <Tooltip content={shareTooltip} placement="top">
+                        <button
+                            type="button"
+                            className={
+                                isScreenShareEnabled
+                                    ? `${camBtn} bg-emerald-600 text-white shadow-[0_0_0_2px_rgba(16,185,129,0.35)] hover:bg-emerald-500`
+                                    : camBtn
+                            }
+                            onClick={toggleShare}
+                            aria-label={isScreenShareEnabled ? t("meetsStopShare") : t("meetsShareScreen")}
+                            aria-pressed={isScreenShareEnabled}
+                        >
+                            {isScreenShareEnabled ? (
+                                <Square className="h-4 w-4" strokeWidth={2} />
+                            ) : (
+                                <MonitorUp className="h-4 w-4" strokeWidth={2} />
+                            )}
+                        </button>
+                    </Tooltip>
                     <Tooltip content={t("meetsEndCall")} placement="top">
                         <button
                             type="button"

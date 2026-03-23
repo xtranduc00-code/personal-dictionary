@@ -9,7 +9,7 @@ import {
     type FormEvent,
     type SetStateAction,
 } from "react";
-import { Loader2, MessageSquareText, Send } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, MessageSquareText, Send } from "lucide-react";
 import { toast } from "react-toastify";
 import { useI18n } from "@/components/i18n-provider";
 import { StudyKitChatMarkdown } from "@/components/study-kit-chat-markdown";
@@ -34,6 +34,7 @@ type Props = {
     hint: string;
     messages: StudyKitChatMsg[];
     onMessagesChange: Dispatch<SetStateAction<StudyKitChatMsg[]>>;
+    className?: string;
 };
 
 export function StudyKitSectionChat({
@@ -44,11 +45,13 @@ export function StudyKitSectionChat({
     hint,
     messages,
     onMessagesChange,
+    className = "",
 }: Props) {
     const { t } = useI18n();
     const { user, openAuthModal } = useAuth();
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
+    const [collapsed, setCollapsed] = useState(false);
     const messagesScrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -124,15 +127,35 @@ export function StudyKitSectionChat({
     const fieldId = `study-kit-sec-chat-${instanceId}`;
 
     return (
-        <div className="mt-0 shrink-0 rounded-xl border border-zinc-200/80 bg-zinc-50/40 dark:border-white/10 dark:bg-zinc-900/25">
+        <div
+            className={[
+                "mt-0 flex min-h-0 flex-col rounded-xl border border-zinc-200/80 bg-zinc-50/40 dark:border-white/10 dark:bg-zinc-900/25",
+                className,
+            ].join(" ")}
+        >
             <h2 className="m-0 flex items-center gap-2 border-b border-zinc-200/80 px-3 py-2.5 text-left text-[12px] font-semibold text-[#334155] dark:border-white/10 dark:text-zinc-200">
                 <MessageSquareText
                     className="h-4 w-4 shrink-0 text-blue-600 dark:text-sky-400"
                     aria-hidden
                 />
-                <span className="min-w-0">{toggleLabel}</span>
+                <span className="min-w-0 flex-1">{toggleLabel}</span>
+                <button
+                    type="button"
+                    onClick={() => setCollapsed((v) => !v)}
+                    className="inline-flex items-center gap-1 rounded-md border border-zinc-200/80 bg-white/80 px-2 py-1 text-[11px] font-semibold text-[#475569] transition hover:bg-zinc-100 dark:border-white/10 dark:bg-zinc-900/50 dark:text-zinc-300 dark:hover:bg-zinc-800/60"
+                    aria-expanded={!collapsed}
+                    aria-label={collapsed ? t("studyKitPanelExpand") : t("studyKitPanelCollapse")}
+                >
+                    {collapsed ? (
+                        <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+                    ) : (
+                        <ChevronUp className="h-3.5 w-3.5" aria-hidden />
+                    )}
+                    <span>{collapsed ? t("studyKitPanelExpand") : t("studyKitPanelCollapse")}</span>
+                </button>
             </h2>
-            <div className="px-3 pb-3 pt-2">
+            {collapsed ? null : (
+                <div className="flex min-h-0 flex-1 flex-col px-3 pb-3 pt-2">
                 <p className="mb-2 text-[11px] leading-relaxed text-[#64748B] dark:text-zinc-500">{hint}</p>
                 <div className="mb-2 flex flex-wrap gap-1.5">
                     {STUDY_KIT_QUICK_ACTIONS.map((q) => (
@@ -151,7 +174,7 @@ export function StudyKitSectionChat({
                 </div>
                 <div
                     ref={messagesScrollRef}
-                    className="mb-2 max-h-[min(40vh,320px)] space-y-2 overflow-y-auto rounded-lg border border-zinc-200/60 bg-white/80 px-2 py-2 dark:border-white/10 dark:bg-zinc-950/40 lg:max-h-[min(52vh,420px)]"
+                    className="mb-2 min-h-[180px] flex-1 space-y-2 overflow-y-auto rounded-lg border border-zinc-200/60 bg-white/80 px-2 py-2 dark:border-white/10 dark:bg-zinc-950/40"
                 >
                     {messages.length === 0 ? (
                         <p className="px-1 text-center text-[11px] text-[#94A3B8] dark:text-zinc-500">
@@ -223,6 +246,7 @@ export function StudyKitSectionChat({
                     </button>
                 </form>
             </div>
+            )}
         </div>
     );
 }
