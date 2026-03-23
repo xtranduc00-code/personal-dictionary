@@ -6,6 +6,7 @@ import {
     useMemo,
     useRef,
     useState,
+    type PointerEvent,
     type SetStateAction,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -32,6 +33,14 @@ function sectionThreadsStorageKey(sessionId: string | null): string {
 const pageShell =
     "-mx-4 w-[calc(100%+2rem)] bg-[#F6F7F9] pb-20 pt-1 antialiased md:-mx-8 md:w-[calc(100%+4rem)] md:pb-24 dark:bg-[#0a0a0b]";
 
+const STUDY_KIT_RAIL_WIDTH_KEY = "study-kit-result-rail-px";
+const STUDY_KIT_RAIL_MIN = 260;
+const STUDY_KIT_RAIL_MAX = 720;
+
+function clampStudyKitRailWidth(n: number): number {
+    return Math.min(STUDY_KIT_RAIL_MAX, Math.max(STUDY_KIT_RAIL_MIN, Math.round(n)));
+}
+
 export function StudyKitResultContent() {
     const { t } = useI18n();
     const router = useRouter();
@@ -47,13 +56,77 @@ export function StudyKitResultContent() {
     const [quizDisplayCount, setQuizDisplayCount] = useState(30);
     /** Right-rail section chat targets the `##` block most in view (or clicked). */
     const [activeSectionIdx, setActiveSectionIdx] = useState(0);
+    const [railWidth, setRailWidth] = useState(320);
     const loadGen = useRef(0);
     const summaryBaselineRef = useRef("");
     const threadsBaselineRef = useRef("");
     const anonThreadsHydrated = useRef(false);
+    const railDragRef = useRef<{ startX: number; startW: number } | null>(null);
 
     useEffect(() => {
         setMounted(true);
+    }, []);
+
+    useEffect(() => {
+        if (!mounted)
+            return;
+        try {
+            const raw = localStorage.getItem(STUDY_KIT_RAIL_WIDTH_KEY);
+            if (raw) {
+                const n = Number.parseInt(raw, 10);
+                if (Number.isFinite(n))
+                    setRailWidth(clampStudyKitRailWidth(n));
+            }
+        }
+        catch {
+            /* ignore */
+        }
+    }, [mounted]);
+
+    useEffect(() => {
+        if (!mounted)
+            return;
+        try {
+            localStorage.setItem(STUDY_KIT_RAIL_WIDTH_KEY, String(railWidth));
+        }
+        catch {
+            /* ignore */
+        }
+    }, [railWidth, mounted]);
+
+    const onRailResizePointerDown = useCallback(
+        (e: PointerEvent<HTMLDivElement>) => {
+            if (e.button !== 0)
+                return;
+            e.preventDefault();
+            e.currentTarget.setPointerCapture(e.pointerId);
+            railDragRef.current = { startX: e.clientX, startW: railWidth };
+            document.body.style.cursor = "col-resize";
+            document.body.style.userSelect = "none";
+        },
+        [railWidth],
+    );
+
+    const onRailResizePointerMove = useCallback((e: PointerEvent<HTMLDivElement>) => {
+        const d = railDragRef.current;
+        if (!d)
+            return;
+        const dx = e.clientX - d.startX;
+        setRailWidth(clampStudyKitRailWidth(d.startW - dx));
+    }, []);
+
+    const endRailResize = useCallback((e: PointerEvent<HTMLDivElement>) => {
+        if (railDragRef.current) {
+            try {
+                e.currentTarget.releasePointerCapture(e.pointerId);
+            }
+            catch {
+                /* ignore */
+            }
+        }
+        railDragRef.current = null;
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
     }, []);
 
     useEffect(() => {
@@ -407,7 +480,17 @@ export function StudyKitResultContent() {
                   box. Stretch lets the rail span the tall left column so sticky can pin to the
                   scrollport (MainScrollShell on md+).
                 */}
-                <div className="mt-2 md:grid md:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] md:items-stretch md:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)] lg:gap-8">
+                <div
+                    className={[
+                        "mt-2 md:grid md:items-stretch md:gap-6 lg:gap-8",
+                        mounted ? "" : "md:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]",
+                    ].filter(Boolean).join(" ")}
+                    style={
+                        mounted
+                            ? { gridTemplateColumns: `minmax(0, 1fr) ${railWidth}px` }
+                            : undefined
+                    }
+                >
                     <div className="min-h-0 min-w-0">
                         {sheetMode === "view" ? (
                             <StudyKitResultSheetWithChats
@@ -430,7 +513,31 @@ export function StudyKitResultContent() {
                             </div>
                         )}
                     </div>
-                    <div className="mt-8 flex min-h-0 min-w-0 flex-col md:mt-0">
+                    <div className="relative mt-8 flex min-h-0 min-w-0 flex-col md:mt-0">
+                        <div
+                            role="separator"
+                            aria-orientation="vertical"
+                            aria-label={t("studyKitRailResize")}
+                            aria-valuemin={STUDY_KIT_RAIL_MIN}
+                            aria-valuemax={STUDY_KIT_RAIL_MAX}
+                            aria-valuenow={railWidth}
+                            tabIndex={0}
+                            className="absolute -left-3 top-0 z-40 hidden h-full w-4 cursor-col-resize rounded-sm md:block touch-none hover:bg-blue-500/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:hover:bg-sky-500/15 dark:focus-visible:ring-sky-400/40"
+                            onPointerDown={onRailResizePointerDown}
+                            onPointerMove={onRailResizePointerMove}
+                            onPointerUp={endRailResize}
+                            onPointerCancel={endRailResize}
+                            onKeyDown={(e) => {
+                                if (e.key === "ArrowLeft") {
+                                    e.preventDefault();
+                                    setRailWidth((w) => clampStudyKitRailWidth(w + 12));
+                                }
+                                if (e.key === "ArrowRight") {
+                                    e.preventDefault();
+                                    setRailWidth((w) => clampStudyKitRailWidth(w - 12));
+                                }
+                            }}
+                        />
                         <div className="flex min-h-0 w-full flex-1 flex-col gap-6 md:sticky md:top-24 md:z-10 md:max-h-[calc(100dvh-7rem)] md:overflow-y-auto">
                         <StudyKitSessionHistoryAside
                             sessionId={sessionId}
@@ -441,9 +548,7 @@ export function StudyKitResultContent() {
                             <div className="min-h-0 flex-1">
                                 <StudyKitSectionChat
                                     studyContext={normalizedSummary}
-                                    sectionTitle={viewSectionTitles[activeSectionIdx] ?? null}
                                     toggleLabel={t("studyKitSectionChatToggle")}
-                                    hint={t("studyKitSectionChatHint")}
                                     instanceId={String(activeSectionIdx)}
                                     messages={sectionThreads[String(activeSectionIdx)] ?? []}
                                     onMessagesChange={onSectionThreadMessagesChange}
@@ -454,9 +559,7 @@ export function StudyKitResultContent() {
                             <div className="min-h-0 flex-1">
                                 <StudyKitSectionChat
                                     studyContext={normalizedSummary}
-                                    sectionTitle={null}
                                     toggleLabel={t("studyKitSheetChatToggle")}
-                                    hint={t("studyKitSheetChatHint")}
                                     instanceId="whole"
                                     messages={sectionThreads.whole ?? []}
                                     onMessagesChange={onWholeSheetMessagesChange}

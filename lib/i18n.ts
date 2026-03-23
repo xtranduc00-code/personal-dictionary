@@ -267,28 +267,19 @@ export const translations = {
         "Edit the raw Markdown here — new lines and headings are kept. Signed-in sessions auto-save to History.",
     studyKitResultSavedChatsUsePreview:
         "This sheet has saved chats. Open the Preview tab to see history and keep chatting — use “Ask about this section” or “Ask about this sheet” in the right column.",
-    studyKitChatHint:
-      "The summary is for quick recall — use chat for why, step-by-step, and fixing misunderstandings. The chat panel is on the right (above History) when you use Preview.",
-    studyKitChatFocusLabel: "Quick actions apply to",
-    studyKitChatFocusWhole: "Whole sheet",
     studyKitSectionChatToggle: "Ask about this section",
     studyKitSheetChatToggle: "Ask about this sheet",
     studyKitPanelCollapse: "Collapse",
     studyKitPanelExpand: "Expand",
-    studyKitSectionChatHint:
-      "Targets the section you’re reading — it updates as you scroll, or click a section title. Each section keeps its own thread.",
-    studyKitSheetChatHint:
-      "Quick buttons and your messages apply to the full study sheet.",
-    studyKitChatQuickDeeper: "Explain deeper",
-    studyKitChatQuickExample: "Give example",
-    studyKitChatQuickTraps: "Common mistakes",
-    studyKitChatEmpty: "Ask anything about the material, or use the buttons above.",
+    studyKitChatEmpty: "Ask anything about the material.",
     studyKitChatYou: "You",
     studyKitChatTutor: "Tutor",
     studyKitChatThinking: "Thinking…",
     studyKitChatInputLabel: "Message",
     studyKitChatPlaceholder: "e.g. Why does Bellman-Ford need V−1 iterations?",
     studyKitChatSend: "Send",
+    studyKitChatEnterHint: "Enter to send · Shift+Enter for a new line",
+    studyKitRailResize: "Drag to resize chat column",
     studyKitChatSignIn: "Sign in to use chat.",
     studyKitChatErr: "Could not get a reply. Try again.",
     studyKitChatSectionIntro:
@@ -1343,28 +1334,19 @@ export const translations = {
         "Sửa Markdown trực tiếp — xuống dòng và tiêu đề được giữ. Đã đăng nhập sẽ tự lưu vào Lịch sử.",
     studyKitResultSavedChatsUsePreview:
         "Bài này đã có chat đã lưu. Chọn tab Xem trước để xem lịch sử và chat tiếp — dùng “Hỏi về mục này” hoặc “Hỏi về cả bài” ở cột phải.",
-    studyKitChatHint:
-      "Phần tóm tắt để nhớ nhanh — chat để hỏi tại sao, từng bước, và chỗ đang hiểu sai. Ô chat nằm cột phải (trên Lịch sử) khi xem Preview.",
-    studyKitChatFocusLabel: "Nút nhanh áp dụng cho",
-    studyKitChatFocusWhole: "Toàn bộ bài",
     studyKitSectionChatToggle: "Hỏi về mục này",
     studyKitSheetChatToggle: "Hỏi về cả bài",
     studyKitPanelCollapse: "Thu gọn",
     studyKitPanelExpand: "Mở rộng",
-    studyKitSectionChatHint:
-      "Áp dụng cho mục bạn đang xem — đổi theo khi cuộn hoặc khi bấm tiêu đề mục. Mỗi mục có một luồng chat riêng.",
-    studyKitSheetChatHint:
-      "Các nút nhanh và tin nhắn áp dụng cho toàn bộ bài ôn.",
-    studyKitChatQuickDeeper: "Giải sâu hơn",
-    studyKitChatQuickExample: "Cho ví dụ",
-    studyKitChatQuickTraps: "Lỗi thường gặp",
-    studyKitChatEmpty: "Hỏi bất cứ điều gì về nội dung, hoặc dùng nút phía trên.",
+    studyKitChatEmpty: "Hỏi bất cứ điều gì về nội dung.",
     studyKitChatYou: "Bạn",
     studyKitChatTutor: "Gia sư",
     studyKitChatThinking: "Đang suy nghĩ…",
     studyKitChatInputLabel: "Tin nhắn",
     studyKitChatPlaceholder: "VD: Tại sao Bellman-Ford cần V−1 vòng lặp?",
     studyKitChatSend: "Gửi",
+    studyKitChatEnterHint: "Enter để gửi · Shift+Enter xuống dòng",
+    studyKitRailResize: "Kéo để chỉnh độ rộng cột chat",
     studyKitChatSignIn: "Đăng nhập để dùng chat.",
     studyKitChatErr: "Không lấy được câu trả lời. Thử lại.",
     studyKitChatSectionIntro:
