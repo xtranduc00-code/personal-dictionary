@@ -401,7 +401,13 @@ export function StudyKitResultContent() {
                     </div>
                 ) : null}
 
-                <div className="mt-2 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(280px,320px)] lg:items-start lg:gap-8">
+                {/*
+                  Grid must stretch the right column to the full row height. With `items-start`, the
+                  rail only wraps its content — `position: sticky` then scrolls away with that short
+                  box. Stretch lets the rail span the tall left column so sticky can pin to the
+                  scrollport (MainScrollShell on md+).
+                */}
+                <div className="mt-2 md:grid md:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] md:items-stretch md:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)] lg:gap-8">
                     <div className="min-h-0 min-w-0">
                         {sheetMode === "view" ? (
                             <StudyKitResultSheetWithChats
@@ -424,9 +430,15 @@ export function StudyKitResultContent() {
                             </div>
                         )}
                     </div>
-                    <div className="mt-8 flex min-h-0 min-w-0 flex-col gap-6 lg:mt-0">
+                    <div className="mt-8 flex min-h-0 min-w-0 flex-col md:mt-0">
+                        <div className="flex min-h-0 w-full flex-1 flex-col gap-6 md:sticky md:top-24 md:z-10 md:max-h-[calc(100dvh-7rem)] md:overflow-y-auto">
+                        <StudyKitSessionHistoryAside
+                            sessionId={sessionId}
+                            onSelectSession={onSelectHistorySession}
+                            className="min-h-0 shrink-0 md:max-h-[min(35dvh,300px)]"
+                        />
                         {sheetMode === "view" && sheetHasH2Sections ? (
-                            <div className="min-h-0 shrink-0 lg:sticky lg:top-24 lg:z-10 lg:max-h-[min(72vh,520px)] lg:overflow-y-auto lg:pr-1">
+                            <div className="min-h-0 flex-1">
                                 <StudyKitSectionChat
                                     studyContext={normalizedSummary}
                                     sectionTitle={viewSectionTitles[activeSectionIdx] ?? null}
@@ -435,10 +447,11 @@ export function StudyKitResultContent() {
                                     instanceId={String(activeSectionIdx)}
                                     messages={sectionThreads[String(activeSectionIdx)] ?? []}
                                     onMessagesChange={onSectionThreadMessagesChange}
+                                    className="h-full"
                                 />
                             </div>
                         ) : sheetMode === "view" && !sheetHasH2Sections ? (
-                            <div className="min-h-0 shrink-0 lg:sticky lg:top-24 lg:z-10 lg:max-h-[min(72vh,520px)] lg:overflow-y-auto lg:pr-1">
+                            <div className="min-h-0 flex-1">
                                 <StudyKitSectionChat
                                     studyContext={normalizedSummary}
                                     sectionTitle={null}
@@ -447,14 +460,11 @@ export function StudyKitResultContent() {
                                     instanceId="whole"
                                     messages={sectionThreads.whole ?? []}
                                     onMessagesChange={onWholeSheetMessagesChange}
+                                    className="h-full"
                                 />
                             </div>
                         ) : null}
-                        <StudyKitSessionHistoryAside
-                            sessionId={sessionId}
-                            onSelectSession={onSelectHistorySession}
-                            className="min-h-0 shrink-0 lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)]"
-                        />
+                        </div>
                     </div>
                 </div>
             </div>

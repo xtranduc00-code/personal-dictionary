@@ -273,6 +273,8 @@ export const translations = {
     studyKitChatFocusWhole: "Whole sheet",
     studyKitSectionChatToggle: "Ask about this section",
     studyKitSheetChatToggle: "Ask about this sheet",
+    studyKitPanelCollapse: "Collapse",
+    studyKitPanelExpand: "Expand",
     studyKitSectionChatHint:
       "Targets the section you’re reading — it updates as you scroll, or click a section title. Each section keeps its own thread.",
     studyKitSheetChatHint:
@@ -1347,6 +1349,8 @@ export const translations = {
     studyKitChatFocusWhole: "Toàn bộ bài",
     studyKitSectionChatToggle: "Hỏi về mục này",
     studyKitSheetChatToggle: "Hỏi về cả bài",
+    studyKitPanelCollapse: "Thu gọn",
+    studyKitPanelExpand: "Mở rộng",
     studyKitSectionChatHint:
       "Áp dụng cho mục bạn đang xem — đổi theo khi cuộn hoặc khi bấm tiêu đề mục. Mỗi mục có một luồng chat riêng.",
     studyKitSheetChatHint:

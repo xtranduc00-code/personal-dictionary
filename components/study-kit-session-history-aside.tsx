@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { History } from "lucide-react";
+import { ChevronDown, ChevronUp, History } from "lucide-react";
 import { useI18n } from "@/components/i18n-provider";
 import { authFetch, useAuth } from "@/lib/auth-context";
 
@@ -30,6 +30,7 @@ export function StudyKitSessionHistoryAside({
     const [rows, setRows] = useState<HistoryRow[]>([]);
     const [loading, setLoading] = useState(false);
     const [sessionsExpanded, setSessionsExpanded] = useState(false);
+    const [collapsed, setCollapsed] = useState(false);
 
     useEffect(() => {
         if (!user) {
@@ -60,17 +61,32 @@ export function StudyKitSessionHistoryAside({
     return (
         <aside
             className={[
-                "flex max-h-[min(60vh,440px)] min-h-0 flex-col rounded-xl border border-zinc-200/80 bg-white shadow-[0_1px_0_rgba(0,0,0,0.03)] dark:border-white/10 dark:bg-zinc-950/40",
+                "flex min-h-0 flex-col rounded-xl border border-zinc-200/80 bg-white shadow-[0_1px_0_rgba(0,0,0,0.03)] dark:border-white/10 dark:bg-zinc-950/40",
                 className,
             ].join(" ")}
         >
             <div className="flex items-center gap-2 border-b border-zinc-200/80 px-3 py-2 dark:border-white/10">
                 <History className="h-4 w-4 shrink-0 text-blue-600 dark:text-sky-400" aria-hidden />
-                <h2 className="text-sm font-semibold text-[#0f172a] dark:text-zinc-100">
+                <h2 className="flex-1 text-sm font-semibold text-[#0f172a] dark:text-zinc-100">
                     {t("studyKitResultTabHistory")}
                 </h2>
+                <button
+                    type="button"
+                    onClick={() => setCollapsed((v) => !v)}
+                    className="inline-flex items-center gap-1 rounded-md border border-zinc-200/80 bg-zinc-50 px-2 py-1 text-[11px] font-semibold text-[#475569] transition hover:bg-zinc-100 dark:border-white/10 dark:bg-zinc-900/50 dark:text-zinc-300 dark:hover:bg-zinc-800/60"
+                    aria-expanded={!collapsed}
+                    aria-label={collapsed ? t("studyKitPanelExpand") : t("studyKitPanelCollapse")}
+                >
+                    {collapsed ? (
+                        <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+                    ) : (
+                        <ChevronUp className="h-3.5 w-3.5" aria-hidden />
+                    )}
+                    <span>{collapsed ? t("studyKitPanelExpand") : t("studyKitPanelCollapse")}</span>
+                </button>
             </div>
-            <div className="min-h-0 max-h-[min(48vh,360px)] flex-1 overflow-y-auto px-3 py-3">
+            {collapsed ? null : (
+                <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
                 {!user ? (
                     <p className="text-center text-xs text-[#94A3B8] dark:text-zinc-500">
                         {t("studyKitHistorySignIn")}
@@ -111,7 +127,8 @@ export function StudyKitSessionHistoryAside({
                     </ul>
                 )}
             </div>
-            {user && !loading && showExpandToggle ? (
+            )}
+            {!collapsed && user && !loading && showExpandToggle ? (
                 <div className="shrink-0 border-t border-zinc-200/80 px-3 py-2 dark:border-white/10">
                     <button
                         type="button"
