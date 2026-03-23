@@ -1,21 +1,33 @@
 import { NextResponse } from "next/server";
+import {
+    isMissingNotesFolderIdColumnError,
+    NOTE_ROW_SELECT_BASE,
+    NOTE_ROW_SELECT_EXT,
+    NOTE_ROW_SHARED_BASE,
+    NOTE_ROW_SHARED_EXT,
+} from "@/lib/notes-db-compat";
+import { enrichNotesWithFoldersAndLabels } from "@/lib/notes-enrich";
 import { getAuthUser } from "@/lib/get-auth-user";
 import { supabaseForUserData } from "@/lib/supabase-server";
 
+type NoteDbRow = {
+    id: string;
+    title: string | null;
+    body: string | null;
+    pinned: boolean | null;
+    created_at: string;
+    updated_at: string;
+    folder_id?: string | null;
+};
+
 function mapNoteRow(
-    r: {
-        id: string;
-        title: string | null;
-        body: string | null;
-        pinned: boolean | null;
-        created_at: string;
-        updated_at: string;
-    },
+    r: NoteDbRow,
     extra: {
         access: "owner" | "shared";
         role?: "viewer" | "editor";
         ownerUsername?: string;
     },
+    org: { folderName: string | null; labels: { id: string; name: string }[] },
 ) {
     return {
         id: r.id,
@@ -24,6 +36,9 @@ function mapNoteRow(
         pinned: Boolean(r.pinned),
         createdAt: r.created_at,
         updatedAt: r.updated_at,
+        folderId: r.folder_id != null ? String(r.folder_id) : null,
+        folderName: org.folderName,
+        labels: org.labels,
         access: extra.access,
         ...(extra.role ? { role: extra.role } : {}),
         ...(extra.ownerUsername ? { ownerUsername: extra.ownerUsername } : {}),
@@ -38,13 +53,25 @@ export async function GET(req: Request) {
     try {
         const db = supabaseForUserData();
         const userId = String(user.id);
-        const { data: owned, error: oErr } = await db
+        const ownedFirst = await db
             .from("notes")
-            .select("id,title,body,pinned,created_at,updated_at")
+            .select(NOTE_ROW_SELECT_EXT)
             .eq("user_id", userId)
             .order("pinned", { ascending: false })
             .order("updated_at", { ascending: false })
             .limit(500);
+        const ownedFallback =
+            ownedFirst.error && isMissingNotesFolderIdColumnError(ownedFirst.error)
+                ? await db
+                      .from("notes")
+                      .select(NOTE_ROW_SELECT_BASE)
+                      .eq("user_id", userId)
+                      .order("pinned", { ascending: false })
+                      .order("updated_at", { ascending: false })
+                      .limit(500)
+                : null;
+        const ownedRes = ownedFallback ?? ownedFirst;
+        const { data: owned, error: oErr } = ownedRes;
         if (oErr) {
             throw oErr;
         }
@@ -73,13 +100,23 @@ export async function GET(req: Request) {
             created_at: string;
             updated_at: string;
             user_id: string;
+            folder_id?: string | null;
         }> = [];
 
         if (sharedIds.length > 0) {
-            const { data: sn, error: nErr } = await db
+            const sharedFirst = await db
                 .from("notes")
-                .select("id,title,body,pinned,created_at,updated_at,user_id")
+                .select(NOTE_ROW_SHARED_EXT)
                 .in("id", sharedIds);
+            const sharedFb =
+                sharedFirst.error && isMissingNotesFolderIdColumnError(sharedFirst.error)
+                    ? await db
+                          .from("notes")
+                          .select(NOTE_ROW_SHARED_BASE)
+                          .in("id", sharedIds)
+                    : null;
+            const sharedRes = sharedFb ?? sharedFirst;
+            const { data: sn, error: nErr } = sharedRes;
             if (nErr) {
                 throw nErr;
             }
@@ -100,14 +137,62 @@ export async function GET(req: Request) {
             }
         }
 
-        const ownedList = (owned ?? []).map((r) => mapNoteRow(r, { access: "owner" }));
-        const sharedList = sharedNotes.map((r) =>
-            mapNoteRow(r, {
-                access: "shared",
-                role: roleByNote.get(r.id) ?? "editor",
-                ownerUsername: ownerNameById.get(r.user_id) ?? "",
+        const mergedRows: NoteDbRow[] = [
+            ...(owned ?? []).map((r) => {
+                const row = r as NoteDbRow;
+                return { ...row, folder_id: row.folder_id ?? null };
             }),
+            ...sharedNotes.map((r) => {
+                const row = r as NoteDbRow & { user_id: string };
+                return {
+                    id: row.id,
+                    title: row.title,
+                    body: row.body,
+                    pinned: row.pinned,
+                    created_at: row.created_at,
+                    updated_at: row.updated_at,
+                    folder_id: row.folder_id ?? null,
+                };
+            }),
+        ];
+
+        const { folderNameById, labelsByNoteId } = await enrichNotesWithFoldersAndLabels(
+            db,
+            mergedRows.map((r) => ({ id: r.id, folder_id: r.folder_id })),
         );
+
+        const ownedList = (owned ?? []).map((r) => {
+            const row = { ...(r as NoteDbRow), folder_id: (r as NoteDbRow).folder_id ?? null };
+            const fid = row.folder_id != null ? String(row.folder_id) : null;
+            return mapNoteRow(row, { access: "owner" }, {
+                folderName: fid ? (folderNameById.get(fid) ?? null) : null,
+                labels: labelsByNoteId.get(String(row.id)) ?? [],
+            });
+        });
+        const sharedList = sharedNotes.map((r) => {
+            const sr = r as NoteDbRow & { user_id: string };
+            const fid = sr.folder_id != null ? String(sr.folder_id) : null;
+            return mapNoteRow(
+                {
+                    id: sr.id,
+                    title: sr.title,
+                    body: sr.body,
+                    pinned: sr.pinned,
+                    created_at: sr.created_at,
+                    updated_at: sr.updated_at,
+                    folder_id: sr.folder_id ?? null,
+                },
+                {
+                    access: "shared",
+                    role: roleByNote.get(sr.id) ?? "editor",
+                    ownerUsername: ownerNameById.get(sr.user_id) ?? "",
+                },
+                {
+                    folderName: fid ? (folderNameById.get(fid) ?? null) : null,
+                    labels: labelsByNoteId.get(String(sr.id)) ?? [],
+                },
+            );
+        });
 
         const merged = [...ownedList, ...sharedList].sort((a, b) => {
             if (a.pinned !== b.pinned) {
@@ -133,17 +218,71 @@ export async function POST(req: Request) {
         const body = await req.json().catch(() => ({}));
         const title = typeof body?.title === "string" ? body.title : "";
         const bodyText = typeof body?.body === "string" ? body.body : "";
-        const { data, error } = await supabaseForUserData()
+        const folderIdRaw = body?.folderId;
+        let folderId: string | null = null;
+        if (folderIdRaw === null) {
+            folderId = null;
+        }
+        else if (typeof folderIdRaw === "string" && folderIdRaw.trim()) {
+            const db = supabaseForUserData();
+            const { data: f, error: fErr } = await db
+                .from("note_folders")
+                .select("id")
+                .eq("id", folderIdRaw.trim())
+                .eq("user_id", user.id)
+                .maybeSingle();
+            if (fErr) {
+                console.warn("[notes POST] note_folders unavailable; creating note without folder", fErr);
+            }
+            else if (!f) {
+                return NextResponse.json({ error: "Invalid folder" }, { status: 400 });
+            }
+            else {
+                folderId = f.id;
+            }
+        }
+
+        const insertRow: Record<string, unknown> = {
+            user_id: user.id,
+            title,
+            body: bodyText,
+        };
+        if (folderId !== null) {
+            insertRow.folder_id = folderId;
+        }
+
+        const dbIns = supabaseForUserData();
+        let ins = await dbIns
             .from("notes")
-            .insert({ user_id: user.id, title, body: bodyText })
-            .select("id,title,body,pinned,created_at,updated_at")
+            .insert(insertRow)
+            .select(NOTE_ROW_SELECT_EXT)
             .single();
+        if (ins.error && isMissingNotesFolderIdColumnError(ins.error)) {
+            const legacyInsert = { ...insertRow };
+            delete legacyInsert.folder_id;
+            ins = await dbIns
+                .from("notes")
+                .insert(legacyInsert)
+                .select(NOTE_ROW_SELECT_BASE)
+                .single();
+        }
+        const { data, error } = ins;
         if (error) {
             throw error;
         }
-        return NextResponse.json({
-            ...mapNoteRow(data, { access: "owner" }),
-        });
+
+        const { folderNameById, labelsByNoteId } = await enrichNotesWithFoldersAndLabels(
+            supabaseForUserData(),
+            [{ id: data.id, folder_id: data.folder_id ?? null }],
+        );
+        const fid =
+            data.folder_id != null ? String(data.folder_id) : null;
+        return NextResponse.json(
+            mapNoteRow(data as NoteDbRow, { access: "owner" }, {
+                folderName: fid ? (folderNameById.get(fid) ?? null) : null,
+                labels: labelsByNoteId.get(String(data.id)) ?? [],
+            }),
+        );
     }
     catch (e) {
         console.error("notes POST", e);

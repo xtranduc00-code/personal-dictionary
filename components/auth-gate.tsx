@@ -26,7 +26,8 @@ export function AuthGate({ children }: {
         {children}
       </div>);
     }
-    if (isLoading) {
+    /** Chỉ chặn khi chưa có user từ session cache — tránh kẹt Loading khi `/api/auth/me` treo nhưng đã có token + user trong localStorage. */
+    if (isLoading && !user) {
         return (<div className="flex flex-1 items-center justify-center px-4 py-12">
         <p className="text-sm text-zinc-500 dark:text-zinc-400">{t("loading")}</p>
       </div>);

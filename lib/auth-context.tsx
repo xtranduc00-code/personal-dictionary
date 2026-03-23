@@ -104,6 +104,7 @@ export function AuthProvider({ children }: {
         try {
             const res = await fetch("/api/auth/me", {
                 headers: { Authorization: `Bearer ${token}` },
+                signal: AbortSignal.timeout(12_000),
             });
             if (res.status === 401)
                 return { ok: false, clearAuth: true };
@@ -142,19 +143,22 @@ export function AuthProvider({ children }: {
         }
         if (storedUser)
             setUser(storedUser);
-        fetchMe(token).then((r) => {
-            if (r.ok) {
-                setUser(r.user);
-                if (typeof window !== "undefined")
-                    window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(r.user));
-            }
-            else if (r.clearAuth && typeof window !== "undefined") {
-                setUser(null);
-                window.localStorage.removeItem(AUTH_TOKEN_KEY);
-                window.localStorage.removeItem(AUTH_USER_KEY);
-            }
-            setIsLoading(false);
-        });
+        void fetchMe(token)
+            .then((r) => {
+                if (r.ok) {
+                    setUser(r.user);
+                    if (typeof window !== "undefined")
+                        window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(r.user));
+                }
+                else if (r.clearAuth && typeof window !== "undefined") {
+                    setUser(null);
+                    window.localStorage.removeItem(AUTH_TOKEN_KEY);
+                    window.localStorage.removeItem(AUTH_USER_KEY);
+                }
+            })
+            .finally(() => {
+                setIsLoading(false);
+            });
     }, [fetchMe]);
     const signIn = useCallback(async (login: string, password: string) => {
         const res = await fetch("/api/auth/signin", {

@@ -19,6 +19,54 @@ type SavedSession = {
     startedAt: string;
     messages: SavedMessage[];
 };
+type MessageContentPart = {
+    type: string;
+    transcript?: string | null;
+    text?: string;
+};
+function extractUserMessageText(content: MessageContentPart[]): string {
+    return content
+        .map((c) => {
+        if (c.type === "input_audio" || c.type === "output_audio") {
+            return c.transcript ?? "";
+        }
+        if (c.type === "input_text" || c.type === "output_text") {
+            return c.text ?? "";
+        }
+        return "";
+    })
+        .filter(Boolean)
+        .join("\n");
+}
+/** Prefer full model text over audio transcript so the UI does not drop the last sentence/question. */
+function extractAssistantMessageText(content: MessageContentPart[]): string {
+    const texts: string[] = [];
+    const transcripts: string[] = [];
+    for (const c of content) {
+        if (c.type === "output_text" && typeof c.text === "string") {
+            const t = c.text.trim();
+            if (t)
+                texts.push(t);
+        }
+        if (c.type === "output_audio" && typeof c.transcript === "string") {
+            const t = c.transcript.trim();
+            if (t)
+                transcripts.push(t);
+        }
+    }
+    const joinedText = texts.join("\n").trim();
+    const joinedTranscript = transcripts.join("\n").trim();
+    if (!joinedTranscript)
+        return joinedText;
+    if (!joinedText)
+        return joinedTranscript;
+    if (joinedText.length >= joinedTranscript.length)
+        return joinedText;
+    const prefix = joinedText.slice(0, Math.min(48, joinedText.length));
+    if (prefix && joinedTranscript.startsWith(prefix))
+        return joinedTranscript;
+    return `${joinedText}\n${joinedTranscript}`.trim();
+}
 function parseSavedSessions(raw: string): SavedSession[] {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed))
@@ -55,7 +103,7 @@ function parseSavedSessions(raw: string): SavedSession[] {
 }
 type LearningLevel = "band_4_5" | "band_5_6" | "band_7_plus";
 type LearningGoal = "fluency" | "vocabulary" | "pronunciation";
-type LearningModeId = "casual" | "correction" | "exam" | "roleplay" | "writing";
+type LearningModeId = "casual" | "correction" | "exam";
 type LearningMode = {
     id: LearningModeId;
     label: string;
@@ -97,26 +145,6 @@ Your friend (around ${level}, goal: ${goal}) wants you to gently correct their E
 ${FRIEND_TONE}
 
 You're helping a friend practice IELTS-style speaking (around ${level}, goal: ${goal}). Ask one question at a time like in a real interview, listen to their answer, then give short, encouraging feedback (vocab, fluency, grammar). Sound like a supportive buddy, not a stiff examiner.
-`,
-    },
-    {
-        id: "roleplay",
-        label: "Role-play: restaurant",
-        description: "Practice ordering food in a restaurant.",
-        buildInstructions: ({ level, goal }) => `
-${FRIEND_TONE}
-
-You're a friendly waiter and your friend is the customer (they're around ${level}, working on ${goal}). Stay in character, guide them through ordering, and if they're stuck, throw in an example phrase. Only correct mistakes when it really matters so the role-play stays fun.
-`,
-    },
-    {
-        id: "writing",
-        label: "Writing (theory + practice)",
-        description: "Teach structure, formulas, and step-by-step writing.",
-        buildInstructions: ({ level, goal }) => `
-${FRIEND_TONE}
-
-You're helping a friend with writing (level ${level}, focus ${goal}). They might have a theory file or notes open — use what they share. Explain structure and formulas (e.g. PEEL, linking words) in a simple, friendly way; give one step at a time and suggest better phrasing when you spot it. Keep it clear but not lecture-y.
 `,
     },
 ];
@@ -349,11 +377,13 @@ When speaking aloud:
                             }),
                         ],
                     });
+                    // Keep VAD patience separate from TTS speaking speed: short silence_ms + low threshold
+                    // makes rustle/noise look like “user spoke” and steals the turn from the assistant.
                     const silenceDurationMs = speakingSpeed === "slow"
-                        ? 1500
+                        ? 2200
                         : speakingSpeed === "normal"
-                            ? 900
-                            : 600;
+                            ? 1700
+                            : 1300;
                     void playBeep(880, 90, 0.02);
                     const session = new RealtimeSession(agent, {
                         config: {
@@ -363,6 +393,8 @@ When speaking aloud:
                                         type: "server_vad",
                                         createResponse: true,
                                         silenceDurationMs,
+                                        threshold: 0.62,
+                                        prefixPaddingMs: 350,
                                     },
                                     transcription: {
                                         model: "whisper-1",
@@ -423,24 +455,10 @@ When speaking aloud:
                         const messages: SavedMessage[] = event
                             .filter((item) => item.type === "message")
                             .map((item) => {
-                            const extractedText = item.content
-                                .map((c: {
-                                type: string;
-                                transcript?: string;
-                                text?: string;
-                            }) => {
-                                if (c.type === "input_audio" ||
-                                    c.type === "output_audio") {
-                                    return c.transcript;
-                                }
-                                if (c.type === "input_text" ||
-                                    c.type === "output_text") {
-                                    return c.text;
-                                }
-                                return "";
-                            })
-                                .filter(Boolean)
-                                .join("\n");
+                            const content = item.content as MessageContentPart[];
+                            const extractedText = item.role === "assistant"
+                                ? extractAssistantMessageText(content)
+                                : extractUserMessageText(content);
                             return {
                                 id: item.itemId,
                                 text: item.role === "user" ? "" : extractedText,
@@ -486,22 +504,10 @@ When speaking aloud:
         <ol className="flex h-full flex-col gap-4 overflow-y-auto px-4 py-6 md:px-6 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-100 dark:[&::-webkit-scrollbar-track]:bg-zinc-800">
           {session?.history.map((item) => {
             if (item.type === "message") {
-                const extractedText = item.content
-                    .map((c: {
-                    type: string;
-                    transcript?: string;
-                    text?: string;
-                }) => {
-                    if (c.type === "input_audio" || c.type === "output_audio") {
-                        return c.transcript;
-                    }
-                    if (c.type === "input_text" || c.type === "output_text") {
-                        return c.text;
-                    }
-                    return "";
-                })
-                    .filter(Boolean)
-                    .join("\n");
+                const content = item.content as MessageContentPart[];
+                const extractedText = item.role === "assistant"
+                    ? extractAssistantMessageText(content)
+                    : extractUserMessageText(content);
                 const text = item.role === "user" ? "" : extractedText;
                 return (<MessageItem key={item.itemId} msg={{
                         id: item.itemId,
