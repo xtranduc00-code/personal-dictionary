@@ -1,5 +1,12 @@
 "use client";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import { Nunito } from "next/font/google";
 import type { Editor } from "@tiptap/core";
@@ -12,7 +19,6 @@ import {
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import Placeholder from "@tiptap/extension-placeholder";
-import Image from "@tiptap/extension-image";
 import { TableKit } from "@tiptap/extension-table";
 import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
@@ -20,12 +26,16 @@ import Highlight from "@tiptap/extension-highlight";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { Color, FontSize, TextStyle } from "@tiptap/extension-text-style";
+import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { useI18n } from "@/components/i18n-provider";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { NotesListBehavior } from "@/lib/tiptap-notes-list-behavior";
 import { selectWholeTable } from "@/lib/tiptap-select-whole-table";
 import { ResizableTableRow, TableRowResize } from "@/lib/tiptap-table-row-resize";
 import { TiptapTableExit } from "@/lib/tiptap-table-exit";
+import { RteTableContextMenuPortal } from "@/components/rte-table-context-menu";
+import { RteImageToolbarPortal } from "@/components/rte-image-toolbar";
+import { ImageWithAlign } from "@/lib/tiptap-image-with-align";
 import {
   RTE_DEFAULT_FONT_PX,
   rteBumpFontSize,
@@ -117,9 +127,14 @@ const RTE_TOOLBAR_IDLE = {
   table: false,
   canDeleteTable: false,
   canAddRowAfter: false,
+  canAddRowBefore: false,
   canDeleteRow: false,
   canAddColumnAfter: false,
+  canAddColumnBefore: false,
   canDeleteColumn: false,
+  canMergeCells: false,
+  canSplitCell: false,
+  canToggleHeaderRow: false,
   textColor: "",
   textFontSizePx: RTE_DEFAULT_FONT_PX,
 };
@@ -172,6 +187,39 @@ export function RichTextEditor({
     top: number;
     left: number;
   } | null>(null);
+  const [tableContextMenu, setTableContextMenu] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const closeTableContextMenu = useCallback(() => {
+    setTableContextMenu(null);
+    queueMicrotask(() => {
+      editorRef.current?.chain().focus().run();
+    });
+  }, []);
+  const handleEditorContextMenu = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (readOnly) return;
+      const ed = editorRef.current;
+      if (!ed) return;
+      const el = e.target as HTMLElement | null;
+      if (!el?.closest?.("table")) return;
+      const root = ed.view.dom;
+      if (!root.contains(el)) return;
+      const coords = ed.view.posAtCoords({
+        left: e.clientX,
+        top: e.clientY,
+      });
+      if (coords == null) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const doc = ed.state.doc;
+      const $pos = doc.resolve(coords.pos);
+      ed.view.dispatch(ed.state.tr.setSelection(TextSelection.near($pos)));
+      setTableContextMenu({ x: e.clientX, y: e.clientY });
+    },
+    [readOnly],
+  );
   useEffect(() => {
     try {
       const v = localStorage.getItem(LINE_HEIGHT_LS);
@@ -221,13 +269,22 @@ export function RichTextEditor({
       Highlight.configure({ multicolor: false }),
       TaskList.configure({ HTMLAttributes: { class: "task-list" } }),
       TaskItem.configure({ nested: true }),
-      Image.configure({
+      ImageWithAlign.configure({
         allowBase64: true,
         inline: false,
         HTMLAttributes: { class: "tiptap-image" },
         resize: {
           enabled: true,
-          directions: ["bottom-right", "bottom-left", "top-right", "top-left"],
+          directions: [
+            "top-left",
+            "top",
+            "top-right",
+            "right",
+            "bottom-right",
+            "bottom",
+            "bottom-left",
+            "left",
+          ],
           minWidth: 48,
           minHeight: 48,
           alwaysPreserveAspectRatio: true,
@@ -251,6 +308,33 @@ export function RichTextEditor({
           "break-words px-3 py-3 text-sm text-zinc-900 dark:text-zinc-100 md:px-4",
           minHeightClassName,
         ].join(" "),
+      },
+      handleDOMEvents: {
+        mousedown(view, event) {
+          if (!view.editable) return false;
+          const target = event.target as HTMLElement;
+          if (
+            target.closest('[data-node="image"]') ||
+            target.closest("[data-resize-handle]")
+          ) {
+            return false;
+          }
+          const sel = view.state.selection;
+          if (sel instanceof NodeSelection && sel.node.type.name === "image") {
+            const me = event as MouseEvent;
+            const coords = view.posAtCoords({
+              left: me.clientX,
+              top: me.clientY,
+            });
+            if (coords != null) {
+              const $pos = view.state.doc.resolve(coords.pos);
+              view.dispatch(
+                view.state.tr.setSelection(TextSelection.near($pos)),
+              );
+            }
+          }
+          return false;
+        },
       },
       handlePaste: (_view, event) => {
         const data = event.clipboardData;
@@ -432,6 +516,11 @@ export function RichTextEditor({
             "function"
               ? (can as { addRowAfter: () => boolean }).addRowAfter()
               : false,
+          canAddRowBefore:
+            typeof (can as { addRowBefore?: () => boolean }).addRowBefore ===
+            "function"
+              ? (can as { addRowBefore: () => boolean }).addRowBefore()
+              : false,
           canDeleteRow:
             typeof (can as { deleteRow?: () => boolean }).deleteRow ===
             "function"
@@ -442,10 +531,30 @@ export function RichTextEditor({
             "function"
               ? (can as { addColumnAfter: () => boolean }).addColumnAfter()
               : false,
+          canAddColumnBefore:
+            typeof (can as { addColumnBefore?: () => boolean })
+              .addColumnBefore === "function"
+              ? (can as { addColumnBefore: () => boolean }).addColumnBefore()
+              : false,
           canDeleteColumn:
             typeof (can as { deleteColumn?: () => boolean }).deleteColumn ===
             "function"
               ? (can as { deleteColumn: () => boolean }).deleteColumn()
+              : false,
+          canMergeCells:
+            typeof (can as { mergeCells?: () => boolean }).mergeCells ===
+            "function"
+              ? (can as { mergeCells: () => boolean }).mergeCells()
+              : false,
+          canSplitCell:
+            typeof (can as { splitCell?: () => boolean }).splitCell ===
+            "function"
+              ? (can as { splitCell: () => boolean }).splitCell()
+              : false,
+          canToggleHeaderRow:
+            typeof (can as { toggleHeaderRow?: () => boolean })
+              .toggleHeaderRow === "function"
+              ? (can as { toggleHeaderRow: () => boolean }).toggleHeaderRow()
               : false,
           ...(() => {
             const ts = e.getAttributes("textStyle") as {
@@ -532,6 +641,7 @@ export function RichTextEditor({
       <button
         type="button"
         aria-label={label}
+        onMouseDown={(e) => e.preventDefault()}
         onClick={onClick}
         disabled={disabled}
         className={btn(active)}
@@ -660,6 +770,7 @@ export function RichTextEditor({
                   aria-label={t("rteTextColor")}
                   aria-expanded={colorMenuOpen}
                   aria-haspopup="dialog"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => setColorMenuOpen((o) => !o)}
                   className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-zinc-300 bg-white transition dark:border-zinc-600 dark:bg-zinc-800"
                   style={{
@@ -886,6 +997,7 @@ export function RichTextEditor({
                     aria-label={t("rteInsertTable")}
                     aria-expanded={tablePickerOpen}
                     aria-haspopup="dialog"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={toggleTablePicker}
                     className={btn(tb.table)}
                   >
@@ -961,6 +1073,7 @@ export function RichTextEditor({
               </label>
               <button
                 type="button"
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={applyInsertTable}
                 className="mt-1 h-9 rounded-lg bg-zinc-900 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
               >
@@ -995,6 +1108,7 @@ export function RichTextEditor({
                 type="button"
                 title={t("rteTextColorDefault")}
                 aria-label={t("rteTextColorDefault")}
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
                   editor.chain().focus().unsetColor().run();
                   setColorMenuOpen(false);
@@ -1008,6 +1122,7 @@ export function RichTextEditor({
                   className="h-7 w-7 shrink-0 rounded border border-zinc-200 shadow-sm dark:border-zinc-600"
                   style={{ backgroundColor: c }}
                   aria-label={c}
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
                     editor.chain().focus().setColor(c).run();
                     setColorMenuOpen(false);
@@ -1036,6 +1151,35 @@ export function RichTextEditor({
           document.body,
         )}
 
+      {!readOnly &&
+        typeof document !== "undefined" &&
+        tableContextMenu && (
+          <RteTableContextMenuPortal
+            key={`${tableContextMenu.x}-${tableContextMenu.y}`}
+            editor={editor}
+            position={tableContextMenu}
+            onClose={closeTableContextMenu}
+            t={t}
+            can={{
+              canDeleteTable: tb.canDeleteTable,
+              canAddRowBefore: tb.canAddRowBefore,
+              canAddRowAfter: tb.canAddRowAfter,
+              canDeleteRow: tb.canDeleteRow,
+              canAddColumnBefore: tb.canAddColumnBefore,
+              canAddColumnAfter: tb.canAddColumnAfter,
+              canDeleteColumn: tb.canDeleteColumn,
+              canMergeCells: tb.canMergeCells,
+              canSplitCell: tb.canSplitCell,
+              canToggleHeaderRow: tb.canToggleHeaderRow,
+            }}
+            onInsertLink={handleLink}
+          />
+        )}
+
+      {!readOnly && editor && (
+        <RteImageToolbarPortal editor={editor} readOnly={readOnly} t={t} />
+      )}
+
       <div
         className={`tiptap-notes-editor-wrap border border-zinc-300 bg-white dark:border-zinc-700 dark:bg-zinc-950 ${readOnly ? "rounded-xl" : "rounded-b-xl border-t-0"}`}
         style={
@@ -1043,6 +1187,7 @@ export function RichTextEditor({
             ["--tiptap-line-height" as string]: lineHeight,
           } as React.CSSProperties
         }
+        onContextMenu={handleEditorContextMenu}
       >
         <EditorContent editor={editor} />
       </div>
@@ -1155,13 +1300,117 @@ export function RichTextEditor({
           border-color: #3f3f46;
         }
 
-        .tiptap .ProseMirror-selectednode img.tiptap-image {
-          outline: 2px solid #3b82f6;
-          outline-offset: 2px;
+        /*
+          TipTap đặt container = display:flex (block-level) → mặc định giãn full ngang editor,
+          viền chọn (.ProseMirror-selectednode) theo đó dù ảnh đã thu nhỏ. Thu gọn theo nội dung.
+        */
+        .tiptap [data-resize-container][data-node="image"] {
+          width: fit-content !important;
+          max-width: 100% !important;
+          align-items: flex-start;
+          margin: 0.35rem 0;
         }
 
-        .dark .tiptap .ProseMirror-selectednode img.tiptap-image {
-          outline-color: #60a5fa;
+        .tiptap [data-resize-container][data-node="image"] img.tiptap-image {
+          margin: 0;
+        }
+
+        .tiptap [data-resize-container][data-node="image"]:has(img[data-align="center"]) {
+          margin-left: auto;
+          margin-right: auto;
+        }
+
+        .tiptap [data-resize-container][data-node="image"]:has(img[data-align="right"]) {
+          margin-left: auto;
+          margin-right: 0;
+        }
+
+        .tiptap [data-resize-container][data-node="image"]:has(img[data-align="left"]) {
+          margin-left: 0;
+          margin-right: auto;
+        }
+
+        .tiptap [data-resize-wrapper] {
+          display: inline-block !important;
+          width: fit-content !important;
+          max-width: 100%;
+          vertical-align: bottom;
+        }
+
+        /* TipTap ResizableNodeView: div tay cầm không có kích thước — cần CSS để kéo được (gần Google Docs) */
+        .tiptap [data-resize-handle] {
+          z-index: 6;
+          box-sizing: border-box;
+          background: #3b82f6;
+          border: 1.5px solid #fff;
+          border-radius: 1px;
+          box-shadow: 0 0 0 0.5px rgba(37, 99, 235, 0.35);
+        }
+
+        .dark .tiptap [data-resize-handle] {
+          background: #60a5fa;
+          border-color: #18181b;
+          box-shadow: 0 0 0 0.5px rgba(96, 165, 250, 0.35);
+        }
+
+        .tiptap [data-resize-handle="top-left"],
+        .tiptap [data-resize-handle="top-right"],
+        .tiptap [data-resize-handle="bottom-left"],
+        .tiptap [data-resize-handle="bottom-right"] {
+          width: 9px;
+          height: 9px;
+        }
+
+        .tiptap [data-resize-handle="top-left"] {
+          transform: translate(-50%, -50%);
+          cursor: nwse-resize;
+        }
+
+        .tiptap [data-resize-handle="top-right"] {
+          transform: translate(50%, -50%);
+          cursor: nesw-resize;
+        }
+
+        .tiptap [data-resize-handle="bottom-left"] {
+          transform: translate(-50%, 50%);
+          cursor: nesw-resize;
+        }
+
+        .tiptap [data-resize-handle="bottom-right"] {
+          transform: translate(50%, 50%);
+          cursor: nwse-resize;
+        }
+
+        .tiptap [data-resize-handle="top"],
+        .tiptap [data-resize-handle="bottom"] {
+          height: 6px;
+          cursor: ns-resize;
+        }
+
+        .tiptap [data-resize-handle="top"] {
+          transform: translateY(-50%);
+        }
+
+        .tiptap [data-resize-handle="bottom"] {
+          transform: translateY(50%);
+        }
+
+        .tiptap [data-resize-handle="left"],
+        .tiptap [data-resize-handle="right"] {
+          width: 6px;
+          cursor: ew-resize;
+        }
+
+        .tiptap [data-resize-handle="left"] {
+          transform: translateX(-50%);
+        }
+
+        .tiptap [data-resize-handle="right"] {
+          transform: translateX(50%);
+        }
+
+        .tiptap [data-resize-container][data-node="image"]:not(.ProseMirror-selectednode) [data-resize-handle] {
+          display: none !important;
         }
 
         .tiptap a {
@@ -1213,6 +1462,15 @@ export function RichTextEditor({
           table-layout: fixed;
         }
 
+        /*
+          TipTap/ProseMirror gán min-width (cellMinWidth) lên từng <col> — khiến cột không chia đều
+          trên bảng width:100% + table-layout:fixed. Gỡ min-width trên <col>: mặc định các cột đều nhau;
+          sau khi kéo resize cột, width: Npx inline trên <col> vẫn giữ (không dùng !important cho width).
+        */
+        .tiptap table colgroup col {
+          min-width: 0 !important;
+        }
+
         .tiptap table td,
         .tiptap table th {
           border: 1px solid #d4d4d8;
@@ -1220,7 +1478,10 @@ export function RichTextEditor({
           vertical-align: top;
           text-align: start;
           position: relative;
-          min-width: 3rem;
+          min-width: 0;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+          cursor: text;
           user-select: text;
           -webkit-user-select: text;
         }
@@ -1245,10 +1506,6 @@ export function RichTextEditor({
         .dark .tiptap .column-resize-handle:hover,
         .dark .tiptap .column-resize-handle:active {
           background: rgba(96, 165, 250, 0.4);
-        }
-
-        .tiptap table tbody tr {
-          cursor: default;
         }
 
         /* CellSelection (kéo chọn nhiều ô / nút «Chọn hết ô») — plugin prosemirror-tables */

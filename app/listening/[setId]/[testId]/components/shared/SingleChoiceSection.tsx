@@ -55,17 +55,27 @@ export function SingleChoiceSection({ instruction, questions, segmentIdPrefix, a
             const correct = isCorrect(qNum);
             const selected = answers[qNum] ?? "";
             return (<li key={qNum} className="space-y-2" data-question-number={qNum}>
-              <div className="flex flex-wrap items-baseline gap-2">
+              <div className="flex flex-nowrap items-start gap-2">
                 <QBadge qNum={qNum} correct={correct} variant="border"/>
-                <span className={listeningQuestionTextClass}>
-                  <HighlightableSegment id={seg(`q${qNum}-text`)}>{text}</HighlightableSegment>
+                <span
+                  className={`min-w-0 flex-1 ${listeningQuestionTextClass}`}
+                >
+                  <HighlightableSegment id={seg(`q${qNum}-text`)}>
+                    {text}
+                  </HighlightableSegment>
                 </span>
-                {submitted && correct !== null && (<span className={`text-xs font-medium ${tickClass(correct)}`}>
+                {submitted && correct !== null && (
+                  <span
+                    className={`shrink-0 text-xs font-medium ${tickClass(correct)}`}
+                  >
                     {correct ? "✓" : "✗"}
-                  </span>)}
-                {submitted && correct === false && getCorrectAnswerText && (<span className="text-xs font-medium text-rose-600 dark:text-rose-400">
+                  </span>
+                )}
+                {submitted && correct === false && getCorrectAnswerText && (
+                  <span className="shrink-0 text-xs font-medium text-rose-600 dark:text-rose-400">
                     Correct: {getCorrectAnswerText(qNum)}
-                  </span>)}
+                  </span>
+                )}
               </div>
               <ul className="space-y-3 pl-1">
                 {options.map(({ letter, text: optText }) => {

@@ -1,4 +1,5 @@
 import { engnovateTranscripts } from "./engnovate-listening-generated/transcripts";
+import { cambridge20Test3TranscriptHtml } from "./listening-transcript-cambridge-20-test-3";
 import { listeningTranscripts } from "./listening_transcripts";
 function splitLongParagraphs(html: string): string {
     const SENTENCE_BOUNDARY = /(?<=[.!?])\s+(?=[A-Z])/;
@@ -68,7 +69,10 @@ function getTranscriptFromListeningTranscriptsFile(setId: string, testId: string
 }
 function engnovatePartHtml(setId: string, testId: string, part: number): string | undefined {
     const key = `${setId}:${testId}`;
-    const full = engnovateTranscripts[key];
+    const full =
+        setId === "cambridge-20" && testId === "test-3"
+            ? cambridge20Test3TranscriptHtml
+            : engnovateTranscripts[key];
     if (!full)
         return undefined;
     const id = `ielts-listening-transcript-${part}`;

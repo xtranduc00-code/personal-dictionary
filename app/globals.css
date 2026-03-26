@@ -3,15 +3,39 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @keyframes voiceBar {
-  0%, 100% { height: 4px; opacity: 0.45; }
-  20% { height: 14px; opacity: 0.95; }
-  40% { height: 8px; opacity: 0.7; }
-  60% { height: 16px; opacity: 1; }
-  80% { height: 10px; opacity: 0.8; }
+  0%,
+  100% {
+    height: 4px;
+    opacity: 0.45;
+  }
+  20% {
+    height: 14px;
+    opacity: 0.95;
+  }
+  40% {
+    height: 8px;
+    opacity: 0.7;
+  }
+  60% {
+    height: 16px;
+    opacity: 1;
+  }
+  80% {
+    height: 10px;
+    opacity: 0.8;
+  }
 }
+
 @keyframes callPulse {
-  0%, 100% { transform: scale(0.995); opacity: 0.85; }
-  50% { transform: scale(1.02); opacity: 1; }
+  0%,
+  100% {
+    transform: scale(0.995);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.02);
+    opacity: 1;
+  }
 }
 
 @keyframes meet-toolbar-in {
@@ -37,10 +61,12 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+  --font-sans:
+    var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono:
+    ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
 
-  
   --text-xs: 0.75rem;
   --text-xs--line-height: 1.25rem;
   --text-sm: 0.875rem;
@@ -58,7 +84,6 @@
   --text-4xl: 2.25rem;
   --text-4xl--line-height: 2.5rem;
 
-  
   --font-weight-normal: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
@@ -80,126 +105,269 @@ body {
   letter-spacing: -0.01em;
 }
 
+/*
+  Con trỏ rõ ràng: control / link / ARIA tương tác dùng pointer.
+  Input và contenteditable vẫn dùng text.
+*/
+@layer base {
+  button:not(:disabled),
+  [type="button"]:not(:disabled),
+  [type="submit"]:not(:disabled),
+  [type="reset"]:not(:disabled),
+  a,
+  [role="button"]:not([aria-disabled="true"]),
+  [role="link"],
+  [role="tab"]:not([aria-disabled="true"]),
+  [role="menuitem"]:not([aria-disabled="true"]),
+  [role="option"]:not([aria-disabled="true"]),
+  [role="menuitemcheckbox"],
+  [role="menuitemradio"],
+  [role="switch"]:not([aria-disabled="true"]),
+  [role="radio"]:not([aria-disabled="true"]),
+  [role="checkbox"]:not([aria-disabled="true"]),
+  summary,
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  input[type="file"]:not(:disabled),
+  input[type="range"],
+  input[type="color"],
+  label[for]:not([for=""]) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [type="button"]:disabled,
+  [type="submit"]:disabled,
+  [type="reset"]:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+
+  input:not([type]):not(:disabled),
+  input[type="text"]:not(:disabled),
+  input[type="email"]:not(:disabled),
+  input[type="password"]:not(:disabled),
+  input[type="search"]:not(:disabled),
+  input[type="url"]:not(:disabled),
+  input[type="tel"]:not(:disabled),
+  input[type="number"]:not(:disabled),
+  input[type="date"]:not(:disabled),
+  input[type="time"]:not(:disabled),
+  input[type="datetime-local"]:not(:disabled),
+  input[type="month"]:not(:disabled),
+  input[type="week"]:not(:disabled),
+  textarea:not(:disabled) {
+    cursor: text;
+  }
+
+  input:disabled,
+  textarea:disabled,
+  select:disabled {
+    cursor: not-allowed;
+  }
+}
+
+.ielts-font-root,
 .ielts-exam {
-  font-family: var(--font-sans);
+  font-family: var(--font-nunito), ui-sans-serif, system-ui, sans-serif;
   font-size: 1rem;
   line-height: 1.625;
   letter-spacing: -0.01em;
+}
+
+/* Transcript typography */
+.ielts-transcript mark {
+  text-decoration: none;
+  color: inherit;
 }
 
 .ielts-transcript p {
   margin-bottom: 0.875rem;
   line-height: 1.7;
 }
+
 .ielts-transcript p:last-child {
   margin-bottom: 0;
 }
 
+/* Explanation highlight text */
 .explanation-highlight {
-  background: transparent !important;
-  padding: 0 !important;
-  border-radius: 0 !important;
-  font-weight: 600;
-  color: #16a34a;
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 2px;
-}
-.dark .explanation-highlight {
-  color: #22c55e;
+  background-color: #ffe4e6 !important;
+  padding: 0.12em 0.2em !important;
+  border-radius: 2px !important;
+  color: #27272a !important;
+  font-weight: inherit !important;
+  text-decoration: none !important;
+  text-decoration-line: none !important;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
+.dark .explanation-highlight {
+  background-color: rgba(244, 63, 94, 0.2) !important;
+  color: #fafafa !important;
+}
+
+/* Default explanation number badge */
 .ielts-listening-explanation-number {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.5rem;
-  height: 1.5rem;
-  padding: 0 0.4rem;
-  margin-left: 0.25rem;
-  border-radius: 0.375rem;
-  background: #ec4899;
-  color: #fff;
-  font-size: 0.7rem;
+  display: inline-block !important;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.3rem;
+  margin-left: 0.25em;
+  border-radius: 2px;
+  background-color: #ffffff;
+  color: #000000;
+  border: 1px solid #000000;
+  font-size: 0.65rem;
   font-weight: 700;
-  line-height: 1;
+  line-height: 1.35rem !important;
+  text-align: center;
   vertical-align: middle;
   scroll-margin-top: 5rem;
-  box-shadow: 0 1px 3px rgba(236, 72, 153, 0.4);
+  box-shadow: none;
 }
 
 .dark .ielts-listening-explanation-number {
-  background: #db2777;
-  color: #fff;
-  box-shadow: 0 1px 4px rgba(219, 39, 119, 0.5);
+  background-color: #fafafa;
+  color: #0a0a0a;
+  border-color: #0a0a0a;
 }
 
+/* Wrong / correct badges outside explanation highlight */
+.transcript-badge-correct.ielts-listening-explanation-number,
+.ielts-listening-explanation-number.transcript-badge-correct {
+  background-color: #16a34a !important;
+  color: #ffffff !important;
+  border-color: #171717 !important;
+}
+
+.dark .transcript-badge-correct.ielts-listening-explanation-number,
+.dark .ielts-listening-explanation-number.transcript-badge-correct {
+  background-color: #22c55e !important;
+  color: #ffffff !important;
+  border-color: #171717 !important;
+}
+
+.transcript-badge-wrong.ielts-listening-explanation-number,
+.ielts-listening-explanation-number.transcript-badge-wrong {
+  background-color: #dc2626 !important;
+  color: #ffffff !important;
+  border-color: #171717 !important;
+}
+
+.dark .transcript-badge-wrong.ielts-listening-explanation-number,
+.dark .ielts-listening-explanation-number.transcript-badge-wrong {
+  background-color: #b91c1c !important;
+  color: #fecaca !important;
+  border-color: #171717 !important;
+}
+
+/* Wrong sentence block */
 .ielts-transcript p.transcript-sentence-wrong {
   background-color: rgba(244, 63, 94, 0.15);
   border-radius: 0.5rem;
   padding: 0.25rem 0.4rem;
 }
+
 .dark .ielts-transcript p.transcript-sentence-wrong {
   background-color: rgba(244, 63, 94, 0.2);
 }
 
-.ielts-transcript p:has(.explanation-highlight),
-.ielts-transcript p:has(.transcript-answer-wrong) {
-  padding: 0.25rem 0.4rem;
-  border-radius: 0.5rem;
-}
-
-.ielts-transcript p:has(.explanation-highlight) {
-  background-color: rgba(34, 197, 94, 0.12);
-}
-.dark .ielts-transcript p:has(.explanation-highlight) {
-  background-color: rgba(34, 197, 94, 0.18);
-}
-
-.ielts-transcript p:has(.transcript-answer-wrong) {
-  background-color: rgba(244, 63, 94, 0.12);
-}
-.dark .ielts-transcript p:has(.transcript-answer-wrong) {
-  background-color: rgba(244, 63, 94, 0.18);
-}
-
+/* Wrong answer inline text */
 .transcript-answer-wrong {
-  background: transparent !important;
-  padding: 0 !important;
-  border-radius: 0 !important;
-  font-weight: 600;
-  color: #dc2626;
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 2px;
+  background-color: #fecaca !important;
+  padding: 0.12em 0.2em !important;
+  border-radius: 2px !important;
+  font-weight: inherit;
+  color: #27272a !important;
+  text-decoration: none !important;
+  text-decoration-line: none !important;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
+
 .dark .transcript-answer-wrong {
-  color: #fb7185;
+  background-color: rgba(248, 113, 113, 0.28) !important;
+  color: #fafafa !important;
 }
 
-.transcript-badge-correct.ielts-listening-explanation-number,
-.ielts-listening-explanation-number.transcript-badge-correct {
-  background: #16a34a !important;
-  color: #fff !important;
-}
-.dark .transcript-badge-correct.ielts-listening-explanation-number,
-.dark .ielts-listening-explanation-number.transcript-badge-correct {
-  background: #22c55e !important;
-  color: #fff !important;
+/* =========================================================
+   FIX CHÍNH:
+   Badge số nằm trong explanation-highlight hoặc ngay sau nó
+   sẽ tự có màu highlight riêng, không phụ thuộc nền của <mark>.
+   ========================================================= */
+
+/* Case 1: badge nằm BÊN TRONG mark */
+.explanation-highlight .ielts-listening-explanation-number,
+.explanation-highlight
+  .ielts-listening-explanation-number.transcript-badge-wrong,
+.explanation-highlight
+  .ielts-listening-explanation-number.transcript-badge-correct,
+.explanation-highlight
+  .transcript-badge-wrong.ielts-listening-explanation-number,
+.explanation-highlight
+  .transcript-badge-correct.ielts-listening-explanation-number {
+  background-color: #ffe4e6 !important;
+  color: #27272a !important;
+  border-color: #27272a !important;
+  box-shadow: none !important;
+  margin-left: 0.2em !important;
+  vertical-align: middle !important;
 }
 
-.transcript-badge-wrong.ielts-listening-explanation-number,
-.ielts-listening-explanation-number.transcript-badge-wrong {
-  background: #dc2626 !important;
-  color: #fff !important;
+/* Case 2: badge bị render thành sibling ngay sau mark */
+.explanation-highlight + .ielts-listening-explanation-number,
+.explanation-highlight
+  + .ielts-listening-explanation-number.transcript-badge-wrong,
+.explanation-highlight
+  + .ielts-listening-explanation-number.transcript-badge-correct,
+.explanation-highlight
+  + .transcript-badge-wrong.ielts-listening-explanation-number,
+.explanation-highlight
+  + .transcript-badge-correct.ielts-listening-explanation-number {
+  background-color: #ffe4e6 !important;
+  color: #27272a !important;
+  border-color: #27272a !important;
+  box-shadow: none !important;
+  margin-left: 0.2em !important;
+  vertical-align: middle !important;
 }
 
-.dark .transcript-badge-wrong.ielts-listening-explanation-number,
-.dark .ielts-listening-explanation-number.transcript-badge-wrong {
-  background: #b91c1c !important;
-  color: #fecaca !important;
+/* Dark mode for badge inside / after explanation highlight */
+.dark .explanation-highlight .ielts-listening-explanation-number,
+.dark
+  .explanation-highlight
+  .ielts-listening-explanation-number.transcript-badge-wrong,
+.dark
+  .explanation-highlight
+  .ielts-listening-explanation-number.transcript-badge-correct,
+.dark
+  .explanation-highlight
+  .transcript-badge-wrong.ielts-listening-explanation-number,
+.dark
+  .explanation-highlight
+  .transcript-badge-correct.ielts-listening-explanation-number,
+.dark .explanation-highlight + .ielts-listening-explanation-number,
+.dark
+  .explanation-highlight
+  + .ielts-listening-explanation-number.transcript-badge-wrong,
+.dark
+  .explanation-highlight
+  + .ielts-listening-explanation-number.transcript-badge-correct,
+.dark
+  .explanation-highlight
+  + .transcript-badge-wrong.ielts-listening-explanation-number,
+.dark
+  .explanation-highlight
+  + .transcript-badge-correct.ielts-listening-explanation-number {
+  background-color: rgba(244, 63, 94, 0.2) !important;
+  color: #fafafa !important;
+  border-color: #fafafa !important;
 }
 
+/* Selectable transcript text */
 .ielts-transcript,
 .ielts-transcript *,
 .transcript-content,
@@ -210,12 +378,13 @@ body {
   -webkit-user-select: text !important;
   -webkit-touch-callout: default !important;
 }
+
 .ielts-transcript .transcript-content,
 .ielts-transcript .highlight-segment {
   cursor: text;
 }
 
-/* Scroll reveal: IntersectionObserver root = [data-main-scroll] (see useMainScrollReveal). */
+/* Scroll reveal */
 .scroll-reveal {
   opacity: 0;
   transform: translate3d(0, 12px, 0);
@@ -240,4 +409,3 @@ body {
     transition: none;
   }
 }
-

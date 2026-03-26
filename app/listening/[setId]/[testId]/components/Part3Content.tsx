@@ -119,7 +119,7 @@ function Part3ContentInner(props: Props) {
             maxQ,
             key: "match",
             el: (<QuestionBlockHeading startQ={minQ} endQ={maxQ}>
-        <MatchingSection instruction={matching.instruction} options={matching.options} items={matching.items.map((i) => ({ qNum: i.qNum, label: i.text }))} segmentIdPrefix={seg("match")} answers={answers} updateAnswer={updateAnswer} isCorrect={isCorrect} submitted={submitted} getCorrectAnswerText={getCorrectAnswerText}/>
+        <MatchingSection instruction={matching.instruction} title={matching.title} options={matching.options} items={matching.items.map((i) => ({ qNum: i.qNum, label: i.text }))} segmentIdPrefix={seg("match")} answers={answers} updateAnswer={updateAnswer} isCorrect={isCorrect} submitted={submitted} getCorrectAnswerText={getCorrectAnswerText} optionsPlainList={matching.optionsPlainList}/>
         </QuestionBlockHeading>),
         });
     }

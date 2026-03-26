@@ -5,6 +5,12 @@ import { QBadge } from "./QBadge";
 import { inputClass } from "./questionStyles";
 import { notesContentClass, notesSectionGapClass, notesTitleCenteredClass, } from "./questionStyles";
 import { HighlightableSegment } from "../HighlightContext";
+/** Tiêu đề dạng I. / II. … (mục lớn giữa trang như Cambridge). */
+function isRomanMajorSectionTitle(title: string | undefined): boolean {
+    if (!title)
+        return false;
+    return /^[IVX]{1,4}\.\s/.test(title.trim());
+}
 type RendererProps = {
     section: NotesSection;
     sectionIndex: number;
@@ -70,7 +76,9 @@ function renderNode(node: NotesNode, nodeIndex: number, segmentIdPrefix: string,
             const stripLead = (parts: typeof node.parts) => {
                 if (parts.length === 0 || parts[0].type !== "text")
                     return parts;
-                const re = isSub ? /^(?:–|•|●)\s+/ : /^(?:●|•)\s+/;
+                const re = isSub
+                    ? /^(?:\u2013|-|\u2022|●|•)\s+/
+                    : /^(?:●|•|\u2022)\s+/;
                 const t = parts[0].text.replace(re, "");
                 if (t === parts[0].text)
                     return parts;
@@ -82,11 +90,13 @@ function renderNode(node: NotesNode, nodeIndex: number, segmentIdPrefix: string,
                 return next;
             };
             const displayParts = stripLead(node.parts);
-            return (<div key={nodeIndex} className={`leading-6 flex items-baseline gap-1 ${isSub ? "pl-6" : ""}`}>
-          {isSub ? (<span className="inline-block text-[0.55em] leading-none align-middle text-zinc-700 dark:text-zinc-300 shrink-0" aria-hidden>
-              •
+            return (<div key={nodeIndex} className={`flex items-baseline gap-2 leading-6 ${isSub ? "pl-3 sm:pl-5" : ""}`}>
+          {isSub ? (<span className="shrink-0 select-none text-zinc-800 dark:text-zinc-200" aria-hidden>
+              –
             </span>) : null}
-          {displayParts.map((p, i) => renderInlinePart(p, i, `${segId}-p${i}`, inlineProps))}
+          <span className="min-w-0 flex-1">
+            {displayParts.map((p, i) => renderInlinePart(p, i, `${segId}-p${i}`, inlineProps))}
+          </span>
         </div>);
         }
         case "row":
@@ -108,9 +118,11 @@ export function NotesStructuredRenderer({ section, sectionIndex, answers, update
         defaultWidth,
         badgeVariant,
     };
+    const romanMajor = isRomanMajorSectionTitle(section.sectionTitle);
+    const titleCentered = isFirstSection || romanMajor;
     return (<div className={sectionIndex > 0 ? notesSectionGapClass : ""}>
-      {section.sectionTitle && (<p className={isFirstSection
-                ? `${notesTitleCenteredClass} mb-0.5`
+      {section.sectionTitle && (<p className={titleCentered
+                ? `${notesTitleCenteredClass} mb-1${romanMajor && !isFirstSection ? " uppercase tracking-wide" : ""}`
                 : "mb-1 text-left text-base font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-100"}>
           <HighlightableSegment id={`${prefix}-title`}>
             {section.sectionTitle}

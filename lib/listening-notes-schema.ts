@@ -28,9 +28,10 @@ export type NotesSection = {
 function trimLine(s: string): string {
     return s.trim();
 }
+/** Dòng bullet dạng sách Cambridge: en-dash (–) hoặc gạch ngang ASCII (-). */
 function getBulletLevel(line: string, keepDashBullet: boolean): number | null {
     const t = line.trimStart();
-    if (keepDashBullet && /^–\s/.test(t))
+    if (keepDashBullet && /^(?:\u2013|-)\s/.test(t))
         return 1;
     if (/^(●|•)\s/.test(t) || /^\s*(●|•)\s/.test(line))
         return 0;

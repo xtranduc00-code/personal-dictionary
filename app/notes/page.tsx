@@ -23,6 +23,7 @@ import {
   Pin,
   Plus,
   Settings2,
+  FileDown,
   Share2,
   Sparkles,
   StickyNote,
@@ -267,6 +268,7 @@ export default function NotesPage() {
   const [shareRole, setShareRole] = useState<"editor" | "viewer">("editor");
   const [shareList, setShareList] = useState<ShareRow[]>([]);
   const [shareBusy, setShareBusy] = useState(false);
+  const [pdfExportBusy, setPdfExportBusy] = useState(false);
 
   const [noteFolders, setNoteFolders] = useState<NoteFolder[]>([]);
   const [listFolderFilter, setListFolderFilter] = useState<"all" | string>(
@@ -1219,6 +1221,28 @@ export default function NotesPage() {
     setShareForNote(selectedNote);
   };
 
+  const handleExportPdf = useCallback(async () => {
+    if (!isEditorReady || !selectedNote) {
+      return;
+    }
+    await saveCurrentIfDirty();
+    setPdfExportBusy(true);
+    try {
+      const { exportNoteToPdf } = await import("@/lib/export-note-pdf");
+      await exportNoteToPdf({
+        title: title.trim() || t("untitled"),
+        htmlBody: body,
+        fileNameBase: title.trim() || t("untitled"),
+      });
+      toast.success(t("noteExportPdfSuccess"));
+    } catch (e) {
+      console.error(e);
+      toast.error(t("noteExportPdfFailed"));
+    } finally {
+      setPdfExportBusy(false);
+    }
+  }, [isEditorReady, selectedNote, title, body, t, saveCurrentIfDirty]);
+
   const handleAddShare = async () => {
     if (!shareForNote || !shareUsername.trim()) {
       return;
@@ -1610,6 +1634,25 @@ export default function NotesPage() {
                   </span>
                 ) : null}
                 <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleExportPdf()}
+                    disabled={pdfExportBusy}
+                    className="flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800 sm:px-3 sm:text-sm"
+                    title={t("noteExportPdf")}
+                  >
+                    {pdfExportBusy ? (
+                      <Loader2
+                        className="h-4 w-4 shrink-0 animate-spin"
+                        aria-hidden
+                      />
+                    ) : (
+                      <FileDown className="h-4 w-4 shrink-0" strokeWidth={2} />
+                    )}
+                    <span className="max-w-[5.5rem] truncate sm:max-w-none">
+                      {t("noteExportPdf")}
+                    </span>
+                  </button>
                   {notes.length > 0 ? (
                     <>
                       <label

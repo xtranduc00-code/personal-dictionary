@@ -320,7 +320,7 @@ function Part1ContentInner({ answers, updateAnswer, isCorrect, submitted, segmen
             parts.push({
                 minQ: minFromMatching(),
                 el: (<div key="match" className="mt-5">
-            <MatchingSection instruction={matching.instruction} options={matching.options} items={matching.items.map((i) => ({ qNum: i.qNum, label: i.text }))} segmentIdPrefix={seg("match")} answers={answers} updateAnswer={updateAnswer} isCorrect={isCorrect} submitted={submitted} getCorrectAnswerText={getCorrectAnswerText}/>
+            <MatchingSection instruction={matching.instruction} title={matching.title} options={matching.options} items={matching.items.map((i) => ({ qNum: i.qNum, label: i.text }))} segmentIdPrefix={seg("match")} answers={answers} updateAnswer={updateAnswer} isCorrect={isCorrect} submitted={submitted} getCorrectAnswerText={getCorrectAnswerText} optionsPlainList={matching.optionsPlainList}/>
           </div>),
             });
         parts.sort((a, b) => a.minQ - b.minQ);

@@ -1,3 +1,4 @@
+import { engnovateListeningAudioCandidates } from "./listening-audio-engnovate";
 export type ListeningAnswer = string | string[];
 export type ListeningTest = {
     id: string;
@@ -2229,12 +2230,28 @@ export function getAllAudios(): {
 function path(book: number, test: number, part: number): string {
     return `audios/cambridge-${book}/test-${test}/part-${part}.mp3`;
 }
+
 export function getListeningAudioUrls(set: ListeningSet, test: ListeningTest, part: number): string[] {
     const book = set.cambridgeNumber;
     const t = test.testNumber;
+    const seen = new Set<string>();
+    const out: string[] = [];
     if (AUDIO_BASE_URL) {
         const base = AUDIO_BASE_URL.replace(/\/$/, "");
-        return [`${base}/cambridge-${book}/test-${t}/part-${part}.mp3`];
+        const primary = `${base}/cambridge-${book}/test-${t}/part-${part}.mp3`;
+        seen.add(primary);
+        out.push(primary);
     }
-    return [`/${path(book, t, part)}`];
+    else {
+        const local = `/${path(book, t, part)}`;
+        seen.add(local);
+        out.push(local);
+    }
+    for (const u of engnovateListeningAudioCandidates(book, t, part)) {
+        if (!seen.has(u)) {
+            seen.add(u);
+            out.push(u);
+        }
+    }
+    return out;
 }

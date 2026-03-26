@@ -21,8 +21,10 @@ type Props = {
     isCorrect: (qNum: number) => boolean | null;
     submitted: boolean;
     getCorrectAnswerText?: (qNum: number) => string | null;
+    /** Không dùng list-disc (chỉ bật cho từng bài cần). */
+    optionsPlainList?: boolean;
 };
-export function MatchingSection({ instruction, title, options, items, segmentIdPrefix, answers, updateAnswer, isCorrect, submitted, getCorrectAnswerText, }: Props) {
+export function MatchingSection({ instruction, title, options, items, segmentIdPrefix, answers, updateAnswer, isCorrect, submitted, getCorrectAnswerText, optionsPlainList = false, }: Props) {
     const seg = (path: string) => `${segmentIdPrefix}-${path}`;
     return (<>
       <p className="mb-2 text-base font-semibold text-zinc-800 dark:text-zinc-200">
@@ -32,7 +34,13 @@ export function MatchingSection({ instruction, title, options, items, segmentIdP
           <HighlightableSegment id={seg("title")}>{title}</HighlightableSegment>
         </p>)}
       <section className={`mt-4 ${listeningSectionCardClass}`}>
-      <ul className="mb-4 list-disc space-y-1 pl-5 text-zinc-700 dark:text-zinc-300 [&_li]:marker:text-[0.65em]">
+      <ul
+        className={
+          optionsPlainList
+            ? "mb-4 list-none space-y-1 pl-0 text-zinc-700 dark:text-zinc-300"
+            : "mb-4 list-disc space-y-1 pl-5 text-zinc-700 dark:text-zinc-300 [&_li]:marker:text-[0.65em]"
+        }
+      >
         {options.map(({ letter, text }) => (<li key={letter}>
             <span className="font-semibold">{letter}</span>{" "}
             <HighlightableSegment id={seg(`opt-${letter}`)}>{text}</HighlightableSegment>
