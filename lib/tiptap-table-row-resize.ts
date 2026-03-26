@@ -39,7 +39,8 @@ export const ResizableTableRow = TableRow.extend({
 
 const rowResizeKey = new PluginKey("kenTableRowResize");
 const MIN_ROW_PX = 40;
-const EDGE_PX = 10;
+const MAX_ROW_PX = 480;
+const EDGE_PX = 4;
 
 /**
  * Kéo cạnh dưới của hàng (tr) để chỉnh chiều cao; lưu vào attrs.rowHeight.
@@ -93,7 +94,7 @@ export const TableRowResize = Extension.create({
                             const startY = event.clientY;
                             document.body.style.cursor = "row-resize";
                             const onMove = (e: MouseEvent) => {
-                                const next = Math.max(MIN_ROW_PX, Math.round(startH + (e.clientY - startY)));
+                                const next = Math.min(MAX_ROW_PX, Math.max(MIN_ROW_PX, Math.round(startH + (e.clientY - startY))));
                                 const tr0 = view.state.tr;
                                 tr0.setNodeMarkup(rowPos, undefined, {
                                     ...rowNode.attrs,
