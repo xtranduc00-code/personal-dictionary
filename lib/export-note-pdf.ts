@@ -10,6 +10,7 @@ export type ExportNotePdfOptions = {
 const EXPORT_STYLES = `
   * { box-sizing: border-box; }
   body { margin: 0; padding: 0; }
+
   .ken-pdf-root {
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     font-size: 14px;
@@ -19,6 +20,7 @@ const EXPORT_STYLES = `
     width: 100%;
     padding: 0;
   }
+
   .ken-pdf-root h1 {
     font-size: 1.5rem;
     font-weight: 700;
@@ -26,24 +28,62 @@ const EXPORT_STYLES = `
     padding-bottom: 0.5rem;
     border-bottom: 1px solid #e4e4e7;
   }
+
   .ken-pdf-root .tiptap { color: #18181b; }
-  .ken-pdf-root .tiptap p { margin: 0 0 0.65em; }
+  .ken-pdf-root .tiptap p { margin: 0 0 0.65em; line-height: 1.7; }
   .ken-pdf-root .tiptap h1 { font-size: 1.5rem; font-weight: 700; margin: 0.85em 0 0.4em; }
   .ken-pdf-root .tiptap h2 { font-size: 1.25rem; font-weight: 700; margin: 0.85em 0 0.4em; }
   .ken-pdf-root .tiptap h3 { font-size: 1.1rem; font-weight: 600; margin: 0.85em 0 0.4em; }
-  .ken-pdf-root .tiptap ul, .ken-pdf-root .tiptap ol { margin: 0.5em 0; padding-left: 1.5rem; }
+
+  .ken-pdf-root .tiptap ul,
+  .ken-pdf-root .tiptap ol {
+    margin: 0.5em 0;
+  }
+
+  .ken-pdf-root .tiptap ul {
+    list-style: none;
+    padding-left: 0;
+  }
+
+  .ken-pdf-root .tiptap ul li {
+    position: relative;
+    padding-left: 1.15rem;
+    margin: 0.18em 0;
+  }
+
+  .ken-pdf-root .tiptap ul li::before {
+    content: "•";
+    position: absolute;
+    left: 0;
+    top: 0.02em;
+    font-size: 1.05em;
+    line-height: 1.6;
+  }
+
+  .ken-pdf-root .tiptap ol {
+    padding-left: 1.5rem;
+  }
+
+  .ken-pdf-root .tiptap li {
+    line-height: 1.7;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
   .ken-pdf-root .tiptap blockquote {
     border-left: 3px solid #d4d4d8;
     margin: 0.75em 0;
     padding-left: 1rem;
     color: #52525b;
   }
+
   .ken-pdf-root .tiptap code {
     background: #f4f4f5;
     border-radius: 0.25rem;
     padding: 0.1em 0.35em;
     font-size: 0.9em;
   }
+
   .ken-pdf-root .tiptap pre {
     background: #18181b;
     color: #fafafa;
@@ -52,10 +92,20 @@ const EXPORT_STYLES = `
     overflow: hidden;
     font-size: 0.85em;
   }
+
   .ken-pdf-root .tiptap pre code { background: transparent; color: inherit; padding: 0; }
   .ken-pdf-root .tiptap a { color: #2563eb; text-decoration: underline; }
+
+  .ken-pdf-root .tiptap u,
+  .ken-pdf-root .tiptap ins {
+    text-decoration-skip-ink: none;
+    text-underline-offset: 0.08em;
+    padding-bottom: 0.08em;
+  }
+
   .ken-pdf-root .tiptap mark { background: #fef08a; padding: 0.05em 0.15em; }
   .ken-pdf-root .tiptap hr { border: none; border-top: 1px solid #d4d4d8; margin: 1em 0; }
+
   .ken-pdf-root .tiptap img.tiptap-image {
     max-width: 100%;
     height: auto;
@@ -64,6 +114,7 @@ const EXPORT_STYLES = `
     border: 1px solid #e4e4e7;
     margin: 0.35em 0;
   }
+
   .ken-pdf-root .tiptap .tableWrapper {
     display: block;
     width: 100% !important;
@@ -71,6 +122,7 @@ const EXPORT_STYLES = `
     overflow: visible !important;
     margin: 0.75em 0;
   }
+
   .ken-pdf-root .tiptap table {
     border-collapse: collapse;
     table-layout: fixed;
@@ -79,12 +131,14 @@ const EXPORT_STYLES = `
     margin: 0;
     font-size: 0.92em;
   }
-  /* Gỡ width/min-width pixel từ TipTap trên <col> — tránh cột 3 bị nén / tràn ngoài vùng chụp */
+
   .ken-pdf-root .tiptap table colgroup col {
     min-width: 0 !important;
     width: auto !important;
   }
-  .ken-pdf-root .tiptap th, .ken-pdf-root .tiptap td {
+
+  .ken-pdf-root .tiptap th,
+  .ken-pdf-root .tiptap td {
     border: 1px solid #d4d4d8;
     padding: 0.4rem 0.5rem;
     vertical-align: top;
@@ -93,19 +147,25 @@ const EXPORT_STYLES = `
     min-width: 0;
     overflow-wrap: anywhere;
   }
+
   .ken-pdf-root .tiptap th { background: #f4f4f5; font-weight: 600; }
+
   .ken-pdf-root .tiptap .task-list { list-style: none; padding-left: 0; }
   .ken-pdf-root .tiptap .task-list li { display: flex; gap: 0.35rem; align-items: flex-start; }
 `;
 
 function safePdfFileBase(name: string): string {
-  const t = name.replace(/[/\\?%*:|"<>]/g, "-").replace(/\s+/g, " ").trim();
+  const t = name
+    .replace(/[/\\?%*:|"<>]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
   return t.slice(0, 88) || "note";
 }
 
 /** ~A4 nội dung @96dpi; đủ rộng để bảng chia cột đều trước khi scale lên PDF */
 const PDF_LAYOUT_MIN_WIDTH_PX = 720;
 const PDF_LAYOUT_MAX_WIDTH_PX = 2000;
+const PDF_SLICE_OVERLAP_PX = 8;
 
 /**
  * Gỡ style inline trên col/table từ editor để bảng không vượt khung và không nén cột.
@@ -125,10 +185,9 @@ function normalizeTablesForPdfExport(container: HTMLElement) {
   });
 }
 
-/**
- * Xuất ghi chú (tiêu đề + HTML TipTap) ra file PDF trong trình duyệt.
- */
-export async function exportNoteToPdf(options: ExportNotePdfOptions): Promise<void> {
+export async function exportNoteToPdf(
+  options: ExportNotePdfOptions,
+): Promise<void> {
   const { title, htmlBody, fileNameBase } = options;
 
   const cleanBody = DOMPurify.sanitize(htmlBody || "", {
@@ -157,14 +216,24 @@ export async function exportNoteToPdf(options: ExportNotePdfOptions): Promise<vo
 
   const host = document.createElement("div");
   host.setAttribute("data-ken-pdf-export", "true");
-  host.style.cssText =
-    `position:fixed;left:-12000px;top:0;width:${PDF_LAYOUT_MIN_WIDTH_PX}px;max-width:${PDF_LAYOUT_MAX_WIDTH_PX}px;pointer-events:none;opacity:0.001;overflow:visible;z-index:-1;`;
+  host.style.cssText = [
+    "position:fixed",
+    "left:-12000px",
+    "top:0",
+    `width:${PDF_LAYOUT_MIN_WIDTH_PX}px`,
+    `max-width:${PDF_LAYOUT_MAX_WIDTH_PX}px`,
+    "pointer-events:none",
+    "opacity:0.001",
+    "overflow:visible",
+    "z-index:-1",
+  ].join(";");
 
   const styleEl = document.createElement("style");
   styleEl.textContent = EXPORT_STYLES;
 
   const root = document.createElement("div");
   root.className = "ken-pdf-root";
+  root.style.paddingBottom = "24px";
 
   const h1 = document.createElement("h1");
   h1.textContent = title.trim() || "—";
@@ -180,18 +249,31 @@ export async function exportNoteToPdf(options: ExportNotePdfOptions): Promise<vo
   host.appendChild(root);
   document.body.appendChild(host);
 
+  const waitForLayout = async () => {
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => resolve()),
+    );
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => resolve()),
+    );
+  };
+
   const layoutForCapture = async () => {
-    await new Promise<void>((r) => requestAnimationFrame(() => r()));
-    await new Promise<void>((r) => requestAnimationFrame(() => r()));
+    await waitForLayout();
+
     let layoutW = Math.ceil(
       Math.max(PDF_LAYOUT_MIN_WIDTH_PX, root.scrollWidth, host.offsetWidth),
     );
     layoutW = Math.min(layoutW, PDF_LAYOUT_MAX_WIDTH_PX);
+
     host.style.width = `${layoutW}px`;
     host.style.maxWidth = `${layoutW}px`;
-    await new Promise<void>((r) => requestAnimationFrame(() => r()));
+
+    await waitForLayout();
+
     const captureW = Math.ceil(root.scrollWidth);
     const captureH = Math.ceil(root.scrollHeight);
+
     return { layoutW, captureW, captureH };
   };
 
@@ -219,43 +301,80 @@ export async function exportNoteToPdf(options: ExportNotePdfOptions): Promise<vo
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
     const margin = 12;
-    const usableW = pageWidth - 2 * margin;
-    const usableH = pageHeight - 2 * margin;
+    const usableW = pageWidth - margin * 2;
+    const usableH = pageHeight - margin * 2;
 
     const imgW = canvas.width;
     const imgH = canvas.height;
     const pdfImgW = usableW;
     const pdfImgH = (imgH * pdfImgW) / imgW;
 
-    const imgData = canvas.toDataURL("image/jpeg", 0.92);
-
     if (pdfImgH <= usableH) {
+      const imgData = canvas.toDataURL("image/jpeg", 0.92);
       pdf.addImage(imgData, "JPEG", margin, margin, pdfImgW, pdfImgH);
     } else {
+      const EXTRA_SAFE_CUT_PX = 12;
       let ySrc = 0;
       let page = 0;
+
+      const stepPx = Math.max(1, Math.ceil((usableH / pdfImgH) * imgH));
+
       while (ySrc < imgH) {
-        const slicePx = Math.min(
-          imgH - ySrc,
-          Math.max(1, Math.ceil((usableH / pdfImgH) * imgH)),
-        );
+        const overlapPx = page === 0 ? 0 : PDF_SLICE_OVERLAP_PX;
+
+        const drawStart =
+          page === 0 ? 0 : Math.max(0, ySrc - overlapPx - EXTRA_SAFE_CUT_PX);
+
+        const drawEnd = Math.min(imgH, ySrc + stepPx + EXTRA_SAFE_CUT_PX);
+        const slicePx = Math.max(1, drawEnd - drawStart);
+
         const sliceCanvas = document.createElement("canvas");
         sliceCanvas.width = imgW;
         sliceCanvas.height = slicePx;
+
         const sctx = sliceCanvas.getContext("2d");
         if (!sctx) {
           throw new Error("Canvas unsupported");
         }
+
         sctx.fillStyle = "#ffffff";
         sctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
-        sctx.drawImage(canvas, 0, ySrc, imgW, slicePx, 0, 0, imgW, slicePx);
+        sctx.drawImage(
+          canvas,
+          0,
+          drawStart,
+          imgW,
+          slicePx,
+          0,
+          0,
+          imgW,
+          slicePx,
+        );
+
         const sliceData = sliceCanvas.toDataURL("image/jpeg", 0.92);
         const slicePdfH = (slicePx * pdfImgW) / imgW;
+        const overlapMm = (overlapPx * pdfImgW) / imgW;
+        const safeCutMm = (EXTRA_SAFE_CUT_PX * pdfImgW) / imgW;
+
         if (page > 0) {
           pdf.addPage();
         }
-        pdf.addImage(sliceData, "JPEG", margin, margin, pdfImgW, slicePdfH);
-        ySrc += slicePx;
+
+        pdf.addImage(
+          sliceData,
+          "JPEG",
+          margin,
+          margin - overlapMm - safeCutMm,
+          pdfImgW,
+          slicePdfH,
+        );
+
+        if (page > 0) {
+          pdf.setFillColor(255, 255, 255);
+          pdf.rect(0, 0, pageWidth, margin, "F");
+        }
+
+        ySrc += stepPx;
         page += 1;
       }
     }
