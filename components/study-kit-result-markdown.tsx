@@ -156,10 +156,10 @@ const sheetRoot =
   "exam-notes-markdown max-w-none rounded-xl border border-zinc-200/60 bg-white/50 px-3 py-4 text-[15px] leading-normal text-[#334155] shadow-[0_1px_0_rgba(0,0,0,0.03)] dark:border-white/10 dark:bg-zinc-950/30 dark:text-zinc-300 dark:shadow-none sm:px-5 sm:py-5 " +
   "[&_.katex]:text-[1.05em] [&_.katex-display]:my-3 [&_.katex-display]:overflow-x-auto [&_.katex]:text-[#0f172a] dark:[&_.katex]:text-zinc-200 " +
   "[&_blockquote+ul]:mt-5 [&_blockquote+ol]:mt-5 " +
-  "[&_h2+blockquote+ul]:mt-2 [&_h2+blockquote+ul]:rounded-lg [&_h2+blockquote+ul]:bg-zinc-50/60 [&_h2+blockquote+ul]:px-3 [&_h2+blockquote+ul]:py-2.5 [&_h2+blockquote+ul]:dark:bg-zinc-900/40 " +
-  "[&_h2+blockquote+ol]:mt-2 [&_h2+blockquote+ol]:rounded-lg [&_h2+blockquote+ol]:bg-zinc-50/60 [&_h2+blockquote+ol]:px-3 [&_h2+blockquote+ol]:py-2.5 [&_h2+blockquote+ol]:dark:bg-zinc-900/40 " +
-  "[&_h2+ul]:mt-2 [&_h2+ul]:rounded-lg [&_h2+ul]:bg-zinc-50/60 [&_h2+ul]:px-3 [&_h2+ul]:py-2.5 [&_h2+ul]:dark:bg-zinc-900/40 " +
-  "[&_h2+ol]:mt-2 [&_h2+ol]:rounded-lg [&_h2+ol]:bg-zinc-50/60 [&_h2+ol]:px-3 [&_h2+ol]:py-2.5 [&_h2+ol]:dark:bg-zinc-900/40 " +
+  "[&_h2+blockquote+ul]:mt-2 [&_h2+blockquote+ul]:rounded-lg [&_h2+blockquote+ul]:bg-zinc-50/60 [&_h2+blockquote+ul]:px-3 [&_h2+blockquote+ul]:py-3 [&_h2+blockquote+ul]:dark:bg-zinc-900/40 " +
+  "[&_h2+blockquote+ol]:mt-2 [&_h2+blockquote+ol]:rounded-lg [&_h2+blockquote+ol]:bg-zinc-50/60 [&_h2+blockquote+ol]:px-3 [&_h2+blockquote+ol]:py-3 [&_h2+blockquote+ol]:dark:bg-zinc-900/40 " +
+  "[&_h2+ul]:mt-2 [&_h2+ul]:rounded-lg [&_h2+ul]:bg-zinc-50/60 [&_h2+ul]:px-3 [&_h2+ul]:py-3 [&_h2+ul]:dark:bg-zinc-900/40 " +
+  "[&_h2+ol]:mt-2 [&_h2+ol]:rounded-lg [&_h2+ol]:bg-zinc-50/60 [&_h2+ol]:px-3 [&_h2+ol]:py-3 [&_h2+ol]:dark:bg-zinc-900/40 " +
   "[&_h2+blockquote+ul]:mb-10 [&_h2+blockquote+ol]:mb-10 [&_h2+ul]:mb-10 [&_h2+ol]:mb-10 " +
   "[&_ul_ul]:mt-2 [&_ul_ul]:mb-0.5 [&_ul_ul]:list-disc [&_ul_ul]:space-y-1 [&_ul_ul]:border-l-2 [&_ul_ul]:border-zinc-200/80 [&_ul_ul]:py-0.5 [&_ul_ul]:pl-4 [&_ul_ul]:text-[13px] [&_ul_ul]:leading-snug [&_ul_ul]:text-[#64748B] dark:[&_ul_ul]:border-zinc-600/55 dark:[&_ul_ul]:text-zinc-400 dark:[&_ul_ul]:marker:text-zinc-500 " +
   "[&_ul_ul>li:not([data-accent])]:py-0.5 [&_ul_ul>li:not([data-accent])]:pl-0 [&_ul_ul>li:not([data-accent])]:text-[13px] [&_ul_ul>li:not([data-accent])]:leading-snug " +
@@ -254,7 +254,7 @@ export function StudyKitResultMarkdown({
           },
           ol({ children }) {
             return (
-              <ol className="my-2 list-decimal space-y-0.5 pl-5 text-[14px] leading-snug marker:font-medium marker:text-zinc-500 dark:marker:text-zinc-400">
+              <ol className="my-2 list-outside list-decimal space-y-1 pl-6 text-[14px] leading-[1.55] marker:font-normal marker:text-zinc-500 [&>li]:pl-1 dark:marker:text-zinc-400">
                 {children}
               </ol>
             );
@@ -267,7 +267,7 @@ export function StudyKitResultMarkdown({
             /** Plain rows: native `list-disc` bullet (ul has `pl-5`). Tagged (MUST/TRAP/…): no marker, `pl-0` so badge aligns with list left edge. */
             const plainClasses =
               "py-0.5 pl-0 text-[14px] leading-[1.55] [&>p]:my-0 [&_ul]:font-normal";
-            const taggedClasses = `list-none flex flex-wrap items-center gap-x-2 gap-y-1 py-0.5 pl-0 text-[14px] leading-[1.55] [list-style-type:none] [&::marker]:hidden [&>p]:my-0 [&>p]:inline [&>p]:align-middle [&>p]:leading-[1.55] [&>p]:max-w-full [&_ul]:mt-2 [&_ul]:w-full [&_ul]:basis-full [&_ul]:shrink-0 [&_ul]:font-normal ${weight}`;
+            const taggedClasses = `list-none flex flex-wrap items-start gap-x-2 gap-y-1 py-0.5 pl-0 text-[14px] leading-[1.55] [list-style-type:none] [&::marker]:hidden [&>p]:my-0 [&>p]:inline [&>p]:align-top [&>p]:leading-[1.55] [&>p]:max-w-full [&_ul]:mt-2 [&_ul]:w-full [&_ul]:basis-full [&_ul]:shrink-0 [&_ul]:font-normal ${weight}`;
             const defaultClasses = `${plainClasses} ${defaultLiText}`;
             return (
               <li
@@ -298,7 +298,7 @@ export function StudyKitResultMarkdown({
             const mermaidChart = mermaidFromPreChildren(children);
             if (mermaidChart) return <StudyKitMermaid chart={mermaidChart} />;
             return (
-              <pre className="mb-4 overflow-x-auto rounded-lg border border-zinc-200/80 bg-white px-3 py-2.5 text-[13px] text-[#334155] dark:border-white/10 dark:bg-zinc-900/80 dark:text-zinc-200">
+              <pre className="mb-4 overflow-x-auto overflow-y-visible rounded-lg border border-zinc-200/80 bg-white px-3 py-3 text-[13px] leading-[1.55] text-[#334155] dark:border-white/10 dark:bg-zinc-900/80 dark:text-zinc-200">
                 {children}
               </pre>
             );

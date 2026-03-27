@@ -61,7 +61,12 @@ const EXPORT_STYLES = `
   }
 
   .ken-pdf-root .tiptap ol {
+    list-style-position: outside;
     padding-left: 1.5rem;
+  }
+
+  .ken-pdf-root .tiptap ol > li {
+    padding-left: 0.28rem;
   }
 
   .ken-pdf-root .tiptap li {

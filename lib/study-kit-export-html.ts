@@ -160,6 +160,9 @@ body {
   list-style-position: outside;
   padding-left: 1.35rem;
 }
+.sheet ol > li {
+  padding-left: 0.28rem;
+}
 .sheet li {
   margin: 0.15rem 0;
   line-height: 1.6;
