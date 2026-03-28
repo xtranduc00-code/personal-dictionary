@@ -55,24 +55,31 @@ export function DriveIntegrationNavBlock({ onLinkClick, }: DriveIntegrationNavBl
         return () => document.removeEventListener("click", close);
     }, [menuOpen]);
     if (authLoading) {
-        return (<div className="mx-3 mt-2 rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-xs text-zinc-400 dark:border-zinc-600">
-        {t("loading")}
+        return (<div className="mt-2 w-full min-w-0 border-l-2 border-transparent pl-11 pr-4">
+        <div className="rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-xs text-zinc-400 dark:border-zinc-600">
+          {t("loading")}
+        </div>
       </div>);
     }
     if (!user) {
-        return (<div className="mx-3 mt-2 rounded-lg border border-zinc-200/80 bg-zinc-50/80 px-3 py-2.5 dark:border-zinc-700/80 dark:bg-zinc-900/40">
-        <p className="text-center text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
-          {t("driveSidebarLoginHint")}
-        </p>
+        return (<div className="mt-2 w-full min-w-0 border-l-2 border-transparent pl-11 pr-4">
+        <div className="rounded-lg border border-zinc-200/80 bg-zinc-50/80 px-3 py-2.5 dark:border-zinc-700/80 dark:bg-zinc-900/40">
+          <p className="text-center text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+            {t("driveSidebarLoginHint")}
+          </p>
+        </div>
       </div>);
     }
     if (driveLoading) {
-        return (<div className="mx-3 mt-2 rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-xs text-zinc-400 dark:border-zinc-600">
-        {t("loading")}
+        return (<div className="mt-2 w-full min-w-0 border-l-2 border-transparent pl-11 pr-4">
+        <div className="rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-xs text-zinc-400 dark:border-zinc-600">
+          {t("loading")}
+        </div>
       </div>);
     }
     if (driveUser?.email) {
-        return (<div className="mx-3 mt-2 rounded-xl border border-zinc-200/80 bg-zinc-50/80 px-3 py-2.5 dark:border-zinc-700/80 dark:bg-zinc-900/50">
+        return (<div className="mt-2 w-full min-w-0 border-l-2 border-transparent pl-11 pr-4">
+        <div className="rounded-xl border border-zinc-200/80 bg-zinc-50/80 px-3 py-2.5 dark:border-zinc-700/80 dark:bg-zinc-900/50">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
@@ -131,9 +138,11 @@ export function DriveIntegrationNavBlock({ onLinkClick, }: DriveIntegrationNavBl
               </div>) : null}
           </div>
         </div>
+        </div>
       </div>);
     }
-    return (<div className="mx-3 mt-2 rounded-lg border border-dashed border-amber-200/90 bg-amber-50/60 px-3 py-2.5 dark:border-amber-900/40 dark:bg-amber-950/25">
+    return (<div className="mt-2 w-full min-w-0 border-l-2 border-transparent pl-11 pr-4">
+      <div className="rounded-lg border border-dashed border-amber-200/90 bg-amber-50/60 px-3 py-2.5 dark:border-amber-900/40 dark:bg-amber-950/25">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200/90">
         {t("driveStatusNotConnected")}
       </p>
@@ -143,5 +152,6 @@ export function DriveIntegrationNavBlock({ onLinkClick, }: DriveIntegrationNavBl
       <Link href="/drive" onClick={onLinkClick} className="mt-2 inline-flex rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white">
         {t("driveConnectCta")}
       </Link>
+    </div>
     </div>);
 }

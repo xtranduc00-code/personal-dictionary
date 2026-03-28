@@ -733,11 +733,11 @@ function SiteNavInner() {
           <ChevronRight className="h-4 w-4"/>
         </button>)}
       <aside className={[
-            "hidden h-screen shrink-0 border-r border-zinc-200/70 bg-zinc-50/80 backdrop-blur-xl transition-[width] duration-200 dark:border-zinc-800 dark:bg-zinc-900/80 md:flex md:overflow-y-auto",
+            "hidden h-screen shrink-0 border-r border-zinc-200/70 bg-zinc-50/80 backdrop-blur-xl transition-[width] duration-200 dark:border-zinc-800 dark:bg-zinc-900/80 md:flex md:flex-col md:overflow-hidden",
             sidebarOpen ? "w-80" : "w-0 overflow-hidden border-r-0",
         ].join(" ")}>
-        <div className="relative flex min-h-0 w-full flex-1 flex-col px-4 py-5">
-          {sidebarOpen && (<button type="button" onClick={toggleSidebar} className="absolute -right-3 top-1/2 z-10 flex h-10 w-6 shrink-0 -translate-y-1/2 items-center justify-center rounded-r-lg border border-l-0 border-zinc-200 bg-zinc-100 text-zinc-600 shadow-sm transition hover:bg-zinc-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700" aria-label={t("ariaCloseSidebar")}>
+        <div className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden px-4 py-5">
+          {sidebarOpen && (<button type="button" onClick={toggleSidebar} className="absolute right-1 top-7 z-10 flex h-9 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-100 text-zinc-600 shadow-sm transition hover:bg-zinc-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700" aria-label={t("ariaCloseSidebar")}>
               <ChevronLeft className="h-4 w-4"/>
             </button>)}
           <div className="mb-8 px-3">
