@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import {
+  CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -95,6 +96,12 @@ const PRESET_NAME_SET: ReadonlySet<string> = new Set(
 
 /** Matches sticky time column width for “now” line + dot (Preply-style). */
 const TIME_AXIS_COL_PX = 72;
+
+/** Max half-hour rows merged into one lesson “node” (60′ grid → show 50′ card + gap). */
+const MAX_LESSON_MERGE_ROWS = 2;
+
+/** Lesson card shows a 50′ window when spanning two half-hour rows. */
+const LESSON_CARD_MINUTES = 50;
 
 type PresetName = (typeof SCHEDULE_PRESETS)[number]["name"];
 
@@ -252,7 +259,30 @@ function getScheduleColumnRowSpan(
       span++;
     } else break;
   }
-  return span;
+  return Math.min(span, MAX_LESSON_MERGE_ROWS);
+}
+
+/** Time range on the card: 30′ slot uses row label; 2-row block uses start + 50′. */
+function formatLessonCardTimeLabel(
+  gridRows: ScheduleGridRow[],
+  startRowIdx: number,
+  rowSpan: number,
+): string {
+  const row = gridRows[startRowIdx];
+  if (!row) return "";
+  if (rowSpan <= 1) return row.displayLabel;
+  const startPart = row.displayLabel.split(" - ")[0]?.trim() ?? "";
+  const m = /^(\d{1,2}):(\d{2})$/.exec(startPart);
+  if (!m) return row.displayLabel;
+  const h = Number(m[1]);
+  const mm = Number(m[2]);
+  if (!Number.isFinite(h) || !Number.isFinite(mm)) return row.displayLabel;
+  let total = h * 60 + mm + LESSON_CARD_MINUTES;
+  const wrap = Math.floor(total / (24 * 60));
+  total -= wrap * 24 * 60;
+  const eh = Math.floor(total / 60);
+  const em = total % 60;
+  return `${startPart} - ${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}`;
 }
 
 function isRunPastForGridRows(
@@ -1191,7 +1221,14 @@ export function StudyScheduleGrid() {
                       const disabled = past || blockedGroup;
 
                       const paintBtnBase =
-                        "touch-none cursor-crosshair border border-transparent text-center text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/70 disabled:cursor-not-allowed disabled:opacity-45 dark:focus-visible:ring-blue-400/70";
+                        "touch-none cursor-crosshair border border-transparent text-left text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/70 disabled:cursor-not-allowed disabled:opacity-45 dark:focus-visible:ring-blue-400/70";
+
+                      const cardTime = formatLessonCardTimeLabel(
+                        gridRows,
+                        rowIdx,
+                        rowSpan,
+                      );
+                      const accent = cell.color || "#0284c7";
 
                       return [
                         <td
@@ -1203,9 +1240,6 @@ export function StudyScheduleGrid() {
                               ? "p-0 align-stretch"
                               : "px-1 py-0.5 align-middle",
                           ].join(" ")}
-                          style={{
-                            backgroundColor: cell.color || undefined,
-                          }}
                         >
                           {paintMode ? (
                             <button
@@ -1213,16 +1247,17 @@ export function StudyScheduleGrid() {
                               disabled={disabled}
                               className={[
                                 mergeBlock
-                                  ? "absolute inset-0 flex items-center justify-center rounded-md px-1 py-1"
-                                  : "relative flex min-h-[30px] w-full items-center justify-center rounded-md px-1 py-1",
+                                  ? "absolute inset-0 flex items-start justify-stretch px-1 pt-0.5 pb-1"
+                                  : "relative flex min-h-[30px] w-full items-stretch px-0.5 py-0.5",
                                 paintBtnBase,
-                                cell.color
+                                myText
                                   ? "bg-transparent"
-                                  : "bg-zinc-50/90 dark:bg-zinc-800/50",
-                                cell.text
-                                  ? "text-white"
-                                  : "text-zinc-400 dark:text-zinc-500",
-                              ].join(" ")}
+                                  : "items-center justify-center bg-zinc-50/90 text-center dark:bg-zinc-800/50",
+                                !myText &&
+                                  "text-zinc-400 dark:text-zinc-500",
+                              ]
+                                .filter(Boolean)
+                                .join(" ")}
                               aria-label={
                                 myText
                                   ? mergeBlock
@@ -1248,68 +1283,141 @@ export function StudyScheduleGrid() {
                                 )
                               }
                             >
-                              {cell.text || "·"}
+                              {myText ? (
+                                <div
+                                  className={[
+                                    "pointer-events-none relative w-full rounded-xl border-2 border-sky-200/90 bg-sky-50 px-2 py-1.5 shadow-sm dark:border-sky-700/60 dark:bg-sky-950/50",
+                                    mergeBlock
+                                      ? "h-[83.333%] min-h-[2.75rem]"
+                                      : "min-h-[26px] h-[calc(100%-2px)]",
+                                  ].join(" ")}
+                                  style={{
+                                    borderLeftWidth: 4,
+                                    borderLeftColor: accent,
+                                  }}
+                                >
+                                  <p className="text-[10px] font-medium leading-tight text-sky-900/85 tabular-nums dark:text-sky-200/90">
+                                    {cardTime}
+                                  </p>
+                                  <p className="mt-0.5 text-sm font-bold text-sky-950 dark:text-sky-50">
+                                    {cell.text}
+                                  </p>
+                                  <CheckCircle2
+                                    className="absolute right-1.5 bottom-1.5 h-4 w-4 text-sky-950 dark:text-sky-100"
+                                    aria-hidden
+                                  />
+                                </div>
+                              ) : (
+                                "·"
+                              )}
                             </button>
                           ) : (
                             <div
                               className={
                                 mergeBlock
-                                  ? "absolute inset-0 flex min-h-[30px] items-stretch"
-                                  : "relative flex min-h-[30px] items-stretch"
+                                  ? "absolute inset-0 flex min-h-[30px] items-stretch px-1 pt-0.5 pb-1"
+                                  : "relative flex min-h-[30px] items-stretch px-0.5 py-0.5"
                               }
                             >
-                              <select
-                                value={cell.text}
-                                disabled={disabled}
-                                onChange={(e) =>
-                                  applyCellChoice(
-                                    rowIdx,
-                                    acc,
-                                    e.target.value,
-                                    rowSpan,
-                                  )
-                                }
-                                className={[
-                                  mergeBlock
-                                    ? "h-full min-h-0 w-full flex-1"
-                                    : "w-full min-h-[28px] flex-1",
-                                  "appearance-none rounded-md border-0 px-1 py-1 pr-6 text-center text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/70 disabled:cursor-not-allowed disabled:opacity-45 dark:focus-visible:ring-blue-400/70",
-                                  disabled
-                                    ? "cursor-not-allowed"
-                                    : "cursor-pointer",
-                                  cell.text
-                                    ? "text-white"
-                                    : "text-zinc-500 dark:text-zinc-400",
-                                ].join(" ")}
-                                aria-label={
-                                  myText
-                                    ? mergeBlock
-                                      ? `${myText} (${t("studyScheduleMergedSlotHint")})`
-                                      : myText
-                                    : t("studySchedulePickPerson")
-                                }
-                              >
-                                <option value="">
-                                  {t("studySchedulePickPerson")}
-                                </option>
-                                {SCHEDULE_PRESETS.map((p) => (
-                                  <option key={p.name} value={p.name}>
-                                    {p.name}
-                                  </option>
-                                ))}
-                                {cell.text && !hasPresetName ? (
-                                  <option value={cell.text}>{cell.text}</option>
-                                ) : null}
-                              </select>
-                              <ChevronDown
-                                className={[
-                                  "pointer-events-none absolute right-1 top-1/2 h-3.5 w-3.5 -translate-y-1/2 opacity-80",
-                                  cell.text
-                                    ? "text-white/90"
-                                    : "text-zinc-400 dark:text-zinc-500",
-                                ].join(" ")}
-                                aria-hidden
-                              />
+                              {myText ? (
+                                <>
+                                  <div
+                                    className={[
+                                      "pointer-events-none absolute left-1 right-1 z-0 rounded-xl border-2 border-sky-200/90 bg-sky-50 px-2 py-1.5 shadow-sm dark:border-sky-700/60 dark:bg-sky-950/50",
+                                      mergeBlock
+                                        ? "top-0.5 h-[83.333%] min-h-[2.75rem]"
+                                        : "top-0.5 min-h-[26px] h-[calc(100%-4px)]",
+                                    ].join(" ")}
+                                    style={{
+                                      borderLeftWidth: 4,
+                                      borderLeftColor: accent,
+                                    }}
+                                  >
+                                    <p className="text-[10px] font-medium leading-tight text-sky-900/85 tabular-nums dark:text-sky-200/90">
+                                      {cardTime}
+                                    </p>
+                                    <p className="mt-0.5 text-sm font-bold text-sky-950 dark:text-sky-50">
+                                      {cell.text}
+                                    </p>
+                                    <CheckCircle2
+                                      className="absolute right-1.5 bottom-1.5 h-4 w-4 text-sky-950 dark:text-sky-100"
+                                      aria-hidden
+                                    />
+                                  </div>
+                                  <select
+                                    value={cell.text}
+                                    disabled={disabled}
+                                    onChange={(e) =>
+                                      applyCellChoice(
+                                        rowIdx,
+                                        acc,
+                                        e.target.value,
+                                        rowSpan,
+                                      )
+                                    }
+                                    className={[
+                                      mergeBlock
+                                        ? "absolute inset-0 z-[1] min-h-0 w-full flex-1 cursor-pointer opacity-0"
+                                        : "absolute inset-0.5 z-[1] min-h-[26px] w-[calc(100%-4px)] cursor-pointer opacity-0",
+                                      "appearance-none border-0 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/70 disabled:cursor-not-allowed disabled:opacity-45 dark:focus-visible:ring-blue-400/70",
+                                    ].join(" ")}
+                                    aria-label={
+                                      mergeBlock
+                                        ? `${myText} (${t("studyScheduleMergedSlotHint")})`
+                                        : myText
+                                    }
+                                  >
+                                    <option value="">
+                                      {t("studySchedulePickPerson")}
+                                    </option>
+                                    {SCHEDULE_PRESETS.map((p) => (
+                                      <option key={p.name} value={p.name}>
+                                        {p.name}
+                                      </option>
+                                    ))}
+                                    {cell.text && !hasPresetName ? (
+                                      <option value={cell.text}>
+                                        {cell.text}
+                                      </option>
+                                    ) : null}
+                                  </select>
+                                </>
+                              ) : (
+                                <>
+                                  <select
+                                    value={cell.text}
+                                    disabled={disabled}
+                                    onChange={(e) =>
+                                      applyCellChoice(
+                                        rowIdx,
+                                        acc,
+                                        e.target.value,
+                                        rowSpan,
+                                      )
+                                    }
+                                    className={[
+                                      "w-full min-h-[28px] flex-1 appearance-none rounded-md border-0 bg-zinc-50/90 px-1 py-1 pr-6 text-center text-xs font-semibold text-zinc-500 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/70 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-zinc-800/50 dark:text-zinc-400 dark:focus-visible:ring-blue-400/70",
+                                      disabled
+                                        ? "cursor-not-allowed"
+                                        : "cursor-pointer",
+                                    ].join(" ")}
+                                    aria-label={t("studySchedulePickPerson")}
+                                  >
+                                    <option value="">
+                                      {t("studySchedulePickPerson")}
+                                    </option>
+                                    {SCHEDULE_PRESETS.map((p) => (
+                                      <option key={p.name} value={p.name}>
+                                        {p.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <ChevronDown
+                                    className="pointer-events-none absolute right-1 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400 dark:text-zinc-500"
+                                    aria-hidden
+                                  />
+                                </>
+                              )}
                             </div>
                           )}
                         </td>,
