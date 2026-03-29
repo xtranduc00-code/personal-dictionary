@@ -31,8 +31,10 @@ export function eventStartUtc(
   dateYmd: string,
   startTimeHm: string | null | undefined,
 ): Date | null {
+  const ymd = String(dateYmd).trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
   const parsed = parseCalendarTimeHm(startTimeHm);
   if (!parsed) return null;
-  const wall = `${dateYmd} ${String(parsed.hh).padStart(2, "0")}:${String(parsed.mm).padStart(2, "0")}:00`;
+  const wall = `${ymd} ${String(parsed.hh).padStart(2, "0")}:${String(parsed.mm).padStart(2, "0")}:00`;
   return fromZonedTime(wall, getCalendarEventStorageTimeZone());
 }

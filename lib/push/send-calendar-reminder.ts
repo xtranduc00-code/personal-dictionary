@@ -39,13 +39,25 @@ function formatDateInStorageTz(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Civil YYYY-MM-DD + integer days (Gregorian), independent of server TZ. */
+function addCalendarDaysYmd(ymd: string, delta: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) {
+    return ymd;
+  }
+  const x = new Date(Date.UTC(y, m - 1, d + delta));
+  const yy = x.getUTCFullYear();
+  const mm = String(x.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(x.getUTCDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+
 function loadDateWindow(): { from: string; to: string } {
-  const now = new Date();
-  const from = new Date(now);
-  from.setDate(from.getDate() - 1);
-  const to = new Date(now);
-  to.setDate(to.getDate() + REMINDER_DATE_WINDOW_DAYS);
-  return { from: formatDateInStorageTz(from), to: formatDateInStorageTz(to) };
+  const today = formatDateInStorageTz(new Date());
+  return {
+    from: addCalendarDaysYmd(today, -1),
+    to: addCalendarDaysYmd(today, REMINDER_DATE_WINDOW_DAYS),
+  };
 }
 
 async function tryLogSent(
