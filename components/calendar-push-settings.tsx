@@ -56,13 +56,16 @@ export function CalendarPushSettings() {
       return;
     }
     try {
-      const reg = await navigator.serviceWorker.getRegistration();
-      if (!reg) {
-        setBrowserSubscribed(false);
-        return;
+      await navigator.serviceWorker.ready;
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (const reg of regs) {
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          setBrowserSubscribed(true);
+          return;
+        }
       }
-      const sub = await reg.pushManager.getSubscription();
-      setBrowserSubscribed(!!sub);
+      setBrowserSubscribed(false);
     } catch {
       setBrowserSubscribed(false);
     }
@@ -142,6 +145,7 @@ export function CalendarPushSettings() {
         await sub.unsubscribe().catch(() => {});
         return;
       }
+      setBrowserSubscribed(true);
       await refreshStatus();
       await syncBrowserSubscription();
     } finally {
