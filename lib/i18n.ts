@@ -525,7 +525,7 @@ export const translations = {
     calendarSearchPlaceholder: "Search name, notes, or date (YYYY-MM-DD)…",
     calendarPushTitle: "Calendar & schedule notifications",
     calendarPushDescription:
-      "Same subscription covers timed calendar events and the shared study grid. Up to three reminders each — 1 day, 1 hour, and 10 minutes before start. Notification text shows date and time in Czech storage time (Europe/Prague by default; see CALENDAR_EVENT_STORAGE_TIMEZONE). All-day calendar events are not notified.",
+      "Same subscription covers timed calendar events and the shared study grid. Up to three reminders each — 1 day, 1 hour, and 10 minutes before start. Event times on the calendar use your device timezone so they match when reminders fire; notification text still shows Czech storage time (Europe/Prague by default; see CALENDAR_EVENT_STORAGE_TIMEZONE). All-day calendar events are not notified.",
     calendarPushEnable: "Turn on notifications",
     calendarPushDisable: "Turn off notifications",
     calendarPushIosAddToHome:
@@ -1674,7 +1674,7 @@ export const translations = {
     calendarSearchPlaceholder: "Tìm tên, ghi chú hoặc ngày (YYYY-MM-DD)…",
     calendarPushTitle: "Thông báo lịch & lưới học",
     calendarPushDescription:
-      "Một lần bật: sự kiện có giờ và lưới học chung. Tối đa 3 nhắc — còn 1 ngày, 1 giờ, 10 phút. Chữ trong thông báo hiển thị ngày/giờ theo múi lưu lịch (mặc định Czech/Prague, xem CALENDAR_EVENT_STORAGE_TIMEZONE). Sự kiện cả ngày không gửi.",
+      "Một lần bật: sự kiện có giờ và lưới học chung. Tối đa 3 nhắc — còn 1 ngày, 1 giờ, 10 phút. Giờ trên lịch theo múi máy để trùng lúc nhắc; chữ trong thông báo vẫn theo múi lưu lịch (mặc định Czech/Prague, xem CALENDAR_EVENT_STORAGE_TIMEZONE). Sự kiện cả ngày không gửi.",
     calendarPushEnable: "Bật thông báo",
     calendarPushDisable: "Tắt thông báo",
     calendarPushIosAddToHome:
