@@ -306,6 +306,7 @@ export const translations = {
     studyScheduleTimeColumn: "Time slot",
     studyScheduleAddCell: "Add",
     studySchedulePickPerson: "Choose",
+    studyScheduleMergedSlotHint: "continues from slot above",
     studySchedulePaintMode: "Drag fill",
     studySchedulePaintModeOn: "Drag fill: on",
     studySchedulePaintModeOff: "Drag fill: off",
@@ -333,9 +334,9 @@ export const translations = {
     studyScheduleTzVN: "Vietnam",
     studyScheduleTzLocal: "Czechia",
     studyScheduleTzHint:
-      "Grid is stored in Vietnam time. Czechia shows each slot in your browser’s time zone (with dates if a row crosses midnight locally).",
+      "Data is saved in Vietnam calendar dates and 30-minute Vietnam slots. Czechia mode still shows 48 rows for one calendar day, 00:00–24:00 in your browser’s time zone; each row maps to the matching Vietnam slot for load/save.",
     studyScheduleFooterHint:
-      "Saved on the server for everyone signed in • 30-minute slots (Vietnam time) • Columns 1–3 share one person per time; columns 4–5 share another • Past slots (VN) are locked • Drag fill or dropdown for Duy / Quang / Thư • Double-click headers to rename • CSV uses VN slot keys",
+      "Saved on the server for everyone signed in • Vietnam: 48 rows = one Vietnam day (VN slot keys) • Czechia: 48 rows = one local day (labels in your TZ; cells map to VN keys) • Columns 1–3 share one person per time; columns 4–5 share another • Past slots (by real end time in VN) are locked • Drag fill or dropdown • Double-click headers to rename • CSV matches the grid you see",
     studyScheduleLoadFailed: "Could not load the shared schedule. Try again.",
     studyScheduleSaveFailed: "Could not save. Check your connection and try again.",
     studyScheduleRetry: "Retry",
@@ -523,7 +524,7 @@ export const translations = {
     calendarSearchPlaceholder: "Search name, notes, or date (YYYY-MM-DD)…",
     calendarPushTitle: "Calendar notifications",
     calendarPushDescription:
-      "Get a push 10 minutes before a timed event starts, and again at start time. All-day events are not notified.",
+      "Timed events only: up to three pushes each — 1 day, 1 hour, and 10 minutes before start (only milestones still in the future). All-day events are not notified.",
     calendarPushEnable: "Turn on notifications",
     calendarPushDisable: "Turn off notifications",
     calendarPushIosAddToHome:
@@ -1454,6 +1455,7 @@ export const translations = {
     studyScheduleTimeColumn: "Khung giờ",
     studyScheduleAddCell: "Thêm",
     studySchedulePickPerson: "Chọn",
+    studyScheduleMergedSlotHint: "tiếp nối ô phía trên",
     studySchedulePaintMode: "Kéo tô",
     studySchedulePaintModeOn: "Đang bật kéo tô",
     studySchedulePaintModeOff: "Bật kéo tô ô",
@@ -1481,9 +1483,9 @@ export const translations = {
     studyScheduleTzVN: "Việt Nam",
     studyScheduleTzLocal: "Czechia",
     studyScheduleTzHint:
-      "Lưới lưu theo giờ Việt Nam. Czechia: nhãn khung giờ theo timezone trình duyệt (có kèm ngày nếu một dòng cắt qua nửa đêm ở chỗ bạn).",
+      "Dữ liệu lưu theo ngày lịch Việt Nam và khung 30 phút VN. Chế độ Czechia vẫn 48 hàng cho một ngày lịch 00:00–24:00 theo timezone trình duyệt; mỗi hàng map sang đúng ô lưu trữ VN.",
     studyScheduleFooterHint:
-      "Lưu server • Khung 30 phút (giờ VN) • 3 cột đầu cùng một người mỗi khung giờ; 2 cột sau cùng một người • Khung đã qua (giờ VN) khóa • Kéo tô / dropdown Duy–Quang–Thư • Double-click đổi tên cột • CSV theo khung VN",
+      "Lưu server • Việt Nam: 48 hàng = một ngày VN (khóa slot VN) • Czechia: 48 hàng = một ngày theo TZ máy (nhãn giờ địa phương, ô map sang VN) • 3 cột đầu cùng một người mỗi khung; 2 cột sau cùng một người • Khung đã qua (theo thời điểm kết thúc VN) khóa • Kéo tô / dropdown • Double-click đổi tên • CSV đúng với lưới đang xem",
     studyScheduleLoadFailed: "Không tải được lịch chung. Thử lại.",
     studyScheduleSaveFailed: "Không lưu được. Kiểm tra mạng và thử lại.",
     studyScheduleRetry: "Thử lại",
@@ -1670,7 +1672,7 @@ export const translations = {
     calendarSearchPlaceholder: "Tìm tên, ghi chú hoặc ngày (YYYY-MM-DD)…",
     calendarPushTitle: "Thông báo lịch",
     calendarPushDescription:
-      "Nhận push trước sự kiện có giờ 10 phút và đúng giờ bắt đầu. Sự kiện cả ngày không gửi.",
+      "Chỉ sự kiện có giờ: tối đa 3 lần push — còn 1 ngày, 1 giờ, 10 phút (chỉ mốc nào còn nằm trong tương lai). Sự kiện cả ngày không gửi.",
     calendarPushEnable: "Bật thông báo",
     calendarPushDisable: "Tắt thông báo",
     calendarPushIosAddToHome:
