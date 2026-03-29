@@ -37,6 +37,10 @@ export async function PATCH(req: Request, { params }: Params) {
             .single();
         if (error)
             throw error;
+        await supabaseForUserData()
+            .from("calendar_reminder_sent")
+            .delete()
+            .eq("event_id", eventId);
         return NextResponse.json({
             id: data.id,
             title: data.title,
@@ -66,6 +70,10 @@ export async function DELETE(req: Request, { params }: Params) {
             .eq("user_id", user.id);
         if (error)
             throw error;
+        await supabaseForUserData()
+            .from("calendar_reminder_sent")
+            .delete()
+            .eq("event_id", eventId);
         return NextResponse.json({ ok: true });
     }
     catch (e) {

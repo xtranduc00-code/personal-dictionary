@@ -5,6 +5,7 @@ import { useI18n } from "@/components/i18n-provider";
 import type { Locale, TranslationKey } from "@/lib/i18n";
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, List, MapPin, Pencil, Plus, Trash2, X, } from "lucide-react";
 import { Tooltip } from "@/components/ui/Tooltip";
+import { CalendarPushSettings } from "@/components/calendar-push-settings";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 type EventColor = "blue" | "green" | "orange" | "red" | "purple" | "pink" | "teal" | "lime";
@@ -1065,6 +1066,7 @@ export default function CalendarPage() {
 
         
         <div className="sticky top-4 flex max-h-[calc(100vh-6rem)] flex-col gap-4 overflow-y-auto pb-2 pr-0.5">
+          {user ? <CalendarPushSettings /> : null}
           {selectedDate ? (<div className="rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
               <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
                 <div>
