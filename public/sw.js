@@ -25,6 +25,9 @@ self.addEventListener("push", (event) => {
       badge: icon,
       data: { url },
       tag,
+      // Stays until dismissed; stronger on desktop than auto-hiding banners.
+      requireInteraction: true,
+      silent: false,
     }),
   );
 });

@@ -495,7 +495,8 @@ export const translations = {
     calendarFieldTime: "Time",
     calendarTimePlaceholder: "HH:MM",
     calendarTzLabel: "Time conversion (optional)",
-    calendarTzHint: "Time will be converted to CZ on save ({offset}h)",
+    calendarTzHint:
+      "Start/end are interpreted as Vietnam local time, then stored in the calendar storage timezone for reminders (same as Czech storage by default).",
     calendarNotesLabel: "Notes",
     calendarNotesOptional: "(optional)",
     calendarNotesPlaceholder: "e.g. Location, meeting link…",
@@ -1643,7 +1644,8 @@ export const translations = {
     calendarFieldTime: "Giờ",
     calendarTimePlaceholder: "HH:MM",
     calendarTzLabel: "Quy đổi giờ (tuỳ chọn)",
-    calendarTzHint: "Sẽ quy đổi về giờ CZ khi lưu ({offset}h)",
+    calendarTzHint:
+      "Giờ bắt đầu/kết thúc được hiểu theo giờ địa phương Việt Nam, rồi lưu theo múi lưu trữ lịch để nhắc (mặc định giống giờ Czech).",
     calendarNotesLabel: "Ghi chú",
     calendarNotesOptional: "(tuỳ chọn)",
     calendarNotesPlaceholder: "vd. Địa điểm, link họp…",
