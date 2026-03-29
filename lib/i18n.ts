@@ -521,6 +521,28 @@ export const translations = {
     calendarQuickAddSave: "Add",
     calendarQuickAddFullForm: "Full form…",
     calendarSearchPlaceholder: "Search name, notes, or date (YYYY-MM-DD)…",
+    calendarPushTitle: "Calendar notifications",
+    calendarPushDescription:
+      "Get a push 10 minutes before a timed event starts, and again at start time. All-day events are not notified.",
+    calendarPushEnable: "Turn on notifications",
+    calendarPushDisable: "Turn off notifications",
+    calendarPushIosAddToHome:
+      "On iPhone: Share → Add to Home Screen, then open the app from the icon (iOS 16.4+).",
+    calendarPushTest: "Test notification",
+    calendarPushTestOk: "Test sent ({n}).",
+    calendarPushTestPartial: "Sent {sent}, failed {failed}.",
+    calendarPushTestHint403:
+      "HTTP 401/403 often means VAPID public + private in .env are not the same pair. Run npx web-push generate-vapid-keys, update both keys, restart dev server, then Turn off and Turn on notifications again.",
+    calendarPushTestHintP256:
+      "The public key in .env is invalid or truncated (must be a full P-256 key from web-push). Regenerate both keys, paste each on one line with no spaces or quotes, restart dev server, then Turn off and on notifications.",
+    calendarPushTestStaleSub:
+      "That device subscription was tied to old VAPID keys and was cleared. Click Turn on notifications again (after restarting dev server if you changed .env).",
+    calendarPushTestNoSub: "Turn on notifications first.",
+    calendarPushTestFailed: "Test request failed.",
+    calendarPushUnavailableLoopback:
+      "Push failed: you’re using a numeric address (e.g. 127.0.0.1). Open the same app as http://localhost:3000 instead — Chrome often breaks Web Push on IP hosts.",
+    calendarPushUnavailableOther:
+      "Push registration failed. Common causes: VPN, firewall, privacy/ad-blocking extensions, or the browser can’t reach the push service. Try another network or Edge, disable VPN/extensions, or use https in production. iPhone: open from the Home Screen icon.",
     search: "Search",
     translate: "Translate",
     library: "Library",
@@ -1646,6 +1668,28 @@ export const translations = {
     calendarQuickAddSave: "Thêm",
     calendarQuickAddFullForm: "Form đầy đủ…",
     calendarSearchPlaceholder: "Tìm tên, ghi chú hoặc ngày (YYYY-MM-DD)…",
+    calendarPushTitle: "Thông báo lịch",
+    calendarPushDescription:
+      "Nhận push trước sự kiện có giờ 10 phút và đúng giờ bắt đầu. Sự kiện cả ngày không gửi.",
+    calendarPushEnable: "Bật thông báo",
+    calendarPushDisable: "Tắt thông báo",
+    calendarPushIosAddToHome:
+      "Trên iPhone: Chia sẻ → Thêm vào Màn hình chính, rồi mở app từ icon (iOS 16.4+).",
+    calendarPushTest: "Thử thông báo",
+    calendarPushTestOk: "Đã gửi thử ({n}).",
+    calendarPushTestPartial: "Gửi được {sent}, lỗi {failed}.",
+    calendarPushTestHint403:
+      "HTTP 401/403 thường do public + private VAPID trong .env không cùng một cặp. Chạy npx web-push generate-vapid-keys, cập nhật cả hai, restart dev server, rồi Tắt → Bật lại thông báo.",
+    calendarPushTestHintP256:
+      "Public key trong .env không hợp lệ hoặc bị cắt (phải là key P-256 đầy đủ từ web-push). Tạo lại cả cặp, dán mỗi key một dòng không khoảng trắng hay ngoặc, restart dev server, rồi Tắt → Bật thông báo.",
+    calendarPushTestStaleSub:
+      "Subscription thiết bị gắn với VAPID cũ đã bị xóa. Bấm Bật thông báo lại (sau khi restart dev server nếu vừa đổi .env).",
+    calendarPushTestNoSub: "Bật thông báo trước.",
+    calendarPushTestFailed: "Gửi thử thất bại.",
+    calendarPushUnavailableLoopback:
+      "Push lỗi: bạn đang mở bằng địa chỉ số (vd. 127.0.0.1). Hãy mở http://localhost:3000 — Chrome thường hỏng Web Push khi host là IP.",
+    calendarPushUnavailableOther:
+      "Đăng ký push thất bại. Thường do VPN, tường lửa, extension chặn quảng cáo/riêng tư, hoặc trình duyệt không tới được dịch vụ push. Thử mạng khác, Edge, tắt VPN/extension; production dùng https. iPhone: mở từ icon Màn hình chính.",
     search: "Tìm kiếm",
     translate: "Dịch",
     library: "Thư viện",
