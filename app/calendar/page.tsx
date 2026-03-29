@@ -11,7 +11,8 @@ import {
   storageWallToWallClockParts,
   wallClockToStorageParts,
 } from "@/lib/calendar/wall-storage-convert";
-import { getCalendarEventStorageTimeZone } from "@/lib/calendar/event-start-utc";
+import { eventStartUtc, getCalendarEventStorageTimeZone } from "@/lib/calendar/event-start-utc";
+import { formatInTimeZone } from "date-fns-tz";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 type EventColor = "blue" | "green" | "orange" | "red" | "purple" | "pink" | "teal" | "lime";
@@ -131,6 +132,23 @@ function formatTime(timeStr: string) {
     const h = Number(parts[0]) || 0;
     const m = Number(parts[1]) || 0;
     return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+function browserTimeZone(): string {
+    try {
+        return Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC";
+    }
+    catch {
+        return "UTC";
+    }
+}
+/** Wall time in storage TZ → same instant, shown in the user’s browser TZ (matches push timing). */
+function formatEventClockLocal(dateYmd: string, timeHm: string | undefined, tz: string): string {
+    if (!timeHm)
+        return "";
+    const utc = eventStartUtc(dateYmd, timeHm);
+    if (!utc || Number.isNaN(utc.getTime()))
+        return formatTime(timeHm);
+    return formatInTimeZone(utc, tz, "HH:mm");
 }
 function roundedNowTime(): string {
     const now = new Date();
@@ -442,7 +460,7 @@ function nextDay(dateKey: string): string {
     d.setDate(d.getDate() + 1);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
-function formatEventRange(ev: CalendarEvent, bcp47: string): string {
+function formatEventRange(ev: CalendarEvent, bcp47: string, displayTz: string): string {
     const fmt = (dk: string) => new Date(dk + "T12:00:00").toLocaleDateString(bcp47, {
         month: "long", day: "numeric", year: "numeric",
     });
@@ -452,37 +470,53 @@ function formatEventRange(ev: CalendarEvent, bcp47: string): string {
     if (!ev.startTime) {
         return isSameDay ? startStr : `${startStr} – ${fmt(evEndDate)}`;
     }
+    const startLabel = formatEventClockLocal(ev.date, ev.startTime, displayTz);
+    const endLabel = ev.endTime
+        ? formatEventClockLocal(ev.endDate ?? ev.date, ev.endTime, displayTz)
+        : "";
     if (isSameDay) {
         if (ev.endTime)
-            return `${startStr} ${formatTime(ev.startTime)} – ${formatTime(ev.endTime)}`;
-        return `${startStr} · ${formatTime(ev.startTime)}`;
+            return `${startStr} ${startLabel} – ${endLabel}`;
+        return `${startStr} · ${startLabel}`;
     }
     const endDateStr = fmt(evEndDate);
-    const endTimeStr = ev.endTime ? ` ${formatTime(ev.endTime)}` : "";
-    return `${startStr} ${formatTime(ev.startTime)} – ${endDateStr}${endTimeStr}`;
+    const endTimeStr = ev.endTime ? ` ${endLabel}` : "";
+    return `${startStr} ${startLabel} – ${endDateStr}${endTimeStr}`;
 }
 type EventStatus = "ended" | "today" | "upcoming";
+/** Uses real UTC instants for timed events so status matches device clock and push reminders (storage wall ≠ local wall). */
 function getEventStatus(ev: CalendarEvent): EventStatus {
     const today = todayKey();
     const evEnd = ev.endDate ?? ev.date;
+    if (!ev.startTime) {
+        if (evEnd < today)
+            return "ended";
+        if (ev.date > today)
+            return "upcoming";
+        return "today";
+    }
     if (evEnd < today)
         return "ended";
     if (ev.date > today)
         return "upcoming";
-    const now = new Date();
-    const nowMins = now.getHours() * 60 + now.getMinutes();
-    if (ev.date === today && ev.startTime) {
-        const [sh, sm] = ev.startTime.split(":").map(Number);
-        const startMins = (sh ?? 0) * 60 + (sm ?? 0);
-        if (nowMins < startMins)
-            return "upcoming";
+
+    const startUtc = eventStartUtc(ev.date, ev.startTime);
+    if (!startUtc || Number.isNaN(startUtc.getTime()))
+        return "upcoming";
+    const nowMs = Date.now();
+    const startMs = startUtc.getTime();
+
+    let endMs: number | null = null;
+    if (ev.endTime) {
+        const endUtc = eventStartUtc(ev.endDate ?? ev.date, ev.endTime);
+        if (endUtc && !Number.isNaN(endUtc.getTime()))
+            endMs = endUtc.getTime();
     }
-    if (evEnd === today && ev.endTime) {
-        const [eh, em] = ev.endTime.split(":").map(Number);
-        const endMins = (eh ?? 0) * 60 + (em ?? 0);
-        if (nowMins >= endMins)
-            return "ended";
-    }
+
+    if (endMs != null && nowMs >= endMs)
+        return "ended";
+    if (nowMs < startMs)
+        return "upcoming";
     return "today";
 }
 const STATUS_BADGE: Record<EventStatus, string> = {
@@ -533,12 +567,13 @@ function groupEventForModalList(ev: CalendarEvent, todayK: string): ModalListGro
     return "upcoming";
 }
 const MODAL_GROUP_ORDER: ModalListGroup[] = ["today", "thisWeek", "upcoming", "past"];
-function AllEventsModal({ events, onDelete, onEdit, onDayClick, onClose, }: {
+function AllEventsModal({ events, onDelete, onEdit, onDayClick, onClose, displayTz, }: {
     events: CalendarEvent[];
     onDelete: (id: string) => void;
     onEdit: (ev: CalendarEvent) => void;
     onDayClick: (date: string) => void;
     onClose: () => void;
+    displayTz: string;
 }) {
     const { t, locale } = useI18n();
     const bcp47 = appLocaleToBcp47(locale);
@@ -640,7 +675,7 @@ function AllEventsModal({ events, onDelete, onEdit, onDayClick, onClose, }: {
                                 </span>
                               </div>
                               <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
-                                {formatEventRange(ev, bcp47)}
+                                {formatEventRange(ev, bcp47, displayTz)}
                               </p>
                               {ev.note && (<p className="mt-2 line-clamp-2 text-xs text-zinc-400 dark:text-zinc-500">{ev.note}</p>)}
                             </button>
@@ -665,6 +700,7 @@ function AllEventsModal({ events, onDelete, onEdit, onDayClick, onClose, }: {
 export default function CalendarPage() {
     const { t, locale } = useI18n();
     const bcp47 = useMemo(() => appLocaleToBcp47(locale), [locale]);
+    const displayTz = useMemo(() => browserTimeZone(), []);
     const weekdays = useMemo(() => weekdayShortLabels(bcp47), [bcp47]);
     const monthsShort = useMemo(() => monthShortLabels(bcp47), [bcp47]);
     const { user, isLoading: authLoading } = useAuth();
@@ -1122,9 +1158,9 @@ export default function CalendarPage() {
                       <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{ev.title}</p>
                       {(ev.startTime || ev.endTime) && (<p className="mt-0.5 flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
                           <Clock className="h-3 w-3"/>
-                          {ev.startTime && formatTime(ev.startTime)}
+                          {ev.startTime && formatEventClockLocal(ev.date, ev.startTime, displayTz)}
                           {ev.startTime && ev.endTime && " – "}
-                          {ev.endTime && formatTime(ev.endTime)}
+                          {ev.endTime && formatEventClockLocal(ev.endDate ?? ev.date, ev.endTime, displayTz)}
                         </p>)}
                       {ev.note && <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">{ev.note}</p>}
                     </div>
@@ -1147,12 +1183,12 @@ export default function CalendarPage() {
               <p className="text-sm text-zinc-400 dark:text-zinc-500">{t("calendarPickDayHint")}</p>
             </div>)}
 
-          <UpcomingEvents bcp47={bcp47} events={events} onDelete={deleteEvent} onEdit={openEditModal} onDayClick={openDay} previewDateKey={previewDateKey} hoveredEventId={hoveredEventId} onHoverDate={setPreviewDateKey} onLeaveDate={() => setPreviewDateKey(null)}/>
+          <UpcomingEvents bcp47={bcp47} displayTz={displayTz} events={events} onDelete={deleteEvent} onEdit={openEditModal} onDayClick={openDay} previewDateKey={previewDateKey} hoveredEventId={hoveredEventId} onHoverDate={setPreviewDateKey} onLeaveDate={() => setPreviewDateKey(null)}/>
         </div>
       </div>
 
       {showEventModal && (<EventModal initialDate={addModalDate} editEvent={editingEvent} onSave={saveEvent} onUpdate={updateEvent} onClose={() => setShowEventModal(false)}/>)}
-      {showAllEvents && (<AllEventsModal events={events} onDelete={deleteEvent} onEdit={openEditModal} onDayClick={openDay} onClose={() => setShowAllEvents(false)}/>)}
+      {showAllEvents && (<AllEventsModal displayTz={displayTz} events={events} onDelete={deleteEvent} onEdit={openEditModal} onDayClick={openDay} onClose={() => setShowAllEvents(false)}/>)}
 
       {quickAddDate && (<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 p-4" onClick={() => { setQuickAddDate(null); setQuickTitle(""); }} role="presentation">
           <div className="w-full max-w-sm rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
@@ -1183,8 +1219,9 @@ export default function CalendarPage() {
       <ToastContainer containerId="cal" position="top-center" autoClose={3000} hideProgressBar={false} newestOnTop closeOnClick pauseOnHover draggable theme="colored" style={{ zIndex: 99999 }}/>
     </div>);
 }
-function UpcomingEvents({ bcp47, events, onDelete, onEdit, onDayClick, previewDateKey, hoveredEventId, onHoverDate, onLeaveDate, }: {
+function UpcomingEvents({ bcp47, displayTz, events, onDelete, onEdit, onDayClick, previewDateKey, hoveredEventId, onHoverDate, onLeaveDate, }: {
     bcp47: string;
+    displayTz: string;
     events: CalendarEvent[];
     onDelete: (id: string) => void;
     onEdit: (ev: CalendarEvent) => void;
@@ -1219,7 +1256,7 @@ function UpcomingEvents({ bcp47, events, onDelete, onEdit, onDayClick, previewDa
                     <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{ev.title}</p>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
                       {new Date(ev.date + "T12:00:00").toLocaleDateString(bcp47, { month: "short", day: "numeric", weekday: "short" })}
-                      {ev.startTime && ` · ${formatTime(ev.startTime)}`}
+                      {ev.startTime && ` · ${formatEventClockLocal(ev.date, ev.startTime, displayTz)}`}
                     </p>
                   </button>
                 </Tooltip>
