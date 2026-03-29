@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "react-toastify";
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { authFetch } from "@/lib/auth-context";
 import { useI18n } from "@/components/i18n-provider";
 
@@ -120,6 +121,99 @@ function isEmptyCellBlockedBySiblingGroup(
     if (j === colIdx) continue;
     const o = dayCells[time]?.[accList[j]!]?.text?.trim() ?? "";
     if (o) return true;
+  }
+  return false;
+}
+
+/** One visible row: label + which Vietnam storage bucket to read/write. */
+type ScheduleGridRow = {
+  displayLabel: string;
+  vnDateKey: string;
+  vnSlot: string;
+};
+
+function getCellFromByDate(
+  byDate: ByDateState,
+  accounts: string[],
+  vnDateKey: string,
+  vnSlot: string,
+  account: string,
+): CellData {
+  const day = byDate[vnDateKey];
+  if (!day) return { text: "", color: "" };
+  return day[vnSlot]?.[account] ?? { text: "", color: "" };
+}
+
+/**
+ * Vertical merge for one column: same trimmed text + color as rows below → one `<td rowSpan>`.
+ * Empty cells never merge. Continuation rows return `null` (no `<td>` for that column).
+ */
+function getScheduleColumnRowSpan(
+  byDate: ByDateState,
+  accounts: string[],
+  gridRows: ScheduleGridRow[],
+  rowIdx: number,
+  account: string,
+): number | null {
+  const row = gridRows[rowIdx];
+  if (!row) return 1;
+  const cell = getCellFromByDate(
+    byDate,
+    accounts,
+    row.vnDateKey,
+    row.vnSlot,
+    account,
+  );
+  const myText = cell.text.trim();
+  if (!myText) return 1;
+
+  if (rowIdx > 0) {
+    const prev = gridRows[rowIdx - 1]!;
+    const prevCell = getCellFromByDate(
+      byDate,
+      accounts,
+      prev.vnDateKey,
+      prev.vnSlot,
+      account,
+    );
+    if (
+      myText === prevCell.text.trim() &&
+      (cell.color || "") === (prevCell.color || "")
+    ) {
+      return null;
+    }
+  }
+
+  let span = 1;
+  for (let r = rowIdx + 1; r < gridRows.length; r++) {
+    const nextR = gridRows[r]!;
+    const nextCell = getCellFromByDate(
+      byDate,
+      accounts,
+      nextR.vnDateKey,
+      nextR.vnSlot,
+      account,
+    );
+    if (
+      myText === nextCell.text.trim() &&
+      (cell.color || "") === (nextCell.color || "")
+    ) {
+      span++;
+    } else break;
+  }
+  return span;
+}
+
+function isRunPastForGridRows(
+  gridRows: ScheduleGridRow[],
+  startRowIdx: number,
+  rowSpan: number,
+): boolean {
+  const n = Math.max(1, rowSpan);
+  for (let i = 0; i < n; i++) {
+    const row = gridRows[startRowIdx + i];
+    if (!row) return true;
+    if (isSlotPastInVietnam(row.vnDateKey, row.vnSlot)) return true;
   }
   return false;
 }
@@ -244,46 +338,76 @@ function isSlotPastInVietnam(dateKey: string, vnSlot: string): boolean {
   return Date.now() >= endInstant.getTime();
 }
 
-/** VN slot row → label in the browser’s local time zone (with dates if the row crosses local midnight). */
-function slotLabelVnToLocal(dateKey: string, vnSlot: string): string {
-  const parts = vnSlot.split(" - ");
-  if (parts.length !== 2) return vnSlot;
-  const [start, end] = parts;
-  const t0 = vnLocalToDate(dateKey, start!);
-  const t1 =
-    end === "24:00"
-      ? vnLocalToDate(shiftDateKey(dateKey, 1), "00:00")
-      : vnLocalToDate(dateKey, end!);
-  if (Number.isNaN(t0.getTime()) || Number.isNaN(t1.getTime())) return vnSlot;
-
-  const sameLocalCalendarDay =
-    t0.getFullYear() === t1.getFullYear() &&
-    t0.getMonth() === t1.getMonth() &&
-    t0.getDate() === t1.getDate();
-
-  const timeFmt = new Intl.DateTimeFormat(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  });
-  const s0 = timeFmt.format(t0);
-  const s1 = timeFmt.format(t1);
-  if (sameLocalCalendarDay) {
-    return `${s0} - ${s1}`;
+/** Map an instant to the Vietnam calendar date + 30-min slot key used in `byDate`. */
+function utcInstantToVnStorageKey(instant: Date): {
+  vnDateKey: string;
+  vnSlot: string;
+} {
+  const vnDateKey = formatInTimeZone(
+    instant,
+    "Asia/Ho_Chi_Minh",
+    "yyyy-MM-dd",
+  );
+  const hm = formatInTimeZone(instant, "Asia/Ho_Chi_Minh", "HH:mm");
+  const [hhS, mmS] = hm.split(":");
+  const hh = Number(hhS);
+  const mm = Number(mmS ?? 0);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) {
+    return { vnDateKey, vnSlot: TIME_SLOTS[0]! };
   }
-  const dateFmt = new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-  return `${dateFmt.format(t0)} ${s0} - ${dateFmt.format(t1)} ${s1}`;
+  const totalMin = hh * 60 + mm;
+  const slotIdx = Math.min(47, Math.max(0, Math.floor(totalMin / 30)));
+  return { vnDateKey, vnSlot: TIME_SLOTS[slotIdx]! };
 }
 
-function slotLabelForDisplay(
-  vnSlot: string,
-  tz: TimeDisplayTz,
-  dateKey: string,
-): string {
-  return tz === "local" ? slotLabelVnToLocal(dateKey, vnSlot) : vnSlot;
+/** 48 half-hour rows for `localDateKey` in `displayTzId`: labels 00:00–24:00 local, storage via VN keys. */
+function buildLocalDayStudyRows(
+  localDateKey: string,
+  displayTzId: string,
+): ScheduleGridRow[] {
+  const rows: ScheduleGridRow[] = [];
+  const tz = displayTzId || "UTC";
+  for (let i = 0; i < 48; i++) {
+    const totalStartMin = i * 30;
+    const sh = Math.floor(totalStartMin / 60);
+    const sm = totalStartMin % 60;
+    const wallStart = `${localDateKey} ${String(sh).padStart(2, "0")}:${String(sm).padStart(2, "0")}:00`;
+    const utcStart = fromZonedTime(wallStart, tz);
+
+    let displayLabel: string;
+    if (i < 47) {
+      const nextTotal = (i + 1) * 30;
+      const nh = Math.floor(nextTotal / 60);
+      const nm = nextTotal % 60;
+      const wallNext = `${localDateKey} ${String(nh).padStart(2, "0")}:${String(nm).padStart(2, "0")}:00`;
+      const utcNext = fromZonedTime(wallNext, tz);
+      const s0 = formatInTimeZone(utcStart, tz, "HH:mm");
+      const s1 = formatInTimeZone(utcNext, tz, "HH:mm");
+      displayLabel = `${s0} - ${s1}`;
+    } else {
+      const s0 = formatInTimeZone(utcStart, tz, "HH:mm");
+      displayLabel = `${s0} - 24:00`;
+    }
+
+    const { vnDateKey, vnSlot } = utcInstantToVnStorageKey(utcStart);
+    rows.push({ displayLabel, vnDateKey, vnSlot });
+  }
+  return rows;
+}
+
+function buildStudyScheduleGridRows(
+  mode: TimeDisplayTz,
+  anchorDateKey: string,
+  displayTzId: string,
+): ScheduleGridRow[] {
+  if (mode === "vn") {
+    return TIME_SLOTS.map((vnSlot) => ({
+      displayLabel: vnSlot,
+      vnDateKey: anchorDateKey,
+      vnSlot,
+    }));
+  }
+  return buildLocalDayStudyRows(anchorDateKey, displayTzId);
 }
 
 function stablePayload(
@@ -314,12 +438,6 @@ export function StudyScheduleGrid() {
   const stateRef = useRef({ accounts, byDate, timeDisplay });
   stateRef.current = { accounts, byDate, timeDisplay };
 
-  const cells = useMemo((): DayCells => {
-    const day = byDate[selectedDateKey];
-    if (day) return day;
-    return buildEmptyDay(accounts);
-  }, [byDate, selectedDateKey, accounts]);
-
   const browserTzLabel = useMemo(() => {
     try {
       return Intl.DateTimeFormat().resolvedOptions().timeZone ?? "";
@@ -327,6 +445,18 @@ export function StudyScheduleGrid() {
       return "";
     }
   }, []);
+
+  const displayTimeZoneId = browserTzLabel || "UTC";
+
+  const gridRows = useMemo(
+    (): ScheduleGridRow[] =>
+      buildStudyScheduleGridRows(
+        timeDisplay,
+        selectedDateKey,
+        displayTimeZoneId,
+      ),
+    [timeDisplay, selectedDateKey, displayTimeZoneId],
+  );
 
   const modalDateLabel = useMemo(() => {
     const d = parseDateKey(selectedDateKey);
@@ -349,23 +479,29 @@ export function StudyScheduleGrid() {
       color: string;
     };
     const out: Row[] = [];
-    TIME_SLOTS.forEach((time, rowIdx) => {
+    gridRows.forEach((row, rowIdx) => {
       for (const acc of accounts) {
-        const cell = cells[time]?.[acc];
-        const text = cell?.text?.trim() ?? "";
+        const cell = getCellFromByDate(
+          byDate,
+          accounts,
+          row.vnDateKey,
+          row.vnSlot,
+          acc,
+        );
+        const text = cell.text.trim();
         if (!text) continue;
         out.push({
           rowIdx,
-          time,
-          timeLabel: slotLabelForDisplay(time, timeDisplay, selectedDateKey),
+          time: row.displayLabel,
+          timeLabel: row.displayLabel,
           columnTitle: acc,
           booker: text,
-          color: cell?.color ?? "",
+          color: cell.color ?? "",
         });
       }
     });
     return out;
-  }, [cells, accounts, timeDisplay, selectedDateKey]);
+  }, [gridRows, byDate, accounts]);
 
   useEffect(() => {
     if (!showAllShiftsModal) return;
@@ -464,56 +600,90 @@ export function StudyScheduleGrid() {
   }, [accounts, byDate, timeDisplay, boot, t]);
 
   const applyCellChoice = useCallback(
-    (time: string, account: string, name: string) => {
+    (
+      startRowIdx: number,
+      account: string,
+      name: string,
+      slotCount: number = 1,
+    ) => {
       const colIdx = accounts.indexOf(account);
       if (colIdx < 0) return;
-      if (isSlotPastInVietnam(selectedDateKey, time)) return;
-      const text = name.trim();
-      if (
-        text &&
-        isEmptyCellBlockedBySiblingGroup(
-          time,
-          colIdx,
-          cells,
-          accounts,
-        )
-      )
-        return;
+      const n = Math.max(
+        1,
+        Math.min(slotCount, gridRows.length - startRowIdx),
+      );
       setByDate((prev) => {
-        const day = prev[selectedDateKey] ?? buildEmptyDay(accounts);
-        const color = text ? colorForScheduleName(text) || "#475569" : "";
-        return {
-          ...prev,
-          [selectedDateKey]: {
-            ...day,
-            [time]: {
-              ...day[time],
+        const text = name.trim();
+        const dayMutations: Record<string, DayCells> = {};
+
+        for (let offset = 0; offset < n; offset++) {
+          const row = gridRows[startRowIdx + offset];
+          if (!row) break;
+          const { vnDateKey, vnSlot } = row;
+          if (isSlotPastInVietnam(vnDateKey, vnSlot)) continue;
+
+          const dayBase =
+            dayMutations[vnDateKey] ??
+            prev[vnDateKey] ??
+            buildEmptyDay(accounts);
+
+          if (
+            text &&
+            isEmptyCellBlockedBySiblingGroup(
+              vnSlot,
+              colIdx,
+              dayBase,
+              accounts,
+            )
+          )
+            continue;
+
+          const color = text ? colorForScheduleName(text) || "#475569" : "";
+          dayMutations[vnDateKey] = {
+            ...dayBase,
+            [vnSlot]: {
+              ...dayBase[vnSlot],
               [account]: { text, color },
             },
-          },
-        };
+          };
+        }
+
+        if (Object.keys(dayMutations).length === 0) return prev;
+        return { ...prev, ...dayMutations };
       });
     },
-    [selectedDateKey, accounts, cells],
+    [gridRows, accounts],
   );
 
   const handlePaintPointerDown = useCallback(
-    (e: React.PointerEvent, time: string, account: string) => {
+    (
+      e: React.PointerEvent,
+      rowIdx: number,
+      account: string,
+      slotCount: number = 1,
+    ) => {
       if (!paintMode || e.button !== 0) return;
       e.preventDefault();
       dragPaintingRef.current = true;
-      if (activeBrush === "clear") applyCellChoice(time, account, "");
-      else applyCellChoice(time, account, activeBrush);
+      if (activeBrush === "clear")
+        applyCellChoice(rowIdx, account, "", slotCount);
+      else applyCellChoice(rowIdx, account, activeBrush, slotCount);
     },
     [paintMode, activeBrush, applyCellChoice],
   );
 
   const handlePaintPointerEnter = useCallback(
-    (e: React.PointerEvent, time: string, account: string) => {
+    (
+      e: React.PointerEvent,
+      rowIdx: number,
+      account: string,
+      slotCount: number = 1,
+    ) => {
       if (!paintMode || !dragPaintingRef.current) return;
       if ((e.buttons & 1) === 0) return;
-      if (activeBrush === "clear") applyCellChoice(time, account, "");
-      else applyCellChoice(time, account, activeBrush);
+      if (activeBrush === "clear")
+        applyCellChoice(rowIdx, account, "", slotCount);
+      else applyCellChoice(rowIdx, account, activeBrush, slotCount);
     },
     [paintMode, activeBrush, applyCellChoice],
   );
@@ -546,12 +716,19 @@ export function StudyScheduleGrid() {
   const exportCSV = () => {
     const dateCol = t("calendarFieldDate");
     const header = [dateCol, t("studyScheduleTimeColumn"), ...accounts].join(",");
-    const rows = TIME_SLOTS.map((slot) =>
+    const rows = gridRows.map((row) =>
       [
         selectedDateKey,
-        slot,
+        row.displayLabel,
         ...accounts.map((a) => {
-          const text = cells[slot]?.[a]?.text ?? "";
+          const text =
+            getCellFromByDate(
+              byDate,
+              accounts,
+              row.vnDateKey,
+              row.vnSlot,
+              a,
+            ).text ?? "";
           return `"${text.replace(/"/g, '""')}"`;
         }),
       ].join(","),
@@ -831,16 +1008,18 @@ export function StudyScheduleGrid() {
               </tr>
             </thead>
             <tbody>
-              {TIME_SLOTS.map((time, rowIdx) => {
+              {gridRows.map((row, rowIdx) => {
                 void pastTick;
                 const rowBg =
                   rowIdx % 2 === 0
                     ? "bg-white dark:bg-zinc-900"
                     : "bg-zinc-50/80 dark:bg-zinc-800/25";
+                const dayForRow =
+                  byDate[row.vnDateKey] ?? buildEmptyDay(accounts);
                 return (
                   <tr
                     id={`study-schedule-slot-${rowIdx}`}
-                    key={time}
+                    key={rowIdx}
                     className={[
                       "group border-b border-zinc-100 transition-colors last:border-b-0 dark:border-zinc-800",
                       rowBg,
@@ -854,33 +1033,56 @@ export function StudyScheduleGrid() {
                         "group-hover:bg-zinc-50 dark:group-hover:bg-zinc-800/40",
                       ].join(" ")}
                     >
-                      {slotLabelForDisplay(
-                        time,
-                        timeDisplay,
-                        selectedDateKey,
-                      )}
+                      {row.displayLabel}
                     </td>
-                    {accounts.map((acc, colIdx) => {
-                      const cell = cells[time]?.[acc] ?? { text: "", color: "" };
+                    {accounts.flatMap((acc, colIdx) => {
+                      const rowSpan = getScheduleColumnRowSpan(
+                        byDate,
+                        accounts,
+                        gridRows,
+                        rowIdx,
+                        acc,
+                      );
+                      if (rowSpan === null) return [];
+
+                      const cell = getCellFromByDate(
+                        byDate,
+                        accounts,
+                        row.vnDateKey,
+                        row.vnSlot,
+                        acc,
+                      );
                       const hasPresetName = PRESET_NAME_SET.has(cell.text);
-                      const past = isSlotPastInVietnam(
-                        selectedDateKey,
-                        time,
+                      const mergeBlock = rowSpan >= 2;
+                      const past = isRunPastForGridRows(
+                        gridRows,
+                        rowIdx,
+                        rowSpan,
                       );
                       const myText = cell.text.trim();
                       const blockedGroup =
                         !myText &&
                         isEmptyCellBlockedBySiblingGroup(
-                          time,
+                          row.vnSlot,
                           colIdx,
-                          cells,
+                          dayForRow,
                           accounts,
                         );
                       const disabled = past || blockedGroup;
-                      return (
+
+                      const paintBtnBase =
+                        "touch-none cursor-crosshair border border-transparent text-center text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/70 disabled:cursor-not-allowed disabled:opacity-45 dark:focus-visible:ring-blue-400/70";
+
+                      return [
                         <td
                           key={colIdx}
-                          className="min-w-[112px] border-r border-zinc-200 px-1 py-0.5 align-middle last:border-r-0 dark:border-zinc-700 sm:min-w-[124px]"
+                          rowSpan={mergeBlock ? rowSpan : undefined}
+                          className={[
+                            "relative min-w-[112px] border-r border-zinc-200 last:border-r-0 dark:border-zinc-700 sm:min-w-[124px]",
+                            mergeBlock
+                              ? "p-0 align-stretch"
+                              : "px-1 py-0.5 align-middle",
+                          ].join(" ")}
                           style={{
                             backgroundColor: cell.color || undefined,
                           }}
@@ -890,7 +1092,10 @@ export function StudyScheduleGrid() {
                               type="button"
                               disabled={disabled}
                               className={[
-                                "relative flex min-h-[30px] w-full touch-none cursor-crosshair items-center justify-center rounded-md border border-transparent px-1 py-1 text-center text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/70 disabled:cursor-not-allowed disabled:opacity-45 dark:focus-visible:ring-blue-400/70",
+                                mergeBlock
+                                  ? "absolute inset-0 flex items-center justify-center rounded-md px-1 py-1"
+                                  : "relative flex min-h-[30px] w-full items-center justify-center rounded-md px-1 py-1",
+                                paintBtnBase,
                                 cell.color
                                   ? "bg-transparent"
                                   : "bg-zinc-50/90 dark:bg-zinc-800/50",
@@ -898,27 +1103,57 @@ export function StudyScheduleGrid() {
                                   ? "text-white"
                                   : "text-zinc-400 dark:text-zinc-500",
                               ].join(" ")}
-                              aria-label={t("studySchedulePickPerson")}
+                              aria-label={
+                                myText
+                                  ? mergeBlock
+                                    ? `${myText} (${t("studyScheduleMergedSlotHint")})`
+                                    : myText
+                                  : t("studySchedulePickPerson")
+                              }
                               aria-disabled={disabled}
                               onPointerDown={(e) =>
-                                handlePaintPointerDown(e, time, acc)
+                                handlePaintPointerDown(
+                                  e,
+                                  rowIdx,
+                                  acc,
+                                  rowSpan,
+                                )
                               }
                               onPointerEnter={(e) =>
-                                handlePaintPointerEnter(e, time, acc)
+                                handlePaintPointerEnter(
+                                  e,
+                                  rowIdx,
+                                  acc,
+                                  rowSpan,
+                                )
                               }
                             >
                               {cell.text || "·"}
                             </button>
                           ) : (
-                            <div className="relative flex min-h-[30px] items-stretch">
+                            <div
+                              className={
+                                mergeBlock
+                                  ? "absolute inset-0 flex min-h-[30px] items-stretch"
+                                  : "relative flex min-h-[30px] items-stretch"
+                              }
+                            >
                               <select
                                 value={cell.text}
                                 disabled={disabled}
                                 onChange={(e) =>
-                                  applyCellChoice(time, acc, e.target.value)
+                                  applyCellChoice(
+                                    rowIdx,
+                                    acc,
+                                    e.target.value,
+                                    rowSpan,
+                                  )
                                 }
                                 className={[
-                                  "w-full min-h-[28px] flex-1 appearance-none rounded-md border-0 px-1 py-1 pr-6 text-center text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/70 disabled:cursor-not-allowed disabled:opacity-45 dark:focus-visible:ring-blue-400/70",
+                                  mergeBlock
+                                    ? "h-full min-h-0 w-full flex-1"
+                                    : "w-full min-h-[28px] flex-1",
+                                  "appearance-none rounded-md border-0 px-1 py-1 pr-6 text-center text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/70 disabled:cursor-not-allowed disabled:opacity-45 dark:focus-visible:ring-blue-400/70",
                                   disabled
                                     ? "cursor-not-allowed"
                                     : "cursor-pointer",
@@ -926,7 +1161,13 @@ export function StudyScheduleGrid() {
                                     ? "text-white"
                                     : "text-zinc-500 dark:text-zinc-400",
                                 ].join(" ")}
-                                aria-label={t("studySchedulePickPerson")}
+                                aria-label={
+                                  myText
+                                    ? mergeBlock
+                                      ? `${myText} (${t("studyScheduleMergedSlotHint")})`
+                                      : myText
+                                    : t("studySchedulePickPerson")
+                                }
                               >
                                 <option value="">
                                   {t("studySchedulePickPerson")}
@@ -951,8 +1192,8 @@ export function StudyScheduleGrid() {
                               />
                             </div>
                           )}
-                        </td>
-                      );
+                        </td>,
+                      ];
                     })}
                   </tr>
                 );

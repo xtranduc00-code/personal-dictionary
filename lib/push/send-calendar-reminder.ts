@@ -16,8 +16,38 @@ type CalRow = {
 };
 
 const WINDOW_MS = 90_000;
-const BEFORE_MINUTES = 10;
 const DATE_WINDOW_DAYS = 8;
+
+const MS_MIN = 60_000;
+const MS_HOUR = 60 * MS_MIN;
+const MS_DAY = 24 * MS_HOUR;
+
+/** Fire once when cron hits within WINDOW_MS of (start - offset). */
+const REMINDER_TRIGGERS: {
+  offsetMs: number;
+  kind: string;
+  title: string;
+  body: (eventTitle: string) => string;
+}[] = [
+  {
+    offsetMs: MS_DAY,
+    kind: "before_24h",
+    title: "Lịch · 1 day left",
+    body: (t) => `${t} — 1 day until start · còn 1 ngày`,
+  },
+  {
+    offsetMs: MS_HOUR,
+    kind: "before_1h",
+    title: "Lịch · 1 hour left",
+    body: (t) => `${t} — 1 hour until start · còn 1 giờ`,
+  },
+  {
+    offsetMs: 10 * MS_MIN,
+    kind: "before_10",
+    title: "Sắp đến giờ · Up soon",
+    body: (t) => `${t} — 10 minutes · 10 phút nữa`,
+  },
+];
 
 /** YYYY-MM-DD in storage TZ for date `d`. */
 function formatDateInStorageTz(d: Date): string {
@@ -111,23 +141,18 @@ export async function runCalendarReminderSweep(
     if (!startUtc || Number.isNaN(startUtc.getTime())) continue;
 
     const startMs = startUtc.getTime();
-    const beforeMs = startMs - BEFORE_MINUTES * 60 * 1000;
 
     const kinds: { kind: string; title: string; body: string }[] = [];
 
-    if (Math.abs(now - beforeMs) <= WINDOW_MS) {
-      kinds.push({
-        kind: "before_10",
-        title: "Sắp đến giờ · Up soon",
-        body: `${ev.title} — ${BEFORE_MINUTES} phút nữa`,
-      });
-    }
-    if (Math.abs(now - startMs) <= WINDOW_MS) {
-      kinds.push({
-        kind: "at_start",
-        title: "Lịch · Calendar",
-        body: ev.title,
-      });
+    for (const tr of REMINDER_TRIGGERS) {
+      const fireAt = startMs - tr.offsetMs;
+      if (Math.abs(now - fireAt) <= WINDOW_MS) {
+        kinds.push({
+          kind: tr.kind,
+          title: tr.title,
+          body: tr.body(ev.title),
+        });
+      }
     }
 
     for (const k of kinds) {

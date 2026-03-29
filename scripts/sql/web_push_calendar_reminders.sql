@@ -27,5 +27,4 @@ create table if not exists public.calendar_reminder_sent (
 create index if not exists calendar_reminder_sent_event_id_idx
   on public.calendar_reminder_sent (event_id);
 
-comment on table public.push_subscriptions is 'Web Push endpoints per user (VAPID); used for calendar reminders.';
-comment on table public.calendar_reminder_sent is 'One row per (user, event, kind) so start / 10-min-before fires once.';
+
