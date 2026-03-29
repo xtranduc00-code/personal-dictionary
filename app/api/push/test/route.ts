@@ -64,7 +64,7 @@ export async function POST(req: Request) {
           },
         },
         payload,
-        { TTL: 120 },
+        { TTL: 120, urgency: "high" },
       );
       sent += 1;
     } catch (e: unknown) {

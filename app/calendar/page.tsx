@@ -6,6 +6,12 @@ import type { Locale, TranslationKey } from "@/lib/i18n";
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, List, MapPin, Pencil, Plus, Trash2, X, } from "lucide-react";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { CalendarPushSettings } from "@/components/calendar-push-settings";
+import {
+  CALENDAR_WALL_VIETNAM_TZ,
+  storageWallToWallClockParts,
+  wallClockToStorageParts,
+} from "@/lib/calendar/wall-storage-convert";
+import { getCalendarEventStorageTimeZone } from "@/lib/calendar/event-start-utc";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 type EventColor = "blue" | "green" | "orange" | "red" | "purple" | "pink" | "teal" | "lime";
@@ -146,21 +152,13 @@ function defaultEndFor(startDatetime: string) {
     const min = Number(parts[1]) || 0;
     return `${date}T${String((h + 1) % 24).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
 }
-function shiftHours(datetime: string, hours: number): string {
-    const d = new Date(`${datetime}:00`);
-    d.setHours(d.getHours() + hours);
-    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    const time = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-    return `${date}T${time}`;
-}
 function timeZoneOptions(t: (key: TranslationKey) => string): {
     value: string;
     label: string;
-    offsetFromCZ: number;
 }[] {
     return [
-        { value: "CZ", label: t("calendarTzNoConversion"), offsetFromCZ: 0 },
-        { value: "VN", label: t("calendarTzVN"), offsetFromCZ: -6 },
+        { value: "CZ", label: t("calendarTzNoConversion") },
+        { value: "VN", label: t("calendarTzVN") },
     ];
 }
 function DateTimeRow({ value, onChange, min, dateLabel, timeLabel, }: {
@@ -280,17 +278,27 @@ function EventModal({ initialDate, editEvent, onSave, onUpdate, onClose, }: {
             }
             return;
         }
-        const tz = timezones.find((x) => x.value === timezone)!;
-        const adjStart = tz.offsetFromCZ !== 0 ? shiftHours(start, tz.offsetFromCZ) : start;
-        const adjEnd = tz.offsetFromCZ !== 0 ? shiftHours(end, tz.offsetFromCZ) : end;
-        const startDate = adjStart.split("T")[0];
-        const endDateVal = adjEnd.split("T")[0];
+        const sourceTz = timezone === "VN"
+            ? CALENDAR_WALL_VIETNAM_TZ
+            : getCalendarEventStorageTimeZone();
+        const [sDate, sTimeRaw] = start.split("T");
+        const [eDate, eTimeRaw] = end.split("T");
+        const startConverted = wallClockToStorageParts(
+            sDate ?? startDay,
+            snapTimeToSlot(sTimeRaw),
+            sourceTz,
+        );
+        const endConverted = wallClockToStorageParts(
+            eDate ?? startDay,
+            snapTimeToSlot(eTimeRaw),
+            sourceTz,
+        );
         const payload = {
-            date: startDate,
-            endDate: endDateVal !== startDate ? endDateVal : undefined,
+            date: startConverted.date,
+            endDate: endConverted.date !== startConverted.date ? endConverted.date : undefined,
             title: title.trim(),
-            startTime: adjStart.split("T")[1],
-            endTime: adjEnd.split("T")[1],
+            startTime: startConverted.time,
+            endTime: endConverted.time,
             note: note.trim() || undefined,
             color,
         };
@@ -378,11 +386,34 @@ function EventModal({ initialDate, editEvent, onSave, onUpdate, onClose, }: {
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{t("calendarTzLabel")}</label>
-                <select value={timezone} onChange={(e) => setTimezone(e.target.value)} className={inputCls}>
+                <select value={timezone} onChange={(e) => {
+                const next = e.target.value;
+                if (next === timezone)
+                    return;
+                const [sD, sT] = start.split("T");
+                const [eD, eT] = end.split("T");
+                if (sD && sT && eD && eT) {
+                    const st = snapTimeToSlot(sT);
+                    const et = snapTimeToSlot(eT);
+                    if (timezone === "CZ" && next === "VN") {
+                        const s = storageWallToWallClockParts(sD, st, CALENDAR_WALL_VIETNAM_TZ);
+                        const en = storageWallToWallClockParts(eD, et, CALENDAR_WALL_VIETNAM_TZ);
+                        setStart(`${s.date}T${s.time}`);
+                        setEnd(`${en.date}T${en.time}`);
+                    }
+                    else if (timezone === "VN" && next === "CZ") {
+                        const s = wallClockToStorageParts(sD, st, CALENDAR_WALL_VIETNAM_TZ);
+                        const en = wallClockToStorageParts(eD, et, CALENDAR_WALL_VIETNAM_TZ);
+                        setStart(`${s.date}T${s.time}`);
+                        setEnd(`${en.date}T${en.time}`);
+                    }
+                }
+                setTimezone(next);
+            }} className={inputCls}>
                   {timezones.map((tz) => (<option key={tz.value} value={tz.value}>{tz.label}</option>))}
                 </select>
-                {timezone !== "CZ" && (<p className="text-[11px] text-zinc-400 dark:text-zinc-500">
-                    {t("calendarTzHint").replace("{offset}", String(timezones.find((x) => x.value === timezone)!.offsetFromCZ))}
+                {timezone === "VN" && (<p className="text-[11px] text-zinc-400 dark:text-zinc-500">
+                    {t("calendarTzHint")}
                   </p>)}
               </div>
             </>)}

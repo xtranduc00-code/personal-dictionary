@@ -202,7 +202,7 @@ export async function runStudyScheduleReminderSweep(
                     keys: { p256dh: sub.p256dh, auth: sub.auth },
                   },
                   payload,
-                  { TTL: 3600 },
+                  { TTL: 3600, urgency: "high" },
                 );
                 sent += 1;
               } catch (e: unknown) {
