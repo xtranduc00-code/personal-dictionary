@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ChevronDown,
   ChevronLeft,
@@ -86,6 +93,9 @@ const PRESET_NAME_SET: ReadonlySet<string> = new Set(
   SCHEDULE_PRESETS.map((p) => p.name),
 );
 
+/** Matches sticky time column width for “now” line + dot (Preply-style). */
+const TIME_AXIS_COL_PX = 72;
+
 type PresetName = (typeof SCHEDULE_PRESETS)[number]["name"];
 
 function colorForScheduleName(name: string): string {
@@ -93,6 +103,30 @@ function colorForScheduleName(name: string): string {
 }
 
 type TimeDisplayTz = "vn" | "local";
+
+function minutesSinceMidnightInScheduleTz(
+  now: Date,
+  timeDisplay: TimeDisplayTz,
+  displayTzId: string,
+): number {
+  const tz = timeDisplay === "vn" ? "Asia/Ho_Chi_Minh" : displayTzId || "UTC";
+  const hm = formatInTimeZone(now, tz, "HH:mm");
+  const [h, m] = hm.split(":").map(Number);
+  return Math.min(24 * 60, Math.max(0, (h ?? 0) * 60 + (m ?? 0)));
+}
+
+function isScheduleViewingToday(
+  selectedDateKey: string,
+  timeDisplay: TimeDisplayTz,
+  displayTzId: string,
+): boolean {
+  const now = new Date();
+  if (timeDisplay === "vn") return selectedDateKey === dateKeyInVietnam(now);
+  return (
+    selectedDateKey ===
+    formatInTimeZone(now, displayTzId || "UTC", "yyyy-MM-dd")
+  );
+}
 
 type CellData = { text: string; color: string };
 /** One day: time slot → account → cell */
@@ -131,6 +165,23 @@ type ScheduleGridRow = {
   vnDateKey: string;
   vnSlot: string;
 };
+
+/** Preply-style left axis: one label per hour (rowSpan 2 over half-hour rows). */
+function hourAxisLabelForRow(
+  rows: ScheduleGridRow[],
+  rowIdx: number,
+): string | null {
+  if (rowIdx % 2 !== 0) return null;
+  const row = rows[rowIdx];
+  if (!row) return null;
+  const part = row.displayLabel.split(" - ")[0]?.trim() ?? "";
+  const m = /^(\d{1,2}):(\d{2})$/.exec(part);
+  if (!m) return part || null;
+  const h = Number(m[1]);
+  const mm = Number(m[2]);
+  if (!Number.isFinite(h) || !Number.isFinite(mm)) return part;
+  return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+}
 
 function getCellFromByDate(
   byDate: ByDateState,
@@ -457,6 +508,64 @@ export function StudyScheduleGrid() {
       ),
     [timeDisplay, selectedDateKey, displayTimeZoneId],
   );
+
+  const tableWrapRef = useRef<HTMLDivElement>(null);
+  const theadRef = useRef<HTMLTableSectionElement>(null);
+  const firstBodyRowRef = useRef<HTMLTableRowElement>(null);
+  const [nowLineTopPx, setNowLineTopPx] = useState<number | null>(null);
+
+  const showNowLine = useMemo(() => {
+    void pastTick;
+    return isScheduleViewingToday(
+      selectedDateKey,
+      timeDisplay,
+      displayTimeZoneId,
+    );
+  }, [selectedDateKey, timeDisplay, displayTimeZoneId, pastTick]);
+
+  const updateNowLinePosition = useCallback(() => {
+    void pastTick;
+    if (!showNowLine) {
+      setNowLineTopPx(null);
+      return;
+    }
+    const thead = theadRef.current;
+    const tr0 = firstBodyRowRef.current;
+    if (!thead || !tr0) {
+      setNowLineTopPx(null);
+      return;
+    }
+    const theadH = thead.offsetHeight;
+    const rowH = tr0.offsetHeight;
+    if (rowH <= 0) {
+      setNowLineTopPx(null);
+      return;
+    }
+    const mins = minutesSinceMidnightInScheduleTz(
+      new Date(),
+      timeDisplay,
+      displayTimeZoneId,
+    );
+    const bodyPx = 48 * rowH;
+    setNowLineTopPx(theadH + (mins / (24 * 60)) * bodyPx);
+  }, [showNowLine, timeDisplay, displayTimeZoneId, pastTick]);
+
+  useLayoutEffect(() => {
+    updateNowLinePosition();
+  }, [updateNowLinePosition]);
+
+  useEffect(() => {
+    if (!showNowLine) return;
+    const wrap = tableWrapRef.current;
+    if (!wrap || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => updateNowLinePosition());
+    ro.observe(wrap);
+    window.addEventListener("resize", updateNowLinePosition);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", updateNowLinePosition);
+    };
+  }, [showNowLine, updateNowLinePosition]);
 
   const modalDateLabel = useMemo(() => {
     const d = parseDateKey(selectedDateKey);
@@ -942,10 +1051,17 @@ export function StudyScheduleGrid() {
         ].join(" ")}
       >
         <div className="max-h-[min(78vh,1120px)] overflow-auto">
-          <table className="w-full min-w-[640px] border-collapse">
-            <thead className="sticky top-0 z-20 border-b border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/95">
+          <div ref={tableWrapRef} className="relative min-w-[640px]">
+            <table className="relative z-10 w-full min-w-[640px] border-collapse">
+            <thead
+              ref={theadRef}
+              className="sticky top-0 z-20 border-b border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/95"
+            >
               <tr>
-                <th className="sticky left-0 z-30 min-w-[128px] border-b border-r border-zinc-200 bg-zinc-50 px-3 py-2.5 text-left text-xs font-semibold text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800/95 dark:text-zinc-200">
+                <th
+                  className="sticky left-0 z-30 w-[72px] min-w-[72px] max-w-[72px] border-b border-r border-zinc-200 bg-zinc-50 px-2 py-2.5 text-left text-xs font-semibold text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800/95 dark:text-zinc-200"
+                  style={{ width: TIME_AXIS_COL_PX, minWidth: TIME_AXIS_COL_PX }}
+                >
                   <span className="block">{t("studyScheduleTimeColumn")}</span>
                   <span className="mt-0.5 block text-[10px] font-normal normal-case text-zinc-500 dark:text-zinc-400">
                     {timeDisplay === "vn"
@@ -997,6 +1113,7 @@ export function StudyScheduleGrid() {
             <tbody>
               {gridRows.map((row, rowIdx) => {
                 void pastTick;
+                const hourLbl = hourAxisLabelForRow(gridRows, rowIdx);
                 const rowBg =
                   rowIdx % 2 === 0
                     ? "bg-white dark:bg-zinc-900"
@@ -1005,23 +1122,39 @@ export function StudyScheduleGrid() {
                   byDate[row.vnDateKey] ?? buildEmptyDay(accounts);
                 return (
                   <tr
+                    ref={rowIdx === 0 ? firstBodyRowRef : undefined}
                     id={`study-schedule-slot-${rowIdx}`}
                     key={rowIdx}
+                    aria-label={row.displayLabel}
                     className={[
                       "group border-b border-zinc-100 transition-colors last:border-b-0 dark:border-zinc-800",
+                      rowIdx % 2 === 1 &&
+                        "border-t border-zinc-200/80 dark:border-zinc-600/40",
                       rowBg,
                       "hover:bg-zinc-50 dark:hover:bg-zinc-800/40",
-                    ].join(" ")}
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
                   >
-                    <td
-                      className={[
-                        "sticky left-0 z-10 whitespace-nowrap border-r border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-600 dark:border-zinc-700 dark:text-zinc-300",
-                        rowBg,
-                        "group-hover:bg-zinc-50 dark:group-hover:bg-zinc-800/40",
-                      ].join(" ")}
-                    >
-                      {row.displayLabel}
-                    </td>
+                    {hourLbl != null ? (
+                      <td
+                        rowSpan={2}
+                        className={[
+                          "sticky left-0 z-10 border-r border-zinc-200 px-2 py-0 align-top dark:border-zinc-700",
+                          rowBg,
+                          "group-hover:bg-zinc-50 dark:group-hover:bg-zinc-800/40",
+                        ].join(" ")}
+                        style={{
+                          width: TIME_AXIS_COL_PX,
+                          minWidth: TIME_AXIS_COL_PX,
+                          maxWidth: TIME_AXIS_COL_PX,
+                        }}
+                      >
+                        <span className="inline-block pt-1 text-[11px] font-semibold tabular-nums text-zinc-600 dark:text-zinc-300">
+                          {hourLbl}
+                        </span>
+                      </td>
+                    ) : null}
                     {accounts.flatMap((acc, colIdx) => {
                       const rowSpan = getScheduleColumnRowSpan(
                         byDate,
@@ -1187,6 +1320,26 @@ export function StudyScheduleGrid() {
               })}
             </tbody>
           </table>
+            {showNowLine && nowLineTopPx != null && (
+              <div
+                className="pointer-events-none absolute z-[35] w-full"
+                style={{ top: nowLineTopPx }}
+                aria-hidden
+              >
+                <div
+                  className="absolute h-2 w-2 rounded-full bg-red-500 shadow-sm ring-2 ring-white dark:ring-zinc-900"
+                  style={{
+                    left: TIME_AXIS_COL_PX / 2 - 4,
+                    top: -3,
+                  }}
+                />
+                <div
+                  className="absolute right-0 top-0 h-px bg-red-500"
+                  style={{ left: TIME_AXIS_COL_PX - 2 }}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </div>
       )}
