@@ -2,12 +2,15 @@ import { NextResponse } from "next/server";
 import { runCalendarReminderSweep } from "@/lib/push/send-calendar-reminder";
 import { runStudyScheduleReminderSweep } from "@/lib/push/send-study-schedule-reminder";
 import { getSiteUrl } from "@/lib/site-url";
-import { supabaseForUserData } from "@/lib/supabase-server";
+import { getSupabaseServiceClient } from "@/lib/supabase-server";
 
 /**
  * Call every minute (e.g. Vercel Cron or external cron with CRON_SECRET).
  * Calendar + shared study grid reminders (same push subscriptions).
  * Authorization: Bearer <CRON_SECRET>
+ *
+ * Requires SUPABASE_SERVICE_ROLE_KEY: calendar_events are per-user under RLS; anon sees no rows,
+ * so calendar reminders would never fire while study grid (shared table) could still work.
  */
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET?.trim();
@@ -23,7 +26,16 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
-    const db = supabaseForUserData();
+    const db = getSupabaseServiceClient();
+    if (!db) {
+      return NextResponse.json(
+        {
+          error:
+            "SUPABASE_SERVICE_ROLE_KEY is not set; calendar reminders need service role to read all users’ events",
+        },
+        { status: 503 },
+      );
+    }
     const siteUrl = getSiteUrl();
     const calendar = await runCalendarReminderSweep(db, siteUrl);
     const studySchedule = await runStudyScheduleReminderSweep(db, siteUrl);
