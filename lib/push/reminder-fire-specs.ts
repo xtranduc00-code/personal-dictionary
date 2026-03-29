@@ -1,6 +1,7 @@
 /** Shared timing + copy for calendar and study-schedule web push reminders. */
 
-export const REMINDER_WINDOW_MS = 90_000;
+/** Match target ± this many ms; wide enough for 1-min cron jitter (dedupe prevents double send). */
+export const REMINDER_WINDOW_MS = 300_000;
 export const REMINDER_DATE_WINDOW_DAYS = 8;
 
 const MS_MIN = 60_000;
