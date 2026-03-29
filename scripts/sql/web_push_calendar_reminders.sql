@@ -27,4 +27,17 @@ create table if not exists public.calendar_reminder_sent (
 create index if not exists calendar_reminder_sent_event_id_idx
   on public.calendar_reminder_sent (event_id);
 
+-- Study schedule grid (shared): same push_subscriptions, separate dedup table.
+-- Requires public.study_schedule_shared (see study_schedule_shared.sql).
+
+create table if not exists public.study_schedule_reminder_sent (
+  user_id uuid not null references public.auth_users (id) on delete cascade,
+  kind text not null,
+  slot_key text not null,
+  sent_at timestamptz not null default now(),
+  primary key (user_id, kind, slot_key)
+);
+
+create index if not exists study_schedule_reminder_sent_user_id_idx
+  on public.study_schedule_reminder_sent (user_id);
 

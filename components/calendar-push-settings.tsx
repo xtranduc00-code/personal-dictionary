@@ -20,15 +20,6 @@ function applicationServerKeyFromVapidBase64(
   return buf;
 }
 
-function isStandalonePwa(): boolean {
-  if (typeof window === "undefined") return false;
-  const nav = window.navigator as Navigator & { standalone?: boolean };
-  return (
-    window.matchMedia("(display-mode: standalone)").matches ||
-    nav.standalone === true
-  );
-}
-
 function isNumericIpHostname(hostname: string): boolean {
   return /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname);
 }
@@ -239,10 +230,6 @@ export function CalendarPushSettings() {
 
   if (serverConfigured !== true) return null;
 
-  const ios =
-    typeof navigator !== "undefined" &&
-    /iPhone|iPad|iPod/i.test(navigator.userAgent);
-  const standalone = isStandalonePwa();
   const active = subscriptionCount > 0 && browserSubscribed;
 
   return (
@@ -255,14 +242,6 @@ export function CalendarPushSettings() {
           <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             {t("calendarPushTitle")}
           </h3>
-          <p className="mt-1 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
-            {t("calendarPushDescription")}
-          </p>
-          {ios && !standalone && (
-            <p className="mt-2 rounded-lg bg-zinc-100 px-2 py-1.5 text-[11px] font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-              {t("calendarPushIosAddToHome")}
-            </p>
-          )}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {active ? (
               <>

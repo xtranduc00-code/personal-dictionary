@@ -1,6 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { eventStartUtc, getCalendarEventStorageTimeZone } from "@/lib/calendar/event-start-utc";
 import {
+  REMINDER_DATE_WINDOW_DAYS,
+  REMINDER_FIRE_SPECS,
+  REMINDER_WINDOW_MS,
+} from "@/lib/push/reminder-fire-specs";
+import {
+  formatPushEventStartLabel,
+  getPushNotificationTimeZone,
+} from "@/lib/push/push-notification-time-label";
+import {
   ensureWebPushConfigured,
   isWebPushConfigured,
   webpush,
@@ -14,40 +23,6 @@ type CalRow = {
   date: string;
   start_time: string | null;
 };
-
-const WINDOW_MS = 90_000;
-const DATE_WINDOW_DAYS = 8;
-
-const MS_MIN = 60_000;
-const MS_HOUR = 60 * MS_MIN;
-const MS_DAY = 24 * MS_HOUR;
-
-/** Fire once when cron hits within WINDOW_MS of (start - offset). */
-const REMINDER_TRIGGERS: {
-  offsetMs: number;
-  kind: string;
-  title: string;
-  body: (eventTitle: string) => string;
-}[] = [
-  {
-    offsetMs: MS_DAY,
-    kind: "before_24h",
-    title: "Lịch · 1 day left",
-    body: (t) => `${t} — 1 day until start · còn 1 ngày`,
-  },
-  {
-    offsetMs: MS_HOUR,
-    kind: "before_1h",
-    title: "Lịch · 1 hour left",
-    body: (t) => `${t} — 1 hour until start · còn 1 giờ`,
-  },
-  {
-    offsetMs: 10 * MS_MIN,
-    kind: "before_10",
-    title: "Sắp đến giờ · Up soon",
-    body: (t) => `${t} — 10 minutes · 10 phút nữa`,
-  },
-];
 
 /** YYYY-MM-DD in storage TZ for date `d`. */
 function formatDateInStorageTz(d: Date): string {
@@ -65,12 +40,11 @@ function formatDateInStorageTz(d: Date): string {
 }
 
 function loadDateWindow(): { from: string; to: string } {
-  const tz = getCalendarEventStorageTimeZone();
   const now = new Date();
   const from = new Date(now);
   from.setDate(from.getDate() - 1);
   const to = new Date(now);
-  to.setDate(to.getDate() + DATE_WINDOW_DAYS);
+  to.setDate(to.getDate() + REMINDER_DATE_WINDOW_DAYS);
   return { from: formatDateInStorageTz(from), to: formatDateInStorageTz(to) };
 }
 
@@ -132,6 +106,7 @@ export async function runCalendarReminderSweep(
   let checked = 0;
   let sent = 0;
   let errors = 0;
+  const pushTz = getPushNotificationTimeZone();
 
   for (const ev of list) {
     const userSubs = subsByUser.get(ev.user_id);
@@ -141,16 +116,17 @@ export async function runCalendarReminderSweep(
     if (!startUtc || Number.isNaN(startUtc.getTime())) continue;
 
     const startMs = startUtc.getTime();
+    const whenLocal = formatPushEventStartLabel(startUtc, pushTz);
 
     const kinds: { kind: string; title: string; body: string }[] = [];
 
-    for (const tr of REMINDER_TRIGGERS) {
+    for (const tr of REMINDER_FIRE_SPECS) {
       const fireAt = startMs - tr.offsetMs;
-      if (Math.abs(now - fireAt) <= WINDOW_MS) {
+      if (Math.abs(now - fireAt) <= REMINDER_WINDOW_MS) {
         kinds.push({
           kind: tr.kind,
           title: tr.title,
-          body: tr.body(ev.title),
+          body: tr.calendarBody(ev.title, whenLocal),
         });
       }
     }

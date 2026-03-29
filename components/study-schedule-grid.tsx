@@ -772,10 +772,7 @@ export function StudyScheduleGrid() {
       </h1>
 
       <div className="flex w-full min-w-0 items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-3 py-2 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <div
-          className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          title={t("studyScheduleTzHint")}
-        >
+        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <button
             type="button"
             onClick={() => setSelectedDateKey((k) => shiftDateKey(k, -1))}
@@ -833,7 +830,6 @@ export function StudyScheduleGrid() {
               }
               className={`${selectCls} w-full min-w-0`}
               aria-label={t("studyScheduleTzLabel")}
-              title={t("studyScheduleTzHint")}
             >
               <option value="vn">{t("studyScheduleTzVN")}</option>
               <option value="local">{t("studyScheduleTzLocal")}</option>
@@ -849,11 +845,6 @@ export function StudyScheduleGrid() {
               />
               <button
                 type="button"
-                title={
-                  paintMode
-                    ? t("studySchedulePaintHint")
-                    : t("studySchedulePaintMode")
-                }
                 onClick={() => {
                   setPaintMode((p) => {
                     const next = !p;
@@ -878,7 +869,6 @@ export function StudyScheduleGrid() {
                     <button
                       key={p.name}
                       type="button"
-                      title={t("studySchedulePaintHint")}
                       onClick={() => setActiveBrush(p.name)}
                       className={[
                         "h-8 shrink-0 rounded-md px-2 text-xs font-semibold text-white outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/70 sm:px-2.5",
@@ -893,7 +883,6 @@ export function StudyScheduleGrid() {
                   ))}
                   <button
                     type="button"
-                    title={t("studySchedulePaintHint")}
                     onClick={() => setActiveBrush("clear")}
                     className={[
                       "h-8 shrink-0 rounded-md border px-2 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-zinc-500 sm:px-2.5 dark:focus-visible:ring-zinc-400",
@@ -912,7 +901,6 @@ export function StudyScheduleGrid() {
               />
               <button
                 type="button"
-                title={t("studyScheduleShiftsJumpHint")}
                 onClick={() => setShowAllShiftsModal(true)}
                 className="inline-flex h-9 shrink-0 items-center gap-1 rounded-lg border border-zinc-200 bg-zinc-50 px-2 text-xs font-medium whitespace-nowrap text-zinc-700 transition-colors hover:bg-zinc-100 sm:px-2.5 sm:text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
               >
@@ -984,7 +972,6 @@ export function StudyScheduleGrid() {
                       />
                     ) : (
                       <span
-                        title={t("studyScheduleRenameColumnTitle")}
                         role="button"
                         tabIndex={0}
                         onDoubleClick={() => setEditingAccount(idx)}
@@ -1234,14 +1221,8 @@ export function StudyScheduleGrid() {
               </button>
             </div>
 
-            <p className="border-b border-zinc-100 px-5 py-3 text-xs leading-relaxed text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">
-              <span className="font-medium text-zinc-800 dark:text-zinc-200">
-                {modalDateLabel}
-              </span>
-              <span className="mx-1.5 text-zinc-300 dark:text-zinc-600">
-                ·
-              </span>
-              {t("studyScheduleShiftsJumpHint")}
+            <p className="border-b border-zinc-100 px-5 py-3 text-xs font-medium text-zinc-800 dark:border-zinc-800 dark:text-zinc-200">
+              {modalDateLabel}
             </p>
 
             <div className="min-h-0 flex-1 overflow-y-auto">
@@ -1309,10 +1290,6 @@ export function StudyScheduleGrid() {
           </div>
         </div>
       )}
-
-      <p className="text-xs text-zinc-500 dark:text-zinc-400">
-        {t("studyScheduleFooterHint")}
-      </p>
     </div>
   );
 }
