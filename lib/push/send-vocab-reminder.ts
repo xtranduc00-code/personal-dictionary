@@ -14,38 +14,27 @@ type VocabItem = {
   example?: string;
 };
 
-/** Hour (0–23) in the storage timezone at which the vocab reminder fires. */
-function getVocabReminderHour(): number {
-  const raw = process.env.VOCAB_REMINDER_HOUR?.trim();
-  const parsed = raw ? parseInt(raw, 10) : NaN;
-  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 23 ? parsed : 8;
-}
-
-/** YYYY-MM-DD in the storage timezone for dedup key. */
-function todayYmd(): string {
-  return formatInTimeZone(new Date(), getCalendarEventStorageTimeZone(), "yyyy-MM-dd");
-}
-
-/** Returns true if the current time is within ±5 min of the configured reminder hour. */
-function isWithinReminderWindow(): boolean {
+/**
+ * Dedup bucket: floor current time to the nearest 10-minute mark.
+ * Prevents duplicate sends if the cron is called multiple times within the same window.
+ */
+function tenMinuteBucket(): string {
   const tz = getCalendarEventStorageTimeZone();
   const now = new Date();
-  const hhmm = formatInTimeZone(now, tz, "HH:mm");
-  const [hh, mm] = hhmm.split(":").map(Number);
-  const minuteOfDay = hh * 60 + mm;
-  const targetMinute = getVocabReminderHour() * 60;
-  return Math.abs(minuteOfDay - targetMinute) <= 5;
+  const hhmm = formatInTimeZone(now, tz, "yyyy-MM-dd_HH:mm");
+  // Replace the last digit of minutes with 0 to get the 10-min bucket.
+  return hhmm.slice(0, hhmm.length - 1) + "0";
 }
 
 async function tryLogVocabSent(
   db: SupabaseClient,
   userId: string,
-  dateYmd: string,
+  bucket: string,
 ): Promise<boolean> {
   const { error } = await db.from("calendar_reminder_sent").insert({
     user_id: userId,
     event_id: userId,
-    kind: `vocab_${dateYmd}`,
+    kind: `vocab_${bucket}`,
   });
   if (error?.code === "23505") return false;
   if (error) throw error;
@@ -56,15 +45,29 @@ async function removeDeadSubscription(db: SupabaseClient, endpoint: string) {
   await db.from("push_subscriptions").delete().eq("endpoint", endpoint);
 }
 
+/** Pick `count` distinct random items from an array using a seed. */
+function pickRandom<T>(arr: T[], count: number, seed: number): T[] {
+  if (arr.length <= count) return [...arr];
+  const result: T[] = [];
+  const used = new Set<number>();
+  let s = seed;
+  while (result.length < count) {
+    s = (s * 1664525 + 1013904223) & 0x7fffffff;
+    const idx = s % arr.length;
+    if (!used.has(idx)) {
+      used.add(idx);
+      result.push(arr[idx]!);
+    }
+  }
+  return result;
+}
+
 export async function runVocabReminderSweep(
   db: SupabaseClient,
   siteUrl: string,
 ): Promise<{ sent: number; errors: number; skipped: string }> {
   if (!isWebPushConfigured()) {
     return { sent: 0, errors: 0, skipped: "web-push not configured" };
-  }
-  if (!isWithinReminderWindow()) {
-    return { sent: 0, errors: 0, skipped: "outside reminder window" };
   }
 
   ensureWebPushConfigured();
@@ -89,22 +92,27 @@ export async function runVocabReminderSweep(
     return { sent: 0, errors: 0, skipped: "no vocab items" };
   }
 
-  // Pick a deterministic-random word for today (same word for all users).
-  const dateYmd = todayYmd();
-  const idx = [...dateYmd].reduce((acc, c) => acc + c.charCodeAt(0), 0) % allWords.length;
-  const word = allWords[idx]!;
+  // Dedup bucket: floor to nearest 10-minute window.
+  const bucket = tenMinuteBucket();
 
-  // Build notification payload.
-  const bodyParts = [word.word];
-  if (word.explanation) bodyParts.push(word.explanation);
-  if (word.example) bodyParts.push(`"${word.example}"`);
-  const body = bodyParts.join(" — ");
+  // Pick 2 distinct random words for this bucket (seed from bucket string).
+  const seed = [...bucket].reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  const words = pickRandom(allWords, 2, seed);
+
+  // Build notification body.
+  const lines = words.map((w) => {
+    const parts = [w.word];
+    if (w.explanation) parts.push(w.explanation);
+    if (w.example) parts.push(`"${w.example}"`);
+    return parts.join(" — ");
+  });
+  const body = lines.join("\n");
 
   const payload = JSON.stringify({
-    title: "Word of the day",
+    title: "Vocab reminder",
     body,
     url: `${siteUrl.replace(/\/$/, "")}/ielts-speaking`,
-    tag: `vocab-${dateYmd}`,
+    tag: `vocab-${bucket}`,
   });
 
   // Get all push subscriptions grouped by user.
@@ -128,7 +136,7 @@ export async function runVocabReminderSweep(
   let errors = 0;
 
   for (const [userId, userSubs] of subsByUser) {
-    const shouldSend = await tryLogVocabSent(db, userId, dateYmd);
+    const shouldSend = await tryLogVocabSent(db, userId, bucket);
     if (!shouldSend) continue;
 
     for (const sub of userSubs) {
@@ -136,14 +144,14 @@ export async function runVocabReminderSweep(
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
           payload,
-          { TTL: 3600, urgency: "normal" },
+          { TTL: 600, urgency: "normal" },
         );
         sent += 1;
       } catch (e: unknown) {
         errors += 1;
         const wpe = e as { statusCode?: number; body?: string };
-        const body = typeof wpe.body === "string" ? wpe.body : undefined;
-        if (shouldDropPushSubscription(wpe.statusCode, body)) {
+        const errBody = typeof wpe.body === "string" ? wpe.body : undefined;
+        if (shouldDropPushSubscription(wpe.statusCode, errBody)) {
           await removeDeadSubscription(db, sub.endpoint);
         }
       }
