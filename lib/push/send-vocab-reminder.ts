@@ -99,15 +99,12 @@ export async function runVocabReminderSweep(
   const seed = [...bucket].reduce((acc, c) => acc + c.charCodeAt(0), 0);
   const words = pickRandom(allWords, 2, seed);
 
-  // Build one payload per word — cleaner to read as separate notifications.
+  // Build one payload per word — word as title, example as body.
   const payloads = words.map((w, i) => {
-    const body = [
-      w.explanation ?? "",
-      w.example ? `"${w.example}"` : "",
-    ].filter(Boolean).join(" · ");
+    const body = w.example ? `"${w.example}"` : "";
     return JSON.stringify({
       title: w.word,
-      body: body || "—",
+      body: body || " ",
       url: `${siteUrl.replace(/\/$/, "")}/ielts-speaking`,
       tag: `vocab-${bucket}-${i}`,
     });

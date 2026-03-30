@@ -3,7 +3,7 @@ export default function manifest(): MetadataRoute.Manifest {
     return {
         id: "/",
         name: "Ken Workspace",
-        short_name: "Ken",
+        short_name: "KFC",
         description: "All-in-one productivity app with IELTS vocabulary notes, AI tools, and learning features.",
         start_url: "/",
         scope: "/",
