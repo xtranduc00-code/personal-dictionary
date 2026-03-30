@@ -1,8 +1,17 @@
 import { AgentSpeakingAvatar } from "@/features/call-ken/components/agent-speaking-avatar";
 import { MessageItem } from "@/features/call-ken/components/application/messaging/messaging";
 import { Button } from "@/features/call-ken/components/base/buttons/button";
-import { MessageActionTextarea } from "@/features/call-ken/components/send-message";
+import { ButtonUtility } from "@/features/call-ken/components/base/buttons/button-utility";
+import {
+  MessageActionTextarea,
+  type CallKenAttachmentPreview,
+  type MessageActionTextareaHandle,
+} from "@/features/call-ken/components/send-message";
 import { createAudio, sounds } from "@/features/call-ken/lib/audio";
+import {
+  extractTextFromPdfFile,
+  PDF_TEXT_MAX_CHARS,
+} from "@/features/call-ken/lib/extract-pdf-text";
 import { convertFileToBase64 } from "@/features/call-ken/lib/utils";
 import { playBeep } from "@/lib/beep";
 import {
@@ -11,8 +20,60 @@ import {
   RealtimeSession,
   tool,
 } from "@openai/agents-realtime";
-import { Phone, PhoneCall01, PhoneHangUp } from "@untitledui/icons";
+import { Phone, PhoneCall01, PhoneHangUp, X } from "@untitledui/icons";
 import { useEffect, useRef, useState } from "react";
+
+function AttachmentPreviewPane({
+  preview,
+  onClose,
+  className,
+}: {
+  preview: NonNullable<CallKenAttachmentPreview>;
+  onClose: () => void;
+  className?: string;
+}) {
+  const title =
+    preview.kind === "text" && !preview.fileName
+      ? "Attachment"
+      : (preview.fileName ?? "Attachment");
+  return (
+    <div
+      className={`flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900 ${className ?? ""}`}
+    >
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-700">
+        <p className="min-w-0 truncate text-xs font-medium text-zinc-700 dark:text-zinc-300">
+          {title}
+        </p>
+        <ButtonUtility
+          icon={X}
+          size="xs"
+          color="tertiary"
+          onClick={onClose}
+          type="button"
+        />
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        {preview.kind === "image" ? (
+          <img
+            src={preview.src}
+            alt=""
+            className="mx-auto max-h-[min(70vh,640px)] w-full object-contain p-2"
+          />
+        ) : preview.kind === "pdf" ? (
+          <iframe
+            src={preview.src}
+            title={preview.fileName}
+            className="h-[min(70vh,640px)] min-h-[280px] w-full border-0 bg-zinc-50 dark:bg-zinc-950 lg:h-[calc(100dvh-8rem)] lg:min-h-[400px]"
+          />
+        ) : (
+          <pre className="whitespace-pre-wrap p-3 text-xs leading-relaxed text-zinc-800 dark:text-zinc-200">
+            {preview.text}
+          </pre>
+        )}
+      </div>
+    </div>
+  );
+}
 type SavedMessage = {
   id: string;
   text: string;
@@ -233,6 +294,9 @@ export function CallKenPage({
   >("normal");
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isAgentSpeaking, setIsAgentSpeaking] = useState(false);
+  const [attachmentPreview, setAttachmentPreview] =
+    useState<CallKenAttachmentPreview>(null);
+  const messageInputRef = useRef<MessageActionTextareaHandle>(null);
   const speakingOffTimerRef = useRef<number | null>(null);
   const clearSpeakingOffTimer = () => {
     if (speakingOffTimerRef.current !== null) {
@@ -285,7 +349,8 @@ export function CallKenPage({
   };
   return (
     <div className="flex w-full min-w-0 flex-1 flex-col justify-start bg-zinc-50 p-2 pb-24 dark:bg-zinc-950 sm:pb-28">
-      <div className="mx-auto flex w-full min-w-0 max-w-full flex-col rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:max-w-xl sm:p-4">
+      <div className="mx-auto flex w-full min-w-0 max-w-full flex-col gap-4 lg:max-w-6xl lg:flex-row lg:items-stretch lg:gap-5">
+        <div className="flex min-w-0 flex-1 flex-col rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-4">
         <div className="relative flex justify-between flex-col rounded-lg p-4 sm:p-8 items-center gap-4 bg-zinc-50 dark:bg-zinc-800/50">
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 z-10 text-center">
             English Realtime Tutor
@@ -519,10 +584,10 @@ When speaking aloud:
                   // makes rustle/noise look like “user spoke” and steals the turn from the assistant.
                   const silenceDurationMs =
                     speakingSpeed === "slow"
-                      ? 2200
+                      ? 2600
                       : speakingSpeed === "normal"
-                        ? 1700
-                        : 1300;
+                        ? 2100
+                        : 1500;
                   void playBeep(880, 90, 0.02);
                   const session = new RealtimeSession(agent, {
                     config: {
@@ -532,8 +597,9 @@ When speaking aloud:
                             type: "server_vad",
                             createResponse: true,
                             silenceDurationMs,
-                            threshold: 0.62,
-                            prefixPaddingMs: 350,
+                            threshold: 0.68,
+                            prefixPaddingMs: 400,
+                            interruptResponse: false,
                           },
                           transcription: {
                             model: "whisper-1",
@@ -652,6 +718,16 @@ When speaking aloud:
             </p>
           )}
         </div>
+
+        {attachmentPreview ? (
+          <div className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-700 lg:hidden">
+            <AttachmentPreviewPane
+              preview={attachmentPreview}
+              onClose={() => messageInputRef.current?.clearAttachment()}
+              className="max-h-[min(48vh,440px)]"
+            />
+          </div>
+        ) : null}
 
         <ol className="flex flex-col gap-4 px-4 py-4 md:px-6 md:py-6 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-100 dark:[&::-webkit-scrollbar-track]:bg-zinc-800">
           {session?.history.map((item) => {
@@ -789,6 +865,8 @@ When speaking aloud:
         )}
 
         <MessageActionTextarea
+          ref={messageInputRef}
+          onAttachmentPreviewChange={setAttachmentPreview}
           onSubmit={async (message, file) => {
             if (!session) return;
             if (message.trim()) {
@@ -830,20 +908,66 @@ When speaking aloud:
                 file.type === "application/pdf" ||
                 file.name.toLowerCase().endsWith(".pdf")
               ) {
-                session.sendMessage({
-                  role: "user",
-                  type: "message",
-                  content: [
-                    {
-                      type: "input_text",
-                      text: `[Uploaded PDF: "${file.name}" (${Math.round(file.size / 1024)} KB). I’m sharing it for context — please help me with this material based on what I say next, or ask me to summarize or quote the parts that matter.]`,
-                    },
-                  ],
-                });
+                setRuntimeError(null);
+                try {
+                  const {
+                    text,
+                    truncated,
+                    pagesIncluded,
+                    totalPages,
+                  } = await extractTextFromPdfFile(file);
+                  const meaningful = text
+                    .replace(/^--- Page \d+ ---\s*/gm, "")
+                    .trim();
+                  if (!meaningful) {
+                    session.sendMessage({
+                      role: "user",
+                      type: "message",
+                      content: [
+                        {
+                          type: "input_text",
+                          text: `[PDF "${file.name}" — no selectable text was extracted (often scanned/image-only pages). Describe what you want to practice, or paste text from the document.]`,
+                        },
+                      ],
+                    });
+                  } else {
+                    const metaParts = [
+                      `${totalPages} page(s)`,
+                      ...(pagesIncluded < totalPages || truncated
+                        ? [`text from ${pagesIncluded} page(s) included`]
+                        : []),
+                      ...(truncated
+                        ? [`truncated to ~${PDF_TEXT_MAX_CHARS} characters`]
+                        : []),
+                    ];
+                    const head = `The following is text extracted from PDF "${file.name}" (${metaParts.join("; ")}):\n\n`;
+                    session.sendMessage({
+                      role: "user",
+                      type: "message",
+                      content: [{ type: "input_text", text: head + text }],
+                    });
+                  }
+                } catch (e) {
+                  const msg = e instanceof Error ? e.message : String(e);
+                  setRuntimeError(
+                    `Could not read this PDF. It may be password-protected or corrupted. (${msg})`,
+                  );
+                }
               }
             }
           }}
         />
+        </div>
+
+        {attachmentPreview ? (
+          <aside className="hidden min-h-0 w-full shrink-0 lg:flex lg:w-[min(42vw,520px)] lg:min-w-[280px] lg:max-w-[520px] lg:flex-col lg:self-start">
+            <AttachmentPreviewPane
+              preview={attachmentPreview}
+              onClose={() => messageInputRef.current?.clearAttachment()}
+              className="sticky top-4 max-h-[calc(100dvh-5rem)] min-h-[320px] flex-1"
+            />
+          </aside>
+        ) : null}
       </div>
     </div>
   );

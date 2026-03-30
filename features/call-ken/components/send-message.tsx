@@ -1,18 +1,33 @@
 import type { ChangeEvent, ClipboardEvent, DragEvent, FormEvent, KeyboardEvent, } from "react";
-import { useEffect, useState, useRef } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, } from "react";
 import { Image01, X } from "@untitledui/icons";
 import { Button } from "@/features/call-ken/components/base/buttons/button";
 import { ButtonUtility } from "@/features/call-ken/components/base/buttons/button-utility";
 import { TextAreaBase } from "@/features/call-ken/components/base/textarea/textarea";
 import { cx } from "@/features/call-ken/utils/cx";
 
+export type CallKenAttachmentPreview =
+    | null
+    | { kind: "image"; src: string; fileName: string }
+    | { kind: "pdf"; src: string; fileName: string }
+    | { kind: "text"; text: string; fileName?: string };
+
+export type MessageActionTextareaHandle = {
+    clearAttachment: () => void;
+};
+
 interface MessageActionTextareaProps {
     onSubmit: (message: string, file?: File) => void | Promise<void>;
+    /** When set, preview is not shown inline — parent renders it (e.g. side panel). */
+    onAttachmentPreviewChange?: (preview: CallKenAttachmentPreview) => void;
     className?: string;
     textAreaClassName?: string;
 }
 
-export const MessageActionTextarea = ({ onSubmit, className, textAreaClassName, ...props }: MessageActionTextareaProps) => {
+export const MessageActionTextarea = forwardRef<MessageActionTextareaHandle, MessageActionTextareaProps>(function MessageActionTextarea(
+    { onSubmit, onAttachmentPreviewChange, className, textAreaClassName, ...props },
+    ref,
+) {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [docPreview, setDocPreview] = useState<string | null>(null);
@@ -20,18 +35,60 @@ export const MessageActionTextarea = ({ onSubmit, className, textAreaClassName, 
     const [isDragOver, setIsDragOver] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const formRef = useRef<HTMLFormElement>(null);
+    const externalPreview = Boolean(onAttachmentPreviewChange);
 
-    const clearAttachment = () => {
+    const clearAttachment = useCallback(() => {
         setSelectedFile(null);
         setImagePreview(null);
         setDocPreview(null);
-        if (pdfPreviewUrl) {
-            URL.revokeObjectURL(pdfPreviewUrl);
-            setPdfPreviewUrl(null);
-        }
+        setPdfPreviewUrl((prev) => {
+            if (prev)
+                URL.revokeObjectURL(prev);
+            return null;
+        });
         if (fileInputRef.current)
             fileInputRef.current.value = "";
-    };
+    }, []);
+
+    useImperativeHandle(ref, () => ({
+        clearAttachment,
+    }), [clearAttachment]);
+
+    useEffect(() => {
+        if (!onAttachmentPreviewChange)
+            return;
+        if (pdfPreviewUrl && selectedFile) {
+            onAttachmentPreviewChange({
+                kind: "pdf",
+                src: pdfPreviewUrl,
+                fileName: selectedFile.name,
+            });
+            return;
+        }
+        if (imagePreview && selectedFile) {
+            onAttachmentPreviewChange({
+                kind: "image",
+                src: imagePreview,
+                fileName: selectedFile.name,
+            });
+            return;
+        }
+        if (docPreview) {
+            onAttachmentPreviewChange({
+                kind: "text",
+                text: docPreview,
+                fileName: selectedFile?.name,
+            });
+            return;
+        }
+        onAttachmentPreviewChange(null);
+    }, [
+        onAttachmentPreviewChange,
+        pdfPreviewUrl,
+        imagePreview,
+        docPreview,
+        selectedFile,
+    ]);
 
     const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -144,7 +201,8 @@ export const MessageActionTextarea = ({ onSubmit, className, textAreaClassName, 
             URL.revokeObjectURL(pdfPreviewUrl);
     }, [pdfPreviewUrl]);
 
-    const showPanel = Boolean(imagePreview || pdfPreviewUrl || (docPreview && (selectedFile || docPreview)));
+    const showInlinePanel = !externalPreview &&
+        Boolean(imagePreview || pdfPreviewUrl || docPreview);
 
     return (
         <form
@@ -168,7 +226,7 @@ export const MessageActionTextarea = ({ onSubmit, className, textAreaClassName, 
                 className="hidden"
             />
 
-            {showPanel && (
+            {showInlinePanel && (
                 <div className="relative w-full overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800/80">
                     <div className="flex justify-end border-b border-zinc-200 px-2 py-1 dark:border-zinc-600">
                         <ButtonUtility icon={X} size="xs" color="tertiary" onClick={handleRemove} type="button" />
@@ -223,4 +281,4 @@ export const MessageActionTextarea = ({ onSubmit, className, textAreaClassName, 
             </div>
         </form>
     );
-};
+});

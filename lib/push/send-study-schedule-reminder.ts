@@ -22,6 +22,9 @@ import {
 
 const ROW_ID = "global";
 
+/** Only these column headers trigger study-grid web push; others stay silent. */
+const STUDY_GRID_PUSH_COLUMNS = new Set(["Duy"]);
+
 const DEFAULT_ACCOUNTS = [
   "Hồng 1",
   "Hồng 2",
@@ -164,6 +167,7 @@ export async function runStudyScheduleReminderSweep(
       const startMs = startUtc.getTime();
 
       for (const column of accounts) {
+        if (!STUDY_GRID_PUSH_COLUMNS.has(column.trim())) continue;
         const booker = cellText(dayRow, vnSlot, column);
         if (!booker) continue;
 

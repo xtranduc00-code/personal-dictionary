@@ -336,7 +336,7 @@ export const translations = {
     studyScheduleTzHint:
       "Data is saved in Vietnam calendar dates and 30-minute Vietnam slots. Czechia mode still shows 48 rows for one calendar day, 00:00–24:00 in your browser’s time zone; each row maps to the matching Vietnam slot for load/save.",
     studyScheduleFooterHint:
-      "Saved on the server for everyone signed in • Vietnam: 48 rows = one Vietnam day (VN slot keys) • Czechia: 48 rows = one local day (labels in your TZ; cells map to VN keys) • Columns 1–3 share one person per time; columns 4–5 share another • Past slots (by real end time in VN) are locked • Drag fill or dropdown • Double-click headers to rename • CSV matches the grid you see",
+      "Saved on the server for everyone signed in • Vietnam: 48 rows = one Vietnam day (VN slot keys) • Czechia: 48 rows = one local day (labels in your TZ; cells map to VN keys) • Columns 1–3 share one person per time; columns 4–5 share another • Past slots (by real end time in VN) are locked • Click/drag with the brushes above • Double-click headers to rename • CSV matches the grid you see",
     studyScheduleLoadFailed: "Could not load the shared schedule. Try again.",
     studyScheduleSaveFailed: "Could not save. Check your connection and try again.",
     studyScheduleRetry: "Retry",
@@ -1486,7 +1486,7 @@ export const translations = {
     studyScheduleTzHint:
       "Dữ liệu lưu theo ngày lịch Việt Nam và khung 30 phút VN. Chế độ Czechia vẫn 48 hàng cho một ngày lịch 00:00–24:00 theo timezone trình duyệt; mỗi hàng map sang đúng ô lưu trữ VN.",
     studyScheduleFooterHint:
-      "Lưu server • Việt Nam: 48 hàng = một ngày VN (khóa slot VN) • Czechia: 48 hàng = một ngày theo TZ máy (nhãn giờ địa phương, ô map sang VN) • 3 cột đầu cùng một người mỗi khung; 2 cột sau cùng một người • Khung đã qua (theo thời điểm kết thúc VN) khóa • Kéo tô / dropdown • Double-click đổi tên • CSV đúng với lưới đang xem",
+      "Lưu server • Việt Nam: 48 hàng = một ngày VN (khóa slot VN) • Czechia: 48 hàng = một ngày theo TZ máy (nhãn giờ địa phương, ô map sang VN) • 3 cột đầu cùng một người mỗi khung; 2 cột sau cùng một người • Khung đã qua (theo thời điểm kết thúc VN) khóa • Chọn tên trên và click/kéo ô • Double-click đổi tên • CSV đúng với lưới đang xem",
     studyScheduleLoadFailed: "Không tải được lịch chung. Thử lại.",
     studyScheduleSaveFailed: "Không lưu được. Kiểm tra mạng và thử lại.",
     studyScheduleRetry: "Thử lại",
