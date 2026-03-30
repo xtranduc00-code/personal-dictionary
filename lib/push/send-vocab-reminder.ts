@@ -45,21 +45,49 @@ async function removeDeadSubscription(db: SupabaseClient, endpoint: string) {
   await db.from("push_subscriptions").delete().eq("endpoint", endpoint);
 }
 
-/** Pick `count` distinct random items from an array using a seed. */
+const VOCAB_PAGE = 1000;
+
+/** 32-bit FNV-1a — spreads bucket strings better than summing char codes. */
+function hashBucketToSeed(bucket: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < bucket.length; i++) {
+    h ^= bucket.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function nextSeed(s: number): number {
+  return (Math.imul(s, 1664525) + 1013904223) >>> 0;
+}
+
+/**
+ * Seeded partial Fisher–Yates: shuffles only the first `count` slots so draws
+ * use the full array fairly (no rejection loop, no modulo bias loops).
+ */
 function pickRandom<T>(arr: T[], count: number, seed: number): T[] {
   if (arr.length <= count) return [...arr];
-  const result: T[] = [];
-  const used = new Set<number>();
+  const copy = arr.slice();
   let s = seed;
-  while (result.length < count) {
-    s = (s * 1664525 + 1013904223) & 0x7fffffff;
-    const idx = s % arr.length;
-    if (!used.has(idx)) {
-      used.add(idx);
-      result.push(arr[idx]!);
-    }
+  const k = count;
+  for (let i = 0; i < k; i++) {
+    s = nextSeed(s);
+    const j = i + (s % (copy.length - i));
+    [copy[i], copy[j]] = [copy[j]!, copy[i]!];
   }
-  return result;
+  return copy.slice(0, k);
+}
+
+function dedupeVocabItems(items: VocabItem[]): VocabItem[] {
+  const seen = new Set<string>();
+  const out: VocabItem[] = [];
+  for (const item of items) {
+    const key = item.word.trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
 }
 
 export async function runVocabReminderSweep(
@@ -72,22 +100,28 @@ export async function runVocabReminderSweep(
 
   ensureWebPushConfigured();
 
-  // Gather all vocab items across all topics.
-  const { data: vocabRows, error: vocabErr } = await db
-    .from("ielts_topic_vocab")
-    .select("items");
-  if (vocabErr) throw vocabErr;
-
-  const allWords: VocabItem[] = [];
-  for (const row of vocabRows ?? []) {
-    if (Array.isArray(row.items)) {
-      for (const item of row.items as VocabItem[]) {
-        if (typeof item?.word === "string" && item.word.trim()) {
-          allWords.push(item);
+  // Gather all vocab items across all topics (paginate — PostgREST default cap per request).
+  const allWordsRaw: VocabItem[] = [];
+  for (let offset = 0; ; offset += VOCAB_PAGE) {
+    const { data: vocabRows, error: vocabErr } = await db
+      .from("ielts_topic_vocab")
+      .select("items")
+      .range(offset, offset + VOCAB_PAGE - 1);
+    if (vocabErr) throw vocabErr;
+    const batch = vocabRows ?? [];
+    for (const row of batch) {
+      if (Array.isArray(row.items)) {
+        for (const item of row.items as VocabItem[]) {
+          if (typeof item?.word === "string" && item.word.trim()) {
+            allWordsRaw.push(item);
+          }
         }
       }
     }
+    if (batch.length < VOCAB_PAGE) break;
   }
+
+  const allWords = dedupeVocabItems(allWordsRaw);
   if (allWords.length === 0) {
     return { sent: 0, errors: 0, skipped: "no vocab items" };
   }
@@ -95,8 +129,8 @@ export async function runVocabReminderSweep(
   // Dedup bucket: floor to nearest 10-minute window.
   const bucket = tenMinuteBucket();
 
-  // Pick 2 distinct random words for this bucket (seed from bucket string).
-  const seed = [...bucket].reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  // Pick 2 distinct random words for this bucket (deterministic per bucket for dedup tags).
+  const seed = hashBucketToSeed(bucket);
   const words = pickRandom(allWords, 2, seed);
 
   // Build one payload per word — word as title, example as body.
