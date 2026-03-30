@@ -5,11 +5,13 @@ import { Button } from "@/features/call-ken/components/base/buttons/button";
 import { ButtonUtility } from "@/features/call-ken/components/base/buttons/button-utility";
 import { TextAreaBase } from "@/features/call-ken/components/base/textarea/textarea";
 import { cx } from "@/features/call-ken/utils/cx";
+
 interface MessageActionTextareaProps {
-    onSubmit: (message: string, file?: File) => void;
+    onSubmit: (message: string, file?: File) => void | Promise<void>;
     className?: string;
     textAreaClassName?: string;
 }
+
 export const MessageActionTextarea = ({ onSubmit, className, textAreaClassName, ...props }: MessageActionTextareaProps) => {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -18,19 +20,8 @@ export const MessageActionTextarea = ({ onSubmit, className, textAreaClassName, 
     const [isDragOver, setIsDragOver] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const formRef = useRef<HTMLFormElement>(null);
-    const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        const formData = new FormData(e.currentTarget);
-        const message = formData.get("message") as string;
-        if (message.trim() || selectedFile) {
-            onSubmit?.(message, selectedFile || undefined);
-            formRef.current?.reset();
-        }
-    };
-    const handleAttachClick = () => {
-        fileInputRef.current?.click();
-    };
-    const setFileFromInput = (file: File | null) => {
+
+    const clearAttachment = () => {
         setSelectedFile(null);
         setImagePreview(null);
         setDocPreview(null);
@@ -38,12 +29,38 @@ export const MessageActionTextarea = ({ onSubmit, className, textAreaClassName, 
             URL.revokeObjectURL(pdfPreviewUrl);
             setPdfPreviewUrl(null);
         }
+        if (fileInputRef.current)
+            fileInputRef.current.value = "";
+    };
+
+    const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        const message = (formData.get("message") as string) ?? "";
+        const file = selectedFile;
+        if (!message.trim() && !file)
+            return;
+        try {
+            await Promise.resolve(onSubmit?.(message, file ?? undefined));
+        }
+        finally {
+            formRef.current?.reset();
+            clearAttachment();
+        }
+    };
+
+    const handleAttachClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const setFileFromInput = (file: File | null) => {
+        clearAttachment();
         if (!file)
             return;
         if (file.type.startsWith("image/")) {
             setSelectedFile(file);
             const reader = new FileReader();
-            reader.onload = (e) => setImagePreview((e.target?.result as string) ?? null);
+            reader.onload = (ev) => setImagePreview((ev.target?.result as string) ?? null);
             reader.readAsDataURL(file);
             return;
         }
@@ -59,43 +76,42 @@ export const MessageActionTextarea = ({ onSubmit, className, textAreaClassName, 
         if (isText) {
             setSelectedFile(file);
             const reader = new FileReader();
-            reader.onload = (e) => setDocPreview((e.target?.result as string) ?? "");
+            reader.onload = (ev) => setDocPreview((ev.target?.result as string) ?? "");
             reader.readAsText(file);
             return;
         }
+        setSelectedFile(null);
         setDocPreview("Unsupported file type. Use .txt, .csv, .md, .json, .pdf, or an image.");
     };
+
     const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
         setFileFromInput(e.target.files?.[0] ?? null);
     };
+
     const handleRemove = () => {
-        setSelectedFile(null);
-        setImagePreview(null);
-        setDocPreview(null);
-        if (pdfPreviewUrl) {
-            URL.revokeObjectURL(pdfPreviewUrl);
-            setPdfPreviewUrl(null);
-        }
-        if (fileInputRef.current)
-            fileInputRef.current.value = "";
+        clearAttachment();
     };
+
     const handleDragOver = (e: DragEvent<HTMLFormElement>) => {
         e.preventDefault();
         e.stopPropagation();
         if (e.dataTransfer.items?.length)
             setIsDragOver(true);
     };
+
     const handleDragLeave = (e: DragEvent<HTMLFormElement>) => {
         e.preventDefault();
         e.stopPropagation();
         setIsDragOver(false);
     };
+
     const handleDrop = (e: DragEvent<HTMLFormElement>) => {
         e.preventDefault();
         e.stopPropagation();
         setIsDragOver(false);
         setFileFromInput(e.dataTransfer.files?.[0] ?? null);
     };
+
     const handlePaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
         const file = e.clipboardData.files?.[0] ??
             Array.from(e.clipboardData.items ?? [])
@@ -104,12 +120,14 @@ export const MessageActionTextarea = ({ onSubmit, className, textAreaClassName, 
         if (file)
             setFileFromInput(file);
     };
+
     const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
-            formRef.current?.requestSubmit();
+            void formRef.current?.requestSubmit();
         }
     };
+
     useEffect(() => {
         const onKey = (e: globalThis.KeyboardEvent) => {
             if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -120,36 +138,89 @@ export const MessageActionTextarea = ({ onSubmit, className, textAreaClassName, 
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
     }, []);
-    const showPanel = (imagePreview || pdfPreviewUrl || docPreview) &&
-        (selectedFile || docPreview);
-    return (<>
-      <form ref={formRef} className={cx("relative flex h-max items-center gap-3", isDragOver && "ring-2 ring-zinc-400 ring-offset-2 ring-dashed dark:ring-zinc-500", className)} onSubmit={handleSubmit} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop} {...props}>
-        <input ref={fileInputRef} type="file" accept="image/*,.txt,.csv,.md,.json,.pdf,application/pdf" onChange={handleFileChange} className="hidden"/>
 
-        <div className="relative flex flex-1 flex-col">
-          <TextAreaBase aria-label="Message" placeholder="Message" name="message" onPaste={handlePaste} onKeyDown={handleKeyDown} className={cx("h-24 sm:h-18 w-full resize-none text-base", textAreaClassName)}/>
-          <p className="mt-1 text-xs text-fg-quaternary whitespace-nowrap overflow-x-auto min-w-0">
-            Enter to send · Shift+Enter new line · ⌘K to attach
-          </p>
-        </div>
+    useEffect(() => () => {
+        if (pdfPreviewUrl)
+            URL.revokeObjectURL(pdfPreviewUrl);
+    }, [pdfPreviewUrl]);
 
-        <div className="absolute right-4 bottom-13 sm:right-3.5 sm:bottom-10 flex items-center gap-2">
-          <ButtonUtility icon={Image01} size="xs" color="tertiary" onClick={handleAttachClick} type="button"/>
-          <Button size="sm" color="link-color" type="submit">
-            Send
-          </Button>
-        </div>
-      </form>
+    const showPanel = Boolean(imagePreview || pdfPreviewUrl || (docPreview && (selectedFile || docPreview)));
 
-      {showPanel && (<div className="fixed inset-2 sm:inset-y-0 sm:right-4 z-50 flex items-center justify-center sm:justify-end">
-          <div className="w-full sm:w-auto rounded-2xl border border-gray-200 bg-white p-3 sm:p-4 shadow-2xl">
-            <div className="flex justify-end">
-              <ButtonUtility icon={X} size="xs" color="tertiary" onClick={handleRemove} type="button"/>
+    return (
+        <form
+            ref={formRef}
+            className={cx(
+                "flex flex-col gap-2",
+                isDragOver && "rounded-xl ring-2 ring-dashed ring-zinc-400 ring-offset-2 dark:ring-zinc-500",
+                className,
+            )}
+            onSubmit={(e) => void handleSubmit(e)}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            {...props}
+        >
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,.txt,.csv,.md,.json,.pdf,application/pdf"
+                onChange={handleFileChange}
+                className="hidden"
+            />
+
+            {showPanel && (
+                <div className="relative w-full overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800/80">
+                    <div className="flex justify-end border-b border-zinc-200 px-2 py-1 dark:border-zinc-600">
+                        <ButtonUtility icon={X} size="xs" color="tertiary" onClick={handleRemove} type="button" />
+                    </div>
+                    <div className="max-h-[min(40vh,320px)] w-full overflow-y-auto overscroll-contain">
+                        {imagePreview ? (
+                            <img
+                                src={imagePreview}
+                                alt="Preview"
+                                className="mx-auto max-h-[min(40vh,320px)] w-full object-contain p-2"
+                            />
+                        ) : pdfPreviewUrl ? (
+                            <iframe
+                                src={pdfPreviewUrl}
+                                title="PDF preview"
+                                className="h-[min(40vh,320px)] w-full border-0 bg-white dark:bg-zinc-900"
+                            />
+                        ) : (
+                            <pre className="whitespace-pre-wrap p-3 text-xs text-zinc-800 dark:text-zinc-200">
+                                {docPreview}
+                            </pre>
+                        )}
+                    </div>
+                    {selectedFile && (
+                        <p className="border-t border-zinc-200 px-3 py-1.5 text-xs text-zinc-500 dark:border-zinc-600 dark:text-zinc-400">
+                            {selectedFile.name}
+                        </p>
+                    )}
+                </div>
+            )}
+
+            <div className="flex items-end gap-2">
+                <div className="relative flex min-w-0 flex-1 flex-col">
+                    <TextAreaBase
+                        aria-label="Message"
+                        placeholder="Message"
+                        name="message"
+                        onPaste={handlePaste}
+                        onKeyDown={handleKeyDown}
+                        className={cx("h-24 w-full resize-none text-base sm:h-20", textAreaClassName)}
+                    />
+                    <p className="mt-1 min-w-0 overflow-x-auto whitespace-nowrap text-xs text-fg-quaternary">
+                        Enter to send · Shift+Enter new line · ⌘K to attach
+                    </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2 pb-6">
+                    <ButtonUtility icon={Image01} size="xs" color="tertiary" onClick={handleAttachClick} type="button" />
+                    <Button size="sm" color="link-color" type="submit">
+                        Send
+                    </Button>
+                </div>
             </div>
-            {imagePreview ? (<img src={imagePreview} alt="Preview" className="mt-1 h-[70vh] sm:h-[800px] w-full sm:w-[600px] max-h-[90vh] sm:max-w-[65vw] object-contain rounded-xl border border-gray-100 bg-black/5"/>) : pdfPreviewUrl ? (<iframe src={pdfPreviewUrl} title="PDF preview" className="mt-1 h-[70vh] sm:h-[800px] w-full sm:w-[600px] max-h-[90vh] sm:max-w-[65vw] rounded-xl border border-gray-100 bg-gray-50"/>) : (<pre className="mt-1 h-[70vh] sm:h-[800px] w-full sm:w-[600px] max-h-[90vh] sm:max-w-[65vw] overflow-y-auto whitespace-pre-wrap rounded-xl border border-gray-100 bg-gray-50 p-3 text-xs">
-                {docPreview}
-              </pre>)}
-          </div>
-        </div>)}
-    </>);
+        </form>
+    );
 };

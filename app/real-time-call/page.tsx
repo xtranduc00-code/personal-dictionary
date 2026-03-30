@@ -28,8 +28,7 @@ export default function RealTimeCallPage() {
             }
         });
     }, []);
-    return (<div className="-mx-4 min-h-full w-[calc(100%+2rem)] overflow-y-auto bg-zinc-50 pt-2 md:-mx-8 md:w-[calc(100%+4rem)] md:pt-4 dark:bg-zinc-950" style={{
-            minHeight: "calc(100vh - 3rem)",
+    return (<div className="-mx-4 flex min-h-0 w-[calc(100%+2rem)] flex-1 flex-col bg-zinc-50 pt-2 md:-mx-8 md:w-[calc(100%+4rem)] md:pt-4 dark:bg-zinc-950" style={{
             fontFamily: "var(--font-geist-sans), sans-serif",
         }}>
       <CallKenPage getApiKey={getApiKey}/>

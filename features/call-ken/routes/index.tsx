@@ -284,8 +284,8 @@ export function CallKenPage({
     window.localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
   };
   return (
-    <div className="p-2 min-h-full pb-20 sm:pb-24 flex items-center justify-center w-full bg-zinc-50 dark:bg-zinc-950">
-      <div className="p-3 sm:p-4 rounded-2xl border border-zinc-200 shadow-sm mx-auto max-w-full w-full sm:w-xl bg-white dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="flex w-full min-w-0 flex-1 flex-col justify-start bg-zinc-50 p-2 pb-24 dark:bg-zinc-950 sm:pb-28">
+      <div className="mx-auto flex w-full min-w-0 max-w-full flex-col rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:max-w-xl sm:p-4">
         <div className="relative flex justify-between flex-col rounded-lg p-4 sm:p-8 items-center gap-4 bg-zinc-50 dark:bg-zinc-800/50">
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 z-10 text-center">
             English Realtime Tutor
@@ -653,7 +653,7 @@ When speaking aloud:
           )}
         </div>
 
-        <ol className="flex h-full flex-col gap-4 overflow-y-auto px-4 py-6 md:px-6 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-100 dark:[&::-webkit-scrollbar-track]:bg-zinc-800">
+        <ol className="flex flex-col gap-4 px-4 py-4 md:px-6 md:py-6 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-100 dark:[&::-webkit-scrollbar-track]:bg-zinc-800">
           {session?.history.map((item) => {
             if (item.type === "message") {
               const content = item.content as MessageContentPart[];
@@ -823,6 +823,20 @@ When speaking aloud:
                     {
                       type: "input_text",
                       text: `Here is my vocabulary or notes:\n\n${text}`,
+                    },
+                  ],
+                });
+              } else if (
+                file.type === "application/pdf" ||
+                file.name.toLowerCase().endsWith(".pdf")
+              ) {
+                session.sendMessage({
+                  role: "user",
+                  type: "message",
+                  content: [
+                    {
+                      type: "input_text",
+                      text: `[Uploaded PDF: "${file.name}" (${Math.round(file.size / 1024)} KB). I’m sharing it for context — please help me with this material based on what I say next, or ask me to summarize or quote the parts that matter.]`,
                     },
                   ],
                 });
