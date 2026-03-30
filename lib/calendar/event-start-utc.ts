@@ -8,7 +8,7 @@ export function getCalendarEventStorageTimeZone(): string {
   return (
     process.env.NEXT_PUBLIC_CALENDAR_EVENT_STORAGE_TIMEZONE?.trim() ||
     process.env.CALENDAR_EVENT_STORAGE_TIMEZONE?.trim() ||
-    "Europe/Prague"
+    "Asia/Ho_Chi_Minh"
   );
 }
 
