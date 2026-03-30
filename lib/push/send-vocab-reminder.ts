@@ -99,20 +99,18 @@ export async function runVocabReminderSweep(
   const seed = [...bucket].reduce((acc, c) => acc + c.charCodeAt(0), 0);
   const words = pickRandom(allWords, 2, seed);
 
-  // Build notification body.
-  const lines = words.map((w) => {
-    const parts = [w.word];
-    if (w.explanation) parts.push(w.explanation);
-    if (w.example) parts.push(`"${w.example}"`);
-    return parts.join(" — ");
-  });
-  const body = lines.join("\n");
-
-  const payload = JSON.stringify({
-    title: "Vocab reminder",
-    body,
-    url: `${siteUrl.replace(/\/$/, "")}/ielts-speaking`,
-    tag: `vocab-${bucket}`,
+  // Build one payload per word — cleaner to read as separate notifications.
+  const payloads = words.map((w, i) => {
+    const body = [
+      w.explanation ?? "",
+      w.example ? `"${w.example}"` : "",
+    ].filter(Boolean).join(" · ");
+    return JSON.stringify({
+      title: w.word,
+      body: body || "—",
+      url: `${siteUrl.replace(/\/$/, "")}/ielts-speaking`,
+      tag: `vocab-${bucket}-${i}`,
+    });
   });
 
   // Get all push subscriptions grouped by user.
@@ -140,19 +138,21 @@ export async function runVocabReminderSweep(
     if (!shouldSend) continue;
 
     for (const sub of userSubs) {
-      try {
-        await webpush.sendNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          payload,
-          { TTL: 600, urgency: "normal" },
-        );
-        sent += 1;
-      } catch (e: unknown) {
-        errors += 1;
-        const wpe = e as { statusCode?: number; body?: string };
-        const errBody = typeof wpe.body === "string" ? wpe.body : undefined;
-        if (shouldDropPushSubscription(wpe.statusCode, errBody)) {
-          await removeDeadSubscription(db, sub.endpoint);
+      for (const payload of payloads) {
+        try {
+          await webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            payload,
+            { TTL: 600, urgency: "normal" },
+          );
+          sent += 1;
+        } catch (e: unknown) {
+          errors += 1;
+          const wpe = e as { statusCode?: number; body?: string };
+          const errBody = typeof wpe.body === "string" ? wpe.body : undefined;
+          if (shouldDropPushSubscription(wpe.statusCode, errBody)) {
+            await removeDeadSubscription(db, sub.endpoint);
+          }
         }
       }
     }
