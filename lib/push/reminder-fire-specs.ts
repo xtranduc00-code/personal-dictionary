@@ -26,27 +26,25 @@ export const REMINDER_FIRE_SPECS: readonly ReminderFireSpec[] = [
   {
     offsetMs: MS_DAY,
     kind: "before_24h",
-    title: "Lịch · 1 day left",
-    calendarBody: (t, when) =>
-      `${t} — ${when} · 1 day until start · còn 1 ngày`,
+    title: "Calendar · 1 day left",
+    calendarBody: (t, when) => `${t} — ${when} · 1 day until start`,
     scheduleBody: (booker, column, when) =>
-      `${booker} (${column}) — ${when} · 1 day until start · còn 1 ngày`,
+      `${booker} (${column}) — ${when} · 1 day until start`,
   },
   {
     offsetMs: MS_HOUR,
     kind: "before_1h",
-    title: "Lịch · 1 hour left",
-    calendarBody: (t, when) =>
-      `${t} — ${when} · 1 hour until start · còn 1 giờ`,
+    title: "Calendar · 1 hour left",
+    calendarBody: (t, when) => `${t} — ${when} · 1 hour until start`,
     scheduleBody: (booker, column, when) =>
-      `${booker} (${column}) — ${when} · 1 hour until start · còn 1 giờ`,
+      `${booker} (${column}) — ${when} · 1 hour until start`,
   },
   {
     offsetMs: 10 * MS_MIN,
     kind: "before_10",
-    title: "Sắp đến giờ · Up soon",
-    calendarBody: (t, when) => `${t} — ${when} · 10 minutes · 10 phút nữa`,
+    title: "Starting soon",
+    calendarBody: (t, when) => `${t} — ${when} · 10 minutes until start`,
     scheduleBody: (booker, column, when) =>
-      `${booker} (${column}) — ${when} · 10 minutes · 10 phút nữa`,
+      `${booker} (${column}) — ${when} · 10 minutes until start`,
   },
 ];
