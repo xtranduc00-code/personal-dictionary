@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { runCalendarReminderSweep } from "@/lib/push/send-calendar-reminder";
 import { runStudyScheduleReminderSweep } from "@/lib/push/send-study-schedule-reminder";
+import { runVocabReminderSweep } from "@/lib/push/send-vocab-reminder";
 import { getSiteUrl } from "@/lib/site-url";
 import { getSupabaseServiceClient } from "@/lib/supabase-server";
 
@@ -37,15 +38,19 @@ export async function GET(req: Request) {
       );
     }
     const siteUrl = getSiteUrl();
-    const calendar = await runCalendarReminderSweep(db, siteUrl);
-    const studySchedule = await runStudyScheduleReminderSweep(db, siteUrl);
+    const [calendar, studySchedule, vocab] = await Promise.all([
+      runCalendarReminderSweep(db, siteUrl),
+      runStudyScheduleReminderSweep(db, siteUrl),
+      runVocabReminderSweep(db, siteUrl),
+    ]);
     return NextResponse.json({
       ok: true,
       checked: calendar.checked + studySchedule.checked,
-      sent: calendar.sent + studySchedule.sent,
-      errors: calendar.errors + studySchedule.errors,
+      sent: calendar.sent + studySchedule.sent + vocab.sent,
+      errors: calendar.errors + studySchedule.errors + vocab.errors,
       calendar,
       studySchedule,
+      vocab,
     });
   } catch (e) {
     console.error("calendar-reminders cron", e);
