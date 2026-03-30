@@ -696,6 +696,14 @@ export function StudyScheduleGrid() {
   }, [loadSchedule]);
 
   useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    const id = setInterval(() => {
+      fetch("/api/push/dev-cron", { method: "POST" }).catch(() => {});
+    }, 15_000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
     const endDrag = () => {
       dragPaintingRef.current = false;
     };

@@ -1,4 +1,5 @@
 "use client";
+import React from "react";
 import { CalendarPushSettings } from "@/components/calendar-push-settings";
 import { useI18n } from "@/components/i18n-provider";
 import { Tooltip } from "@/components/ui/Tooltip";
@@ -113,29 +114,10 @@ const COLOR_CLASSES: Record<
       "bg-lime-600/90 text-zinc-950 border-l-[4px] shadow-sm ring-1 ring-black/10",
   },
 };
-const TIME_SLOT_MINUTES = 15;
-function buildTimeOptions(): string[] {
-  const out: string[] = [];
-  for (let h = 0; h < 24; h++) {
-    for (let m = 0; m < 60; m += TIME_SLOT_MINUTES) {
-      out.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
-    }
-  }
-  return out;
-}
-const TIME_OPTIONS = buildTimeOptions();
 function snapTimeToSlot(timeStr: string | undefined): string {
-  if (!timeStr || !/^\d{1,2}:\d{2}$/.test(timeStr))
-    return TIME_OPTIONS[0] ?? "00:00";
-  const [hh, mm] = timeStr.split(":").map(Number);
-  const mins = (hh ?? 0) * 60 + (mm ?? 0);
-  const slot = TIME_SLOT_MINUTES;
-  const snapped = Math.round(mins / slot) * slot;
-  const maxM = 24 * 60 - slot;
-  const capped = Math.min(Math.max(0, snapped), maxM);
-  const h = Math.floor(capped / 60);
-  const m = capped % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    if (!timeStr || !/^\d{1,2}:\d{2}$/.test(timeStr))
+        return "00:00";
+    return timeStr.slice(0, 5);
 }
 const COLOR_OPTIONS: EventColor[] = [
   "blue",
@@ -273,6 +255,23 @@ function DateTimeRow({
 }) {
   const [date, timeRaw] = value.split("T");
   const time = snapTimeToSlot(timeRaw);
+  const [localTime, setLocalTime] = React.useState(time);
+  const committedTimeRef = React.useRef(time);
+
+  // Sync local state when external value changes (e.g. parent resets end time)
+  React.useEffect(() => {
+    if (time !== committedTimeRef.current) {
+      setLocalTime(time);
+      committedTimeRef.current = time;
+    }
+  }, [time]);
+
+  const commitTime = (v: string) => {
+    if (!v) return;
+    committedTimeRef.current = v;
+    onChange(`${date}T${v}`);
+  };
+
   const baseCls =
     "rounded-lg border border-zinc-300 bg-white px-2 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-blue-400";
   const lbl =
@@ -291,18 +290,15 @@ function DateTimeRow({
       </div>
       <div className="w-[5.75rem] shrink-0 space-y-1">
         <div className={lbl}>{timeLabel}</div>
-        <select
-          value={time}
-          onChange={(e) => onChange(`${date}T${e.target.value}`)}
-          className={`${baseCls} w-full tabular-nums`}
+        <input
+          type="time"
+          value={localTime}
+          onChange={(e) => setLocalTime(e.target.value)}
+          onBlur={(e) => commitTime(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") commitTime((e.target as HTMLInputElement).value); }}
+          className={`${baseCls} w-full tabular-nums [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-inner-spin-button]:hidden`}
           aria-label={timeLabel}
-        >
-          {TIME_OPTIONS.map((slot) => (
-            <option key={slot} value={slot}>
-              {slot}
-            </option>
-          ))}
-        </select>
+        />
       </div>
     </div>
   );

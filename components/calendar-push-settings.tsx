@@ -32,6 +32,7 @@ export function CalendarPushSettings() {
   const [subscriptionCount, setSubscriptionCount] = useState(0);
   const [busy, setBusy] = useState(false);
   const [testBusy, setTestBusy] = useState(false);
+  const isDev = process.env.NODE_ENV === "development";
   const [browserSubscribed, setBrowserSubscribed] = useState(false);
   const enableInFlight = useRef(false);
 
@@ -78,6 +79,15 @@ export function CalendarPushSettings() {
   useEffect(() => {
     void syncBrowserSubscription();
   }, [syncBrowserSubscription, subscriptionCount]);
+
+  // Dev: auto-poll the reminder sweep every 15s so notifications fire without manual steps.
+  useEffect(() => {
+    if (!isDev) return;
+    const id = setInterval(() => {
+      fetch("/api/push/dev-cron", { method: "POST" }).catch(() => {});
+    }, 15_000);
+    return () => clearInterval(id);
+  }, [isDev]);
 
   const registerSw = useCallback(async () => {
     if (!("serviceWorker" in navigator)) return null;
