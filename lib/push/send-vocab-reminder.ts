@@ -25,6 +25,30 @@ function normalizeWordKey(word: string): string {
   return word.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+const TRIVIAL_PUSH_WORDS = new Set(
+  [
+    // common fillers / glue words that tend to produce low-signal pushes
+    "and",
+    "also",
+    "can",
+    "like",
+    "see",
+    "bet",
+    "quit",
+    "numbers",
+    "generally",
+    "improve",
+    "important",
+    "easy",
+    "tired",
+    "hungry",
+    "wrong",
+    "scared",
+    "lazy",
+    // keep list small; heuristics below catch most remaining basics
+  ].map((w) => w.toLowerCase()),
+);
+
 function examplePoolForItem(item: VocabItem): string[] {
   const pool: string[] = [];
   const add = (s: unknown) => {
@@ -152,6 +176,19 @@ function stableDailyWordOrder(words: VocabItem[], dayKey: string): VocabItem[] {
   });
 }
 
+function isTrivialForPush(item: VocabItem): boolean {
+  const raw = normalizeWordKey(item.word);
+  if (!raw) return true;
+  // If the "word" is a phrase, keep it (phrases are higher signal).
+  if (raw.includes(" ")) return false;
+  // If it contains punctuation/IPA/extra markers, it's usually not trivial.
+  if (/[^a-z-]/i.test(raw)) return false;
+  if (TRIVIAL_PUSH_WORDS.has(raw)) return true;
+  // Very short single words are usually low-signal for pushes.
+  if (raw.length <= 3) return true;
+  return false;
+}
+
 export async function runVocabReminderSweep(
   db: SupabaseClient,
   siteUrl: string,
@@ -194,7 +231,9 @@ export async function runVocabReminderSweep(
   // Walk the whole vocab list deterministically per-day:
   // each 10-minute bucket advances the pointer, so it won't get stuck on a few words.
   const dayKey = bucketDayKey(bucket);
-  const ordered = stableDailyWordOrder(allWords, dayKey);
+  const candidates = allWords.filter((w) => !isTrivialForPush(w));
+  const pool = candidates.length >= 8 ? candidates : allWords;
+  const ordered = stableDailyWordOrder(pool, dayKey);
   const slotIdx = bucketSlotIndex(bucket);
   const start = (slotIdx * 2) % ordered.length;
   const words =
