@@ -12,7 +12,45 @@ type VocabItem = {
   word: string;
   explanation?: string;
   example?: string;
+  /**
+   * Optional list of extra example sentences (same word, different usage).
+   * Push picks one per 10-min bucket so the line changes over time without any API call.
+   */
+  examples?: string[];
+  /** Preferred: fully-formed sentences generated and stored ahead of time. */
+  sentences?: string[];
 };
+
+function normalizeWordKey(word: string): string {
+  return word.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function examplePoolForItem(item: VocabItem): string[] {
+  const pool: string[] = [];
+  const add = (s: unknown) => {
+    if (typeof s !== "string") return;
+    const t = s.trim();
+    if (!t) return;
+    if (!pool.some((x) => x.toLowerCase() === t.toLowerCase())) pool.push(t);
+  };
+  if (Array.isArray(item.sentences)) {
+    for (const s of item.sentences) add(s);
+  }
+  add(item.example);
+  if (Array.isArray(item.examples)) {
+    for (const ex of item.examples) add(ex);
+  }
+  return pool;
+}
+
+/** Deterministic “random” line for this word in this time bucket (cycles if pool has many). */
+function pickExampleForPushBody(item: VocabItem, bucket: string): string {
+  const pool = examplePoolForItem(item);
+  if (pool.length === 0) return "";
+  if (pool.length === 1) return pool[0]!;
+  const seed = hashBucketToSeed(`${bucket}:${normalizeWordKey(item.word)}`);
+  return pool[seed % pool.length]!;
+}
 
 /**
  * Dedup bucket: floor current time to the nearest 10-minute mark.
@@ -24,6 +62,21 @@ function tenMinuteBucket(): string {
   const hhmm = formatInTimeZone(now, tz, "yyyy-MM-dd_HH:mm");
   // Replace the last digit of minutes with 0 to get the 10-min bucket.
   return hhmm.slice(0, hhmm.length - 1) + "0";
+}
+
+function bucketSlotIndex(bucket: string): number {
+  // bucket shape: yyyy-MM-dd_HH:m0
+  const m = /^(\d{4}-\d{2}-\d{2})_(\d{2}):(\d{2})$/.exec(bucket);
+  if (!m) return 0;
+  const hh = Number(m[2]);
+  const mm = Number(m[3]);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return 0;
+  return Math.max(0, Math.min(24 * 6 - 1, hh * 6 + Math.floor(mm / 10)));
+}
+
+function bucketDayKey(bucket: string): string {
+  const m = /^(\d{4}-\d{2}-\d{2})_/.exec(bucket);
+  return m?.[1] ?? bucket.slice(0, 10);
 }
 
 async function tryLogVocabSent(
@@ -82,12 +135,21 @@ function dedupeVocabItems(items: VocabItem[]): VocabItem[] {
   const seen = new Set<string>();
   const out: VocabItem[] = [];
   for (const item of items) {
-    const key = item.word.trim().toLowerCase();
+    const key = normalizeWordKey(item.word);
     if (!key || seen.has(key)) continue;
     seen.add(key);
     out.push(item);
   }
   return out;
+}
+
+function stableDailyWordOrder(words: VocabItem[], dayKey: string): VocabItem[] {
+  const daySeed = hashBucketToSeed(dayKey);
+  return [...words].sort((a, b) => {
+    const ha = hashBucketToSeed(`${daySeed}:${normalizeWordKey(a.word)}`);
+    const hb = hashBucketToSeed(`${daySeed}:${normalizeWordKey(b.word)}`);
+    return ha - hb;
+  });
 }
 
 export async function runVocabReminderSweep(
@@ -129,16 +191,24 @@ export async function runVocabReminderSweep(
   // Dedup bucket: floor to nearest 10-minute window.
   const bucket = tenMinuteBucket();
 
-  // Pick 2 distinct random words for this bucket (deterministic per bucket for dedup tags).
-  const seed = hashBucketToSeed(bucket);
-  const words = pickRandom(allWords, 2, seed);
+  // Walk the whole vocab list deterministically per-day:
+  // each 10-minute bucket advances the pointer, so it won't get stuck on a few words.
+  const dayKey = bucketDayKey(bucket);
+  const ordered = stableDailyWordOrder(allWords, dayKey);
+  const slotIdx = bucketSlotIndex(bucket);
+  const start = (slotIdx * 2) % ordered.length;
+  const words =
+    ordered.length >= 2
+      ? [ordered[start]!, ordered[(start + 1) % ordered.length]!]
+      : [ordered[start]!];
 
-  // Build one payload per word — word as title, example as body.
+  // Build one payload per word — word as title, rotated example as body.
   const payloads = words.map((w, i) => {
-    const body = w.example ? `"${w.example}"` : "";
+    const ex = pickExampleForPushBody(w, bucket);
+    const body = ex || " ";
     return JSON.stringify({
       title: w.word,
-      body: body || " ",
+      body,
       url: `${siteUrl.replace(/\/$/, "")}/ielts-speaking`,
       tag: `vocab-${bucket}-${i}`,
     });

@@ -19,6 +19,8 @@ export type VocabItem = {
     word: string;
     explanation?: string;
     example?: string;
+    examples?: string[];
+    sentences?: string[];
 };
 export type PracticeAttempt = {
     answer: string;

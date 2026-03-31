@@ -99,16 +99,18 @@ export async function PATCH(req: Request, { params }: {
         if (index >= items.length) {
             return NextResponse.json({ error: "index out of range" }, { status: 400 });
         }
-        const item: {
-            word: string;
-            explanation?: string;
-            example?: string;
-        } = { word };
+        // Preserve any extra fields (e.g. examples[], sentences[]) added by migrations/scripts.
+        const prev = (items[index] && typeof items[index] === "object") ? items[index] : {};
+        const next: any = { ...prev, word };
         if (explanation)
-            item.explanation = explanation;
+            next.explanation = explanation;
+        else
+            delete next.explanation;
         if (example)
-            item.example = example;
-        items[index] = item;
+            next.example = example;
+        else
+            delete next.example;
+        items[index] = next;
         const { error } = await supabase
             .from("ielts_topic_vocab")
             .upsert({ topic_id: topicId, items }, { onConflict: "topic_id" });
