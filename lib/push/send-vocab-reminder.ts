@@ -134,26 +134,7 @@ function hashBucketToSeed(bucket: string): number {
   return h >>> 0;
 }
 
-function nextSeed(s: number): number {
-  return (Math.imul(s, 1664525) + 1013904223) >>> 0;
-}
-
-/**
- * Seeded partial Fisher–Yates: shuffles only the first `count` slots so draws
- * use the full array fairly (no rejection loop, no modulo bias loops).
- */
-function pickRandom<T>(arr: T[], count: number, seed: number): T[] {
-  if (arr.length <= count) return [...arr];
-  const copy = arr.slice();
-  let s = seed;
-  const k = count;
-  for (let i = 0; i < k; i++) {
-    s = nextSeed(s);
-    const j = i + (s % (copy.length - i));
-    [copy[i], copy[j]] = [copy[j]!, copy[i]!];
-  }
-  return copy.slice(0, k);
-}
+// (intentionally unused now) kept in history for earlier random-pick approach
 
 function dedupeVocabItems(items: VocabItem[]): VocabItem[] {
   const seen = new Set<string>();
@@ -187,6 +168,14 @@ function isTrivialForPush(item: VocabItem): boolean {
   // Very short single words are usually low-signal for pushes.
   if (raw.length <= 3) return true;
   return false;
+}
+
+function hasSentenceForPush(item: VocabItem): boolean {
+  const arr = Array.isArray(item.sentences) ? item.sentences : [];
+  return arr.some((s) => {
+    const t = typeof s === "string" ? s.trim() : "";
+    return t.length >= 12 && /\s/.test(t) && /[.?!]/.test(t);
+  });
 }
 
 export async function runVocabReminderSweep(
@@ -231,8 +220,14 @@ export async function runVocabReminderSweep(
   // Walk the whole vocab list deterministically per-day:
   // each 10-minute bucket advances the pointer, so it won't get stuck on a few words.
   const dayKey = bucketDayKey(bucket);
-  const candidates = allWords.filter((w) => !isTrivialForPush(w));
-  const pool = candidates.length >= 8 ? candidates : allWords;
+  const sentencePool = allWords.filter((w) => hasSentenceForPush(w));
+  const nonTrivial = allWords.filter((w) => !isTrivialForPush(w));
+  const pool =
+    sentencePool.length >= 8
+      ? sentencePool
+      : nonTrivial.length >= 8
+        ? nonTrivial
+        : allWords;
   const ordered = stableDailyWordOrder(pool, dayKey);
   const slotIdx = bucketSlotIndex(bucket);
   const start = (slotIdx * 2) % ordered.length;

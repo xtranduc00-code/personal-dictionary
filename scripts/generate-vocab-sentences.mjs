@@ -61,14 +61,32 @@ function looksLikeSentence(s) {
   return /\s/.test(t) && /[.?!]/.test(t);
 }
 
+function extractTargetFromWord(wordRaw) {
+  // User entries often look like: "emphasize (V) /ˈem.fə.saɪz/" or "hungry 🇭🇺"
+  // We want the surface form the model should include in sentences.
+  const w = clean(wordRaw);
+  if (!w) return "";
+  // If it's a comparison form like "expensive (adj) >< cheap", keep only the left side.
+  const beforeOpp = w.split("><")[0]?.trim() ?? w;
+  // Prefer the part before IPA slash.
+  const beforeSlash = beforeOpp.split("/")[0]?.trim() ?? beforeOpp;
+  // Drop trailing POS marker in parentheses.
+  const beforeParen = beforeSlash.replace(/\s*\([^)]*\)\s*$/, "").trim();
+  // Keep emoji/flags out of target.
+  const noEmoji = beforeParen.replace(/[\p{Extended_Pictographic}]/gu, "").trim();
+  // Normalize spaces again.
+  return clean(noEmoji);
+}
+
 async function generateSentencesForItem(item) {
   const word = clean(item.word);
+  const target = extractTargetFromWord(word);
   const explanation = clean(item.explanation);
   const patterns = Array.isArray(item.examples) ? item.examples.map(clean).filter(Boolean) : [];
 
   const prompt = [
     "You are helping a learner prepare for IELTS Speaking.",
-    `Create ${targetCount} natural, short example sentences that use the exact target: ${JSON.stringify(word)}.`,
+    `Create ${targetCount} natural, short example sentences that use the exact target: ${JSON.stringify(target || word)}.`,
     "Rules:",
     "- Each sentence must be standalone and natural.",
     "- Keep them under 120 characters if possible.",
@@ -105,7 +123,8 @@ async function generateSentencesForItem(item) {
     const t = clean(s);
     if (!t) continue;
     // ensure it contains the target (case-insensitive)
-    if (!t.toLowerCase().includes(word.toLowerCase())) continue;
+    const mustContain = (target || word).toLowerCase();
+    if (mustContain && !t.toLowerCase().includes(mustContain)) continue;
     uniq(out, t);
   }
 
