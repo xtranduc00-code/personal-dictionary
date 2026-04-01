@@ -409,3 +409,73 @@ body {
     transition: none;
   }
 }
+
+/* Watch party: true viewport fill in Element.requestFullscreen — avoids empty band under controls */
+.watch-party-video-stage:fullscreen {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  border-radius: 0;
+  border: none;
+  background: #000;
+}
+.watch-party-video-stage:fullscreen .watch-party-video-area {
+  flex: 1 1 0%;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.watch-party-video-stage:fullscreen .watch-party-controls {
+  flex-shrink: 0;
+}
+
+.watch-party-video-stage:-webkit-full-screen {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  border-radius: 0;
+  border: none;
+  background: #000;
+}
+.watch-party-video-stage:-webkit-full-screen .watch-party-video-area {
+  flex: 1 1 0%;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.watch-party-video-stage:-webkit-full-screen .watch-party-controls {
+  flex-shrink: 0;
+}
+
+.watch-party-video-stage:-moz-full-screen {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  border-radius: 0;
+  border: none;
+  background: #000;
+}
+.watch-party-video-stage:-moz-full-screen .watch-party-video-area {
+  flex: 1 1 0%;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.watch-party-video-stage:-moz-full-screen .watch-party-controls {
+  flex-shrink: 0;
+}

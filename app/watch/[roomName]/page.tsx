@@ -139,10 +139,12 @@ export default function WatchRoomPage() {
     }
 
     return (
-        <WatchPartySession
-            token={state.token}
-            serverUrl={state.serverUrl}
-            roomDisplayName={state.room}
-        />
+        <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+            <WatchPartySession
+                token={state.token}
+                serverUrl={state.serverUrl}
+                roomDisplayName={state.room}
+            />
+        </div>
     );
 }

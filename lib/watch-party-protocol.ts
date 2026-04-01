@@ -58,6 +58,7 @@ export function applyRemoteVideoState(
     video: HTMLVideoElement,
     currentTime: number,
     playing: boolean,
+    onPlayBlocked?: () => void,
 ): void {
     if (!Number.isFinite(currentTime) || currentTime < 0) {
         return;
@@ -69,7 +70,7 @@ export function applyRemoteVideoState(
     if (playing) {
         if (video.paused) {
             void video.play().catch(() => {
-                /* user gesture / autoplay policy */
+                onPlayBlocked?.();
             });
         }
     }
