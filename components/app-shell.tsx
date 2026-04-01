@@ -20,7 +20,11 @@ export function AppShell({ children }: {
     const isStandaloneAuth = Boolean(pathname && STANDALONE_AUTH_PATHS.has(pathname));
 
     /** Meet hub + in-call: light-first soft neutrals; dark: immersive shell */
-    const isMeetShell = pathname === "/call" || pathname.startsWith("/call/");
+    const isMeetShell =
+        pathname === "/call" ||
+        pathname.startsWith("/call/") ||
+        pathname === "/watch" ||
+        pathname.startsWith("/watch/");
     const mainClass = [
         "relative flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-x-hidden",
         isStandaloneAuth ? "overflow-hidden" : "md:overflow-hidden",

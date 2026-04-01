@@ -13,7 +13,7 @@ import {
 import { NavAccountFooter } from "@/components/nav-account-footer";
 import { ProfileModal } from "@/components/profile-modal";
 import { SecurityModal } from "@/components/security-modal";
-import { BookOpen, BookMarked, BookText, Bot, CalendarClock, CalendarDays, ChevronLeft, ChevronRight, Cloud, FileText, FolderOpen, GraduationCap, Headphones, Image as LucideImage, History, Home, Languages, LayoutDashboard, Layers, LayoutGrid, LibraryBig, LogIn, LogOut, Mail, Menu, Mic, Moon, NotebookText, PenLine, PhoneCall, Search, Sparkles, Star, Sun, Table2, UserCircle, Video, X, type LucideIcon, } from "lucide-react";
+import { BookOpen, BookMarked, BookText, Bot, CalendarClock, CalendarDays, ChevronLeft, ChevronRight, Clapperboard, Cloud, FileText, FolderOpen, GraduationCap, Headphones, Image as LucideImage, History, Home, Languages, LayoutDashboard, Layers, LayoutGrid, LibraryBig, LogIn, LogOut, Mail, Menu, Mic, Moon, NotebookText, PenLine, PhoneCall, Search, Sparkles, Star, Sun, Table2, UserCircle, Video, X, type LucideIcon, } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useMeetCallOptional } from "@/lib/meet-call-context";
 import { CLEAR_NAV_QUICK_SEARCH_EVENT } from "@/lib/nav-quick-search-events";
@@ -62,6 +62,7 @@ const scheduleSectionLinks: {
     { href: "/calendar", labelKey: "calendar", icon: CalendarDays },
     { href: "/study-schedule", labelKey: "studySchedule", icon: Table2 },
     { href: "/call", labelKey: "meets", icon: PhoneCall },
+    { href: "/watch", labelKey: "watchTogetherNav", icon: Clapperboard },
     { href: "/notes", labelKey: "notes", icon: FileText },
 ];
 const portfolioSectionLinks: {

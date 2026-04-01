@@ -431,6 +431,19 @@ export const translations = {
     meetsPeopleMany: "{n} in call",
     meetsCallTimerHint: "Time since connected",
     meetsEndCall: "End call",
+    watchTogetherNav: "Watch together",
+    watchHubBadge: "Synced playback",
+    watchHubTitle: "Watch video in sync",
+    watchHubSubtitle:
+        "Same room name as your partner. Each device plays a local copy of the file—nothing is uploaded. Play, pause, and seek stay aligned.",
+    watchTogetherTitle: "Watch together",
+    watchTogetherHint:
+        "Pick the same video file on each device. Controls sync over the room; video bytes stay on your machine.",
+    watchTogetherChooseFile: "Choose video file",
+    watchTogetherNoFile: "No file selected",
+    watchTogetherSyncNow: "Sync now",
+    watchTogetherCopyLink: "Copy room link",
+    watchTogetherConnected: "Connected",
     meetsArtifactsTitle: "Record & export",
     meetsArtifactsLoading: "Syncing…",
     meetsArtifactsHintLocal:
@@ -1580,6 +1593,19 @@ export const translations = {
     meetsPeopleMany: "{n} người trong phòng",
     meetsCallTimerHint: "Thời gian từ lúc kết nối",
     meetsEndCall: "Kết thúc",
+    watchTogetherNav: "Xem cùng nhau",
+    watchHubBadge: "Xem đồng bộ",
+    watchHubTitle: "Xem video đồng bộ",
+    watchHubSubtitle:
+        "Cùng tên phòng với bạn học. Mỗi máy mở một bản file video cục bộ—không tải video lên server. Play, pause, tua được đồng bộ.",
+    watchTogetherTitle: "Xem cùng nhau",
+    watchTogetherHint:
+        "Mỗi người chọn cùng một file video trên máy mình. Điều khiển đồng bộ qua phòng; dữ liệu video chỉ ở máy bạn.",
+    watchTogetherChooseFile: "Chọn file video",
+    watchTogetherNoFile: "Chưa chọn file",
+    watchTogetherSyncNow: "Đồng bộ ngay",
+    watchTogetherCopyLink: "Copy link phòng",
+    watchTogetherConnected: "Đã kết nối",
     meetsArtifactsTitle: "Ghi & xuất file",
     meetsArtifactsLoading: "Đang đồng bộ…",
     meetsArtifactsHintLocal:

@@ -44,7 +44,9 @@ export function MainScrollShell({ children }: PropsWithChildren) {
         pathname === "/call" ||
         pathname === "/call/";
     const meetInRoom = pathname.startsWith("/call/") && pathname.length > "/call/".length;
-    if (meetHub) {
+    const watchHub = pathname === "/watch" || pathname === "/watch/";
+    const watchInRoom = pathname.startsWith("/watch/") && pathname.length > "/watch/".length;
+    if (meetHub || watchHub) {
         return (
             <div
                 ref={containerRef}
@@ -55,7 +57,7 @@ export function MainScrollShell({ children }: PropsWithChildren) {
             </div>
         );
     }
-    if (pathname === "/" || pathname === "/notes" || meetInRoom) {
+    if (pathname === "/" || pathname === "/notes" || meetInRoom || watchInRoom) {
         return (
             <div className="flex min-h-0 min-h-[100svh] flex-1 flex-col overflow-hidden md:h-full md:min-h-0">
                 {children}
