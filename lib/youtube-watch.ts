@@ -16,6 +16,9 @@ export type YtPlayerApi = {
 
 type YtPlayerOptions = {
     videoId: string;
+    /** Kích thước player (API mặc định 640×360 nếu không truyền) */
+    width?: string | number;
+    height?: string | number;
     playerVars?: Record<string, string | number>;
     events?: {
         onReady?: (event: { target: YtPlayerApi }) => void;
@@ -24,7 +27,7 @@ type YtPlayerOptions = {
 };
 
 type YtNamespace = {
-    Player: new (elementId: string, options: YtPlayerOptions) => YtPlayerApi;
+    Player: new (elementOrId: string | HTMLElement, options: YtPlayerOptions) => YtPlayerApi;
 };
 
 declare global {

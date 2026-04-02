@@ -14,7 +14,7 @@ type VocabItem = {
   example?: string;
   /**
    * Optional list of extra example sentences (same word, different usage).
-   * Push picks one per 10-min bucket so the line changes over time without any API call.
+   * Push picks one per 30-min bucket so the line changes over time without any API call.
    */
   examples?: string[];
   /** Preferred: fully-formed sentences generated and stored ahead of time. */
@@ -77,25 +77,26 @@ function pickExampleForPushBody(item: VocabItem, bucket: string): string {
 }
 
 /**
- * Dedup bucket: floor current time to the nearest 10-minute mark.
+ * Dedup bucket: floor current time to the nearest 30-minute mark.
  * Prevents duplicate sends if the cron is called multiple times within the same window.
  */
-function tenMinuteBucket(): string {
+function thirtyMinuteBucket(): string {
   const tz = getCalendarEventStorageTimeZone();
   const now = new Date();
-  const hhmm = formatInTimeZone(now, tz, "yyyy-MM-dd_HH:mm");
-  // Replace the last digit of minutes with 0 to get the 10-min bucket.
-  return hhmm.slice(0, hhmm.length - 1) + "0";
+  const yyyyMMddHH = formatInTimeZone(now, tz, "yyyy-MM-dd_HH");
+  const mm = Number(formatInTimeZone(now, tz, "mm"));
+  const bucketMm = mm < 30 ? "00" : "30";
+  return `${yyyyMMddHH}:${bucketMm}`;
 }
 
 function bucketSlotIndex(bucket: string): number {
-  // bucket shape: yyyy-MM-dd_HH:m0
+  // bucket shape: yyyy-MM-dd_HH:mm where mm is 00 or 30
   const m = /^(\d{4}-\d{2}-\d{2})_(\d{2}):(\d{2})$/.exec(bucket);
   if (!m) return 0;
   const hh = Number(m[2]);
   const mm = Number(m[3]);
   if (!Number.isFinite(hh) || !Number.isFinite(mm)) return 0;
-  return Math.max(0, Math.min(24 * 6 - 1, hh * 6 + Math.floor(mm / 10)));
+  return Math.max(0, Math.min(24 * 2 - 1, hh * 2 + (mm >= 30 ? 1 : 0)));
 }
 
 function bucketDayKey(bucket: string): string {
@@ -214,11 +215,11 @@ export async function runVocabReminderSweep(
     return { sent: 0, errors: 0, skipped: "no vocab items" };
   }
 
-  // Dedup bucket: floor to nearest 10-minute window.
-  const bucket = tenMinuteBucket();
+  // Dedup bucket: floor to nearest 30-minute window.
+  const bucket = thirtyMinuteBucket();
 
   // Walk the whole vocab list deterministically per-day:
-  // each 10-minute bucket advances the pointer, so it won't get stuck on a few words.
+  // each 30-minute bucket advances the pointer, so it won't get stuck on a few words.
   const dayKey = bucketDayKey(bucket);
   const sentencePool = allWords.filter((w) => hasSentenceForPush(w));
   const nonTrivial = allWords.filter((w) => !isTrivialForPush(w));

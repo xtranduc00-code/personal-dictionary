@@ -18,6 +18,11 @@ export function AppShell({ children }: {
     const fullMeet =
         Boolean(session && micPrecheckDone && meetPathMatchesRoom(pathname, session.displayName));
     const isStandaloneAuth = Boolean(pathname && STANDALONE_AUTH_PATHS.has(pathname));
+    const pathSeg = pathname?.split("/").filter(Boolean) ?? [];
+    /** `/watch/:room` — full-bleed giống cuộc gọi full để video rộng tối đa */
+    const isWatchPartyRoom = pathSeg[0] === "watch" && pathSeg.length >= 2;
+    const noOuterMainPadding =
+        !isStandaloneAuth && (fullMeet || isWatchPartyRoom);
 
     /** Meet hub + in-call: light-first soft neutrals; dark: immersive shell */
     const isMeetShell =
@@ -28,7 +33,7 @@ export function AppShell({ children }: {
     const mainClass = [
         "relative flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-x-hidden",
         isStandaloneAuth ? "overflow-hidden" : "md:overflow-hidden",
-        fullMeet && !isStandaloneAuth
+        noOuterMainPadding
             ? "bg-[#F6F7F9] p-0 text-[#111827] antialiased dark:bg-[#0a0a0b] dark:text-zinc-100"
             : isMeetShell && !isStandaloneAuth
                 ? "bg-[#F6F7F9] px-4 py-6 text-[#111827] antialiased sm:px-6 md:px-8 md:py-7 dark:bg-[#0a0a0b] dark:p-0 dark:text-zinc-100 md:dark:p-1"

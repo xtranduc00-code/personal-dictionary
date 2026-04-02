@@ -410,6 +410,39 @@ body {
   }
 }
 
+/* Watch Together: IFrame API mặc định 640×360 — ép iframe full ô `.watch-party-yt-host` */
+.watch-party-yt-host {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+/* API thường chèn div bọc iframe — ép cả lớp đó full ô */
+.watch-party-yt-host > div {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+}
+
+.watch-party-yt-host iframe {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  border: 0 !important;
+  display: block !important;
+}
+
 /* Watch party: true viewport fill in Element.requestFullscreen — avoids empty band under controls */
 .watch-party-video-stage:fullscreen {
   display: flex;
@@ -427,8 +460,8 @@ body {
   min-height: 0;
   min-width: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: flex-start;
 }
 .watch-party-video-stage:fullscreen .watch-party-controls {
   flex-shrink: 0;
@@ -450,8 +483,8 @@ body {
   min-height: 0;
   min-width: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: flex-start;
 }
 .watch-party-video-stage:-webkit-full-screen .watch-party-controls {
   flex-shrink: 0;
@@ -473,8 +506,8 @@ body {
   min-height: 0;
   min-width: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: flex-start;
 }
 .watch-party-video-stage:-moz-full-screen .watch-party-controls {
   flex-shrink: 0;
