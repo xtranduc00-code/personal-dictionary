@@ -57,10 +57,16 @@ export function getR2Client(): S3Client {
     if (!endpoint || !accessKeyId || !secretAccessKey) {
         throw new Error("R2_CLIENT_NOT_CONFIGURED");
     }
+    /**
+     * WHEN_REQUIRED avoids default CRC32 query params on presigned PutObject.
+     * Those params force stricter browser preflight; R2 CORS must still allow
+     * PUT + OPTIONS from the app origin for direct uploads.
+     */
     cached = new S3Client({
         region: "auto",
         endpoint,
         credentials: { accessKeyId, secretAccessKey },
+        requestChecksumCalculation: "WHEN_REQUIRED",
     });
     return cached;
 }
