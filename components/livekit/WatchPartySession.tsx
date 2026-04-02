@@ -88,16 +88,6 @@ function stripExt(name: string): string {
   return name.replace(/\.[a-zA-Z0-9]{1,8}$/, "");
 }
 
-function inferVideoContentType(file: File): string {
-  if (file.type && file.type.startsWith("video/")) {
-    return file.type;
-  }
-  if (/\.mkv$/i.test(file.name)) {
-    return "video/x-matroska";
-  }
-  return file.type || "application/octet-stream";
-}
-
 export function WatchPartySession({
   token,
   serverUrl,
@@ -866,6 +856,7 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
     }
   }, []);
 
+  /** Same-origin multipart → /api/r2/upload (streams to R2). Avoids browser PUT + CORS preflight to R2. */
   const startCloudUpload = useCallback(
     (file: File) => {
       if (!user) {
@@ -876,91 +867,65 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
       setUploadPct(0);
       uploadPctDedupeRef.current = -1;
 
-      void (async () => {
-        const contentType = inferVideoContentType(file);
+      const fd = new FormData();
+      fd.append("file", file);
 
-        const presignRes = await authFetch("/api/r2/presign", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            fileName: file.name,
-            contentType,
-            size: file.size,
-          }),
-        });
-
-        if (!presignRes.ok) {
-          setUploading(false);
-          try {
-            const err = (await presignRes.json()) as { error?: string };
-            toast.error(err?.error || `HTTP ${presignRes.status}`);
-          } catch {
-            toast.error(`Upload failed (HTTP ${presignRes.status})`);
-          }
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/r2/upload");
+      const token = getAuthToken();
+      if (token) {
+        xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      }
+      xhr.upload.onprogress = (e) => {
+        if (!e.lengthComputable) {
           return;
         }
-
-        const presign = (await presignRes.json()) as {
-          uploadUrl?: string;
-          url?: string;
-          key?: string;
-          contentType?: string;
-        };
-
-        if (!presign.uploadUrl || !presign.url || !presign.key || !presign.contentType) {
-          setUploading(false);
-          toast.error(t("watchCloudUploadFailed"));
-          return;
+        const pct = Math.max(
+          0,
+          Math.min(100, Math.round((e.loaded / e.total) * 100)),
+        );
+        if (pct !== uploadPctDedupeRef.current) {
+          uploadPctDedupeRef.current = pct;
+          setUploadPct(pct);
         }
-
-        const uploadUrl = presign.uploadUrl;
-        const publicUrl = presign.url;
-        const objectKey = presign.key;
-        const putContentType = presign.contentType;
-
-        const xhr = new XMLHttpRequest();
-        xhr.open("PUT", uploadUrl);
-        xhr.setRequestHeader("Content-Type", putContentType);
-
-        xhr.upload.onprogress = (e) => {
-          if (!e.lengthComputable) {
+      };
+      xhr.onerror = () => {
+        setUploading(false);
+        toast.error(t("watchCloudUploadFailed"));
+      };
+      xhr.onload = async () => {
+        try {
+          if (xhr.status < 200 || xhr.status >= 300) {
+            try {
+              const err = JSON.parse(xhr.responseText || "{}") as { error?: string; code?: string };
+              toast.error(err?.error || `HTTP ${xhr.status}`);
+            } catch {
+              toast.error(`Upload failed (HTTP ${xhr.status})`);
+            }
             return;
           }
-          const pct = Math.max(
-            0,
-            Math.min(100, Math.round((e.loaded / e.total) * 100)),
-          );
-          if (pct !== uploadPctDedupeRef.current) {
-            uploadPctDedupeRef.current = pct;
-            setUploadPct(pct);
+          const data = JSON.parse(xhr.responseText || "{}") as {
+            url?: string;
+            key?: string;
+          };
+          if (!data.url || !data.key) {
+            throw new Error("bad response");
           }
-        };
-        xhr.onerror = () => {
-          setUploading(false);
+          await fetchCloudFolders();
+          setCloudDraft({
+            url: data.url,
+            key: data.key,
+            suggestedTitle: stripExt(file.name || "Video"),
+          });
+          setCloudTitle(stripExt(file.name || "Video"));
+          setCloudFolder("General");
+        } catch {
           toast.error(t("watchCloudUploadFailed"));
-        };
-        xhr.onload = async () => {
-          try {
-            if (xhr.status < 200 || xhr.status >= 300) {
-              toast.error(`Upload failed (HTTP ${xhr.status})`);
-              return;
-            }
-            await fetchCloudFolders();
-            setCloudDraft({
-              url: publicUrl,
-              key: objectKey,
-              suggestedTitle: stripExt(file.name || "Video"),
-            });
-            setCloudTitle(stripExt(file.name || "Video"));
-            setCloudFolder("General");
-          } catch {
-            toast.error(t("watchCloudUploadFailed"));
-          } finally {
-            setUploading(false);
-          }
-        };
-        xhr.send(file);
-      })();
+        } finally {
+          setUploading(false);
+        }
+      };
+      xhr.send(fd);
     },
     [fetchCloudFolders, t, user],
   );

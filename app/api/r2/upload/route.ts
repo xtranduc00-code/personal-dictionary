@@ -16,7 +16,8 @@ import {
 } from "@/lib/r2-url";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+/** Netlify: raise “Function timeout” in UI if large videos still stop early (sync upload = one function run). */
+export const maxDuration = 900;
 
 const MAX_BYTES = 20_000_000_000; // 20GB safety limit for large videos
 
