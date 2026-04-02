@@ -88,6 +88,16 @@ function stripExt(name: string): string {
   return name.replace(/\.[a-zA-Z0-9]{1,8}$/, "");
 }
 
+function inferVideoContentType(file: File): string {
+  if (file.type && file.type.startsWith("video/")) {
+    return file.type;
+  }
+  if (/\.mkv$/i.test(file.name)) {
+    return "video/x-matroska";
+  }
+  return file.type || "application/octet-stream";
+}
+
 export function WatchPartySession({
   token,
   serverUrl,
@@ -160,6 +170,12 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
   const applyingRemote = useRef(false);
   const lastSeekBroadcast = useRef(0);
   const scrubbingRef = useRef(false);
+  const pendingVideoUiTimeRef = useRef(0);
+  const videoUiTimeRafRef = useRef<number | null>(null);
+  const lastYtUiSampleRef = useRef(0);
+  const lastYtDurationSampleRef = useRef(0);
+  const uploadPctDedupeRef = useRef(-1);
+  const subtitlePctDedupeRef = useRef(-1);
   const videoStageRef = useRef<HTMLDivElement>(null);
   const [uiTime, setUiTime] = useState(0);
   const [scrubTime, setScrubTime] = useState(0);
@@ -212,6 +228,28 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
   useEffect(() => {
     volumeRef.current = volume;
   }, [volume]);
+
+  const scheduleVideoUiTime = useCallback((t: number) => {
+    pendingVideoUiTimeRef.current = t;
+    if (videoUiTimeRafRef.current != null) {
+      return;
+    }
+    videoUiTimeRafRef.current = window.requestAnimationFrame(() => {
+      videoUiTimeRafRef.current = null;
+      if (!scrubbingRef.current) {
+        setUiTime(pendingVideoUiTimeRef.current);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (videoUiTimeRafRef.current != null) {
+        window.cancelAnimationFrame(videoUiTimeRafRef.current);
+        videoUiTimeRafRef.current = null;
+      }
+    };
+  }, []);
 
   const notifyRemotePlayBlocked = useCallback(() => {
     if (partnerPlayGateRef.current) {
@@ -464,6 +502,8 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
     if (!youtubeId) {
       setYtReady(false);
       ytPlayerRef.current = null;
+      lastYtUiSampleRef.current = 0;
+      lastYtDurationSampleRef.current = 0;
       return;
     }
     let cancelled = false;
@@ -585,9 +625,18 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
         return;
       }
       try {
-        setUiTime(p.getCurrentTime());
+        const ct = p.getCurrentTime();
+        if (Math.abs(ct - lastYtUiSampleRef.current) >= 0.05) {
+          lastYtUiSampleRef.current = ct;
+          setUiTime(ct);
+        }
         const dur = p.getDuration();
-        if (Number.isFinite(dur) && dur > 0) {
+        if (
+          Number.isFinite(dur)
+          && dur > 0
+          && Math.abs(dur - lastYtDurationSampleRef.current) > 0.25
+        ) {
+          lastYtDurationSampleRef.current = dur;
           setDuration(dur);
         }
       } catch {
@@ -825,63 +874,93 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
       }
       setUploading(true);
       setUploadPct(0);
-      const fd = new FormData();
-      fd.append("file", file);
+      uploadPctDedupeRef.current = -1;
 
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", "/api/r2/upload");
-      const token = getAuthToken();
-      if (token) {
-        xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-      }
-      xhr.upload.onprogress = (e) => {
-        if (!e.lengthComputable) {
+      void (async () => {
+        const contentType = inferVideoContentType(file);
+
+        const presignRes = await authFetch("/api/r2/presign", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileName: file.name,
+            contentType,
+            size: file.size,
+          }),
+        });
+
+        if (!presignRes.ok) {
+          setUploading(false);
+          try {
+            const err = (await presignRes.json()) as { error?: string };
+            toast.error(err?.error || `HTTP ${presignRes.status}`);
+          } catch {
+            toast.error(`Upload failed (HTTP ${presignRes.status})`);
+          }
           return;
         }
-        const pct = Math.max(
-          0,
-          Math.min(100, Math.round((e.loaded / e.total) * 100)),
-        );
-        setUploadPct(pct);
-      };
-      xhr.onerror = () => {
-        setUploading(false);
-        toast.error(t("watchCloudUploadFailed"));
-      };
-      xhr.onload = async () => {
-        try {
-          if (xhr.status < 200 || xhr.status >= 300) {
-            try {
-              const err = JSON.parse(xhr.responseText || "{}") as { error?: string; code?: string };
-              const msg = err?.error || `HTTP ${xhr.status}`;
-              toast.error(msg);
-            } catch {
-              toast.error(`Upload failed (HTTP ${xhr.status})`);
-            }
+
+        const presign = (await presignRes.json()) as {
+          uploadUrl?: string;
+          url?: string;
+          key?: string;
+          contentType?: string;
+        };
+
+        if (!presign.uploadUrl || !presign.url || !presign.key || !presign.contentType) {
+          setUploading(false);
+          toast.error(t("watchCloudUploadFailed"));
+          return;
+        }
+
+        const uploadUrl = presign.uploadUrl;
+        const publicUrl = presign.url;
+        const objectKey = presign.key;
+        const putContentType = presign.contentType;
+
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", uploadUrl);
+        xhr.setRequestHeader("Content-Type", putContentType);
+
+        xhr.upload.onprogress = (e) => {
+          if (!e.lengthComputable) {
             return;
           }
-          const data = JSON.parse(xhr.responseText || "{}") as {
-            url?: string;
-            key?: string;
-          };
-          if (!data.url || !data.key) {
-            throw new Error("bad response");
+          const pct = Math.max(
+            0,
+            Math.min(100, Math.round((e.loaded / e.total) * 100)),
+          );
+          if (pct !== uploadPctDedupeRef.current) {
+            uploadPctDedupeRef.current = pct;
+            setUploadPct(pct);
           }
-          await fetchCloudFolders();
-          setCloudDraft({
-            url: data.url,
-            key: data.key,
-            suggestedTitle: stripExt(file.name || "Video"),
-          });
-          setCloudTitle(stripExt(file.name || "Video"));
-          setCloudFolder("General");
-        } catch {
-          toast.error(t("watchCloudUploadFailed"));
-        } finally {
+        };
+        xhr.onerror = () => {
           setUploading(false);
-        }
-      };
-      xhr.send(fd);
+          toast.error(t("watchCloudUploadFailed"));
+        };
+        xhr.onload = async () => {
+          try {
+            if (xhr.status < 200 || xhr.status >= 300) {
+              toast.error(`Upload failed (HTTP ${xhr.status})`);
+              return;
+            }
+            await fetchCloudFolders();
+            setCloudDraft({
+              url: publicUrl,
+              key: objectKey,
+              suggestedTitle: stripExt(file.name || "Video"),
+            });
+            setCloudTitle(stripExt(file.name || "Video"));
+            setCloudFolder("General");
+          } catch {
+            toast.error(t("watchCloudUploadFailed"));
+          } finally {
+            setUploading(false);
+          }
+        };
+        xhr.send(file);
+      })();
     },
     [fetchCloudFolders, t, user],
   );
@@ -913,6 +992,7 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
       }
       setSubtitleUploading(true);
       setSubtitlePct(0);
+      subtitlePctDedupeRef.current = -1;
       const fd = new FormData();
       fd.append("kind", "subtitle");
       fd.append("file", file);
@@ -927,7 +1007,10 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
           return;
         }
         const pct = Math.max(0, Math.min(100, Math.round((e.loaded / e.total) * 100)));
-        setSubtitlePct(pct);
+        if (pct !== subtitlePctDedupeRef.current) {
+          subtitlePctDedupeRef.current = pct;
+          setSubtitlePct(pct);
+        }
       };
       xhr.onerror = () => {
         setSubtitleUploading(false);
@@ -1706,7 +1789,7 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
                         if (scrubbingRef.current) {
                           return;
                         }
-                        setUiTime(e.currentTarget.currentTime);
+                        scheduleVideoUiTime(e.currentTarget.currentTime);
                       }}
                       onVolumeChange={(e) => {
                         setVolume(e.currentTarget.volume);
