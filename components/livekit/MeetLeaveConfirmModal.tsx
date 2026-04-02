@@ -16,7 +16,7 @@ export function MeetLeaveConfirmModal({ open, onCancel, onConfirm }: Props) {
     }
     return (
         <div
-            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-zinc-900/35 p-4 backdrop-blur-sm"
             role="presentation"
             onClick={onCancel}
         >
@@ -24,20 +24,20 @@ export function MeetLeaveConfirmModal({ open, onCancel, onConfirm }: Props) {
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="meet-leave-title"
-                className="w-full max-w-sm rounded-2xl border border-zinc-600 bg-zinc-900 p-5 text-zinc-100 shadow-2xl ring-1 ring-black/40"
+                className="w-full max-w-sm rounded-2xl border border-zinc-200 bg-white p-5 text-zinc-900 shadow-xl"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/15 text-red-400 ring-1 ring-red-500/30">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-600 ring-1 ring-red-200">
                     <LogOut className="h-5 w-5" strokeWidth={2} aria-hidden />
                 </div>
-                <h2 id="meet-leave-title" className="text-lg font-bold text-zinc-50">
+                <h2 id="meet-leave-title" className="text-lg font-bold text-zinc-900">
                     {t("meetsLeaveConfirmTitle")}
                 </h2>
-                <p className="mt-2 text-sm leading-relaxed text-zinc-400">{t("meetsLeaveConfirmHint")}</p>
+                <p className="mt-2 text-sm leading-relaxed text-zinc-600">{t("meetsLeaveConfirmHint")}</p>
                 <div className="mt-5 flex flex-wrap justify-end gap-2">
                     <button
                         type="button"
-                        className="rounded-xl border border-zinc-600 bg-zinc-800 px-4 py-2.5 text-sm font-semibold text-zinc-100 hover:bg-zinc-700"
+                        className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 shadow-sm hover:bg-zinc-50"
                         onClick={onCancel}
                     >
                         {t("meetsLeaveCancel")}

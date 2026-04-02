@@ -114,7 +114,7 @@ export const MeetingEndedModal = memo(function MeetingEndedModal({
 
     return (
         <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-[#111827]/40 p-4 backdrop-blur-sm dark:bg-black/55"
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-zinc-900/35 p-4 backdrop-blur-sm"
             role="dialog"
             aria-modal="true"
             aria-labelledby="meet-ended-title"
@@ -126,20 +126,20 @@ export const MeetingEndedModal = memo(function MeetingEndedModal({
                 onClick={onDismiss}
             />
             <div
-                className="relative z-10 w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-[0_8px_40px_rgba(0,0,0,0.12)] dark:border-white/10 dark:bg-zinc-900"
+                className="relative z-10 w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-xl"
                 onClick={(e) => e.stopPropagation()}
             >
                 <h2
                     id="meet-ended-title"
-                    className="text-lg font-semibold text-[#111827] dark:text-zinc-100"
+                    className="text-lg font-semibold text-zinc-900"
                 >
                     {t("meetsEndedTitle")}
                 </h2>
-                <p className="mt-2 text-sm leading-relaxed text-[#6B7280] dark:text-zinc-400">
+                <p className="mt-2 text-sm leading-relaxed text-zinc-600">
                     {t("meetsEndedSubtitle")}
                 </p>
                 {showRecordingDownload ? (
-                    <p className="mt-2 text-xs leading-relaxed text-[#9CA3AF] dark:text-zinc-500">
+                    <p className="mt-2 text-xs leading-relaxed text-zinc-500">
                         {t("meetsEndedRecordingNote")}
                     </p>
                 ) : null}
@@ -152,7 +152,7 @@ export const MeetingEndedModal = memo(function MeetingEndedModal({
                             onClick={onDownloadRecording}
                             className={MEETS_MODAL_ACTION_BTN_CLASS}
                         >
-                            <Download className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" strokeWidth={2} />
+                            <Download className="h-4 w-4 shrink-0 text-red-600" strokeWidth={2} />
                             {recBusy ? t("meetsEndedDownloading") : t("meetsEndedDownloadRecording")}
                         </button>
                     ) : null}
@@ -163,14 +163,14 @@ export const MeetingEndedModal = memo(function MeetingEndedModal({
                             onClick={() => void onDownloadChat()}
                             className={MEETS_MODAL_ACTION_BTN_CLASS}
                         >
-                            <Download className="h-4 w-4 shrink-0 text-[#6B7280] dark:text-zinc-400" strokeWidth={2} />
+                            <Download className="h-4 w-4 shrink-0 text-zinc-500" strokeWidth={2} />
                             {chatBusy ? t("meetsEndedDownloading") : t("meetsEndedDownloadChat")}
                         </button>
                     ) : null}
                     <button
                         type="button"
                         onClick={onDismiss}
-                        className="inline-flex w-full items-center justify-center rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+                        className="inline-flex w-full items-center justify-center rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-zinc-800"
                     >
                         {t("meetsEndedBackToHub")}
                     </button>

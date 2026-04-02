@@ -1,6 +1,14 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import {
+    memo,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type RefObject,
+} from "react";
 import type { TrackReferenceOrPlaceholder } from "@livekit/components-core";
 import {
     isTrackReference,
@@ -34,8 +42,8 @@ const VideoCell = memo(function VideoCell({
 
     const isScreen = trackRef.source === Track.Source.ScreenShare;
     const frame = fillStage
-        ? "relative flex h-full min-h-0 w-full flex-1 overflow-hidden bg-[#2B2F36] dark:bg-black"
-        : `relative flex w-full overflow-hidden rounded-lg bg-[#2B2F36] ring-1 ring-black/10 dark:bg-black dark:ring-white/[0.06] ${minHeightClass ?? "min-h-0"}`;
+        ? "relative flex h-full min-h-0 w-full flex-1 overflow-hidden bg-zinc-950"
+        : `relative flex w-full overflow-hidden rounded-lg border border-zinc-200 bg-zinc-950 ${minHeightClass ?? "min-h-0"}`;
     return (
         <div className={frame}>
             {isTrackReference(trackRef) ? (
@@ -49,8 +57,8 @@ const VideoCell = memo(function VideoCell({
                     }}
                 />
             ) : (
-                <div className="flex h-full min-h-[200px] w-full items-center justify-center bg-[#2B2F36] dark:bg-black">
-                    <ParticipantPlaceholder className="h-16 w-16 text-gray-500 dark:text-zinc-500 sm:h-20 sm:w-20" />
+                <div className="flex h-full min-h-[200px] w-full items-center justify-center bg-zinc-950">
+                    <ParticipantPlaceholder className="h-16 w-16 text-zinc-500 sm:h-20 sm:w-20" />
                 </div>
             )}
             <div className="pointer-events-none absolute bottom-3 left-3 max-w-[calc(100%-24px)] truncate rounded-md bg-black/55 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm dark:rounded-lg dark:bg-black/60">
@@ -69,28 +77,116 @@ function fitForTrack(trackRef: TrackReferenceOrPlaceholder): "cover" | "contain"
     return trackRef.source === Track.Source.ScreenShare ? "contain" : "cover";
 }
 
+const PIP_PAD = 8;
+
 /** Góc preview bản thân — luôn hiện khi có track camera local (kể cả một mình trong phòng). */
 const LocalSelfPip = memo(function LocalSelfPip({
     trackRef,
+    constrainToRef,
 }: {
     trackRef: TrackReferenceOrPlaceholder;
+    /** Khi share màn hình: kéo thả trong khung video; không truyền thì vị trí cố định như cũ. */
+    constrainToRef?: RefObject<HTMLElement | null>;
 }) {
     const { t } = useI18n();
     const subscriptionProfile: MeetsVideoSubscriptionProfile = "thumbnail";
     useMeetsTrackSubscriptionProfile(trackRef, subscriptionProfile);
     const fit = fitForTrack(trackRef);
 
+    const pipOuterRef = useRef<HTMLDivElement>(null);
+    const [dragPos, setDragPos] = useState<{ left: number; top: number } | null>(null);
+    const dragRef = useRef<{ startX: number; startY: number; baseL: number; baseT: number } | null>(
+        null,
+    );
+
+    const onPointerDown = useCallback(
+        (e: React.PointerEvent) => {
+            if (!constrainToRef?.current || e.button !== 0) {
+                return;
+            }
+            const parent = constrainToRef.current;
+            const pip = pipOuterRef.current;
+            if (!pip) {
+                return;
+            }
+            e.preventDefault();
+            const pr = parent.getBoundingClientRect();
+            const wr = pip.getBoundingClientRect();
+            const baseL = wr.left - pr.left;
+            const baseT = wr.top - pr.top;
+            setDragPos({ left: baseL, top: baseT });
+            dragRef.current = { startX: e.clientX, startY: e.clientY, baseL, baseT };
+            pip.setPointerCapture(e.pointerId);
+        },
+        [constrainToRef],
+    );
+
+    const onPointerMove = useCallback(
+        (e: React.PointerEvent) => {
+            const d = dragRef.current;
+            const parent = constrainToRef?.current;
+            const pip = pipOuterRef.current;
+            if (!d || !parent || !pip) {
+                return;
+            }
+            const pr = parent.getBoundingClientRect();
+            const pipW = pip.offsetWidth;
+            const pipH = pip.offsetHeight;
+            let nl = d.baseL + e.clientX - d.startX;
+            let nt = d.baseT + e.clientY - d.startY;
+            nl = Math.min(Math.max(PIP_PAD, nl), pr.width - pipW - PIP_PAD);
+            nt = Math.min(Math.max(PIP_PAD, nt), pr.height - pipH - PIP_PAD);
+            setDragPos({ left: nl, top: nt });
+        },
+        [constrainToRef],
+    );
+
+    const endDrag = useCallback((e: React.PointerEvent) => {
+        dragRef.current = null;
+        try {
+            pipOuterRef.current?.releasePointerCapture(e.pointerId);
+        }
+        catch {
+            /* already released */
+        }
+    }, []);
+
+    const draggable = Boolean(constrainToRef);
+    const positionClass = draggable
+        ? dragPos
+            ? ""
+            : "bottom-3 right-3 sm:bottom-4 sm:right-4"
+        : "bottom-[5.75rem] right-4 sm:bottom-[6rem] sm:right-5";
+
     return (
         <div
-            className="pointer-events-none absolute bottom-[5.75rem] right-4 z-[38] w-[min(42vw,200px)] max-w-[220px] sm:bottom-[6rem] sm:right-5"
+            ref={pipOuterRef}
+            className={`absolute z-[38] w-[min(42vw,200px)] max-w-[220px] touch-none ${positionClass} ${draggable ? "cursor-grab active:cursor-grabbing" : "pointer-events-none"}`}
+            style={
+                dragPos && draggable
+                    ? {
+                          left: dragPos.left,
+                          top: dragPos.top,
+                          right: "auto",
+                          bottom: "auto",
+                      }
+                    : undefined
+            }
             data-meet-self-pip="true"
+            onPointerDown={draggable ? onPointerDown : undefined}
+            onPointerMove={draggable ? onPointerMove : undefined}
+            onPointerUp={draggable ? endDrag : undefined}
+            onPointerCancel={draggable ? endDrag : undefined}
         >
-            <div className="pointer-events-auto relative aspect-video w-full overflow-hidden rounded-xl bg-zinc-900 ring-2 ring-white/20 shadow-[0_14px_40px_rgba(0,0,0,0.55)]">
+            <div
+                className={`relative aspect-video w-full overflow-hidden rounded-xl border border-zinc-200 bg-zinc-900 shadow-lg ring-2 ring-zinc-200 ${draggable ? "" : "pointer-events-auto"}`}
+                title={draggable ? t("meetsSelfPipDragHint") : undefined}
+            >
                 {isTrackReference(trackRef) ? (
                     <VideoTrack
                         trackRef={trackRef}
                         manageSubscription={false}
-                        className="h-full w-full object-cover"
+                        className="pointer-events-none h-full w-full object-cover select-none"
                         style={{ objectFit: fit }}
                     />
                 ) : (
@@ -144,7 +240,7 @@ const VideoTile = memo(function VideoTile({
             >
                 <button
                     type="button"
-                    className={`pointer-events-auto rounded-lg border border-white/20 bg-black/60 p-2 text-white shadow-md backdrop-blur-sm transition hover:bg-black/75 ${isPinned ? "opacity-100 ring-2 ring-amber-400/90" : ""}`}
+                    className={`pointer-events-auto rounded-lg border border-zinc-300 bg-white/95 p-2 text-zinc-700 shadow-md backdrop-blur-sm transition hover:bg-zinc-50 ${isPinned ? "opacity-100 ring-2 ring-amber-400/90" : ""}`}
                     title={isPinned ? t("meetsUnpinTrack") : t("meetsPinTrack")}
                     aria-label={isPinned ? t("meetsUnpinTrack") : t("meetsPinTrack")}
                     aria-pressed={isPinned}
@@ -171,6 +267,7 @@ const TRACK_SOURCES = [
  */
 export const CallVideoGrid = memo(function CallVideoGrid() {
     const { t } = useI18n();
+    const focusStageRef = useRef<HTMLDivElement>(null);
     const [pinnedKey, setPinnedKey] = useState<string | null>(null);
     const participants = useParticipants();
     const hasRemoteParticipant = useMemo(() => participants.some((p) => !p.isLocal), [participants]);
@@ -249,12 +346,13 @@ export const CallVideoGrid = memo(function CallVideoGrid() {
         [cameraTracks, remoteScreens],
     );
 
-    const selfPip = localCameraTrack ? <LocalSelfPip trackRef={localCameraTrack} /> : null;
-
     if (useFocusLayout && focusTrack) {
         return (
             <div className="relative flex h-full min-h-0 w-full flex-1 flex-col gap-2 p-2 sm:gap-3 sm:p-3">
-                <div className="relative min-h-0 flex-1 overflow-hidden rounded-xl ring-1 ring-white/10">
+                <div
+                    ref={focusStageRef}
+                    className="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-950"
+                >
                     <VideoTile
                         trackRef={focusTrack}
                         fit={fitForTrack(focusTrack)}
@@ -263,6 +361,12 @@ export const CallVideoGrid = memo(function CallVideoGrid() {
                         pinnedKey={pinnedKey}
                         onPinToggle={onPinToggle}
                     />
+                    {localCameraTrack ? (
+                        <LocalSelfPip
+                            trackRef={localCameraTrack}
+                            constrainToRef={focusStageRef}
+                        />
+                    ) : null}
                 </div>
                 {stripTracks.length > 0 ? (
                     <div
@@ -286,7 +390,6 @@ export const CallVideoGrid = memo(function CallVideoGrid() {
                         })}
                     </div>
                 ) : null}
-                {selfPip}
             </div>
         );
     }
@@ -331,7 +434,7 @@ export const CallVideoGrid = memo(function CallVideoGrid() {
     return (
         <div className="relative flex h-full min-h-0 w-full flex-1 flex-col">
             {mainStage}
-            {selfPip}
+            {localCameraTrack ? <LocalSelfPip trackRef={localCameraTrack} /> : null}
         </div>
     );
 });

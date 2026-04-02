@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type PointerEvent as ReactPointerEvent,
+} from "react";
 import { useRouter } from "next/navigation";
 import { Clock, LogOut, Maximize2, Users } from "lucide-react";
 import {
@@ -25,27 +32,33 @@ import { formatMmSs } from "@/lib/meets-format";
 import { useMeetsLocalRecording } from "@/lib/use-meets-local-recording";
 import { useMeetsCamera1080Resolution } from "@/lib/use-meets-camera-resolution";
 
+export type MeetMiniDragHandleProps = {
+    onPointerDown: (e: ReactPointerEvent<HTMLDivElement>) => void;
+};
+
 type Props = {
     token: string;
     serverUrl: string;
     roomDisplayName: string;
     layout: "full" | "mini";
+    /** Chỉ dùng khi layout mini — kéo từ vùng header trong `CallRoomInner`. */
+    miniDragHandle?: MeetMiniDragHandleProps;
 };
 
 const START_AUDIO_BTN_CLASS =
-    "rounded-lg border border-gray-600/40 bg-gray-900/75 px-3 py-2 text-xs font-medium text-white shadow-md backdrop-blur-md dark:border-white/15 dark:bg-black/70 dark:shadow-lg";
+    "rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-800 shadow-sm";
 
 const START_AUDIO_BTN_MINI =
-    "rounded-md border border-white/20 bg-black/70 px-2 py-1 text-[10px] font-medium text-white backdrop-blur-md";
+    "rounded-md border border-zinc-200 bg-white px-2 py-1 text-[10px] font-medium text-zinc-800 shadow-sm";
 
 const STAGE_VIGNETTE =
-    "relative z-0 flex min-h-[min(52vh,560px)] flex-1 flex-col lg:min-h-0 after:pointer-events-none after:absolute after:inset-0 after:z-[2] after:rounded-2xl after:shadow-[inset_0_0_80px_rgba(0,0,0,0.15)] lg:after:rounded-r-none dark:after:rounded-none dark:after:shadow-[inset_0_0_72px_rgba(0,0,0,0.42)]";
+    "relative z-0 flex min-h-[min(52vh,560px)] flex-1 flex-col lg:min-h-0 after:pointer-events-none after:absolute after:inset-0 after:z-[2] after:rounded-xl after:shadow-[inset_0_0_48px_rgba(0,0,0,0.05)]";
 
 const CHAT_DESKTOP_BASE =
-    "hidden min-h-0 w-full shrink-0 lg:max-h-full lg:w-[min(100%,300px)] lg:max-w-[300px] lg:!rounded-none lg:!shadow-none lg:!ring-0 lg:border-0 lg:border-l lg:border-solid lg:border-l-zinc-800";
+    "hidden h-full min-h-0 w-full max-w-[300px] shrink-0 flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm";
 
 const MOBILE_CHAT_DRAWER =
-    "relative z-10 flex h-full w-[min(100%,320px)] flex-col border-l border-zinc-700/80 bg-[#1a1f2e] shadow-[0_12px_40px_rgba(0,0,0,0.45)]";
+    "relative z-10 flex h-full w-[min(100%,320px)] flex-col border-l border-zinc-200 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.12)]";
 
 function useMeetRoomElapsedSec() {
     const room = useRoomContext();
@@ -89,9 +102,11 @@ function useMeetRoomElapsedSec() {
 function CallRoomInner({
     roomDisplayName,
     layout,
+    miniDragHandle,
 }: {
     roomDisplayName: string;
     layout: "full" | "mini";
+    miniDragHandle?: MeetMiniDragHandleProps;
 }) {
     const { t } = useI18n();
     const router = useRouter();
@@ -217,22 +232,26 @@ function CallRoomInner({
     if (layout === "mini") {
         return (
             <>
-            <div className="flex min-h-0 w-full flex-col text-zinc-100">
-                <header className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 bg-zinc-950/90 px-2.5 py-2">
-                    <div className="min-w-0 flex-1">
-                        <p className="truncate font-mono text-[11px] font-semibold text-zinc-100">
+            <div className="flex min-h-0 w-full flex-col text-zinc-900">
+                <header className="flex shrink-0 items-center justify-between gap-2 border-b border-zinc-200 bg-white px-2.5 py-2 shadow-sm">
+                    <div
+                        className={`min-w-0 flex-1 ${miniDragHandle ? "touch-none cursor-grab select-none active:cursor-grabbing" : ""}`}
+                        onPointerDown={miniDragHandle?.onPointerDown}
+                        title={miniDragHandle ? t("meetsMiniDragHint") : undefined}
+                    >
+                        <p className="truncate font-mono text-[11px] font-semibold text-zinc-900">
                             {roomDisplayName}
                         </p>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[10px] text-zinc-400">
+                        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[10px] text-zinc-600">
                             <span className="inline-flex items-center gap-1">
-                                <Users className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                                <Users className="h-3 w-3 shrink-0 opacity-80" aria-hidden />
                                 {peopleLabel}
                             </span>
                             <span
                                 className="inline-flex items-center gap-1 tabular-nums"
                                 title={t("meetsCallTimerHint")}
                             >
-                                <Clock className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                                <Clock className="h-3 w-3 shrink-0 opacity-80" aria-hidden />
                                 {formatMmSs(elapsedSec)}
                             </span>
                         </div>
@@ -241,7 +260,7 @@ function CallRoomInner({
                         <button
                             type="button"
                             onClick={expandToFullRoute}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-zinc-100 transition hover:bg-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-700 shadow-sm transition hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"
                             title={t("meetsExpandCall")}
                             aria-label={t("meetsExpandCall")}
                         >
@@ -250,7 +269,7 @@ function CallRoomInner({
                         <button
                             type="button"
                             onClick={requestLeave}
-                            className="inline-flex h-8 items-center justify-center gap-1 rounded-full bg-red-600 px-2 text-[11px] font-semibold text-white hover:bg-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50"
+                            className="inline-flex h-8 items-center justify-center gap-1 rounded-full bg-red-600 px-2 text-[11px] font-semibold text-white shadow-sm hover:bg-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50"
                         >
                             <LogOut className="h-3.5 w-3.5 shrink-0" strokeWidth={2} aria-hidden />
                             <span className="hidden sm:inline">{t("meetsLeaveRoom")}</span>
@@ -260,7 +279,7 @@ function CallRoomInner({
 
                 <div
                     ref={stageRef}
-                    className="relative flex min-h-[140px] max-h-[220px] min-w-0 shrink-0 flex-col overflow-hidden bg-black"
+                    className="relative flex min-h-[140px] max-h-[220px] min-w-0 shrink-0 flex-col overflow-hidden rounded-b-xl border-x border-b border-zinc-200 bg-zinc-950"
                 >
                     <RoomAudioRenderer />
                     <div className="absolute right-1.5 top-1.5 z-30">
@@ -269,16 +288,17 @@ function CallRoomInner({
                     <div className="relative z-0 flex min-h-0 flex-1 flex-col">
                         <CallVideoGrid />
                     </div>
-                    <div
-                        className="pointer-events-none absolute left-0 right-0 z-50 flex justify-center px-2 pb-2"
-                        style={{ bottom: "max(0.5rem, env(safe-area-inset-bottom, 0px))" }}
-                    >
-                        <CallControls
-                            variant="mini"
-                            recording={recordingUi}
-                            onLeave={requestLeave}
-                        />
-                    </div>
+                <div
+                    className="pointer-events-none absolute left-0 right-0 z-50 flex justify-center px-2 pb-2"
+                    style={{ bottom: "max(0.5rem, env(safe-area-inset-bottom, 0px))" }}
+                >
+                    <CallControls
+                        variant="mini"
+                        toolbarSurface="default"
+                        recording={recordingUi}
+                        onLeave={requestLeave}
+                    />
+                </div>
                 </div>
 
                 <MeetingEndedModal
@@ -298,7 +318,7 @@ function CallRoomInner({
     }
 
     return (
-        <div className="relative flex min-h-0 w-full flex-1 flex-col text-[#111827] dark:text-zinc-100">
+        <div className="relative flex min-h-0 w-full flex-1 flex-col bg-[#f9fafb] text-zinc-900">
             <CallRoomHeader
                 roomDisplayName={roomDisplayName}
                 isPresenting={isScreenShareEnabled}
@@ -306,10 +326,10 @@ function CallRoomInner({
                 onToggleStageFullscreen={toggleStageFullscreen}
                 isStageFullscreen={isStageFullscreen}
             />
-            <div className="flex min-h-0 flex-1 flex-col gap-0 bg-[#1a1b1e] lg:flex-row lg:items-stretch lg:gap-0 lg:px-0 lg:py-0 dark:bg-black">
+            <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 pb-4 pt-3 sm:gap-5 sm:px-5 sm:pb-5 sm:pt-4 lg:flex-row lg:items-stretch">
                 <div
                     ref={stageRef}
-                    className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-[#2B2F36] lg:rounded-l-2xl lg:rounded-r-none dark:rounded-none dark:bg-black"
+                    className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm"
                 >
                     <RoomAudioRenderer />
                     <div className={STAGE_VIGNETTE}>
@@ -325,7 +345,6 @@ function CallRoomInner({
                         style={{ bottom: "max(1.5rem, env(safe-area-inset-bottom, 0px))" }}
                     >
                         <CallControls
-                            toolbarSurface="darkDock"
                             recording={recordingUi}
                             chatOpen={chatOpen}
                             onToggleChat={toggleChat}
@@ -336,11 +355,16 @@ function CallRoomInner({
                     </div>
                 </div>
 
-                <CallChatPanel roomDisplayName={roomDisplayName} className={desktopChatClass} />
+                <CallChatPanel
+                    variant="watch"
+                    showChatHint
+                    roomDisplayName={roomDisplayName}
+                    className={desktopChatClass}
+                />
             </div>
 
             {chatOpen ? (
-                <div className="fixed inset-0 z-40 flex justify-end bg-[#111827]/35 backdrop-blur-sm dark:bg-black/60 lg:hidden">
+                <div className="fixed inset-0 z-40 flex justify-end bg-zinc-900/20 backdrop-blur-[2px] lg:hidden">
                     <button
                         type="button"
                         className="absolute inset-0 cursor-default"
@@ -354,6 +378,8 @@ function CallRoomInner({
                         aria-label={t("meetsChatTitle")}
                     >
                         <CallChatPanel
+                            variant="watch"
+                            showChatHint
                             roomDisplayName={roomDisplayName}
                             className="flex min-h-0 flex-1 rounded-none border-0"
                         />
@@ -377,7 +403,13 @@ function CallRoomInner({
     );
 }
 
-export function CallRoomSession({ token, serverUrl, roomDisplayName, layout }: Props) {
+export function CallRoomSession({
+    token,
+    serverUrl,
+    roomDisplayName,
+    layout,
+    miniDragHandle,
+}: Props) {
     return (
         <LiveKitRoom
             token={token}
@@ -387,9 +419,13 @@ export function CallRoomSession({ token, serverUrl, roomDisplayName, layout }: P
             video={{ resolution: VideoPresets.h1080.resolution }}
             options={MEETS_LIVEKIT_ROOM_OPTIONS}
             data-lk-theme="default"
-            className="!text-inherit flex min-h-0 w-full flex-1 flex-col text-[#111827] dark:text-zinc-100"
+            className="!text-inherit flex min-h-0 w-full flex-1 flex-col text-zinc-900"
         >
-            <CallRoomInner roomDisplayName={roomDisplayName} layout={layout} />
+            <CallRoomInner
+                roomDisplayName={roomDisplayName}
+                layout={layout}
+                miniDragHandle={miniDragHandle}
+            />
         </LiveKitRoom>
     );
 }

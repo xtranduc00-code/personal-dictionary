@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
     Clapperboard,
-    Copy,
     FastForward,
+    Film,
+    Info,
     LogOut,
     Maximize2,
     MessageSquare,
@@ -38,6 +39,14 @@ import {
     WATCH_SYNC_TOPIC,
     type WatchSyncEnvelope,
 } from "@/lib/watch-party-protocol";
+import {
+    applyRemoteYoutubeState,
+    loadYoutubeIframeApi,
+    parseYouTubeVideoId,
+    YT_STATE_PAUSED,
+    YT_STATE_PLAYING,
+    type YtPlayerApi,
+} from "@/lib/youtube-watch";
 import { useMeetsLocalMicLevel } from "@/lib/use-meets-local-mic-level";
 import { MEETS_LIVEKIT_ROOM_OPTIONS } from "@/lib/meets-livekit-options";
 
@@ -48,13 +57,13 @@ type SessionProps = {
 };
 
 const START_AUDIO_BTN_CLASS =
-    "rounded-lg border border-gray-600/40 bg-gray-900/75 px-3 py-2 text-xs font-medium text-white shadow-md backdrop-blur-md dark:border-white/15 dark:bg-black/70 dark:shadow-lg";
+    "rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-800 shadow-sm";
 
 const MOBILE_CHAT_DRAWER =
-    "relative z-10 flex h-full w-[min(100%,320px)] flex-col border-l border-zinc-700/80 bg-[#1a1f2e] shadow-[0_12px_40px_rgba(0,0,0,0.45)]";
+    "relative z-10 flex h-full w-[min(100%,320px)] flex-col border-l border-zinc-200 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.12)]";
 
 const WATCH_CHAT_DESKTOP =
-    "hidden h-full min-h-0 w-full max-w-[300px] shrink-0 !min-h-0 flex-col border-l border-zinc-700/80 !max-h-none lg:flex";
+    "hidden h-full min-h-0 w-full max-w-[300px] shrink-0 flex-col overflow-hidden !rounded-xl lg:flex";
 
 export function WatchPartySession({ token, serverUrl, roomDisplayName }: SessionProps) {
     return (
@@ -65,7 +74,7 @@ export function WatchPartySession({ token, serverUrl, roomDisplayName }: Session
             audio={false}
             video={false}
             options={MEETS_LIVEKIT_ROOM_OPTIONS}
-            className="flex h-full min-h-0 w-full flex-1 flex-col text-[#111827] dark:text-zinc-100"
+            className="flex h-full min-h-0 w-full flex-1 flex-col text-zinc-900"
         >
             <WatchPartyInner roomDisplayName={roomDisplayName} />
         </LiveKitRoom>
@@ -86,6 +95,13 @@ function getDocumentFullscreenElement(): Element | null {
         ?? doc.mozFullScreenElement
         ?? null
     );
+}
+
+function shortWatchRoomDisplay(name: string): string {
+    if (name.length <= 24) {
+        return name;
+    }
+    return `${name.slice(0, 10)}…${name.slice(-8)}`;
 }
 
 function formatWatchTime(sec: number): string {
@@ -112,7 +128,6 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [objectUrl, setObjectUrl] = useState<string | null>(null);
-    const [fileLabel, setFileLabel] = useState<string | null>(null);
     const applyingRemote = useRef(false);
     const lastSeekBroadcast = useRef(0);
     const scrubbingRef = useRef(false);
@@ -126,6 +141,28 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
     const [stageFullscreen, setStageFullscreen] = useState(false);
     const [showPartnerPlayBanner, setShowPartnerPlayBanner] = useState(false);
     const partnerPlayGateRef = useRef(false);
+    const ytContainerId = useId().replace(/:/g, "");
+    const [youtubeId, setYoutubeId] = useState<string | null>(null);
+    const [youtubeUrlDraft, setYoutubeUrlDraft] = useState("");
+    const [ytReady, setYtReady] = useState(false);
+    const [fileDropActive, setFileDropActive] = useState(false);
+    const ytPlayerRef = useRef<YtPlayerApi | null>(null);
+    const youtubeIdRef = useRef<string | null>(null);
+    const publishStateRef = useRef<() => Promise<void>>(async () => {});
+    const volumeRef = useRef(1);
+    type YoutubeSyncMsg = Extract<WatchSyncEnvelope, { kind: "state" }> & {
+        source: "youtube";
+        youtubeId: string;
+    };
+    const pendingYoutubeSyncRef = useRef<YoutubeSyncMsg | null>(null);
+
+    useEffect(() => {
+        youtubeIdRef.current = youtubeId;
+    }, [youtubeId]);
+
+    useEffect(() => {
+        volumeRef.current = volume;
+    }, [volume]);
 
     const notifyRemotePlayBlocked = useCallback(() => {
         if (partnerPlayGateRef.current) {
@@ -145,9 +182,44 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
     }, []);
 
     const publishState = useCallback(async () => {
-        const v = videoRef.current;
         const lp = room.localParticipant;
-        if (!v?.src || !lp || room.state !== ConnectionState.Connected) {
+        if (!lp || room.state !== ConnectionState.Connected) {
+            return;
+        }
+        const yid = youtubeIdRef.current;
+        const yp = ytPlayerRef.current;
+        if (yid && yp) {
+            let currentTime = 0;
+            let playing = false;
+            try {
+                currentTime = yp.getCurrentTime();
+                playing = yp.getPlayerState() === YT_STATE_PLAYING;
+            }
+            catch {
+                return;
+            }
+            const msg: WatchSyncEnvelope = {
+                v: 1,
+                kind: "state",
+                currentTime,
+                playing,
+                sentAt: Date.now(),
+                source: "youtube",
+                youtubeId: yid,
+            };
+            try {
+                await lp.publishData(encodeWatchSync(msg), {
+                    reliable: true,
+                    topic: WATCH_SYNC_TOPIC,
+                });
+            }
+            catch {
+                /* ignore */
+            }
+            return;
+        }
+        const v = videoRef.current;
+        if (!v?.src) {
             return;
         }
         const msg: WatchSyncEnvelope = {
@@ -156,6 +228,7 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
             currentTime: v.currentTime,
             playing: !v.paused,
             sentAt: Date.now(),
+            source: "file",
         };
         try {
             await lp.publishData(encodeWatchSync(msg), {
@@ -167,6 +240,10 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
             /* ignore */
         }
     }, [room]);
+
+    useEffect(() => {
+        publishStateRef.current = publishState;
+    }, [publishState]);
 
     const publishRequest = useCallback(async () => {
         const lp = room.localParticipant;
@@ -205,6 +282,49 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
             }
             if (msg.kind === "req") {
                 void publishState();
+                return;
+            }
+            if (msg.source === "youtube" && msg.youtubeId) {
+                if (!msg.playing) {
+                    partnerPlayGateRef.current = false;
+                    setShowPartnerPlayBanner(false);
+                }
+                pendingYoutubeSyncRef.current = {
+                    v: 1,
+                    kind: "state",
+                    source: "youtube",
+                    youtubeId: msg.youtubeId,
+                    currentTime: msg.currentTime,
+                    playing: msg.playing,
+                    sentAt: msg.sentAt,
+                };
+                setObjectUrl((url) => {
+                    if (url) {
+                        URL.revokeObjectURL(url);
+                    }
+                    return null;
+                });
+                setYoutubeId((cur) => (cur === msg.youtubeId ? cur : msg.youtubeId!));
+                queueMicrotask(() => {
+                    const p = ytPlayerRef.current;
+                    if (!p || youtubeIdRef.current !== msg.youtubeId) {
+                        return;
+                    }
+                    applyingRemote.current = true;
+                    try {
+                        applyRemoteYoutubeState(
+                            p,
+                            msg.currentTime,
+                            msg.playing,
+                            msg.playing ? notifyRemotePlayBlocked : undefined,
+                        );
+                    }
+                    finally {
+                        window.requestAnimationFrame(() => {
+                            applyingRemote.current = false;
+                        });
+                    }
+                });
                 return;
             }
             const v = videoRef.current;
@@ -285,34 +405,181 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
     }, [objectUrl]);
 
     useEffect(() => {
-        if (!objectUrl) {
+        if (!objectUrl && !youtubeId) {
             setDuration(0);
             setUiTime(0);
             setScrubTime(0);
             setPlaying(false);
         }
-    }, [objectUrl]);
+    }, [objectUrl, youtubeId]);
 
-    /** Khi đã chọn file và có người trong phòng — xin state để bắt kịp play/pause */
+    /** YouTube IFrame API — tạo / hủy player theo videoId */
     useEffect(() => {
-        if (!objectUrl || room.state !== ConnectionState.Connected) {
+        if (!youtubeId) {
+            setYtReady(false);
+            ytPlayerRef.current = null;
+            return;
+        }
+        let cancelled = false;
+        const cleanupTarget = { current: null as YtPlayerApi | null };
+        void (async () => {
+            await loadYoutubeIframeApi();
+            if (cancelled || typeof window === "undefined" || !window.YT?.Player) {
+                return;
+            }
+            const player = new window.YT.Player(ytContainerId, {
+                videoId: youtubeId,
+                playerVars: {
+                    rel: 0,
+                    modestbranding: 1,
+                    playsinline: 1,
+                    origin: window.location.origin,
+                },
+                events: {
+                    onReady: (e) => {
+                        if (cancelled) {
+                            return;
+                        }
+                        ytPlayerRef.current = e.target;
+                        setYtReady(true);
+                        try {
+                            const d = e.target.getDuration();
+                            if (Number.isFinite(d) && d > 0) {
+                                setDuration(d);
+                            }
+                            e.target.setVolume(volumeRef.current * 100);
+                        }
+                        catch {
+                            /* ignore */
+                        }
+                        const pending = pendingYoutubeSyncRef.current;
+                        if (
+                            pending
+                            && pending.source === "youtube"
+                            && pending.youtubeId === youtubeIdRef.current
+                        ) {
+                            applyingRemote.current = true;
+                            try {
+                                applyRemoteYoutubeState(
+                                    e.target,
+                                    pending.currentTime,
+                                    pending.playing,
+                                    pending.playing ? notifyRemotePlayBlocked : undefined,
+                                );
+                            }
+                            finally {
+                                window.requestAnimationFrame(() => {
+                                    applyingRemote.current = false;
+                                });
+                            }
+                            pendingYoutubeSyncRef.current = null;
+                        }
+                    },
+                    onStateChange: (ev) => {
+                        if (cancelled || applyingRemote.current) {
+                            return;
+                        }
+                        const st = ev.data;
+                        setPlaying(st === YT_STATE_PLAYING);
+                        if (st === YT_STATE_PLAYING) {
+                            clearPartnerPlayGate();
+                        }
+                        if (st === YT_STATE_PLAYING || st === YT_STATE_PAUSED) {
+                            void publishStateRef.current();
+                        }
+                    },
+                },
+            });
+            if (cancelled) {
+                try {
+                    player.destroy();
+                }
+                catch {
+                    /* ignore */
+                }
+                return;
+            }
+            cleanupTarget.current = player;
+        })();
+        return () => {
+            cancelled = true;
+            setYtReady(false);
+            ytPlayerRef.current = null;
+            try {
+                cleanupTarget.current?.destroy();
+            }
+            catch {
+                /* ignore */
+            }
+            cleanupTarget.current = null;
+        };
+    }, [
+        youtubeId,
+        ytContainerId,
+        notifyRemotePlayBlocked,
+        clearPartnerPlayGate,
+    ]);
+
+    /** Cập nhật thời gian / duration từ YouTube player */
+    useEffect(() => {
+        if (!youtubeId || !ytReady) {
+            return;
+        }
+        const id = window.setInterval(() => {
+            if (scrubbingRef.current || applyingRemote.current) {
+                return;
+            }
+            const p = ytPlayerRef.current;
+            if (!p) {
+                return;
+            }
+            try {
+                setUiTime(p.getCurrentTime());
+                const dur = p.getDuration();
+                if (Number.isFinite(dur) && dur > 0) {
+                    setDuration(dur);
+                }
+            }
+            catch {
+                /* ignore */
+            }
+        }, 300);
+        return () => window.clearInterval(id);
+    }, [youtubeId, ytReady]);
+
+    /** Khi đã có nguồn phát và có người trong phòng — xin state để bắt kịp play/pause */
+    useEffect(() => {
+        if (room.state !== ConnectionState.Connected) {
             return;
         }
         if (room.remoteParticipants.size === 0) {
+            return;
+        }
+        if (!objectUrl && !(youtubeId && ytReady)) {
             return;
         }
         const id = window.setTimeout(() => {
             void publishRequest();
         }, 400);
         return () => window.clearTimeout(id);
-    }, [objectUrl, room.state, room.remoteParticipants.size, publishRequest]);
+    }, [
+        objectUrl,
+        youtubeId,
+        ytReady,
+        room.state,
+        room.remoteParticipants.size,
+        publishRequest,
+    ]);
 
     /** Heartbeat khi đang phát — tránh lỡ gói đồng bộ đầu tiên */
     useEffect(() => {
-        if (!playing || !objectUrl || room.state !== ConnectionState.Connected) {
+        if (!playing || room.state !== ConnectionState.Connected) {
             return;
         }
         if (room.remoteParticipants.size === 0) {
+            return;
+        }
+        if (!objectUrl && !(youtubeId && ytReady)) {
             return;
         }
         const id = window.setInterval(() => {
@@ -322,7 +589,15 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
             void publishState();
         }, 2500);
         return () => window.clearInterval(id);
-    }, [playing, objectUrl, room.state, room.remoteParticipants.size, publishState]);
+    }, [
+        playing,
+        objectUrl,
+        youtubeId,
+        ytReady,
+        room.state,
+        room.remoteParticipants.size,
+        publishState,
+    ]);
 
     const onLocalInteraction = useCallback(() => {
         if (applyingRemote.current) {
@@ -343,30 +618,80 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
         void publishState();
     }, [publishState]);
 
+    const ingestPickedFile = useCallback((f: File | null) => {
+        setYoutubeId(null);
+        setObjectUrl((prev) => {
+            if (prev) {
+                URL.revokeObjectURL(prev);
+            }
+            if (!f) {
+                return null;
+            }
+            return URL.createObjectURL(f);
+        });
+    }, []);
+
     const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const f = e.target.files?.[0];
-        if (objectUrl) {
-            URL.revokeObjectURL(objectUrl);
-        }
-        if (!f) {
-            setObjectUrl(null);
-            setFileLabel(null);
-            return;
-        }
-        const url = URL.createObjectURL(f);
-        setObjectUrl(url);
-        setFileLabel(f.name);
+        const f = e.target.files?.[0] ?? null;
+        ingestPickedFile(f);
+        e.target.value = "";
     };
 
-    const copyLink = async () => {
-        const url = `${typeof window !== "undefined" ? window.location.origin : ""}/watch/${encodeURIComponent(roomDisplayName)}`;
-        try {
-            await navigator.clipboard.writeText(url);
-            toast.success(t("meetsLinkCopied"));
+    const onVideoDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+        setFileDropActive(true);
+    }, []);
+
+    const onVideoDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+        const next = e.relatedTarget;
+        if (next instanceof Node && e.currentTarget.contains(next)) {
+            return;
         }
-        catch {
-            toast.error(t("meetsCopyFailed"));
+        setFileDropActive(false);
+    }, []);
+
+    const onVideoDrop = useCallback(
+        (e: React.DragEvent) => {
+            e.preventDefault();
+            setFileDropActive(false);
+            const f = e.dataTransfer.files?.[0];
+            if (!f) {
+                return;
+            }
+            const ok =
+                f.type.startsWith("video/")
+                || /\.(mkv|webm|mp4|mov|m4v)$/i.test(f.name);
+            if (!ok) {
+                toast.error(t("watchDropInvalidType"));
+                return;
+            }
+            ingestPickedFile(f);
+        },
+        [ingestPickedFile, t],
+    );
+
+    const loadYoutubeFromDraft = () => {
+        const id = parseYouTubeVideoId(youtubeUrlDraft);
+        if (!id) {
+            toast.error(t("watchYoutubeInvalidUrl"));
+            return;
         }
+        if (objectUrl) {
+            URL.revokeObjectURL(objectUrl);
+            setObjectUrl(null);
+        }
+        setYoutubeUrlDraft("");
+        setYoutubeId(id);
+    };
+
+    const clearYoutube = () => {
+        setYoutubeId(null);
+        setYoutubeUrlDraft("");
+        setYtReady(false);
+        setDuration(0);
+        setUiTime(0);
+        setPlaying(false);
     };
 
     const leave = async () => {
@@ -394,8 +719,27 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
 
     const displayTime = scrubbing ? scrubTime : uiTime;
     const durationSafe = Number.isFinite(duration) && duration > 0 ? duration : 0;
+    const hasMedia = Boolean(objectUrl || (youtubeId && ytReady));
+    const showEmptyStage = !objectUrl && !youtubeId;
 
     const togglePlay = () => {
+        if (youtubeId && ytPlayerRef.current) {
+            const p = ytPlayerRef.current;
+            try {
+                if (p.getPlayerState() === YT_STATE_PLAYING) {
+                    p.pauseVideo();
+                }
+                else {
+                    p.playVideo();
+                    clearPartnerPlayGate();
+                }
+            }
+            catch {
+                /* ignore */
+            }
+            void publishState();
+            return;
+        }
         const v = videoRef.current;
         if (!v?.src) {
             return;
@@ -470,6 +814,26 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
 
     const skipSeconds = useCallback(
         (delta: number) => {
+            if (youtubeId && ytPlayerRef.current) {
+                const p = ytPlayerRef.current;
+                try {
+                    let next = p.getCurrentTime() + delta;
+                    if (next < 0) {
+                        next = 0;
+                    }
+                    const maxT = durationSafe > 0 ? durationSafe : p.getDuration();
+                    if (Number.isFinite(maxT) && maxT > 0 && next > maxT) {
+                        next = maxT;
+                    }
+                    p.seekTo(next, true);
+                    setUiTime(next);
+                }
+                catch {
+                    /* ignore */
+                }
+                void publishState();
+                return;
+            }
             const v = videoRef.current;
             if (!v?.src) {
                 return;
@@ -486,7 +850,7 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
             v.currentTime = next;
             setUiTime(next);
         },
-        [durationSafe],
+        [durationSafe, youtubeId, publishState],
     );
 
     useEffect(() => {
@@ -497,8 +861,19 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
             scrubbingRef.current = false;
             setScrubbing(false);
             const v = videoRef.current;
-            if (v) {
+            if (v?.src) {
                 setUiTime(v.currentTime);
+            }
+            else {
+                const p = ytPlayerRef.current;
+                if (p) {
+                    try {
+                        setUiTime(p.getCurrentTime());
+                    }
+                    catch {
+                        /* ignore */
+                    }
+                }
             }
             void publishState();
         };
@@ -511,24 +886,34 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
     }, [scrubbing, publishState]);
 
     return (
-        <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#F6F7F9] dark:bg-[#0a0a0b]">
+        <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#f9fafb]">
             <RoomAudioRenderer />
-            <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-zinc-200/80 px-2 py-1.5 dark:border-white/10 sm:gap-2 sm:px-3 sm:py-2">
-                <Clapperboard className="h-4 w-4 shrink-0 text-blue-600 dark:text-sky-400 sm:h-5 sm:w-5" aria-hidden />
+            <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-zinc-200 bg-white px-2 py-1.5 shadow-sm sm:gap-2 sm:px-3 sm:py-2">
+                <Clapperboard className="h-4 w-4 shrink-0 text-blue-600 sm:h-5 sm:w-5" aria-hidden />
                 <div className="min-w-0 flex-1">
-                    <h1 className="truncate text-xs font-semibold sm:text-sm md:text-base">{t("watchTogetherTitle")}</h1>
+                    <h1 className="truncate text-xs font-semibold text-zinc-900 sm:text-sm md:text-base">{t("watchTogetherTitle")}</h1>
                     <div className="mt-0.5 flex flex-wrap items-center gap-1.5 sm:gap-2">
-                        <p className="min-w-0 truncate font-mono text-[10px] text-zinc-500 dark:text-zinc-400 sm:text-[11px]">
-                            {roomDisplayName}
+                        <p className="flex min-w-0 flex-wrap items-center gap-1.5 text-[10px] text-zinc-600 sm:text-[11px]">
+                            <span
+                                className="inline-flex max-w-[min(100%,18rem)] items-center gap-1 rounded-md border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 font-sans"
+                                title={roomDisplayName}
+                            >
+                                <span className="shrink-0 font-medium text-zinc-500">
+                                    {t("watchRoomLabel")}
+                                </span>
+                                <span className="truncate font-mono text-zinc-800">
+                                    {shortWatchRoomDisplay(roomDisplayName)}
+                                </span>
+                            </span>
                             {connected ? (
-                                <span className="ml-1.5 text-emerald-600 dark:text-emerald-400 sm:ml-2">
+                                <span className="shrink-0 text-emerald-600">
                                     · {t("watchTogetherConnected")}
                                 </span>
                             ) : null}
                         </p>
                         {connected ? (
                             <span
-                                className="inline-flex max-w-full shrink-0 items-center gap-1 rounded-md bg-zinc-200/90 px-1.5 py-0.5 text-[10px] font-medium text-zinc-800 dark:bg-white/10 dark:text-zinc-100"
+                                className="inline-flex max-w-full shrink-0 items-center gap-1 rounded-md border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-medium text-zinc-700"
                                 title={peopleTitle}
                             >
                                 <Users className="h-3 w-3 shrink-0 opacity-80" aria-hidden />
@@ -547,8 +932,8 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
                         title={isMicrophoneEnabled ? t("meetsMuteMic") : t("meetsUnmuteMic")}
                         className={`inline-flex h-8 items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium disabled:opacity-50 sm:px-2.5 sm:text-xs ${
                             isMicrophoneEnabled
-                                ? "border-emerald-300/80 bg-emerald-50 text-emerald-900 dark:border-emerald-800/60 dark:bg-emerald-950/50 dark:text-emerald-100"
-                                : "border-zinc-200 bg-white text-zinc-800 dark:border-white/15 dark:bg-white/10 dark:text-zinc-100"
+                                ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                                : "border-zinc-200 bg-white text-zinc-700 shadow-sm"
                         }`}
                     >
                         {isMicrophoneEnabled ? (
@@ -563,7 +948,7 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
                     <button
                         type="button"
                         onClick={() => setChatOpen(true)}
-                        className="inline-flex h-8 items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] font-medium text-zinc-800 lg:hidden dark:border-white/15 dark:bg-white/10 dark:text-zinc-100"
+                        className="inline-flex h-8 items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] font-medium text-zinc-700 shadow-sm lg:hidden"
                         aria-label={t("meetsToggleChat")}
                     >
                         <MessageSquare className="h-3.5 w-3.5" aria-hidden />
@@ -571,27 +956,8 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
                     </button>
                     <button
                         type="button"
-                        onClick={() => void copyLink()}
-                        className="inline-flex items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] font-medium text-zinc-800 sm:px-2.5 sm:text-xs dark:border-white/15 dark:bg-white/10 dark:text-zinc-100"
-                    >
-                        <Copy className="h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5" aria-hidden />
-                        <span className="hidden sm:inline">{t("watchTogetherCopyLink")}</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            void publishRequest();
-                        }}
-                        disabled={!connected}
-                        className="inline-flex items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] font-medium text-zinc-800 disabled:opacity-50 sm:px-2.5 sm:text-xs dark:border-white/15 dark:bg-white/10 dark:text-zinc-100"
-                    >
-                        <RefreshCw className="h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5" aria-hidden />
-                        <span className="hidden sm:inline">{t("watchTogetherSyncNow")}</span>
-                    </button>
-                    <button
-                        type="button"
                         onClick={() => void leave()}
-                        className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-[11px] font-medium text-red-800 sm:px-2.5 sm:text-xs dark:border-red-900/50 dark:bg-red-950/50 dark:text-red-200"
+                        className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-[11px] font-medium text-red-800 sm:px-2.5 sm:text-xs"
                     >
                         <LogOut className="h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5" aria-hidden />
                         <span className="hidden sm:inline">{t("meetsLeaveRoom")}</span>
@@ -600,11 +966,21 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
             </header>
 
             {showPartnerPlayBanner ? (
-                <div className="flex shrink-0 items-center justify-between gap-3 border-b border-amber-200/90 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/45 dark:text-amber-50 sm:text-sm">
+                <div className="flex shrink-0 items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950 sm:text-sm">
                     <span className="min-w-0 leading-snug">{t("watchPartnerPlayingTapPlay")}</span>
                     <button
                         type="button"
                         onClick={() => {
+                            if (youtubeId && ytPlayerRef.current) {
+                                try {
+                                    ytPlayerRef.current.playVideo();
+                                    clearPartnerPlayGate();
+                                }
+                                catch {
+                                    /* still blocked */
+                                }
+                                return;
+                            }
                             const v = videoRef.current;
                             if (!v?.src) {
                                 return;
@@ -618,19 +994,24 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
                                     /* still blocked */
                                 });
                         }}
-                        className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-amber-500 dark:bg-amber-700 dark:hover:bg-amber-600"
+                        className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-amber-500"
                     >
                         {t("watchPlayTogether")}
                     </button>
                 </div>
             ) : null}
 
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
-                <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-2 pb-2 pt-1 sm:px-3 sm:pb-3 sm:pt-2">
-                    <p className="mb-1 line-clamp-1 shrink-0 text-[10px] leading-snug text-zinc-600 dark:text-zinc-400 sm:line-clamp-2 sm:text-xs">
-                        {t("watchTogetherHint")}
-                    </p>
-                    <div className="mb-1.5 flex shrink-0 flex-wrap items-center gap-2">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <div
+                    className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden px-4 pb-4 pt-3 sm:gap-5 sm:px-5 sm:pb-5 sm:pt-4"
+                    onDragOver={onVideoDragOver}
+                    onDragLeave={onVideoDragLeave}
+                    onDrop={onVideoDrop}
+                >
+                    <div
+                        title={t("watchDropZonePrompt")}
+                        className="flex min-w-0 shrink-0 flex-nowrap items-center gap-2 py-0.5 max-sm:overflow-x-auto max-sm:pb-0.5"
+                    >
                         <input
                             ref={fileInputRef}
                             type="file"
@@ -641,81 +1022,155 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
                         <button
                             type="button"
                             onClick={() => fileInputRef.current?.click()}
-                            className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-500 dark:bg-sky-600 dark:hover:bg-sky-500 sm:rounded-xl sm:px-4 sm:py-2 sm:text-sm"
+                            className="shrink-0 rounded-md bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700"
                         >
                             {t("watchTogetherChooseFile")}
                         </button>
-                        <span className="max-w-[min(100%,14rem)] truncate text-[10px] text-zinc-500 dark:text-zinc-400 sm:max-w-md sm:text-xs">
-                            {fileLabel ?? t("watchTogetherNoFile")}
+                        <span
+                            className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-zinc-400"
+                            aria-hidden
+                        >
+                            {t("watchSourceOr")}
                         </span>
+                        <input
+                            type="url"
+                            value={youtubeUrlDraft}
+                            onChange={(e) => setYoutubeUrlDraft(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                    loadYoutubeFromDraft();
+                                }
+                            }}
+                            placeholder={t("watchYoutubePlaceholder")}
+                            className="h-8 min-w-[6rem] flex-1 rounded-md border border-zinc-200 bg-white px-2 text-xs text-zinc-900 placeholder:text-zinc-400 sm:min-w-[10rem] sm:max-w-md"
+                            autoComplete="off"
+                        />
+                        <button
+                            type="button"
+                            onClick={loadYoutubeFromDraft}
+                            className="shrink-0 rounded-md border border-zinc-200 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
+                        >
+                            {t("watchYoutubeLoad")}
+                        </button>
+                        {youtubeId ? (
+                            <button
+                                type="button"
+                                onClick={clearYoutube}
+                                className="shrink-0 rounded-md border border-zinc-200 px-2 py-1 text-xs font-medium text-zinc-600 hover:bg-zinc-50"
+                            >
+                                {t("watchYoutubeClear")}
+                            </button>
+                        ) : null}
+                        <button
+                            type="button"
+                            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
+                            title={t("watchTogetherHint")}
+                            aria-label={t("watchTogetherHint")}
+                        >
+                            <Info className="h-4 w-4" strokeWidth={2} aria-hidden />
+                        </button>
                     </div>
 
-                    <div
-                        ref={videoStageRef}
-                        className="watch-party-video-stage relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-zinc-200 bg-black shadow-inner dark:border-white/10 sm:rounded-2xl"
-                    >
+                    <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:items-stretch lg:gap-5">
+                        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                            <div
+                                ref={videoStageRef}
+                                className={`watch-party-video-stage relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm sm:rounded-2xl ${
+                                    fileDropActive ? "ring-2 ring-blue-400 ring-offset-2 ring-offset-[#f9fafb]" : ""
+                                }`}
+                            >
                         <div className="pointer-events-none absolute right-2 top-2 z-20 sm:right-3 sm:top-3">
                             <div className="pointer-events-auto">
                                 <StartAudio label={t("meetsStartAudioLabel")} className={START_AUDIO_BTN_CLASS} />
                             </div>
                         </div>
 
-                        <div className="watch-party-video-area relative flex min-h-0 flex-1 items-center justify-center bg-black">
-                            <video
-                                ref={videoRef}
-                                className="max-h-full max-w-full object-contain"
-                                playsInline
-                                preload="metadata"
-                                src={objectUrl ?? undefined}
-                            onPlay={() => {
-                                setPlaying(true);
-                                clearPartnerPlayGate();
-                                onLocalInteraction();
-                            }}
-                                onPause={() => {
-                                    setPlaying(false);
-                                    onLocalInteraction();
-                                }}
-                                onSeeked={onSeeked}
-                                onLoadedMetadata={(e) => {
-                                    const v = e.currentTarget;
-                                    setDuration(v.duration);
-                                    setUiTime(v.currentTime);
-                                    setVolume(v.volume);
-                                    setPlaying(!v.paused);
-                                }}
-                                onTimeUpdate={(e) => {
-                                    if (scrubbingRef.current) {
-                                        return;
-                                    }
-                                    setUiTime(e.currentTarget.currentTime);
-                                }}
-                                onVolumeChange={(e) => {
-                                    setVolume(e.currentTarget.volume);
-                                }}
-                                onEnded={() => {
-                                    setPlaying(false);
-                                    onLocalInteraction();
-                                }}
-                            />
+                        <div className="watch-party-video-area relative m-1 flex min-h-0 flex-1 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-950 sm:m-1.5">
+                            {showEmptyStage ? (
+                                <div
+                                    className="pointer-events-none absolute inset-0 z-[1] flex flex-col items-center justify-center gap-2 rounded-[inherit] bg-zinc-950/95 px-6 text-center"
+                                    aria-hidden
+                                >
+                                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 ring-1 ring-white/10">
+                                        <Film className="h-7 w-7 text-blue-400" strokeWidth={1.75} />
+                                    </div>
+                                    <p className="text-sm font-semibold text-zinc-100">
+                                        {t("watchEmptyStageTitle")}
+                                    </p>
+                                    <p className="max-w-xs text-xs leading-relaxed text-zinc-400">
+                                        {t("watchEmptyStageHint")}
+                                    </p>
+                                </div>
+                            ) : null}
+                            {youtubeId ? (
+                                <>
+                                    <div
+                                        id={ytContainerId}
+                                        className="absolute inset-0 z-0 min-h-[12rem] w-full"
+                                    />
+                                    {!ytReady ? (
+                                        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-black/80 px-4 text-center text-xs text-zinc-300 sm:text-sm">
+                                            {t("watchYoutubeLoading")}
+                                        </div>
+                                    ) : null}
+                                </>
+                            ) : (
+                                <video
+                                    ref={videoRef}
+                                    className="max-h-full max-w-full object-contain"
+                                    playsInline
+                                    preload="metadata"
+                                    src={objectUrl ?? undefined}
+                                    onPlay={() => {
+                                        setPlaying(true);
+                                        clearPartnerPlayGate();
+                                        onLocalInteraction();
+                                    }}
+                                    onPause={() => {
+                                        setPlaying(false);
+                                        onLocalInteraction();
+                                    }}
+                                    onSeeked={onSeeked}
+                                    onLoadedMetadata={(e) => {
+                                        const v = e.currentTarget;
+                                        setDuration(v.duration);
+                                        setUiTime(v.currentTime);
+                                        setVolume(v.volume);
+                                        setPlaying(!v.paused);
+                                    }}
+                                    onTimeUpdate={(e) => {
+                                        if (scrubbingRef.current) {
+                                            return;
+                                        }
+                                        setUiTime(e.currentTarget.currentTime);
+                                    }}
+                                    onVolumeChange={(e) => {
+                                        setVolume(e.currentTarget.volume);
+                                    }}
+                                    onEnded={() => {
+                                        setPlaying(false);
+                                        onLocalInteraction();
+                                    }}
+                                />
+                            )}
                         </div>
 
-                        <div className="watch-party-controls flex min-h-[2.25rem] shrink-0 flex-nowrap items-center gap-1.5 overflow-x-auto overflow-y-hidden border-t border-zinc-700/80 bg-zinc-950 px-2 py-1 text-zinc-100 sm:gap-2 sm:px-2.5 sm:py-1.5">
+                        <div className="watch-party-controls flex min-h-[2.25rem] shrink-0 flex-nowrap items-center gap-1.5 overflow-x-auto overflow-y-hidden border-t border-zinc-200 bg-zinc-50 px-2 py-1 sm:gap-2 sm:px-2.5 sm:py-1.5">
                             <button
                                 type="button"
-                                disabled={!objectUrl}
+                                disabled={!hasMedia}
                                 onClick={() => skipSeconds(-WATCH_SKIP_SECONDS)}
                                 title={t("watchSkipBack10")}
-                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white hover:bg-white/20 disabled:opacity-40 sm:h-8 sm:w-8"
+                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 shadow-sm hover:bg-zinc-50 disabled:opacity-40 sm:h-8 sm:w-8"
                                 aria-label={t("watchSkipBack10")}
                             >
                                 <Rewind className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
                             </button>
                             <button
                                 type="button"
-                                disabled={!objectUrl}
+                                disabled={!hasMedia}
                                 onClick={togglePlay}
-                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white hover:bg-white/20 disabled:opacity-40 sm:h-8 sm:w-8"
+                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 shadow-sm hover:bg-zinc-50 disabled:opacity-40 sm:h-8 sm:w-8"
                                 aria-label={playing ? t("watchPlayerPause") : t("watchPlayerPlay")}
                             >
                                 {playing ? (
@@ -726,15 +1181,28 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
                             </button>
                             <button
                                 type="button"
-                                disabled={!objectUrl}
+                                disabled={!hasMedia}
                                 onClick={() => skipSeconds(WATCH_SKIP_SECONDS)}
                                 title={t("watchSkipForward10")}
-                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white hover:bg-white/20 disabled:opacity-40 sm:h-8 sm:w-8"
+                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 shadow-sm hover:bg-zinc-50 disabled:opacity-40 sm:h-8 sm:w-8"
                                 aria-label={t("watchSkipForward10")}
                             >
                                 <FastForward className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
                             </button>
-                            <span className="max-w-[5.5rem] shrink-0 truncate tabular-nums text-[10px] text-zinc-300 sm:max-w-none sm:text-xs md:text-sm">
+                            <button
+                                type="button"
+                                disabled={!connected}
+                                onClick={() => {
+                                    void publishRequest();
+                                }}
+                                title={t("watchSyncNowTooltip")}
+                                className="inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-lg border border-zinc-200 bg-white px-2 text-zinc-700 shadow-sm hover:bg-zinc-50 disabled:opacity-40 sm:min-w-[2rem] sm:px-2.5"
+                                aria-label={t("watchTogetherSyncNow")}
+                            >
+                                <RefreshCw className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+                                <span className="hidden text-[11px] font-medium sm:inline">{t("watchTogetherSyncNow")}</span>
+                            </button>
+                            <span className="max-w-[5.5rem] shrink-0 truncate tabular-nums text-[10px] text-zinc-600 sm:max-w-none sm:text-xs md:text-sm">
                                 {formatWatchTime(displayTime)} / {formatWatchTime(durationSafe)}
                             </span>
                             <label className="flex min-h-0 min-w-0 flex-1 items-center">
@@ -742,12 +1210,24 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
                                 <input
                                     type="range"
                                     aria-label={t("watchPlayerSeek")}
-                                    disabled={!objectUrl || durationSafe <= 0}
+                                    disabled={!hasMedia || durationSafe <= 0}
                                     min={0}
                                     max={durationSafe > 0 ? durationSafe : 1}
                                     step={0.05}
                                     value={durationSafe > 0 ? Math.min(displayTime, durationSafe) : 0}
                                     onPointerDown={() => {
+                                        if (youtubeId && ytPlayerRef.current && durationSafe > 0) {
+                                            const p = ytPlayerRef.current;
+                                            try {
+                                                scrubbingRef.current = true;
+                                                setScrubbing(true);
+                                                setScrubTime(p.getCurrentTime());
+                                            }
+                                            catch {
+                                                /* ignore */
+                                            }
+                                            return;
+                                        }
                                         const v = videoRef.current;
                                         if (!v?.src || durationSafe <= 0) {
                                             return;
@@ -757,15 +1237,23 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
                                         setScrubTime(v.currentTime);
                                     }}
                                     onChange={(e) => {
-                                        const v = videoRef.current;
                                         const x = Number(e.target.value);
-                                        if (!v?.src || !Number.isFinite(x)) {
+                                        if (!Number.isFinite(x)) {
+                                            return;
+                                        }
+                                        if (youtubeId && ytPlayerRef.current) {
+                                            ytPlayerRef.current.seekTo(x, true);
+                                            setScrubTime(x);
+                                            return;
+                                        }
+                                        const v = videoRef.current;
+                                        if (!v?.src) {
                                             return;
                                         }
                                         setScrubTime(x);
                                         v.currentTime = x;
                                     }}
-                                    className="h-1.5 w-full min-w-[4rem] flex-1 cursor-pointer accent-sky-500 disabled:opacity-40 sm:h-2 sm:min-w-[6rem]"
+                                    className="h-1.5 w-full min-w-[4rem] flex-1 cursor-pointer accent-blue-600 disabled:opacity-40 sm:h-2 sm:min-w-[6rem]"
                                 />
                             </label>
                             <label className="flex shrink-0 items-center">
@@ -773,28 +1261,38 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
                                 <input
                                     type="range"
                                     aria-label={t("watchPlayerVolume")}
-                                    disabled={!objectUrl}
+                                    disabled={!hasMedia}
                                     min={0}
                                     max={1}
                                     step={0.05}
                                     value={volume}
                                     onChange={(e) => {
-                                        const v = videoRef.current;
                                         const x = Number(e.target.value);
+                                        if (youtubeId && ytPlayerRef.current) {
+                                            try {
+                                                ytPlayerRef.current.setVolume(Math.round(x * 100));
+                                            }
+                                            catch {
+                                                /* ignore */
+                                            }
+                                            setVolume(x);
+                                            return;
+                                        }
+                                        const v = videoRef.current;
                                         if (!v?.src) {
                                             return;
                                         }
                                         v.volume = x;
                                         setVolume(x);
                                     }}
-                                    className="h-1.5 w-14 cursor-pointer accent-sky-500 sm:h-2 sm:w-20 disabled:opacity-40"
+                                    className="h-1.5 w-14 cursor-pointer accent-blue-600 sm:h-2 sm:w-20 disabled:opacity-40"
                                 />
                             </label>
                             <button
                                 type="button"
-                                disabled={!objectUrl}
+                                disabled={!hasMedia}
                                 onClick={toggleStageFullscreen}
-                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white hover:bg-white/20 disabled:opacity-40"
+                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 shadow-sm hover:bg-zinc-50 disabled:opacity-40"
                                 aria-label={stageFullscreen ? t("watchExitFullscreen") : t("watchPlayerFullscreen")}
                             >
                                 {stageFullscreen ? (
@@ -805,13 +1303,15 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
                             </button>
                         </div>
                     </div>
-                </div>
+                        </div>
 
-                <CallChatPanel roomDisplayName={roomDisplayName} className={WATCH_CHAT_DESKTOP} />
+                        <CallChatPanel variant="watch" roomDisplayName={roomDisplayName} className={WATCH_CHAT_DESKTOP} />
+                    </div>
+                </div>
             </div>
 
             {chatOpen ? (
-                <div className="fixed inset-0 z-40 flex justify-end bg-[#111827]/35 backdrop-blur-sm dark:bg-black/60 lg:hidden">
+                <div className="fixed inset-0 z-40 flex justify-end bg-zinc-900/20 backdrop-blur-[2px] lg:hidden">
                     <button
                         type="button"
                         className="absolute inset-0 cursor-default"
@@ -825,6 +1325,7 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
                         aria-label={t("meetsChatTitle")}
                     >
                         <CallChatPanel
+                            variant="watch"
                             roomDisplayName={roomDisplayName}
                             className="flex h-full min-h-0 flex-1 rounded-none border-0 !max-h-none"
                         />

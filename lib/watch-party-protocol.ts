@@ -8,6 +8,10 @@ export type WatchSyncEnvelope =
           currentTime: number;
           playing: boolean;
           sentAt: number;
+          /** Default / omitted = local file sync */
+          source?: "file" | "youtube";
+          /** Required when source is youtube */
+          youtubeId?: string;
       }
     | {
           v: 1;
@@ -39,12 +43,28 @@ export function parseWatchSync(raw: Uint8Array): WatchSyncEnvelope | null {
             && typeof o.playing === "boolean"
             && typeof o.sentAt === "number"
         ) {
+            const source = o.source === "youtube" ? "youtube" : "file";
+            if (source === "youtube") {
+                if (typeof o.youtubeId !== "string" || !/^[a-zA-Z0-9_-]{11}$/.test(o.youtubeId)) {
+                    return null;
+                }
+                return {
+                    v: 1,
+                    kind: "state",
+                    currentTime: o.currentTime,
+                    playing: o.playing,
+                    sentAt: o.sentAt,
+                    source: "youtube",
+                    youtubeId: o.youtubeId,
+                };
+            }
             return {
                 v: 1,
                 kind: "state",
                 currentTime: o.currentTime,
                 playing: o.playing,
                 sentAt: o.sentAt,
+                source: "file",
             };
         }
         return null;

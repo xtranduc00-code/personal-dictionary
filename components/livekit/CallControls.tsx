@@ -46,9 +46,6 @@ type CallControlsProps = {
 const btnLight =
     "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 bg-[#F3F4F6] text-[#374151] transition hover:bg-[#E5E7EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6]/30 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700 dark:focus-visible:ring-sky-400/40";
 
-const btnLightMini =
-    "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 bg-zinc-800 text-zinc-100 transition hover:bg-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/40";
-
 const btnLightOn =
     "bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-sky-900/50 dark:text-sky-200 dark:hover:bg-sky-900/70";
 
@@ -111,8 +108,6 @@ export const CallControls = memo(function CallControls({
     const onDarkDock = toolbarSurface === "darkDock" && !isMini;
     const baseBtn = onDarkDock ? btnDock : btnLight;
     const onBtn = onDarkDock ? btnDockOn : btnLightOn;
-    const micBtn = isMini ? btnLightMini : btnLight;
-    const camBtn = isMini ? btnLightMini : btnLight;
     const micTooltip = isMicrophoneEnabled
         ? `${t("meetsMuteMic")} — ${t("meetsMicLevelHint")}`
         : t("meetsUnmuteMic");
@@ -139,7 +134,7 @@ export const CallControls = memo(function CallControls({
                     </div>
                 ) : null}
                 <div
-                    className="pointer-events-auto flex items-center justify-center gap-1.5 rounded-full border border-white/10 bg-black/60 px-2 py-1.5 backdrop-blur-md"
+                    className="pointer-events-auto flex items-center justify-center gap-1.5 rounded-full border border-zinc-200 bg-white/95 px-2 py-1.5 shadow-md backdrop-blur-md"
                     role="toolbar"
                     aria-label={t("meetsControlsToolbar")}
                 >
@@ -147,14 +142,14 @@ export const CallControls = memo(function CallControls({
                         {isMicrophoneEnabled ? (
                             <MicLevelBars
                                 level={micLevel}
-                                className="mb-0.5 text-sky-300"
-                                barClassName="bg-sky-400"
+                                className="mb-0.5 text-blue-600"
+                                barClassName="bg-blue-500"
                             />
                         ) : null}
                         <Tooltip content={micTooltip} placement="top">
                             <button
                                 type="button"
-                                className={`${micBtn} ${isMicrophoneEnabled ? btnLightOn : ""} ${!isMicrophoneEnabled ? btnMuted : ""}`}
+                                className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 bg-[#F3F4F6] text-[#374151] transition hover:bg-[#E5E7EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6]/30 ${isMicrophoneEnabled ? btnLightOn : ""} ${!isMicrophoneEnabled ? btnMuted : ""}`}
                                 onClick={() => void toggleMic()}
                                 aria-label={isMicrophoneEnabled ? t("meetsMuteMic") : t("meetsUnmuteMic")}
                                 aria-pressed={!isMicrophoneEnabled}
@@ -170,7 +165,7 @@ export const CallControls = memo(function CallControls({
                     <Tooltip content={camTooltip} placement="top">
                         <button
                             type="button"
-                            className={`${camBtn} ${isCameraEnabled ? btnLightOn : ""} ${!isCameraEnabled ? btnMuted : ""}`}
+                            className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 bg-[#F3F4F6] text-[#374151] transition hover:bg-[#E5E7EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6]/30 ${isCameraEnabled ? btnLightOn : ""} ${!isCameraEnabled ? btnMuted : ""}`}
                             onClick={toggleCam}
                             aria-label={isCameraEnabled ? t("meetsCamOff") : t("meetsCamOn")}
                             aria-pressed={!isCameraEnabled}
@@ -187,8 +182,8 @@ export const CallControls = memo(function CallControls({
                             type="button"
                             className={
                                 isScreenShareEnabled
-                                    ? `${camBtn} bg-emerald-600 text-white shadow-[0_0_0_2px_rgba(16,185,129,0.35)] hover:bg-emerald-500`
-                                    : camBtn
+                                    ? "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 bg-emerald-600 text-white shadow-[0_0_0_2px_rgba(16,185,129,0.35)] transition hover:bg-emerald-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50"
+                                    : "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 bg-[#F3F4F6] text-[#374151] transition hover:bg-[#E5E7EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6]/30"
                             }
                             onClick={toggleShare}
                             aria-label={isScreenShareEnabled ? t("meetsStopShare") : t("meetsShareScreen")}
