@@ -1,6 +1,28 @@
 /** LiveKit data topic — keep in sync across peers */
 export const WATCH_SYNC_TOPIC = "ken-watch-sync";
 
+const MAX_SYNC_URL_LEN = 4096;
+
+/** Only https (or dev http on loopback) — never blob:, data:, javascript: */
+export function isAllowedSyncedMediaUrl(raw: string): boolean {
+    if (typeof raw !== "string" || raw.length > MAX_SYNC_URL_LEN) {
+        return false;
+    }
+    try {
+        const u = new URL(raw);
+        if (u.protocol === "https:") {
+            return Boolean(u.hostname);
+        }
+        if (u.protocol === "http:") {
+            return u.hostname === "localhost" || u.hostname === "127.0.0.1";
+        }
+        return false;
+    }
+    catch {
+        return false;
+    }
+}
+
 export type WatchSyncEnvelope =
     | {
           v: 1;
@@ -12,6 +34,9 @@ export type WatchSyncEnvelope =
           source?: "file" | "youtube";
           /** Required when source is youtube */
           youtubeId?: string;
+          /** Public https URL for the video element — peers cannot use another tab's blob: URL */
+          fileUrl?: string;
+          subtitleUrl?: string;
       }
     | {
           v: 1;
@@ -58,7 +83,7 @@ export function parseWatchSync(raw: Uint8Array): WatchSyncEnvelope | null {
                     youtubeId: o.youtubeId,
                 };
             }
-            return {
+            const fileMsg: WatchSyncEnvelope = {
                 v: 1,
                 kind: "state",
                 currentTime: o.currentTime,
@@ -66,6 +91,17 @@ export function parseWatchSync(raw: Uint8Array): WatchSyncEnvelope | null {
                 sentAt: o.sentAt,
                 source: "file",
             };
+            if (typeof o.fileUrl === "string" && isAllowedSyncedMediaUrl(o.fileUrl)) {
+                fileMsg.fileUrl = o.fileUrl;
+            }
+            if (
+                typeof o.subtitleUrl === "string"
+                && o.subtitleUrl.length > 0
+                && isAllowedSyncedMediaUrl(o.subtitleUrl)
+            ) {
+                fileMsg.subtitleUrl = o.subtitleUrl;
+            }
+            return fileMsg;
         }
         return null;
     }

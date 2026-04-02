@@ -473,6 +473,8 @@ export const translations = {
     watchCloudUpload: "Upload to cloud",
     watchCloudUploading: "Uploading… {pct}%",
     watchCloudUploadFailed: "Upload failed.",
+    watchLocalFileNotSynced:
+      "Local files stay on this device only. Upload to cloud or use YouTube so others can watch together.",
     watchCloudSaveModalTitle: "Save uploaded video to playlist",
     watchCloudSaved: "Saved to playlist.",
     watchSubtitleUpload: "Upload subtitle (optional)",
@@ -1702,6 +1704,8 @@ export const translations = {
     watchCloudUpload: "Upload lên cloud",
     watchCloudUploading: "Đang upload… {pct}%",
     watchCloudUploadFailed: "Upload thất bại.",
+    watchLocalFileNotSynced:
+      "File trên máy bạn chỉ mình bạn xem được. Hãy upload lên cloud hoặc dùng YouTube để cả phòng xem chung.",
     watchCloudSaveModalTitle: "Lưu video vừa upload vào playlist",
     watchCloudSaved: "Đã lưu vào playlist.",
     watchSubtitleUpload: "Upload subtitle (tuỳ chọn)",

@@ -42,6 +42,7 @@ import { authFetch, getAuthToken, useAuth } from "@/lib/auth-context";
 import {
   applyRemoteVideoState,
   encodeWatchSync,
+  isAllowedSyncedMediaUrl,
   parseWatchSync,
   WATCH_SYNC_TOPIC,
   type WatchSyncEnvelope,
@@ -191,6 +192,8 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
     youtubeId: string;
   };
   const pendingYoutubeSyncRef = useRef<YoutubeSyncMsg | null>(null);
+  const pendingFileSyncRef = useRef<{ currentTime: number; playing: boolean } | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
 
   const [uploading, setUploading] = useState(false);
   const [uploadPct, setUploadPct] = useState<number>(0);
@@ -214,6 +217,10 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
   useEffect(() => {
     youtubeIdRef.current = youtubeId;
   }, [youtubeId]);
+
+  useEffect(() => {
+    objectUrlRef.current = objectUrl;
+  }, [objectUrl]);
 
   useEffect(() => {
     volumeRef.current = volume;
@@ -297,6 +304,7 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
     if (!v?.src) {
       return;
     }
+    const src = v.currentSrc || v.src;
     const msg: WatchSyncEnvelope = {
       v: 1,
       kind: "state",
@@ -305,6 +313,19 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
       sentAt: Date.now(),
       source: "file",
     };
+    if (
+      !src.startsWith("blob:")
+      && (src.startsWith("https:")
+        || src.startsWith("http://127.0.0.1")
+        || src.startsWith("http://localhost"))
+      && isAllowedSyncedMediaUrl(src)
+    ) {
+      msg.fileUrl = src;
+      const su = subtitleUrl.trim();
+      if (su && isAllowedSyncedMediaUrl(su)) {
+        msg.subtitleUrl = su;
+      }
+    }
     try {
       await lp.publishData(encodeWatchSync(msg), {
         reliable: true,
@@ -313,7 +334,7 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
     } catch {
       /* ignore */
     }
-  }, [room]);
+  }, [room, subtitleUrl]);
 
   useEffect(() => {
     publishStateRef.current = publishState;
@@ -399,6 +420,57 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
               applyingRemote.current = false;
             });
           }
+        });
+        return;
+      }
+      if (msg.kind === "state" && msg.source !== "youtube" && msg.fileUrl) {
+        const url = msg.fileUrl;
+        if (!isAllowedSyncedMediaUrl(url)) {
+          return;
+        }
+        const sub =
+          msg.subtitleUrl && isAllowedSyncedMediaUrl(msg.subtitleUrl)
+            ? msg.subtitleUrl
+            : "";
+        pendingYoutubeSyncRef.current = null;
+        setYoutubeId(null);
+        if (objectUrlRef.current === url) {
+          setSubtitleUrl((prev) => (prev === sub ? prev : sub));
+          const v = videoRef.current;
+          if (!msg.playing) {
+            partnerPlayGateRef.current = false;
+            setShowPartnerPlayBanner(false);
+          }
+          if (v?.src) {
+            applyingRemote.current = true;
+            try {
+              applyRemoteVideoState(
+                v,
+                msg.currentTime,
+                msg.playing,
+                msg.playing ? notifyRemotePlayBlocked : undefined,
+              );
+            } finally {
+              window.requestAnimationFrame(() => {
+                applyingRemote.current = false;
+              });
+            }
+          }
+          return;
+        }
+        pendingFileSyncRef.current = {
+          currentTime: msg.currentTime,
+          playing: msg.playing,
+        };
+        setSubtitleUrl(sub);
+        setObjectUrl((prev) => {
+          if (prev === url) {
+            return prev;
+          }
+          if (prev && prev.startsWith("blob:")) {
+            URL.revokeObjectURL(prev);
+          }
+          return url;
         });
         return;
       }
@@ -688,6 +760,36 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
     publishState,
   ]);
 
+  /** Push https file URL + subtitles to peers even while paused (heartbeat only runs when playing). */
+  useEffect(() => {
+    if (room.state !== ConnectionState.Connected) {
+      return;
+    }
+    if (room.remoteParticipants.size === 0) {
+      return;
+    }
+    if (youtubeId) {
+      return;
+    }
+    if (!objectUrl || objectUrl.startsWith("blob:")) {
+      return;
+    }
+    if (!isAllowedSyncedMediaUrl(objectUrl)) {
+      return;
+    }
+    const id = window.setTimeout(() => {
+      void publishState();
+    }, 250);
+    return () => window.clearTimeout(id);
+  }, [
+    objectUrl,
+    subtitleUrl,
+    youtubeId,
+    publishState,
+    room.remoteParticipants.size,
+    room.state,
+  ]);
+
   const onLocalInteraction = useCallback(() => {
     if (applyingRemote.current) {
       return;
@@ -709,7 +811,14 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
 
   const ingestPickedFile = useCallback((f: File | null) => {
     setYoutubeId(null);
-        setSubtitleUrl("");
+    setSubtitleUrl("");
+    if (
+      f
+      && room.state === ConnectionState.Connected
+      && room.remoteParticipants.size > 0
+    ) {
+      toast.info(t("watchLocalFileNotSynced"), { autoClose: 7000 });
+    }
     setObjectUrl((prev) => {
       if (prev && prev.startsWith("blob:")) {
         URL.revokeObjectURL(prev);
@@ -719,7 +828,7 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
       }
       return URL.createObjectURL(f);
     });
-  }, []);
+  }, [room.remoteParticipants.size, room.state, t]);
 
   const ingestCloudUrl = useCallback((url: string) => {
     setYoutubeId(null);
@@ -1749,6 +1858,23 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
                         setUiTime(v.currentTime);
                         setVolume(v.volume);
                         setPlaying(!v.paused);
+                        const pending = pendingFileSyncRef.current;
+                        if (pending) {
+                          pendingFileSyncRef.current = null;
+                          applyingRemote.current = true;
+                          try {
+                            applyRemoteVideoState(
+                              v,
+                              pending.currentTime,
+                              pending.playing,
+                              pending.playing ? notifyRemotePlayBlocked : undefined,
+                            );
+                          } finally {
+                            window.requestAnimationFrame(() => {
+                              applyingRemote.current = false;
+                            });
+                          }
+                        }
                       }}
                       onTimeUpdate={(e) => {
                         if (scrubbingRef.current) {
