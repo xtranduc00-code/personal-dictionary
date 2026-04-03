@@ -20,11 +20,34 @@ export const runtime = "nodejs";
 export const maxDuration = 900;
 
 const MAX_BYTES = 20_000_000_000; // 20GB safety limit for large videos
+const MAX_FILENAME_LEN = 120;
 
+function fileBasename(name: string): string {
+    const n = name.trim().replace(/\\/g, "/");
+    const i = n.lastIndexOf("/");
+    return (i >= 0 ? n.slice(i + 1) : n).trim();
+}
+
+/** Safe ASCII-ish name for R2 key; keeps extension when truncating (slice(0,120) alone can drop .mp4). */
 function sanitizeName(name: string): string {
-    const base = name.trim().replace(/\s+/g, "-");
+    const base = fileBasename(name).replace(/\s+/g, "-");
     const safe = base.replace(/[^a-zA-Z0-9._-]/g, "");
-    return safe.slice(0, 120) || "video";
+    if (!safe) {
+        return "video";
+    }
+    if (safe.length <= MAX_FILENAME_LEN) {
+        return safe;
+    }
+    const extMatch = /\.([a-z0-9]{1,8})$/i.exec(safe);
+    if (extMatch) {
+        const ext = extMatch[0];
+        const maxBase = MAX_FILENAME_LEN - ext.length;
+        if (maxBase >= 8) {
+            return safe.slice(0, maxBase) + ext;
+        }
+        return `${safe.slice(0, 8)}${ext}`.slice(0, MAX_FILENAME_LEN);
+    }
+    return safe.slice(0, MAX_FILENAME_LEN);
 }
 
 function looksLikeVideoName(name: string): boolean {
@@ -100,12 +123,16 @@ export async function POST(req: Request) {
                     return;
                 }
                 uploaded = true;
+                const rawFilename = fileBasename(info.filename || "");
                 const filename = sanitizeName(info.filename || "video");
-                const mime = info.mimeType || "application/octet-stream";
-                if (
-                    kind === "video"
-                    && !(mime.startsWith("video/") || looksLikeVideoName(filename))
-                ) {
+                const mime = (info.mimeType || "application/octet-stream").trim();
+                // Many browsers use application/octet-stream for mkv/webm; trust filename extension too.
+                const videoOk =
+                    mime.startsWith("video/")
+                    || mime === "application/octet-stream"
+                    || looksLikeVideoName(rawFilename)
+                    || looksLikeVideoName(filename);
+                if (kind === "video" && !videoOk) {
                     file.resume();
                     if (!settled) {
                         settled = true;
@@ -113,10 +140,13 @@ export async function POST(req: Request) {
                     }
                     return;
                 }
-                if (
-                    kind === "subtitle"
-                    && !(mime === "text/vtt" || mime.startsWith("text/") || looksLikeSubtitleName(filename))
-                ) {
+                const subtitleOk =
+                    mime === "text/vtt"
+                    || mime.startsWith("text/")
+                    || mime === "application/octet-stream"
+                    || looksLikeSubtitleName(rawFilename)
+                    || looksLikeSubtitleName(filename);
+                if (kind === "subtitle" && !subtitleOk) {
                     file.resume();
                     if (!settled) {
                         settled = true;
