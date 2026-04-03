@@ -110,6 +110,12 @@ export function parseWatchSync(raw: Uint8Array): WatchSyncEnvelope | null {
     }
 }
 
+/**
+ * While both peers publish playhead every few seconds, sub-second drift is normal.
+ * Seeking on every packet causes visible stutter; only correct large drift when playing.
+ */
+const DRIFT_SEEK_WHILE_PLAYING_SEC = 2.5;
+
 export function applyRemoteVideoState(
     video: HTMLVideoElement,
     currentTime: number,
@@ -120,10 +126,10 @@ export function applyRemoteVideoState(
         return;
     }
     const drift = Math.abs(video.currentTime - currentTime);
-    if (drift > 0.35) {
-        video.currentTime = currentTime;
-    }
     if (playing) {
+        if (drift > DRIFT_SEEK_WHILE_PLAYING_SEC) {
+            video.currentTime = currentTime;
+        }
         if (video.paused) {
             void video.play().catch(() => {
                 onPlayBlocked?.();

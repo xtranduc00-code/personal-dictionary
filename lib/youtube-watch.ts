@@ -103,6 +103,9 @@ export function parseYouTubeVideoId(input: string): string | null {
     return null;
 }
 
+/** Match watch-party-protocol: avoid micro-seeks while both sides heartbeat playhead. */
+const YT_DRIFT_SEEK_WHILE_PLAYING_SEC = 2.5;
+
 export function applyRemoteYoutubeState(
     player: YtPlayerApi,
     currentTime: number,
@@ -120,10 +123,10 @@ export function applyRemoteYoutubeState(
         return;
     }
     const drift = Math.abs(now - currentTime);
-    if (drift > 0.35) {
-        player.seekTo(currentTime, true);
-    }
     if (playing) {
+        if (drift > YT_DRIFT_SEEK_WHILE_PLAYING_SEC) {
+            player.seekTo(currentTime, true);
+        }
         const st = player.getPlayerState();
         if (st !== YT_STATE_PLAYING && st !== YT_STATE_BUFFERING) {
             player.playVideo();

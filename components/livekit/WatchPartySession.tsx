@@ -771,7 +771,7 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
         return;
       }
       void publishState();
-    }, 2500);
+    }, 8000);
     return () => window.clearInterval(id);
   }, [
     playing,
