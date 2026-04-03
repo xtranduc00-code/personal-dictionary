@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useDebounce } from "use-debounce";
 import { useRouter } from "next/navigation";
 import {
@@ -25,7 +25,6 @@ import {
   RoomAudioRenderer,
   StartAudio,
   useLocalParticipant,
-  useParticipants,
   useRoomContext,
 } from "@livekit/components-react";
 import {
@@ -161,8 +160,8 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
   const { user } = useAuth();
   const router = useRouter();
   const room = useRoomContext();
-  const participants = useParticipants();
   const { localParticipant, isMicrophoneEnabled } = useLocalParticipant();
+  const [, bumpParticipantList] = useReducer((n: number) => n + 1, 0);
   const micLevel = useMeetsLocalMicLevel(isMicrophoneEnabled);
   const [chatOpen, setChatOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -232,6 +231,19 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
   useEffect(() => {
     objectUrlRef.current = objectUrl;
   }, [objectUrl]);
+
+  /** remoteParticipants is a mutating Map; subscribe so "n in call" updates when peers join/leave. */
+  useEffect(() => {
+    const onChange = () => bumpParticipantList();
+    room.on(RoomEvent.ParticipantConnected, onChange);
+    room.on(RoomEvent.ParticipantDisconnected, onChange);
+    room.on(RoomEvent.ConnectionStateChanged, onChange);
+    return () => {
+      room.off(RoomEvent.ParticipantConnected, onChange);
+      room.off(RoomEvent.ParticipantDisconnected, onChange);
+      room.off(RoomEvent.ConnectionStateChanged, onChange);
+    };
+  }, [room]);
 
   useEffect(() => {
     volumeRef.current = volume;
@@ -1290,14 +1302,22 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
 
   const connected = room.state === ConnectionState.Connected;
 
-  const peopleCount = participants.length;
+  const peopleCount = 1 + room.remoteParticipants.size;
   const peopleLabel =
     peopleCount === 1
       ? t("meetsPeopleOne")
       : t("meetsPeopleMany").replace("{n}", String(peopleCount));
-  const peopleTitle = participants
-    .map((p) => (p.name && p.name.trim() ? p.name : p.identity))
-    .join(", ");
+  const peopleTitle = (() => {
+    const lp = room.localParticipant;
+    const parts: string[] = [];
+    if (lp) {
+      parts.push(lp.name?.trim() ? lp.name : lp.identity);
+    }
+    for (const p of room.remoteParticipants.values()) {
+      parts.push(p.name?.trim() ? p.name : p.identity);
+    }
+    return parts.join(", ");
+  })();
 
   const displayTime = scrubbing ? scrubTime : uiTime;
   const durationSafe = Number.isFinite(duration) && duration > 0 ? duration : 0;
