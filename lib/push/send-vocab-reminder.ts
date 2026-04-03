@@ -241,7 +241,7 @@ export async function runVocabReminderSweep(
 
   const bucket = tenMinuteBucket();
 
-  // One notification per 10-minute window; rotate through the list by slot index.
+  // Two vocabulary pushes per 10-minute window per device; one DB dedupe row per user per window.
   const dayKey = bucketDayKey(bucket);
   const sentencePool = allWords.filter((w) => hasSentenceForPush(w));
   const nonTrivial = allWords.filter((w) => !isTrivialForPush(w));
@@ -253,13 +253,21 @@ export async function runVocabReminderSweep(
         : allWords;
   const ordered = stableDailyWordOrder(pool, dayKey);
   const slotIdx = bucketSlotIndex(bucket);
-  const word = ordered[slotIdx % ordered.length]!;
-  const ex = pickExampleForPushBody(word, bucket);
-  const payload = JSON.stringify({
-    title: word.word,
-    body: ex || " ",
-    url: `${siteUrl.replace(/\/$/, "")}/ielts-speaking`,
-    tag: `vocab-${bucket}`,
+  const start = (slotIdx * 2) % ordered.length;
+  const words =
+    ordered.length >= 2
+      ? [ordered[start]!, ordered[(start + 1) % ordered.length]!]
+      : [ordered[start]!];
+
+  // Two separate pushes per 10-minute window (same dedupe bucket = one tryLogVocabSent per user).
+  const payloads = words.map((w, i) => {
+    const ex = pickExampleForPushBody(w, bucket);
+    return JSON.stringify({
+      title: w.word,
+      body: ex || " ",
+      url: `${siteUrl.replace(/\/$/, "")}/ielts-speaking`,
+      tag: `vocab-${bucket}-${i}`,
+    });
   });
 
   let sent = 0;
@@ -270,19 +278,21 @@ export async function runVocabReminderSweep(
     if (!shouldSend) continue;
 
     for (const sub of userSubs) {
-      try {
-        await webpush.sendNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          payload,
-          { TTL: 600, urgency: "normal" },
-        );
-        sent += 1;
-      } catch (e: unknown) {
-        errors += 1;
-        const wpe = e as { statusCode?: number; body?: string };
-        const errBody = typeof wpe.body === "string" ? wpe.body : undefined;
-        if (shouldDropPushSubscription(wpe.statusCode, errBody)) {
-          await removeDeadSubscription(db, sub.endpoint);
+      for (const payload of payloads) {
+        try {
+          await webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            payload,
+            { TTL: 600, urgency: "normal" },
+          );
+          sent += 1;
+        } catch (e: unknown) {
+          errors += 1;
+          const wpe = e as { statusCode?: number; body?: string };
+          const errBody = typeof wpe.body === "string" ? wpe.body : undefined;
+          if (shouldDropPushSubscription(wpe.statusCode, errBody)) {
+            await removeDeadSubscription(db, sub.endpoint);
+          }
         }
       }
     }
