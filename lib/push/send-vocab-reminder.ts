@@ -14,7 +14,7 @@ type VocabItem = {
   example?: string;
   /**
    * Optional list of extra example sentences (same word, different usage).
-   * Push picks one per 30-min bucket so the line changes over time without any API call.
+   * Push picks one per 10-min bucket so the line changes over time without any API call.
    */
   examples?: string[];
   /** Preferred: fully-formed sentences generated and stored ahead of time. */
@@ -77,26 +77,31 @@ function pickExampleForPushBody(item: VocabItem, bucket: string): string {
 }
 
 /**
- * Dedup bucket: floor current time to the nearest 30-minute mark.
+ * Dedup bucket: floor current time to the nearest 10-minute mark (:00, :10, … :50).
  * Prevents duplicate sends if the cron is called multiple times within the same window.
  */
-function thirtyMinuteBucket(): string {
+function tenMinuteBucket(): string {
   const tz = getCalendarEventStorageTimeZone();
   const now = new Date();
-  const yyyyMMddHH = formatInTimeZone(now, tz, "yyyy-MM-dd_HH");
+  const dateKey = formatInTimeZone(now, tz, "yyyy-MM-dd");
+  const hh = formatInTimeZone(now, tz, "HH");
   const mm = Number(formatInTimeZone(now, tz, "mm"));
-  const bucketMm = mm < 30 ? "00" : "30";
-  return `${yyyyMMddHH}:${bucketMm}`;
+  const bucketMm = Math.floor(mm / 10) * 10;
+  const mmStr = String(bucketMm).padStart(2, "0");
+  return `${dateKey}_${hh}:${mmStr}`;
 }
 
 function bucketSlotIndex(bucket: string): number {
-  // bucket shape: yyyy-MM-dd_HH:mm where mm is 00 or 30
+  // bucket shape: yyyy-MM-dd_HH:mm where mm ∈ {00,10,20,30,40,50}
   const m = /^(\d{4}-\d{2}-\d{2})_(\d{2}):(\d{2})$/.exec(bucket);
   if (!m) return 0;
   const hh = Number(m[2]);
   const mm = Number(m[3]);
-  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return 0;
-  return Math.max(0, Math.min(24 * 2 - 1, hh * 2 + (mm >= 30 ? 1 : 0)));
+  if (!Number.isFinite(hh) || !Number.isFinite(mm) || mm % 10 !== 0 || mm > 50) {
+    return 0;
+  }
+  const dec = mm / 10;
+  return Math.max(0, Math.min(24 * 6 - 1, hh * 6 + dec));
 }
 
 function bucketDayKey(bucket: string): string {
@@ -189,6 +194,25 @@ export async function runVocabReminderSweep(
 
   ensureWebPushConfigured();
 
+  const { data: subs, error: subErr } = await db
+    .from("push_subscriptions")
+    .select("user_id,endpoint,p256dh,auth");
+  if (subErr) throw subErr;
+  if (!subs?.length) {
+    return { sent: 0, errors: 0, skipped: "no push subscriptions" };
+  }
+
+  const subsByUser = new Map<string, { endpoint: string; p256dh: string; auth: string }[]>();
+  for (const s of subs) {
+    const uid = s.user_id as string;
+    if (!subsByUser.has(uid)) subsByUser.set(uid, []);
+    subsByUser.get(uid)!.push({
+      endpoint: s.endpoint as string,
+      p256dh: s.p256dh as string,
+      auth: s.auth as string,
+    });
+  }
+
   // Gather all vocab items across all topics (paginate — PostgREST default cap per request).
   const allWordsRaw: VocabItem[] = [];
   for (let offset = 0; ; offset += VOCAB_PAGE) {
@@ -215,11 +239,9 @@ export async function runVocabReminderSweep(
     return { sent: 0, errors: 0, skipped: "no vocab items" };
   }
 
-  // Dedup bucket: floor to nearest 30-minute window.
-  const bucket = thirtyMinuteBucket();
+  const bucket = tenMinuteBucket();
 
-  // Walk the whole vocab list deterministically per-day:
-  // each 30-minute bucket advances the pointer, so it won't get stuck on a few words.
+  // One notification per 10-minute window; rotate through the list by slot index.
   const dayKey = bucketDayKey(bucket);
   const sentencePool = allWords.filter((w) => hasSentenceForPush(w));
   const nonTrivial = allWords.filter((w) => !isTrivialForPush(w));
@@ -231,40 +253,14 @@ export async function runVocabReminderSweep(
         : allWords;
   const ordered = stableDailyWordOrder(pool, dayKey);
   const slotIdx = bucketSlotIndex(bucket);
-  const start = (slotIdx * 2) % ordered.length;
-  const words =
-    ordered.length >= 2
-      ? [ordered[start]!, ordered[(start + 1) % ordered.length]!]
-      : [ordered[start]!];
-
-  // Build one payload per word — word as title, rotated example as body.
-  const payloads = words.map((w, i) => {
-    const ex = pickExampleForPushBody(w, bucket);
-    const body = ex || " ";
-    return JSON.stringify({
-      title: w.word,
-      body,
-      url: `${siteUrl.replace(/\/$/, "")}/ielts-speaking`,
-      tag: `vocab-${bucket}-${i}`,
-    });
+  const word = ordered[slotIdx % ordered.length]!;
+  const ex = pickExampleForPushBody(word, bucket);
+  const payload = JSON.stringify({
+    title: word.word,
+    body: ex || " ",
+    url: `${siteUrl.replace(/\/$/, "")}/ielts-speaking`,
+    tag: `vocab-${bucket}`,
   });
-
-  // Get all push subscriptions grouped by user.
-  const { data: subs, error: subErr } = await db
-    .from("push_subscriptions")
-    .select("user_id,endpoint,p256dh,auth");
-  if (subErr) throw subErr;
-
-  const subsByUser = new Map<string, { endpoint: string; p256dh: string; auth: string }[]>();
-  for (const s of subs ?? []) {
-    const uid = s.user_id as string;
-    if (!subsByUser.has(uid)) subsByUser.set(uid, []);
-    subsByUser.get(uid)!.push({
-      endpoint: s.endpoint as string,
-      p256dh: s.p256dh as string,
-      auth: s.auth as string,
-    });
-  }
 
   let sent = 0;
   let errors = 0;
@@ -274,21 +270,19 @@ export async function runVocabReminderSweep(
     if (!shouldSend) continue;
 
     for (const sub of userSubs) {
-      for (const payload of payloads) {
-        try {
-          await webpush.sendNotification(
-            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-            payload,
-            { TTL: 600, urgency: "normal" },
-          );
-          sent += 1;
-        } catch (e: unknown) {
-          errors += 1;
-          const wpe = e as { statusCode?: number; body?: string };
-          const errBody = typeof wpe.body === "string" ? wpe.body : undefined;
-          if (shouldDropPushSubscription(wpe.statusCode, errBody)) {
-            await removeDeadSubscription(db, sub.endpoint);
-          }
+      try {
+        await webpush.sendNotification(
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+          payload,
+          { TTL: 600, urgency: "normal" },
+        );
+        sent += 1;
+      } catch (e: unknown) {
+        errors += 1;
+        const wpe = e as { statusCode?: number; body?: string };
+        const errBody = typeof wpe.body === "string" ? wpe.body : undefined;
+        if (shouldDropPushSubscription(wpe.statusCode, errBody)) {
+          await removeDeadSubscription(db, sub.endpoint);
         }
       }
     }

@@ -7,7 +7,7 @@ import { getSupabaseServiceClient } from "@/lib/supabase-server";
 
 /**
  * Call every minute (e.g. Vercel Cron or external cron with CRON_SECRET).
- * Calendar + shared study grid reminders (same push subscriptions).
+ * Calendar + shared study grid + vocab reminder (same push subscriptions; vocab deduped per 10 min).
  * Authorization: Bearer <CRON_SECRET>
  *
  * Requires SUPABASE_SERVICE_ROLE_KEY: calendar_events are per-user under RLS; anon sees no rows,

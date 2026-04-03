@@ -34,7 +34,14 @@ const nextConfig: NextConfig = {
     },
     experimental: {
         serverActions: { bodySizeLimit: "100mb" },
-        optimizePackageImports: ["@radix-ui/react-slot", "lucide-react"],
+        optimizePackageImports: [
+            "@radix-ui/react-slot",
+            "@radix-ui/react-dialog",
+            "@radix-ui/react-dropdown-menu",
+            "@radix-ui/react-select",
+            "@radix-ui/react-icons",
+            "lucide-react",
+        ],
     },
 };
 export default nextConfig;
