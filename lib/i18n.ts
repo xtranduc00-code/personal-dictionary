@@ -26,7 +26,8 @@ export const translations = {
       "If that account exists, we’ve sent a password reset link to ",
     authForgotSuccessOutro:
       " Open the link to choose a new password. It expires in about an hour.",
-    authForgotSpamHint: "Check your spam or promotions folder if you don’t see it.",
+    authForgotSpamHint:
+      "Check your spam or promotions folder if you don’t see it.",
     authForgotResend: "Resend email",
     authForgotResendSub: "Didn’t receive it?",
     authForgotResendWait: "Resend in {seconds}s",
@@ -46,9 +47,10 @@ export const translations = {
     resetPasswordSuccessBody: "You can sign in with your new password.",
     resetPasswordGoToLogin: "Go to log in",
     forgotNoAccountEmail:
-        "No account uses this email. Sign up first or check the spelling.",
+      "No account uses this email. Sign up first or check the spelling.",
     authForgotHint: "Enter your email address.",
-    authForgotSentGeneric: "If an account exists, use the reset flow your admin configured.",
+    authForgotSentGeneric:
+      "If an account exists, use the reset flow your admin configured.",
     pleaseWait: "Please wait…",
     dontHaveAccount: "Don't have an account? ",
     alreadyHaveAccount: "Already have an account? ",
@@ -67,9 +69,10 @@ export const translations = {
       "Username may only use lowercase letters, digits, and underscores.",
     toastLoggedIn: "Logged in.",
     toastResetEmailSent: "If that account exists, we’ve sent a reset link.",
-    toastResetEmailResent: "If that account exists, we’ve sent another reset link.",
+    toastResetEmailResent:
+      "If that account exists, we’ve sent another reset link.",
     toastForgotMailFailedDev:
-        "Could not send reset email. Check the dev server terminal for details (RESEND_API_KEY, AUTH_EMAIL_FROM).",
+      "Could not send reset email. Check the dev server terminal for details (RESEND_API_KEY, AUTH_EMAIL_FROM).",
     toastLoggedInAs: 'Logged in as "{name}".',
     toastLoggedOut: "Logged out.",
     toastAccountCreated: "Account created.",
@@ -92,7 +95,8 @@ export const translations = {
     studyKitInputStackHint:
       "Use the tabs to add sources. Each file, confirmed link, or pasted block appears in the list below — like a notebook (max 10 sources).",
     studyKitSourcesTrayTitle: "Your sources",
-    studyKitSourcesTrayEmpty: "Nothing added yet. Use Upload, Paste, or URL above.",
+    studyKitSourcesTrayEmpty:
+      "Nothing added yet. Use Upload, Paste, or URL above.",
     studyKitAddLinksCta: "Add links",
     studyKitAddPasteCta: "Add pasted text",
     studyKitSourcePasteLabel: "Pasted text",
@@ -115,9 +119,11 @@ export const translations = {
     studyKitCustomScopeLabel: "Custom scope (optional)",
     studyKitCustomScopeHint:
       "Optional — focus only on specific pages or sections.",
-    studyKitCustomScopePlaceholder: "e.g. Skip pages 15–16; only slides 3–5; ignore intro…",
+    studyKitCustomScopePlaceholder:
+      "e.g. Skip pages 15–16; only slides 3–5; ignore intro…",
     studyKitSectionOutput: "Choose what to generate",
-    studyKitSectionOutputHint: "Pick one or more — sections appear in order: summary → mind map → quiz.",
+    studyKitSectionOutputHint:
+      "Pick one or more — sections appear in order: summary → mind map → quiz.",
     studyKitQuizDepthLabel: "Quiz style",
     studyKitQuizDepthHint:
       "Quick review: mixed recall + exercises (~30 questions). Exam-level: reasoning, scenarios, comparison (~18). Adaptive: difficulty ramps up (~12).",
@@ -128,7 +134,8 @@ export const translations = {
     studyKitPresetMindmap: "Mind map",
     studyKitPresetQuiz: "Quiz + answer key (~30 questions, mixed + practice)",
     studyKitQuizShowCountLabel: "Show questions",
-    studyKitQuizShowCountHint: "Answer key matches the count below. Regenerate for new sheets to include Mermaid figures in graph questions.",
+    studyKitQuizShowCountHint:
+      "Answer key matches the count below. Regenerate for new sheets to include Mermaid figures in graph questions.",
     studyKitQuizTotalInSheet: "{n} in sheet",
     studyKitErrNoFormat: "Choose at least one output.",
     studyKitKeepOneFormat: "Keep at least one output selected.",
@@ -138,17 +145,18 @@ export const translations = {
     studyKitExportHtml: "Export HTML",
     studyKitSaveToFolder: "Save to subject",
     studyKitSavedToast: "Saved under this subject.",
-    studyKitSavedMergedToast: "Merged into your existing sheet with the same name (sections combined).",
+    studyKitSavedMergedToast:
+      "Merged into your existing sheet with the same name (sections combined).",
     studyKitSaveMergeSameTitle:
-        "If a sheet with the same name already exists in this subject, merge into it (combine summary, mind map, quiz, etc.) instead of creating a second file.",
+      "If a sheet with the same name already exists in this subject, merge into it (combine summary, mind map, quiz, etc.) instead of creating a second file.",
     studyKitSaveMergeShort: "Merge if a sheet with this name already exists",
     studyKitSaveMergeHelp:
-        "Combines content into one sheet (summary, mind map, quiz, etc.) instead of creating a duplicate file.",
+      "Combines content into one sheet (summary, mind map, quiz, etc.) instead of creating a duplicate file.",
     studyKitExportDone: "Download started.",
     studyKitExportErr: "Could not export. Try again.",
     studyKitExportSignIn: "Sign in to export.",
     studyKitExportFullSheetNote:
-        "This file is the full study sheet for the session you have open (all sections in the markdown: summary, mind map, quiz, answer key, etc.). History entries are separate runs — pick the session that already contains everything you need, or generate once with all output options selected. Diagrams in this HTML use Mermaid and load from a CDN when you open the file in a browser.",
+      "This file is the full study sheet for the session you have open (all sections in the markdown: summary, mind map, quiz, answer key, etc.). History entries are separate runs — pick the session that already contains everything you need, or generate once with all output options selected. Diagrams in this HTML use Mermaid and load from a CDN when you open the file in a browser.",
     studyKitSavedTitle: "Subjects",
     studyKitSavedIntro:
       "Organize sheets by subject (course). Open a subject to add, edit, or remove notes. Stored in this browser only.",
@@ -156,9 +164,9 @@ export const translations = {
       "Organize sheets by subject (course). Open a subject to add, edit, or remove notes. While signed in, subjects sync to your account.",
     studyKitSavedRestoredFromBrowser:
       "Restored subjects from this browser into your account.",
-    studyKitSavedLoadServerErr: "Could not load subjects from the server. Try again.",
-    studyKitConfirmDeleteSubject:
-      "Delete this subject and all sheets inside?",
+    studyKitSavedLoadServerErr:
+      "Could not load subjects from the server. Try again.",
+    studyKitConfirmDeleteSubject: "Delete this subject and all sheets inside?",
     studyKitConfirmDeleteSheet: "Delete this sheet?",
     studyKitSheetSingular: "1 sheet",
     studyKitSheetPlural: "{n} sheets",
@@ -173,7 +181,8 @@ export const translations = {
     studyKitSaveSheetNameLabel: "Sheet name",
     studyKitSaveSheetNameHint: "You can edit this title before saving.",
     studyKitSaveModalConfirm: "Save",
-    studyKitSaveNoSubjectsYet: "No subjects yet — create your first subject below.",
+    studyKitSaveNoSubjectsYet:
+      "No subjects yet — create your first subject below.",
     studyKitSaveMergeHelpAria: "More about merging sheets",
     studyKitBackToSubjects: "All subjects",
     studyKitSheetsInSubjectHint:
@@ -183,7 +192,8 @@ export const translations = {
     studyKitTopicNotFound: "This subject was not found.",
     studyKitSheetUpdateErr: "Could not update sheet.",
     studyKitTopicLimit: "Too many subjects. Remove one to add another.",
-    studyKitSheetLimit: "Storage full for this subject or in total. Remove a sheet and try again.",
+    studyKitSheetLimit:
+      "Storage full for this subject or in total. Remove a sheet and try again.",
     studyKitSavedOpen: "Open",
     studyKitSavedRemoved: "Removed.",
     studyKitSavedOpenErr: "Could not open this sheet.",
@@ -200,29 +210,39 @@ export const translations = {
     studyKitErrTooManySources: "Use at most 10 files or URLs at once.",
     studyKitErrBadType:
       "This file type is not supported. Use txt, pdf, docx, xlsx, pptx, or an image (png, jpg, webp, gif).",
-    studyKitErrUrlInvalid: "That URL is not valid or the protocol is not allowed.",
-    studyKitErrUrlBlocked: "That host cannot be fetched (blocked for security).",
+    studyKitErrUrlInvalid:
+      "That URL is not valid or the protocol is not allowed.",
+    studyKitErrUrlBlocked:
+      "That host cannot be fetched (blocked for security).",
     studyKitErrUrlTooLarge: "Downloaded file is too large (max 8 MB).",
-    studyKitErrUrlFetch: "Could not download that URL. Check the link or try uploading the file instead.",
+    studyKitErrUrlFetch:
+      "Could not download that URL. Check the link or try uploading the file instead.",
     studyKitErrExtract: "Could not read that file.",
     studyKitErrEmpty: "No usable text in that source.",
-    studyKitErrPdfNoText: "No readable text in this PDF. Try another file or a version with selectable text.",
-    studyKitErrOcrFailed: "Couldn’t read this file. Try another file or a smaller document.",
+    studyKitErrPdfNoText:
+      "No readable text in this PDF. Try another file or a version with selectable text.",
+    studyKitErrOcrFailed:
+      "Couldn’t read this file. Try another file or a smaller document.",
     studyKitErrLarge: "File is too large (max 8 MB).",
     studyKitErrGeneric: "Something went wrong. Try again.",
-    studyKitErrUnexpectedReply: "We couldn’t read the server response. Please try again.",
-    studyKitErrServerConfig: "This feature isn’t available right now. Please try again later.",
+    studyKitErrUnexpectedReply:
+      "We couldn’t read the server response. Please try again.",
+    studyKitErrServerConfig:
+      "This feature isn’t available right now. Please try again later.",
     studyKitErrUnauthorized: "Sign in again — your session may have expired.",
     studyKitErrAiFailed: "Couldn’t generate notes. Please try again.",
     studyKitErrBadResponse: "Something went wrong. Please try again.",
-    studyKitAsyncStarted: "Processing in the background — your results will open when ready.",
-    studyKitJobTimeout: "Still processing after a long wait. Check back in History or try again with fewer pages.",
+    studyKitAsyncStarted:
+      "Processing in the background — your results will open when ready.",
+    studyKitJobTimeout:
+      "Still processing after a long wait. Check back in History or try again with fewer pages.",
     studyKitErrJobEnqueue: "Couldn’t start processing. Please try again.",
     studyKitErrStorageUpload: "Couldn’t upload your files. Please try again.",
-    studyKitTruncatedBanner: "Only the start of the source was used (length limit).",
+    studyKitTruncatedBanner:
+      "Only the start of the source was used (length limit).",
     studyKitMindmapDiagramTitle: "Mind map",
     studyKitMindmapJsonInvalid:
-      "Mind map JSON could not be parsed. Regenerate the sheet or fix the `mindmap-json` block (valid `{ \"title\", \"children\" }` object).",
+      'Mind map JSON could not be parsed. Regenerate the sheet or fix the `mindmap-json` block (valid `{ "title", "children" }` object).',
     studyKitMindmapLayoutEmpty:
       "Mind map parsed but no nodes were drawn. Regenerate the sheet or check the browser console (dev: logs always on; prod: localStorage DEBUG_STUDY_KIT_MINDMAP=1).",
     studyKitMindmapPanHint:
@@ -233,7 +253,8 @@ export const translations = {
     studyKitMindmapZoomReset: "Reset zoom",
     studyKitMindmapZoomDefaultShort: "Default",
     studyKitMindmapDownloadHtml: "Download HTML",
-    studyKitMindmapInteractiveHint: "Click a card to copy an Ask-prompt for chat.",
+    studyKitMindmapInteractiveHint:
+      "Click a card to copy an Ask-prompt for chat.",
     studyKitMindmapNodeDetailTitle: "Node",
     studyKitMindmapCopyAskPrompt: "Copy question for chat",
     studyKitMindmapAskCopied: "Copied — paste in Ask about this sheet.",
@@ -248,10 +269,14 @@ export const translations = {
     studyKitHistoryOpenSheet: "Open notes",
     studyKitHistoryRestoreForm: "Restore setup",
     studyKitResumeFormLoaded: "Form restored from this session.",
-    studyKitResumeNoMeta: "No saved setup for this session — only the notes were stored.",
-    studyKitFileStubHint: "Name only from last time — re-upload the file if you generate again.",
-    studyKitHistoryEmpty: "No saved sessions yet. Generate a sheet while signed in — it will appear here.",
-    studyKitHistorySignIn: "Sign in to see your saved study sessions and chat history.",
+    studyKitResumeNoMeta:
+      "No saved setup for this session — only the notes were stored.",
+    studyKitFileStubHint:
+      "Name only from last time — re-upload the file if you generate again.",
+    studyKitHistoryEmpty:
+      "No saved sessions yet. Generate a sheet while signed in — it will appear here.",
+    studyKitHistorySignIn:
+      "Sign in to see your saved study sessions and chat history.",
     studyKitHistoryUpdated: "Updated",
     studyKitHistoryViewAll: "View all sessions",
     studyKitHistoryShowLess: "Show fewer sessions",
@@ -265,9 +290,9 @@ export const translations = {
     studyKitSheetViewMode: "Preview",
     studyKitSheetEditMode: "Edit markdown",
     studyKitSheetEditHint:
-        "Edit the raw Markdown here — new lines and headings are kept. Signed-in sessions auto-save to History.",
+      "Edit the raw Markdown here — new lines and headings are kept. Signed-in sessions auto-save to History.",
     studyKitResultSavedChatsUsePreview:
-        "This sheet has saved chats. Open the Preview tab to see history and keep chatting — use “Ask about this section” or “Ask about this sheet” in the right column.",
+      "This sheet has saved chats. Open the Preview tab to see history and keep chatting — use “Ask about this section” or “Ask about this sheet” in the right column.",
     studyKitSectionChatToggle: "Ask about this section",
     studyKitSheetChatToggle: "Ask about this sheet",
     studyKitPanelCollapse: "Collapse",
@@ -339,7 +364,8 @@ export const translations = {
     studyScheduleFooterHint:
       "Saved on the server for everyone signed in • Vietnam: 48 rows = one Vietnam day (VN slot keys) • Czechia: 48 rows = one local day (labels in your TZ; cells map to VN keys) • Columns 1–3 share one person per time; columns 4–5 share another • Past slots (by real end time in VN) are locked • Click/drag with the brushes above • Double-click headers to rename • CSV matches the grid you see",
     studyScheduleLoadFailed: "Could not load the shared schedule. Try again.",
-    studyScheduleSaveFailed: "Could not save. Check your connection and try again.",
+    studyScheduleSaveFailed:
+      "Could not save. Check your connection and try again.",
     studyScheduleRetry: "Retry",
     studyScheduleSharedBadge: "Shared — everyone sees the same grid",
     meets: "Meets",
@@ -411,7 +437,8 @@ export const translations = {
     meetsFilmstripLabel: "Other videos",
     meetsLeaveRoom: "Leave",
     meetsLeaveConfirmTitle: "Leave this call?",
-    meetsLeaveConfirmHint: "You will disconnect from the room. You can rejoin with the same link.",
+    meetsLeaveConfirmHint:
+      "You will disconnect from the room. You can rejoin with the same link.",
     meetsLeaveConfirmAction: "Leave call",
     meetsLeaveCancel: "Stay",
     meetsLiveBadge: "LIVE",
@@ -438,10 +465,10 @@ export const translations = {
     watchHubBadge: "Synced playback",
     watchHubTitle: "Watch video in sync",
     watchHubSubtitle:
-        "Same room name as your partner. Each device plays a local copy of the file—nothing is uploaded. Play, pause, and seek stay aligned.",
+      "Same room name as your partner. Each device plays a local copy of the file—nothing is uploaded. Play, pause, and seek stay aligned.",
     watchTogetherTitle: "Watch together",
     watchTogetherHint:
-        "Same file on each device, or paste the same YouTube link. Play, pause, and seek sync over the room; local files never upload.",
+      "Same file on each device, or paste the same YouTube link. Play, pause, and seek sync over the room; local files never upload.",
     watchTogetherChooseFile: "Choose video file",
     watchTogetherNoFile: "No file selected",
     watchSourceOr: "or",
@@ -464,13 +491,15 @@ export const translations = {
     watchPlaylistDelete: "Delete",
     watchPlaylistRenameFolder: "Rename folder",
     watchPlaylistDeleteFolder: "Delete folder",
-    watchPlaylistDeleteFolderConfirm: "Delete folder “{name}” and all clips inside?",
+    watchPlaylistDeleteFolderConfirm:
+      "Delete folder “{name}” and all clips inside?",
     watchPlaylistNewFolderName: "New folder name",
     watchPlaylistLoadError: "Could not load playlist.",
     watchPlaylistSaveError: "Could not save.",
     watchPlaylistDeleteError: "Could not delete.",
     watchPlaylistAdded: "Clip saved.",
-    watchPlaylistR2DeleteWarn: "Cloud file delete failed — removed from playlist anyway.",
+    watchPlaylistR2DeleteWarn:
+      "Cloud file delete failed — removed from playlist anyway.",
     watchCloudUpload: "Upload to cloud",
     watchCloudUploading: "Uploading… {pct}%",
     watchCloudUploadFailed: "Upload failed.",
@@ -493,16 +522,18 @@ export const translations = {
     watchSubtitleDownloads: "{n} downloads",
     watchTogetherSyncNow: "Sync now",
     watchSyncNowTooltip:
-        "Asks everyone to share their current time and play/pause state, then aligns your player. Use after joining or if playback drifted apart.",
+      "Asks everyone to share their current time and play/pause state, then aligns your player. Use after joining or if playback drifted apart.",
     watchRoomLabel: "Room",
     watchEmptyStageTitle: "Nothing playing yet",
-    watchEmptyStageHint: "Choose a file, drop a video onto the dashed area, or paste a YouTube link.",
+    watchEmptyStageHint:
+      "Choose a file, drop a video onto the dashed area, or paste a YouTube link.",
     watchDropZonePrompt: "Drop a video file here or use the button",
-    watchDropInvalidType: "That file doesn’t look like a video. Try .mp4, .webm, .mov, or .mkv.",
+    watchDropInvalidType:
+      "That file doesn’t look like a video. Try .mp4, .webm, .mov, or .mkv.",
     watchTogetherCopyLink: "Copy room link",
     watchTogetherConnected: "Connected",
     watchPartnerPlayingTapPlay:
-        "Your partner hit play. Tap Play here once — the browser only allows playback after you interact.",
+      "Your partner hit play. Tap Play here once — the browser only allows playback after you interact.",
     watchPlayTogether: "Play together",
     watchSomeoneJoined: "{name} joined the room",
     watchSomeoneLeft: "{name} left",
@@ -653,7 +684,8 @@ export const translations = {
       "Could not load the article. Try pasting the text instead.",
     articlePasteHeading: "Paste text",
     articleTitleOptional: "Title (optional)",
-    articleTitleOptionalPlaceholder: "e.g. BBC Learning English — climate piece",
+    articleTitleOptionalPlaceholder:
+      "e.g. BBC Learning English — climate piece",
     articlePastePlaceholder:
       "Paste the full article or reading passage here (plain text).",
     articleSaveReadCta: "Save & read",
@@ -715,7 +747,8 @@ export const translations = {
     navMenuSecurity: "Security",
     profileOpenMenuAria: "Account menu",
     profileAvatarSection: "Profile photo",
-    profileAvatarHint: "JPEG, PNG, or WebP — max 2 MB. Stored in your Supabase project.",
+    profileAvatarHint:
+      "JPEG, PNG, or WebP — max 2 MB. Stored in your Supabase project.",
     profileAvatarUpload: "Upload photo",
     profileAvatarRemove: "Remove photo",
     profileAvatarUpdated: "Profile photo updated.",
@@ -743,11 +776,12 @@ export const translations = {
     navRenameError: "Could not save label. Try again.",
     navRenameModalAskTitle: "Rename this menu item?",
     navRenameModalAskBody:
-        "Only continue if you mean to change this sidebar label. Accidental clicks won’t edit the name until you confirm.",
+      "Only continue if you mean to change this sidebar label. Accidental clicks won’t edit the name until you confirm.",
     navRenameModalCurrentLabel: "Current name",
     navRenameModalContinue: "Continue",
     navRenameModalEditTitle: "New name",
-    navRenameModalEditHint: "Spaces are allowed. Empty or unchanged saves as the default translation.",
+    navRenameModalEditHint:
+      "Spaces are allowed. Empty or unchanged saves as the default translation.",
     navRenameModalSave: "Save",
     navRenameModalBack: "Back",
     navRenameModalSaving: "Saving…",
@@ -933,6 +967,10 @@ export const translations = {
     notesFolderFilterAria: "Filter notes by folder",
     notesNewFolderTitle: "New folder",
     notesNewSubfolder: "New subfolder",
+    notesFolderPlusMenuAria: "Add in this folder",
+    notesFolderMenuSubfolder: "Subfolder",
+    notesFolderMenuNote: "New note",
+    notesFolderQuickSubfolderHeading: "Name this subfolder",
     notesNewSubfolderHint: "Creating a folder inside the selected parent.",
     notesFolderExpandAria: "Expand or collapse folder",
     notesFolderMoveFailed: "Couldn’t move folder.",
@@ -954,7 +992,8 @@ export const translations = {
     notesFolderManageTitle: "Folders",
     notesFolderManageHint:
       "Nested folders, rename, delete, or add subfolders. Deleting a folder does not delete your notes—they become uncategorized. Subfolders become top-level if their parent is removed.",
-    notesFolderEmptyList: "No folders yet. Use + next to the menu to create one.",
+    notesFolderEmptyList:
+      "No folders yet. Use + next to the menu to create one.",
     notesFolderRename: "Rename",
     notesFolderDelete: "Delete",
     notesFolderSaveName: "Save",
@@ -1298,7 +1337,8 @@ export const translations = {
       "Nếu có tài khoản, chúng tôi đã gửi link đặt lại mật khẩu tới ",
     authForgotSuccessOutro:
       " Mở link để đặt mật khẩu mới. Link hết hạn sau khoảng một giờ.",
-    authForgotSpamHint: "Nếu không thấy mail, kiểm tra cả mục spam hoặc khuyến mãi.",
+    authForgotSpamHint:
+      "Nếu không thấy mail, kiểm tra cả mục spam hoặc khuyến mãi.",
     authForgotResend: "Gửi lại email",
     authForgotResendSub: "Chưa nhận được?",
     authForgotResendWait: "Gửi lại sau {seconds}s",
@@ -1310,7 +1350,8 @@ export const translations = {
     backToLogin: "Quay lại đăng nhập",
     resetPasswordTitle: "Đặt mật khẩu mới",
     resetPasswordSubmit: "Cập nhật mật khẩu",
-    resetPasswordInvalidTitle: "Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn",
+    resetPasswordInvalidTitle:
+      "Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn",
     resetPasswordInvalidBody:
       "Link đặt lại mật khẩu bị thiếu, không đúng hoặc đã hết hạn. Hãy yêu cầu gửi email mới để tiếp tục.",
     resetPasswordRequestNewLink: "Yêu cầu link đặt lại mới",
@@ -1318,9 +1359,10 @@ export const translations = {
     resetPasswordSuccessBody: "Bạn có thể đăng nhập bằng mật khẩu mới.",
     resetPasswordGoToLogin: "Đi tới đăng nhập",
     forgotNoAccountEmail:
-        "Không có tài khoản với email này. Hãy đăng ký hoặc kiểm tra lại chính tả.",
+      "Không có tài khoản với email này. Hãy đăng ký hoặc kiểm tra lại chính tả.",
     authForgotHint: "Nhập địa chỉ email của bạn.",
-    authForgotSentGeneric: "Nếu có tài khoản, hãy làm theo bước reset mà quản trị đã cấu hình.",
+    authForgotSentGeneric:
+      "Nếu có tài khoản, hãy làm theo bước reset mà quản trị đã cấu hình.",
     pleaseWait: "Đang xử lý…",
     dontHaveAccount: "Chưa có tài khoản? ",
     alreadyHaveAccount: "Đã có tài khoản? ",
@@ -1339,9 +1381,10 @@ export const translations = {
       "Tên đăng nhập chỉ gồm chữ thường, số và dấu gạch dưới.",
     toastLoggedIn: "Đăng nhập thành công.",
     toastResetEmailSent: "Nếu có tài khoản, chúng tôi đã gửi link đặt lại.",
-    toastResetEmailResent: "Nếu có tài khoản, chúng tôi đã gửi thêm một link đặt lại.",
+    toastResetEmailResent:
+      "Nếu có tài khoản, chúng tôi đã gửi thêm một link đặt lại.",
     toastForgotMailFailedDev:
-        "Không gửi được email đặt lại mật khẩu. Xem log terminal (RESEND_API_KEY, AUTH_EMAIL_FROM).",
+      "Không gửi được email đặt lại mật khẩu. Xem log terminal (RESEND_API_KEY, AUTH_EMAIL_FROM).",
     toastLoggedInAs: 'Đã đăng nhập: "{name}".',
     toastLoggedOut: "Đăng xuất thành công.",
     toastAccountCreated: "Tạo tài khoản thành công.",
@@ -1362,7 +1405,8 @@ export const translations = {
     studyKitInputStackHint:
       "Dùng các tab để thêm nguồn. Mỗi tệp, link đã xác nhận hoặc đoạn dán sẽ hiện trong danh sách bên dưới — giống notebook (tối đa 10 nguồn).",
     studyKitSourcesTrayTitle: "Nguồn của bạn",
-    studyKitSourcesTrayEmpty: "Chưa có gì. Dùng Tải lên, Dán hoặc URL phía trên.",
+    studyKitSourcesTrayEmpty:
+      "Chưa có gì. Dùng Tải lên, Dán hoặc URL phía trên.",
     studyKitAddLinksCta: "Thêm link",
     studyKitAddPasteCta: "Thêm đoạn đã dán",
     studyKitSourcePasteLabel: "Chữ đã dán",
@@ -1385,9 +1429,11 @@ export const translations = {
     studyKitCustomScopeLabel: "Phạm vi tùy chọn (không bắt buộc)",
     studyKitCustomScopeHint:
       "Tùy chọn — chỉ tập trung vào trang hoặc phần cụ thể.",
-    studyKitCustomScopePlaceholder: "VD: Bỏ trang 15–16; chỉ lấy slide 3–5; bỏ phần mở đầu…",
+    studyKitCustomScopePlaceholder:
+      "VD: Bỏ trang 15–16; chỉ lấy slide 3–5; bỏ phần mở đầu…",
     studyKitSectionOutput: "Chọn nội dung cần tạo",
-    studyKitSectionOutputHint: "Chọn một hoặc nhiều — thứ tự: tóm tắt → sơ đồ → quiz.",
+    studyKitSectionOutputHint:
+      "Chọn một hoặc nhiều — thứ tự: tóm tắt → sơ đồ → quiz.",
     studyKitQuizDepthLabel: "Kiểu quiz",
     studyKitQuizDepthHint:
       "Ôn nhanh: nhớ + bài tập hỗn hợp (~30 câu). Cấp độ thi: lý giải, tình huống, so sánh (~18). Tăng dần: độ khó leo dần (~12 câu).",
@@ -1398,7 +1444,8 @@ export const translations = {
     studyKitPresetMindmap: "Mind map",
     studyKitPresetQuiz: "Quiz + đáp án (~30 câu, đa dạng + bài tập)",
     studyKitQuizShowCountLabel: "Hiển thị số câu",
-    studyKitQuizShowCountHint: "Đáp án khớp số câu bạn chọn. Bài tạo mới sẽ có thêm sơ đồ Mermaid cho câu dạng đồ thị.",
+    studyKitQuizShowCountHint:
+      "Đáp án khớp số câu bạn chọn. Bài tạo mới sẽ có thêm sơ đồ Mermaid cho câu dạng đồ thị.",
     studyKitQuizTotalInSheet: "{n} câu trong bài",
     studyKitErrNoFormat: "Chọn ít nhất một phần đầu ra.",
     studyKitKeepOneFormat: "Giữ ít nhất một lựa chọn.",
@@ -1408,17 +1455,18 @@ export const translations = {
     studyKitExportHtml: "Xuất file HTML",
     studyKitSaveToFolder: "Lưu vào môn",
     studyKitSavedToast: "Đã lưu vào môn học.",
-    studyKitSavedMergedToast: "Đã gộp vào bài cùng tên trong môn (các phần được kết hợp).",
+    studyKitSavedMergedToast:
+      "Đã gộp vào bài cùng tên trong môn (các phần được kết hợp).",
     studyKitSaveMergeSameTitle:
-        "Nếu trong môn đã có bài trùng tên, gộp nội dung mới vào bài đó (tóm tắt, mind map, quiz…) thay vì tạo thêm một bài thứ hai.",
+      "Nếu trong môn đã có bài trùng tên, gộp nội dung mới vào bài đó (tóm tắt, mind map, quiz…) thay vì tạo thêm một bài thứ hai.",
     studyKitSaveMergeShort: "Gộp nếu đã có bài cùng tên",
     studyKitSaveMergeHelp:
-        "Kết hợp nội dung vào một bài (tóm tắt, mind map, quiz…) thay vì tạo bài trùng.",
+      "Kết hợp nội dung vào một bài (tóm tắt, mind map, quiz…) thay vì tạo bài trùng.",
     studyKitExportDone: "Đang tải xuống.",
     studyKitExportErr: "Không xuất được. Thử lại.",
     studyKitExportSignIn: "Đăng nhập để xuất file.",
     studyKitExportFullSheetNote:
-        "File này là toàn bộ bài ôn của phiên đang mở (mọi phần trong markdown: tóm tắt, mind map, quiz, đáp án…). Mỗi mục trong Lịch sử là một lần tạo riêng — chọn phiên đã có đủ phần bạn cần, hoặc tạo một lần với đủ các tùy chọn đầu ra. Sơ đồ Mermaid trong HTML cần mạng (CDN) khi mở bằng trình duyệt.",
+      "File này là toàn bộ bài ôn của phiên đang mở (mọi phần trong markdown: tóm tắt, mind map, quiz, đáp án…). Mỗi mục trong Lịch sử là một lần tạo riêng — chọn phiên đã có đủ phần bạn cần, hoặc tạo một lần với đủ các tùy chọn đầu ra. Sơ đồ Mermaid trong HTML cần mạng (CDN) khi mở bằng trình duyệt.",
     studyKitSavedTitle: "Môn học",
     studyKitSavedIntro:
       "Mỗi môn học là một nhóm bài. Mở môn để thêm, sửa hoặc xóa ghi chú. Dữ liệu chỉ lưu trên trình duyệt này.",
@@ -1472,26 +1520,31 @@ export const translations = {
     studyKitErrUrlInvalid: "URL không hợp lệ hoặc giao thức không được phép.",
     studyKitErrUrlBlocked: "Không thể tải host đó (chặn vì bảo mật).",
     studyKitErrUrlTooLarge: "Tệp tải về quá lớn (tối đa 8 MB).",
-    studyKitErrUrlFetch: "Không tải được URL. Kiểm tra link hoặc thử tải tệp lên trực tiếp.",
+    studyKitErrUrlFetch:
+      "Không tải được URL. Kiểm tra link hoặc thử tải tệp lên trực tiếp.",
     studyKitErrExtract: "Không đọc được tệp này.",
     studyKitErrEmpty: "Không có chữ khả dụng trong nguồn đó.",
-    studyKitErrPdfNoText: "PDF không có chữ đọc được. Thử tệp khác hoặc bản có thể copy được chữ.",
-    studyKitErrOcrFailed: "Không đọc được tệp này. Thử tệp khác hoặc tài liệu nhỏ hơn.",
+    studyKitErrPdfNoText:
+      "PDF không có chữ đọc được. Thử tệp khác hoặc bản có thể copy được chữ.",
+    studyKitErrOcrFailed:
+      "Không đọc được tệp này. Thử tệp khác hoặc tài liệu nhỏ hơn.",
     studyKitErrLarge: "Tệp quá lớn (tối đa 8 MB).",
     studyKitErrGeneric: "Có lỗi xảy ra. Thử lại.",
-    studyKitErrUnexpectedReply: "Không đọc được phản hồi từ máy chủ. Thử lại sau.",
+    studyKitErrUnexpectedReply:
+      "Không đọc được phản hồi từ máy chủ. Thử lại sau.",
     studyKitErrServerConfig: "Tính năng này tạm không khả dụng. Thử lại sau.",
     studyKitErrUnauthorized: "Đăng nhập lại — phiên có thể đã hết hạn.",
     studyKitErrAiFailed: "Không tạo được bài. Thử lại sau.",
     studyKitErrBadResponse: "Có lỗi xảy ra. Thử lại.",
     studyKitAsyncStarted: "Đang xử lý nền — trang kết quả sẽ mở khi xong.",
-    studyKitJobTimeout: "Chờ quá lâu vẫn chưa xong. Thử xem Lịch sử hoặc chạy lại với ít trang hơn.",
+    studyKitJobTimeout:
+      "Chờ quá lâu vẫn chưa xong. Thử xem Lịch sử hoặc chạy lại với ít trang hơn.",
     studyKitErrJobEnqueue: "Không khởi tạo được xử lý. Thử lại sau.",
     studyKitErrStorageUpload: "Không tải được tệp lên. Thử lại sau.",
     studyKitTruncatedBanner: "Chỉ dùng phần đầu nguồn (giới hạn độ dài).",
     studyKitMindmapDiagramTitle: "Sơ đồ cây",
     studyKitMindmapJsonInvalid:
-      "Không đọc được JSON mind map. Tạo lại bài hoặc sửa khối `mindmap-json` (một object `{ \"title\", \"children\" }` hợp lệ).",
+      'Không đọc được JSON mind map. Tạo lại bài hoặc sửa khối `mindmap-json` (một object `{ "title", "children" }` hợp lệ).',
     studyKitMindmapLayoutEmpty:
       "Đã đọc mind map nhưng không vẽ được nút. Tạo lại bài hoặc xem console trình duyệt (dev luôn log; prod: localStorage DEBUG_STUDY_KIT_MINDMAP=1).",
     studyKitMindmapPanHint:
@@ -1502,7 +1555,8 @@ export const translations = {
     studyKitMindmapZoomReset: "Thu phóng mặc định",
     studyKitMindmapZoomDefaultShort: "Mặc định",
     studyKitMindmapDownloadHtml: "Tải HTML",
-    studyKitMindmapInteractiveHint: "Bấm một thẻ để sao chép câu hỏi Ask cho chat.",
+    studyKitMindmapInteractiveHint:
+      "Bấm một thẻ để sao chép câu hỏi Ask cho chat.",
     studyKitMindmapNodeDetailTitle: "Nút",
     studyKitMindmapCopyAskPrompt: "Sao chép câu hỏi cho chat",
     studyKitMindmapAskCopied: "Đã chép — dán vào Hỏi về bài này.",
@@ -1519,7 +1573,8 @@ export const translations = {
     studyKitResumeFormLoaded: "Đã khôi phục form từ phiên này.",
     studyKitResumeNoMeta: "Phiên này không lưu form — chỉ có nội dung bài ôn.",
     studyKitFileStubHint: "Chỉ còn tên tệp — tải lại tệp nếu bạn tạo lại bài.",
-    studyKitHistoryEmpty: "Chưa có phiên đã lưu. Tạo bài khi đã đăng nhập — sẽ hiện ở đây.",
+    studyKitHistoryEmpty:
+      "Chưa có phiên đã lưu. Tạo bài khi đã đăng nhập — sẽ hiện ở đây.",
     studyKitHistorySignIn: "Đăng nhập để xem phiên học và chat đã lưu.",
     studyKitHistoryUpdated: "Cập nhật",
     studyKitHistoryViewAll: "Xem tất cả phiên",
@@ -1534,9 +1589,9 @@ export const translations = {
     studyKitSheetViewMode: "Xem trước",
     studyKitSheetEditMode: "Sửa Markdown",
     studyKitSheetEditHint:
-        "Sửa Markdown trực tiếp — xuống dòng và tiêu đề được giữ. Đã đăng nhập sẽ tự lưu vào Lịch sử.",
+      "Sửa Markdown trực tiếp — xuống dòng và tiêu đề được giữ. Đã đăng nhập sẽ tự lưu vào Lịch sử.",
     studyKitResultSavedChatsUsePreview:
-        "Bài này đã có chat đã lưu. Chọn tab Xem trước để xem lịch sử và chat tiếp — dùng “Hỏi về mục này” hoặc “Hỏi về cả bài” ở cột phải.",
+      "Bài này đã có chat đã lưu. Chọn tab Xem trước để xem lịch sử và chat tiếp — dùng “Hỏi về mục này” hoặc “Hỏi về cả bài” ở cột phải.",
     studyKitSectionChatToggle: "Hỏi về mục này",
     studyKitSheetChatToggle: "Hỏi về cả bài",
     studyKitPanelCollapse: "Thu gọn",
@@ -1679,7 +1734,8 @@ export const translations = {
     meetsFilmstripLabel: "Video khác",
     meetsLeaveRoom: "Rời phòng",
     meetsLeaveConfirmTitle: "Rời cuộc gọi?",
-    meetsLeaveConfirmHint: "Bạn sẽ ngắt kết nối khỏi phòng. Có thể vào lại bằng cùng link.",
+    meetsLeaveConfirmHint:
+      "Bạn sẽ ngắt kết nối khỏi phòng. Có thể vào lại bằng cùng link.",
     meetsLeaveConfirmAction: "Rời phòng",
     meetsLeaveCancel: "Ở lại",
     meetsLiveBadge: "LIVE",
@@ -1706,10 +1762,10 @@ export const translations = {
     watchHubBadge: "Xem đồng bộ",
     watchHubTitle: "Xem video đồng bộ",
     watchHubSubtitle:
-        "Cùng tên phòng với bạn học. Mỗi máy mở một bản file video cục bộ—không tải video lên server. Play, pause, tua được đồng bộ.",
+      "Cùng tên phòng với bạn học. Mỗi máy mở một bản file video cục bộ—không tải video lên server. Play, pause, tua được đồng bộ.",
     watchTogetherTitle: "Xem cùng nhau",
     watchTogetherHint:
-        "Cùng file trên mỗi máy, hoặc dán cùng một link YouTube. Play, pause, tua đồng bộ qua phòng; file cục bộ không tải lên server.",
+      "Cùng file trên mỗi máy, hoặc dán cùng một link YouTube. Play, pause, tua đồng bộ qua phòng; file cục bộ không tải lên server.",
     watchTogetherChooseFile: "Chọn file video",
     watchTogetherNoFile: "Chưa chọn file",
     watchSourceOr: "hoặc",
@@ -1732,13 +1788,15 @@ export const translations = {
     watchPlaylistDelete: "Xoá",
     watchPlaylistRenameFolder: "Đổi tên thư mục",
     watchPlaylistDeleteFolder: "Xoá thư mục",
-    watchPlaylistDeleteFolderConfirm: "Xoá thư mục “{name}” và mọi clip bên trong?",
+    watchPlaylistDeleteFolderConfirm:
+      "Xoá thư mục “{name}” và mọi clip bên trong?",
     watchPlaylistNewFolderName: "Tên thư mục mới",
     watchPlaylistLoadError: "Không tải được playlist.",
     watchPlaylistSaveError: "Không lưu được.",
     watchPlaylistDeleteError: "Không xoá được.",
     watchPlaylistAdded: "Đã lưu clip.",
-    watchPlaylistR2DeleteWarn: "Xoá file trên cloud thất bại — vẫn xoá khỏi playlist.",
+    watchPlaylistR2DeleteWarn:
+      "Xoá file trên cloud thất bại — vẫn xoá khỏi playlist.",
     watchCloudUpload: "Upload lên cloud",
     watchCloudUploading: "Đang upload… {pct}%",
     watchCloudUploadFailed: "Upload thất bại.",
@@ -1761,16 +1819,18 @@ export const translations = {
     watchSubtitleDownloads: "{n} lượt tải",
     watchTogetherSyncNow: "Đồng bộ ngay",
     watchSyncNowTooltip:
-        "Nhờ mọi người trong phòng gửi vị trí phát và trạng thái play/pause hiện tại, rồi căn lại máy bạn. Dùng khi mới vào hoặc khi hai bên lệch nhau.",
+      "Nhờ mọi người trong phòng gửi vị trí phát và trạng thái play/pause hiện tại, rồi căn lại máy bạn. Dùng khi mới vào hoặc khi hai bên lệch nhau.",
     watchRoomLabel: "Phòng",
     watchEmptyStageTitle: "Chưa có gì đang phát",
-    watchEmptyStageHint: "Chọn file, kéo video vào vùng nét đứt, hoặc dán link YouTube.",
+    watchEmptyStageHint:
+      "Chọn file, kéo video vào vùng nét đứt, hoặc dán link YouTube.",
     watchDropZonePrompt: "Thả file video vào đây hoặc dùng nút bên dưới",
-    watchDropInvalidType: "File này không giống video. Thử .mp4, .webm, .mov hoặc .mkv.",
+    watchDropInvalidType:
+      "File này không giống video. Thử .mp4, .webm, .mov hoặc .mkv.",
     watchTogetherCopyLink: "Copy link phòng",
     watchTogetherConnected: "Đã kết nối",
     watchPartnerPlayingTapPlay:
-        "Đối phương đã bấm phát. Bạn bấm Play ở đây một lần — trình duyệt chỉ cho phát sau khi bạn tương tác.",
+      "Đối phương đã bấm phát. Bạn bấm Play ở đây một lần — trình duyệt chỉ cho phát sau khi bạn tương tác.",
     watchPlayTogether: "Phát cùng",
     watchSomeoneJoined: "{name} đã vào phòng",
     watchSomeoneLeft: "{name} đã rời phòng",
@@ -1922,8 +1982,7 @@ export const translations = {
     articlePasteHeading: "Dán văn bản",
     articleTitleOptional: "Tiêu đề (tuỳ chọn)",
     articleTitleOptionalPlaceholder: "vd. BBC Learning English — bài khí hậu",
-    articlePastePlaceholder:
-      "Dán toàn bộ bài đọc hoặc đoạn văn (thuần text).",
+    articlePastePlaceholder: "Dán toàn bộ bài đọc hoặc đoạn văn (thuần text).",
     articleSaveReadCta: "Lưu & đọc",
     articlePastedTitleFallback: "Bài dán",
     articleSourcePasted: "Văn bản dán",
@@ -1983,7 +2042,8 @@ export const translations = {
     navMenuSecurity: "Bảo mật",
     profileOpenMenuAria: "Menu tài khoản",
     profileAvatarSection: "Ảnh đại diện",
-    profileAvatarHint: "JPEG, PNG hoặc WebP — tối đa 2 MB. Lưu trên Supabase của bạn.",
+    profileAvatarHint:
+      "JPEG, PNG hoặc WebP — tối đa 2 MB. Lưu trên Supabase của bạn.",
     profileAvatarUpload: "Tải ảnh lên",
     profileAvatarRemove: "Xóa ảnh",
     profileAvatarUpdated: "Đã cập nhật ảnh đại diện.",
@@ -2011,11 +2071,12 @@ export const translations = {
     navRenameError: "Không lưu được nhãn. Thử lại.",
     navRenameModalAskTitle: "Đổi tên mục menu này?",
     navRenameModalAskBody:
-        "Chỉ bấm tiếp nếu bạn thật sự muốn đổi nhãn trên sidebar. Bấm nhầm sẽ không sửa tên cho đến khi bạn xác nhận.",
+      "Chỉ bấm tiếp nếu bạn thật sự muốn đổi nhãn trên sidebar. Bấm nhầm sẽ không sửa tên cho đến khi bạn xác nhận.",
     navRenameModalCurrentLabel: "Tên hiện tại",
     navRenameModalContinue: "Tiếp tục",
     navRenameModalEditTitle: "Tên mới",
-    navRenameModalEditHint: "Được phép dùng dấu cách. Để trống hoặc giữ nguyên mặc định sẽ dùng bản dịch gốc.",
+    navRenameModalEditHint:
+      "Được phép dùng dấu cách. Để trống hoặc giữ nguyên mặc định sẽ dùng bản dịch gốc.",
     navRenameModalSave: "Lưu",
     navRenameModalBack: "Quay lại",
     navRenameModalSaving: "Đang lưu…",
@@ -2142,7 +2203,8 @@ export const translations = {
     toastSetDeleted: "Đã xóa bộ thẻ",
     toastCardDeleted: "Đã xóa thẻ",
     backToListening: "← Quay lại Listening",
-    noSetsYet: "Chưa có bộ từ vựng. Tạo bộ đầu tiên rồi thêm từ bất cứ lúc nào.",
+    noSetsYet:
+      "Chưa có bộ từ vựng. Tạo bộ đầu tiên rồi thêm từ bất cứ lúc nào.",
     createFirstSetHint: "Tạo một bộ để lưu từ và nghĩa.",
     enterToSaveEscToCancel: "Enter để lưu, Esc để hủy",
     noFlashcardsYet: "Chưa có từ nào trong bộ này",
@@ -2199,6 +2261,10 @@ export const translations = {
     notesFolderFilterAria: "Lọc ghi chú theo thư mục",
     notesNewFolderTitle: "Thư mục mới",
     notesNewSubfolder: "Thư mục con mới",
+    notesFolderPlusMenuAria: "Thêm trong thư mục này",
+    notesFolderMenuSubfolder: "Thư mục con",
+    notesFolderMenuNote: "Ghi chú mới",
+    notesFolderQuickSubfolderHeading: "Đặt tên thư mục con",
     notesNewSubfolderHint: "Đang tạo thư mục bên trong thư mục cha đã chọn.",
     notesFolderExpandAria: "Mở hoặc thu thư mục",
     notesFolderMoveFailed: "Không di chuyển được thư mục.",
@@ -2230,7 +2296,7 @@ export const translations = {
     notesFolderDeleteFailed: "Không xóa được thư mục.",
     notesFolderDeleteConfirmTitle: "Xóa thư mục?",
     notesFolderDeleteConfirmBody:
-      'Xóa “{name}”? Ghi chú trong thư mục sẽ chuyển sang chưa phân loại.',
+      "Xóa “{name}”? Ghi chú trong thư mục sẽ chuyển sang chưa phân loại.",
     notesLabelCreateFailed: "Không tạo được nhãn.",
     notesOrgUpdating: "Đang cập nhật…",
     noteShareSuccess: "Đã chia sẻ ghi chú.",
@@ -2460,7 +2526,8 @@ export const translations = {
       "Sản phẩm fullstack: đăng nhập, luyện IELTS, giọng nói AI và công cụ học trong một app.",
     resumeProjB1: "Nền tảng fullstack, tương tác giọng nói realtime với AI",
     resumeProjB2: "IELTS Listening & Reading có chấm điểm và giải thích",
-    resumeProjB3: "Ghi chú từ vựng IELTS, ghi chú, lịch, từ điển — luồng học tích hợp",
+    resumeProjB3:
+      "Ghi chú từ vựng IELTS, ghi chú, lịch, từ điển — luồng học tích hợp",
     resumeLiveDemo: "Demo — ứng dụng IELTS",
     resumeEducation: "Học vấn",
     resumeWorkingExperience: "Kinh nghiệm làm việc",

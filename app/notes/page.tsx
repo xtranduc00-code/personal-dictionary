@@ -4,20 +4,16 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
 import { toast } from "react-toastify";
 import {
-  Archive,
   ChevronLeft,
   ChevronRight,
-  Clock,
   FileText,
   Folder,
-  FolderOpen,
   Loader2,
   Pencil,
   PenLine,
@@ -28,11 +24,14 @@ import {
   Share2,
   Sparkles,
   StickyNote,
-  Tag,
   Trash2,
   UserMinus,
 } from "lucide-react";
-import { NotesFolderTreeNav, NOTE_DRAG } from "@/components/notes/NotesFolderTreeNav";
+import {
+  NotesFolderTreeNav,
+  NOTE_DRAG,
+  type NotesTreeNote,
+} from "@/components/notes/NotesFolderTreeNav";
 import { authFetch } from "@/lib/auth-context";
 import { noteFolderDisplayName } from "@/lib/note-folder-display-name";
 import {
@@ -47,8 +46,7 @@ import dynamic from "next/dynamic";
 import { useI18n } from "@/components/i18n-provider";
 
 const RichTextEditor = dynamic(
-  () =>
-    import("@/components/RichTextEditor").then((mod) => mod.RichTextEditor),
+  () => import("@/components/RichTextEditor").then((mod) => mod.RichTextEditor),
   {
     ssr: false,
     loading: () => (
@@ -138,9 +136,7 @@ function normalizeNote(raw: Record<string, unknown>): Note {
     createdAt: String(raw.createdAt ?? raw.created_at ?? ""),
     updatedAt: String(raw.updatedAt ?? raw.updated_at ?? ""),
     folderId:
-      folderIdRaw != null && folderIdRaw !== ""
-        ? String(folderIdRaw)
-        : null,
+      folderIdRaw != null && folderIdRaw !== "" ? String(folderIdRaw) : null,
     folderName:
       typeof raw.folderName === "string"
         ? raw.folderName
@@ -156,13 +152,15 @@ function normalizeNote(raw: Record<string, unknown>): Note {
   };
 }
 
-function mergeNoteFromApiPatch(n: Note, updated: Record<string, unknown>): Note {
+function mergeNoteFromApiPatch(
+  n: Note,
+  updated: Record<string, unknown>,
+): Note {
   return {
     ...n,
     title: typeof updated.title === "string" ? updated.title : n.title,
     body: typeof updated.body === "string" ? updated.body : n.body,
-    pinned:
-      typeof updated.pinned === "boolean" ? updated.pinned : n.pinned,
+    pinned: typeof updated.pinned === "boolean" ? updated.pinned : n.pinned,
     createdAt:
       typeof updated.createdAt === "string" ? updated.createdAt : n.createdAt,
     updatedAt:
@@ -193,7 +191,10 @@ function formatDate(iso: string) {
   const now = new Date();
   const sameDay = d.toDateString() === now.toDateString();
   if (sameDay) {
-    return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   }
   const diff = (now.getTime() - d.getTime()) / (24 * 60 * 60 * 1000);
   if (diff < 7) {
@@ -204,15 +205,6 @@ function formatDate(iso: string) {
 
 const NOTES_SIDEBAR_LS = "ken-notes-sidebar";
 const NOTES_FOLDER_EXPANDED_LS = "ken-notes-folder-expanded";
-
-function snippet(text: string, maxLen: number, emptyLabel: string) {
-  const withoutTags = text.replace(/<[^>]+>/g, " ");
-  const trimmed = withoutTags.replace(/\s+/g, " ").trim();
-  if (trimmed.length <= maxLen) {
-    return trimmed || emptyLabel;
-  }
-  return trimmed.slice(0, maxLen) + "…";
-}
 
 export default function NotesPage() {
   const { t } = useI18n();
@@ -291,10 +283,11 @@ export default function NotesPage() {
   const [folderModalBusy, setFolderModalBusy] = useState(false);
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingFolderName, setEditingFolderName] = useState("");
-  const [folderPendingDelete, setFolderPendingDelete] = useState<NoteFolder | null>(
+  const [folderPendingDelete, setFolderPendingDelete] =
+    useState<NoteFolder | null>(null);
+  const [newFolderParentId, setNewFolderParentId] = useState<string | null>(
     null,
   );
-  const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null);
   const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -345,13 +338,6 @@ export default function NotesPage() {
   const selectedNote = notes.find((n) => n.id === selectedId);
   const selectedNoteRef = useRef<Note | undefined>(undefined);
   selectedNoteRef.current = selectedNote;
-
-  const filteredNotes = useMemo(() => {
-    if (listFolderFilter === "all") {
-      return notes;
-    }
-    return notes.filter((n) => n.folderId === listFolderFilter);
-  }, [notes, listFolderFilter]);
 
   const isEditorReady =
     !!selectedNote && !!selectedId && hydratedNoteId === selectedId;
@@ -413,8 +399,7 @@ export default function NotesPage() {
             return {
               id: String(o.id ?? ""),
               name: String(o.name ?? ""),
-              parentId:
-                pid != null && pid !== "" ? String(pid) : null,
+              parentId: pid != null && pid !== "" ? String(pid) : null,
               sortOrder: Number(o.sortOrder ?? o.sort_order ?? 0),
             };
           }),
@@ -492,7 +477,7 @@ export default function NotesPage() {
     setExpandedFolderIds((prev) => {
       const path = getFolderPath(noteFolders, listFolderFilter);
       const next = new Set(prev);
-      for (const p of path.slice(0, -1)) next.add(p.id);
+      for (const p of path) next.add(p.id);
       return next;
     });
   }, [listFolderFilter, noteFolders]);
@@ -513,6 +498,30 @@ export default function NotesPage() {
       return next;
     });
   }, []);
+
+  const onTreeSelectFilter = useCallback(
+    (id: "all" | string) => {
+      setListFolderFilter(id);
+      if (id === "all" || noteFolders.length === 0) {
+        return;
+      }
+      const path = getFolderPath(noteFolders, id);
+      setExpandedFolderIds((prev) => {
+        const next = new Set(prev);
+        for (const p of path) next.add(p.id);
+        try {
+          localStorage.setItem(
+            NOTES_FOLDER_EXPANDED_LS,
+            JSON.stringify([...next]),
+          );
+        } catch {
+          /* ignore */
+        }
+        return next;
+      });
+    },
+    [noteFolders],
+  );
 
   /** Shared note: chỉ fetch đúng 1 note (không tải lại cả list + mọi body). */
   useEffect(() => {
@@ -977,6 +986,42 @@ export default function NotesPage() {
     }
   };
 
+  const handleNewNoteInFolder = useCallback(
+    async (folderId: string) => {
+      await saveCurrentIfDirty();
+      try {
+        const res = await authFetch("/api/notes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: "", body: "", folderId }),
+        });
+        if (!res.ok) {
+          return;
+        }
+        const created = normalizeNote(
+          (await res.json()) as Record<string, unknown>,
+        );
+        setNotes((prev) => [created, ...prev]);
+        lastServerByNoteIdRef.current.set(created.id, {
+          title: created.title,
+          body: created.body,
+          updatedAt: created.updatedAt,
+        });
+        onTreeSelectFilter(folderId);
+        setSelectedId(created.id);
+        setTitle("");
+        setBody("");
+        setHydratedNoteId(null);
+        if (isNarrow) {
+          setMobileEditorOpen(true);
+        }
+      } catch {
+        /* ignore */
+      }
+    },
+    [saveCurrentIfDirty, onTreeSelectFilter, isNarrow],
+  );
+
   const handleSaveTitleFromList = useCallback(
     async (noteId: string, newTitle: string) => {
       const n = notes.find((x) => x.id === noteId);
@@ -1170,6 +1215,12 @@ export default function NotesPage() {
     [patchNoteOrg, selectedId, selectedNote, t],
   );
 
+  const closeNewFolderModal = useCallback(() => {
+    setFolderInputOpen(false);
+    setNewFolderName("");
+    setNewFolderParentId(null);
+  }, []);
+
   const createFolder = useCallback(async () => {
     const name = newFolderName.trim();
     if (!name) {
@@ -1181,9 +1232,7 @@ export default function NotesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          ...(newFolderParentId
-            ? { parentId: newFolderParentId }
-            : {}),
+          ...(newFolderParentId ? { parentId: newFolderParentId } : {}),
         }),
       });
       if (!res.ok) {
@@ -1199,14 +1248,11 @@ export default function NotesPage() {
       const row: NoteFolder = {
         id: String(f.id),
         name: String(f.name ?? ""),
-        parentId:
-          pid != null && pid !== "" ? String(pid) : null,
+        parentId: pid != null && pid !== "" ? String(pid) : null,
         sortOrder: Number(f.sortOrder ?? f.sort_order ?? 0),
       };
       setNoteFolders((prev) => [...prev, row]);
-      setNewFolderName("");
-      setNewFolderParentId(null);
-      setFolderInputOpen(false);
+      closeNewFolderModal();
       if (row.parentId) {
         setExpandedFolderIds((prev) => {
           const next = new Set(prev);
@@ -1226,7 +1272,60 @@ export default function NotesPage() {
     } catch {
       toast.error(t("notesFolderCreateFailed"));
     }
-  }, [newFolderName, newFolderParentId, t]);
+  }, [newFolderName, newFolderParentId, t, closeNewFolderModal]);
+
+  const createSubfolderQuick = useCallback(
+    async (parentId: string, name: string): Promise<boolean> => {
+      const trimmed = name.trim();
+      if (!trimmed) {
+        return false;
+      }
+      try {
+        const res = await authFetch("/api/notes/folders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: trimmed, parentId }),
+        });
+        if (!res.ok) {
+          toast.error(t("notesFolderCreateFailed"));
+          return false;
+        }
+        const data = (await res.json()) as { folder?: Record<string, unknown> };
+        const f = data.folder;
+        if (!f?.id) {
+          return false;
+        }
+        const pid = f.parentId ?? f.parent_id;
+        const row: NoteFolder = {
+          id: String(f.id),
+          name: String(f.name ?? ""),
+          parentId: pid != null && pid !== "" ? String(pid) : null,
+          sortOrder: Number(f.sortOrder ?? f.sort_order ?? 0),
+        };
+        setNoteFolders((prev) => [...prev, row]);
+        onTreeSelectFilter(parentId);
+        setExpandedFolderIds((prev) => {
+          const next = new Set(prev);
+          next.add(parentId);
+          try {
+            localStorage.setItem(
+              NOTES_FOLDER_EXPANDED_LS,
+              JSON.stringify([...next]),
+            );
+          } catch {
+            /* ignore */
+          }
+          return next;
+        });
+        toast.success(t("notesFolderCreated"));
+        return true;
+      } catch {
+        toast.error(t("notesFolderCreateFailed"));
+        return false;
+      }
+    },
+    [t, onTreeSelectFilter],
+  );
 
   const closeFolderManager = useCallback(() => {
     if (folderModalBusy) {
@@ -1268,8 +1367,7 @@ export default function NotesPage() {
       const fr = data.folder;
       const nm = String(fr?.name ?? name);
       const pRaw = fr?.parentId ?? fr?.parent_id;
-      const newParent =
-        pRaw != null && pRaw !== "" ? String(pRaw) : null;
+      const newParent = pRaw != null && pRaw !== "" ? String(pRaw) : null;
       setNoteFolders((prev) =>
         prev.map((f) =>
           f.id === editingFolderId
@@ -1314,9 +1412,7 @@ export default function NotesPage() {
       setListFolderFilter((prev) => (prev === fd.id ? "all" : prev));
       setNotes((prev) =>
         prev.map((n) =>
-          n.folderId === fd.id
-            ? { ...n, folderId: null, folderName: null }
-            : n,
+          n.folderId === fd.id ? { ...n, folderId: null, folderName: null } : n,
         ),
       );
       setFolderPendingDelete(null);
@@ -1472,6 +1568,15 @@ export default function NotesPage() {
 
     await saveCurrentIfDirty();
 
+    const n = notes.find((x) => x.id === id);
+    if (n) {
+      if (n.folderId) {
+        onTreeSelectFilter(n.folderId);
+      } else {
+        setListFolderFilter("all");
+      }
+    }
+
     setSelectedId(id);
     dispatchClearNavQuickSearch();
     if (isNarrow) {
@@ -1590,6 +1695,138 @@ export default function NotesPage() {
     ];
   }
 
+  const renderCompactNoteRow = useCallback(
+    (n: NotesTreeNote, _depthPadPx: number) => {
+      const note = n as Note;
+      return (
+      <div
+        className={`group flex min-w-0 items-stretch rounded-lg border ${
+          selectedId === note.id
+            ? "border-transparent bg-amber-50 shadow-sm dark:bg-amber-950/25"
+            : "border-transparent hover:border-neutral-200 hover:bg-neutral-50 dark:hover:border-neutral-700 dark:hover:bg-neutral-900/50"
+        } ${isOwner(note) ? "cursor-grab active:cursor-grabbing" : ""}`}
+        draggable={isOwner(note)}
+        onDragStart={(e) => {
+          if (!isOwner(note)) return;
+          e.dataTransfer.setData(NOTE_DRAG, note.id);
+          e.dataTransfer.effectAllowed = "move";
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => void openNoteOnMobile(note.id)}
+          className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left"
+        >
+          <FileText
+            className="h-3.5 w-3.5 shrink-0 text-zinc-400 dark:text-zinc-500"
+            strokeWidth={2}
+            aria-hidden
+          />
+          <span className="min-w-0 flex-1">
+            {editingTitleId === note.id ? (
+              <input
+                type="text"
+                value={editingTitleValue}
+                onChange={(e) => setEditingTitleValue(e.target.value)}
+                onBlur={() =>
+                  handleSaveTitleFromList(note.id, editingTitleValue)
+                }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleSaveTitleFromList(note.id, editingTitleValue);
+                  }
+                  if (e.key === "Escape") {
+                    setEditingTitleId(null);
+                  }
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full truncate rounded border border-zinc-300 bg-white px-1 py-0.5 text-xs font-medium outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                autoFocus
+              />
+            ) : (
+              <span
+                className="block truncate text-sm font-medium text-zinc-900 dark:text-zinc-100"
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  if (!canEdit(note)) return;
+                  setEditingTitleId(note.id);
+                  setEditingTitleValue(note.title || "");
+                }}
+                title={canEdit(note) ? t("doubleClickEditTitle") : undefined}
+              >
+                {note.title || t("untitled")}
+              </span>
+            )}
+            <span className="mt-0.5 block truncate text-[10px] text-zinc-400 dark:text-zinc-500">
+              {note.access === "shared" && note.ownerUsername ? (
+                <>
+                  {t("noteSharedBy").replace("{name}", note.ownerUsername)}
+                  <span className="text-zinc-300 dark:text-zinc-600"> · </span>
+                </>
+              ) : null}
+              {formatDate(note.updatedAt)}
+            </span>
+          </span>
+        </button>
+        {isOwner(note) ? (
+          <div
+            className={`flex shrink-0 items-center gap-0.5 self-stretch pr-0.5 ${
+              selectedId === note.id
+                ? ""
+                : "transition-colors group-hover:bg-neutral-100 dark:group-hover:bg-neutral-800/70"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+            role="presentation"
+          >
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleTogglePin(note);
+              }}
+              className={`flex shrink-0 items-center justify-center rounded-md p-1.5 transition-colors ${
+                note.pinned
+                  ? "text-orange-600 dark:text-orange-500"
+                  : "text-neutral-400 hover:bg-neutral-200/60 hover:text-neutral-800 dark:text-neutral-500 dark:hover:bg-neutral-700/80 dark:hover:text-neutral-200"
+              }`}
+              title={note.pinned ? t("unpin") : t("pinNote")}
+            >
+              <Pin
+                className={`h-3.5 w-3.5 ${note.pinned ? "fill-current" : "fill-none opacity-90"}`}
+                strokeWidth={1.75}
+              />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setNoteToDelete(note);
+              }}
+              className="shrink-0 rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-200/60 hover:text-neutral-800 dark:text-neutral-500 dark:hover:bg-neutral-700/80 dark:hover:text-neutral-200"
+              title={t("deleteNoteTitle")}
+            >
+              <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+            </button>
+          </div>
+        ) : (
+          <span className="flex w-8 shrink-0 items-center justify-center self-stretch text-[9px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+            {t("noteSharedBadge")}
+          </span>
+        )}
+      </div>
+      );
+    },
+    [
+      selectedId,
+      editingTitleId,
+      editingTitleValue,
+      handleSaveTitleFromList,
+      openNoteOnMobile,
+      handleTogglePin,
+      t,
+    ],
+  );
+
   const showListPanel = !isNarrow || !mobileEditorOpen;
   const showEditorPanel = !isNarrow || mobileEditorOpen;
   const showNotesSidebar =
@@ -1612,321 +1849,116 @@ export default function NotesPage() {
         ) : null}
 
         <aside
-          className={`flex min-h-0 shrink-0 flex-col border-zinc-200/80 bg-white dark:border-zinc-800 dark:bg-zinc-950 md:border-r ${
+          className={`flex min-h-0 shrink-0 flex-col overflow-hidden border-zinc-200/80 bg-white dark:border-zinc-800 dark:bg-zinc-950 md:border-r ${
             showNotesSidebar
               ? "w-full flex-1 border-r md:w-80 md:max-h-none md:flex-none"
               : "hidden"
           } max-md:min-h-0 max-md:flex-1`}
         >
-          <div className="flex items-center justify-between gap-2 border-b border-zinc-200 p-3 dark:border-zinc-800">
-            <h1 className="flex min-w-0 items-center gap-2.5 text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-lg">
+          <header className="flex shrink-0 items-center gap-3 border-b border-zinc-200 px-3 py-2.5 dark:border-zinc-800">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
                 <StickyNote className="h-4 w-4" strokeWidth={2.25} />
               </span>
-              {t("notes")}
-            </h1>
-            <div className="flex shrink-0 items-center gap-1">
-              {!isNarrow ? (
-                <button
-                  type="button"
-                  onClick={() => setSidebarExpandedPersist(false)}
-                  className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-                  aria-label={t("notesSidebarCollapse")}
-                  title={t("notesSidebarCollapse")}
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => void handleNewNote()}
-                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 sm:px-3.5 sm:text-sm"
-              >
-                <Plus className="h-4 w-4" strokeWidth={2.5} />
-                {t("newNote")}
-              </button>
+              <h1 className="min-w-0 truncate text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-lg">
+                {t("notes")}
+              </h1>
             </div>
-          </div>
-          <NotesFolderTreeNav
-            folders={noteFolders}
-            selectedFilter={listFolderFilter}
-            onSelectFilter={setListFolderFilter}
-            expandedIds={expandedFolderIds}
-            onToggleExpand={toggleFolderExpand}
-            canOrganize
-            onRequestSubfolder={(parentId) => {
-              setNewFolderParentId(parentId);
-              setFolderInputOpen(true);
-            }}
-            onNoteDroppedOnFolder={(noteId, folderId) => {
-              void patchNoteOrg(noteId, { folderId });
-            }}
-            onNoteDroppedUncategorized={(noteId) => {
-              void patchNoteOrg(noteId, { folderId: null });
-            }}
-            onFolderMoved={(fid, newParent) => {
-              void moveFolderToParent(fid, newParent);
-            }}
-            disabled={orgBusy}
-            labels={{
-              allNotes: t("notesFolderAll"),
-              newSubfolder: t("notesNewSubfolder"),
-              expandFolder: t("notesFolderExpandAria"),
-            }}
-          />
-          {folderInputOpen ? (
-            <div className="border-b border-zinc-200 px-2 py-2 dark:border-zinc-800">
-              {newFolderParentId ? (
-                <p className="mb-1 text-[10px] font-medium text-zinc-500 dark:text-zinc-400">
-                  {t("notesNewSubfolderHint")}
-                </p>
-              ) : null}
-              <div className="flex flex-wrap gap-1.5">
-                <input
-                  type="text"
-                  value={newFolderName}
-                  onChange={(e) => setNewFolderName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      void createFolder();
-                    }
-                    if (e.key === "Escape") {
-                      setFolderInputOpen(false);
-                      setNewFolderName("");
-                      setNewFolderParentId(null);
-                    }
-                  }}
-                  placeholder={t("notesNewFolderPlaceholder")}
-                  className="min-w-0 flex-1 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-800 placeholder:text-zinc-400 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-                  autoFocus
-                />
+            <div className="flex shrink-0 items-center gap-2">
+              <div className="flex items-stretch overflow-hidden rounded-lg border border-zinc-200/90 bg-zinc-50/90 shadow-sm dark:border-zinc-600 dark:bg-zinc-900/55">
                 <button
                   type="button"
-                  onClick={() => void createFolder()}
-                  className="shrink-0 rounded-lg bg-zinc-900 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                  onClick={() => {
+                    setNewFolderParentId(null);
+                    setFolderInputOpen(true);
+                  }}
+                  disabled={orgBusy}
+                  className="flex h-9 w-10 shrink-0 items-center justify-center text-zinc-600 hover:bg-zinc-100 disabled:opacity-60 dark:text-zinc-300 dark:hover:bg-zinc-800/80"
+                  title={t("notesNewFolderTitle")}
+                  aria-label={t("notesNewFolderTitle")}
+                  aria-haspopup="dialog"
                 >
-                  {t("notesFolderAdd")}
+                  <Plus className="h-4 w-4" strokeWidth={2.5} />
                 </button>
                 <button
                   type="button"
                   onClick={() => {
-                    setFolderInputOpen(false);
-                    setNewFolderName("");
-                    setNewFolderParentId(null);
+                    setFolderManagerOpen(true);
+                    setFolderPendingDelete(null);
+                    setEditingFolderId(null);
+                    setEditingFolderName("");
                   }}
-                  className="shrink-0 rounded-lg border border-zinc-300 px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                  disabled={orgBusy}
+                  className="flex h-9 w-10 shrink-0 items-center justify-center border-l border-zinc-200/80 text-zinc-600 hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800/80"
+                  title={t("notesFolderManageAria")}
+                  aria-label={t("notesFolderManageAria")}
                 >
-                  {t("cancel")}
+                  <Settings2 className="h-4 w-4" strokeWidth={2} />
                 </button>
               </div>
             </div>
-          ) : null}
-          {listFolderFilter !== "all" && noteFolders.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 border-b border-zinc-200 px-2 py-1.5 text-[11px] dark:border-zinc-800">
+            {!isNarrow ? (
               <button
                 type="button"
-                className="font-semibold text-rose-700 hover:underline dark:text-rose-300"
-                onClick={() => setListFolderFilter("all")}
+                onClick={() => setSidebarExpandedPersist(false)}
+                className="shrink-0 rounded-lg p-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                aria-label={t("notesSidebarCollapse")}
+                title={t("notesSidebarCollapse")}
               >
-                {t("notesFolderFilterOptionAll")}
+                <ChevronLeft className="h-5 w-5" />
               </button>
-              {getFolderPath(noteFolders, listFolderFilter).map((seg, i, arr) => (
-                <span
-                  key={seg.id}
-                  className="flex min-w-0 items-center gap-1 text-zinc-500 dark:text-zinc-400"
-                >
-                  <span className="text-zinc-400" aria-hidden>
-                    /
-                  </span>
-                  {i < arr.length - 1 ? (
-                    <button
-                      type="button"
-                      className="truncate hover:underline"
-                      onClick={() => setListFolderFilter(seg.id)}
-                    >
-                      {noteFolderDisplayName(seg.name) ?? seg.name}
-                    </button>
-                  ) : (
-                    <span className="truncate font-semibold text-zinc-800 dark:text-zinc-200">
-                      {noteFolderDisplayName(seg.name) ?? seg.name}
+            ) : null}
+          </header>
+          <div className="flex min-h-0 flex-1 flex-col">
+            <NotesFolderTreeNav
+              folders={noteFolders}
+              notes={notes}
+              renderCompactNoteRow={renderCompactNoteRow}
+              selectedFilter={listFolderFilter}
+              onSelectFilter={onTreeSelectFilter}
+              expandedIds={expandedFolderIds}
+              onToggleExpand={toggleFolderExpand}
+              canOrganize
+              onNewNoteInFolder={(fid) => void handleNewNoteInFolder(fid)}
+              onCreateSubfolderQuick={createSubfolderQuick}
+              onNoteDroppedOnFolder={(noteId, folderId) => {
+                void patchNoteOrg(noteId, { folderId });
+              }}
+              onNoteDroppedUncategorized={(noteId) => {
+                void patchNoteOrg(noteId, { folderId: null });
+              }}
+              onFolderMoved={(fid, newParent) => {
+                void moveFolderToParent(fid, newParent);
+              }}
+              disabled={orgBusy}
+              labels={{
+                navAriaLabel: t("notes"),
+                expandFolder: t("notesFolderExpandAria"),
+                folderPlusMenuAria: t("notesFolderPlusMenuAria"),
+                folderMenuSubfolder: t("notesFolderMenuSubfolder"),
+                folderMenuNote: t("notesFolderMenuNote"),
+                quickSubfolderHeading: t("notesFolderQuickSubfolderHeading"),
+                folderNamePlaceholder: t("notesNewFolderPlaceholder"),
+                add: t("notesFolderAdd"),
+                cancel: t("cancel"),
+              }}
+              emptyTreeFooter={
+                notes.length === 0 ? (
+                  <div className="flex flex-col items-center gap-2 px-3 py-8 text-center">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-zinc-200 bg-zinc-100 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
+                      <Sparkles className="h-6 w-6" strokeWidth={1.75} />
                     </span>
-                  )}
-                </span>
-              ))}
-            </div>
-          ) : null}
-          <ul className="flex-1 overflow-y-auto px-1 pb-2 pt-1">
-            {notes.length === 0 ? (
-              <li className="flex flex-col items-center gap-3 p-6 text-center">
-                <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-zinc-200 bg-zinc-100 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
-                  <Sparkles className="h-7 w-7" strokeWidth={1.75} />
-                </span>
-                <p className="text-sm font-medium text-zinc-600 dark:text-zinc-300">
-                  {t("noNotesYet")}
-                </p>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  {t("clickNewNoteToStart")}
-                </p>
-              </li>
-            ) : filteredNotes.length === 0 ? (
-              <li className="flex flex-col items-center gap-2 p-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                <FolderOpen className="h-8 w-8 text-zinc-400 opacity-80 dark:text-zinc-500" />
-                {t("notesNoMatchFolder")}
-              </li>
-            ) : (
-              filteredNotes.map((n) => (
-                <li
-                  key={n.id}
-                  draggable={isOwner(n)}
-                  onDragStart={(e) => {
-                    if (!isOwner(n)) return;
-                    e.dataTransfer.setData(NOTE_DRAG, n.id);
-                    e.dataTransfer.effectAllowed = "move";
-                  }}
-                  className={`group flex items-stretch rounded-lg border ${
-                    selectedId === n.id
-                      ? "border-transparent bg-amber-50 shadow-sm dark:bg-amber-950/25"
-                      : "border-transparent hover:border-neutral-200 hover:bg-neutral-50 dark:hover:border-neutral-700 dark:hover:bg-neutral-900/50"
-                  } ${isOwner(n) ? "cursor-grab active:cursor-grabbing" : ""}`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => void openNoteOnMobile(n.id)}
-                    className="min-w-0 flex-1 px-3 py-3 text-left sm:px-4"
-                  >
-                    {editingTitleId === n.id ? (
-                      <input
-                        type="text"
-                        value={editingTitleValue}
-                        onChange={(e) => setEditingTitleValue(e.target.value)}
-                        onBlur={() =>
-                          handleSaveTitleFromList(n.id, editingTitleValue)
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            handleSaveTitleFromList(n.id, editingTitleValue);
-                          }
-                          if (e.key === "Escape") {
-                            setEditingTitleId(null);
-                          }
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-full truncate rounded border border-zinc-300 bg-white px-1 py-0.5 text-sm font-medium outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
-                        autoFocus
-                      />
-                    ) : (
-                      <p
-                        className="truncate font-medium text-zinc-900 dark:text-zinc-100"
-                        onDoubleClick={(e) => {
-                          e.stopPropagation();
-                          if (!canEdit(n)) {
-                            return;
-                          }
-                          setEditingTitleId(n.id);
-                          setEditingTitleValue(n.title || "");
-                        }}
-                        title={
-                          canEdit(n) ? t("doubleClickEditTitle") : undefined
-                        }
-                      >
-                        {n.title || t("untitled")}
-                      </p>
-                    )}
-                    <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] font-normal text-zinc-500 dark:text-zinc-400">
-                      <Folder
-                        className="h-3 w-3 shrink-0 text-zinc-400 dark:text-zinc-500"
-                        strokeWidth={1.75}
-                        aria-hidden
-                      />
-                      <span className="min-w-0 truncate">
-                        {n.folderName
-                          ? (noteFolderDisplayName(n.folderName) ?? n.folderName)
-                          : t("notesFolderFilterOptionAll")}
-                      </span>
+                    <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
+                      {t("noNotesYet")}
                     </p>
-                    {n.labels.length > 0 ? (
-                      <p className="mt-0.5 flex max-w-full flex-wrap gap-1">
-                        {n.labels.slice(0, 4).map((lab) => (
-                          <span
-                            key={lab.id}
-                            className="inline-flex max-w-[6rem] items-center gap-0.5 truncate rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
-                          >
-                            <Tag className="h-2.5 w-2.5 shrink-0 opacity-70" aria-hidden />
-                            <span className="min-w-0 truncate">{lab.name}</span>
-                          </span>
-                        ))}
-                        {n.labels.length > 4 ? (
-                          <span className="text-[10px] text-zinc-400">
-                            +{n.labels.length - 4}
-                          </span>
-                        ) : null}
-                      </p>
-                    ) : null}
-                    <p className="mt-1 flex items-start gap-1.5 truncate text-xs text-zinc-500 dark:text-zinc-400">
-                      <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-zinc-400 dark:text-zinc-500" />
-                      <span className="min-w-0 truncate">
-                        {n.access === "shared" && n.ownerUsername ? (
-                          <span className="mr-1 font-medium text-zinc-600 dark:text-zinc-400">
-                            {t("noteSharedBy").replace("{name}", n.ownerUsername)}
-                          </span>
-                        ) : null}
-                        <span className="font-medium text-zinc-600 dark:text-zinc-300">
-                          {formatDate(n.updatedAt)}
-                        </span>
-                        <span className="text-zinc-400"> · </span>
-                        {snippet(n.body, 40, t("noContent"))}
-                      </span>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                      {t("clickNewNoteToStart")}
                     </p>
-                  </button>
-                  {isOwner(n) ? (
-                    <div
-                      className={`flex shrink-0 items-center gap-0.5 self-stretch rounded-r-md px-1 py-1 ${
-                        selectedId === n.id
-                          ? ""
-                          : "transition-colors group-hover:bg-neutral-100 dark:group-hover:bg-neutral-800/70"
-                      }`}
-                      onClick={(e) => e.stopPropagation()}
-                      role="presentation"
-                    >
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleTogglePin(n);
-                        }}
-                        className={`flex shrink-0 items-center justify-center rounded-md p-2 transition-colors ${
-                          n.pinned
-                            ? "text-orange-600 dark:text-orange-500"
-                            : "text-neutral-400 hover:bg-neutral-200/60 hover:text-neutral-800 dark:text-neutral-500 dark:hover:bg-neutral-700/80 dark:hover:text-neutral-200"
-                        }`}
-                        title={n.pinned ? t("unpin") : t("pinNote")}
-                      >
-                        <Pin
-                          className={`h-4 w-4 ${n.pinned ? "fill-current" : "fill-none opacity-90"}`}
-                          strokeWidth={1.75}
-                        />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setNoteToDelete(n);
-                        }}
-                        className="shrink-0 rounded-md p-2 text-neutral-400 transition-colors hover:bg-neutral-200/60 hover:text-neutral-800 dark:text-neutral-500 dark:hover:bg-neutral-700/80 dark:hover:text-neutral-200"
-                        title={t("deleteNoteTitle")}
-                      >
-                        <Trash2 className="h-4 w-4" strokeWidth={1.75} />
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="flex w-10 shrink-0 items-center justify-center text-[10px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                      {t("noteSharedBadge")}
-                    </span>
-                  )}
-                </li>
-              ))
-            )}
-          </ul>
+                  </div>
+                ) : null
+              }
+            />
+          </div>
         </aside>
 
         <main
@@ -1950,7 +1982,10 @@ export default function NotesPage() {
                     </span>
                   </button>
                 ) : null}
-                <span className="hidden shrink-0 text-zinc-400 dark:text-zinc-500 sm:flex" aria-hidden>
+                <span
+                  className="hidden shrink-0 text-zinc-400 dark:text-zinc-500 sm:flex"
+                  aria-hidden
+                >
                   <PenLine className="h-5 w-5" strokeWidth={1.75} />
                 </span>
                 <input
@@ -1999,63 +2034,18 @@ export default function NotesPage() {
                     </span>
                   </button>
                   {isOwner(selectedNote) ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setFolderPickOpen(true)}
-                        disabled={orgBusy}
-                        className="flex h-8 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-200/90 bg-white text-zinc-600 shadow-sm hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                        title={t("notesFolderArchiveAria")}
-                        aria-label={t("notesFolderArchiveAria")}
-                      >
-                        <Archive className="h-4 w-4" strokeWidth={2} />
-                      </button>
-                      <div className="flex min-w-0 shrink-0 items-stretch overflow-hidden rounded-lg border border-zinc-200/90 bg-zinc-50/90 shadow-sm dark:border-zinc-600 dark:bg-zinc-900/55">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setNewFolderParentId(null);
-                            setFolderInputOpen((v) => !v);
-                          }}
-                          disabled={orgBusy}
-                          className="flex h-8 w-9 shrink-0 items-center justify-center text-zinc-600 hover:bg-zinc-100 disabled:opacity-60 dark:text-zinc-300 dark:hover:bg-zinc-800/80"
-                          title={t("notesNewFolderTitle")}
-                          aria-label={t("notesNewFolderTitle")}
-                          aria-expanded={folderInputOpen}
-                        >
-                          <Plus className="h-4 w-4" strokeWidth={2.5} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFolderManagerOpen(true);
-                            setFolderPendingDelete(null);
-                            setEditingFolderId(null);
-                            setEditingFolderName("");
-                          }}
-                          disabled={orgBusy}
-                          className="flex h-8 w-9 shrink-0 items-center justify-center border-l border-zinc-200/80 text-zinc-600 hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800/80"
-                          title={t("notesFolderManageAria")}
-                          aria-label={t("notesFolderManageAria")}
-                        >
-                          <Settings2 className="h-4 w-4" strokeWidth={2} />
-                        </button>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => void handleOpenShare()}
-                        className="flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800 sm:text-sm"
-                      >
-                        <Share2 className="h-4 w-4" />
-                        {t("noteShare")}
-                      </button>
-                    </>
+                    <button
+                      type="button"
+                      onClick={() => void handleOpenShare()}
+                      className="flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800 sm:text-sm"
+                    >
+                      <Share2 className="h-4 w-4" />
+                      {t("noteShare")}
+                    </button>
                   ) : null}
                 </div>
               </div>
-              {isOwner(selectedNote)
-                ? null
-                : selectedNote.folderName ? (
+              {isOwner(selectedNote) ? null : selectedNote.folderName ? (
                 <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200/90 bg-zinc-50/60 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900/30 sm:px-5">
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-200/90 px-2.5 py-1 text-xs font-semibold text-zinc-800 dark:bg-zinc-700 dark:text-zinc-100">
                     <Folder className="h-3.5 w-3.5" aria-hidden />
@@ -2104,6 +2094,73 @@ export default function NotesPage() {
           ) : null}
         </main>
       </div>
+
+      {folderInputOpen ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+          onClick={() => closeNewFolderModal()}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="notes-new-folder-title"
+        >
+          <div
+            className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-5 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2
+              id="notes-new-folder-title"
+              className="text-lg font-semibold text-zinc-900 dark:text-zinc-100"
+            >
+              {t("notesNewFolderTitle")}
+            </h2>
+            {newFolderParentId ? (
+              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                {t("notesNewSubfolderHint")}
+              </p>
+            ) : null}
+            <label
+              htmlFor="notes-new-folder-input"
+              className="sr-only"
+            >
+              {t("notesNewFolderPlaceholder")}
+            </label>
+            <input
+              id="notes-new-folder-input"
+              type="text"
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  void createFolder();
+                }
+                if (e.key === "Escape") {
+                  closeNewFolderModal();
+                }
+              }}
+              placeholder={t("notesNewFolderPlaceholder")}
+              className="mt-4 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-400/30 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-500/25"
+              autoFocus
+            />
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => closeNewFolderModal()}
+                className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+              >
+                {t("cancel")}
+              </button>
+              <button
+                type="button"
+                disabled={!newFolderName.trim()}
+                onClick={() => void createFolder()}
+                className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+              >
+                {t("notesFolderAdd")}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {noteToDelete ? (
         <div
@@ -2267,10 +2324,7 @@ export default function NotesPage() {
         </div>
       ) : null}
 
-      {folderPickOpen &&
-      selectedNote &&
-      isOwner(selectedNote) &&
-      selectedId ? (
+      {folderPickOpen && selectedNote && isOwner(selectedNote) && selectedId ? (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
           onClick={() => !orgBusy && setFolderPickOpen(false)}

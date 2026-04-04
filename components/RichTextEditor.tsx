@@ -31,7 +31,10 @@ import { useI18n } from "@/components/i18n-provider";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { NotesListBehavior } from "@/lib/tiptap-notes-list-behavior";
 import { selectWholeTable } from "@/lib/tiptap-select-whole-table";
-import { ResizableTableRow, TableRowResize } from "@/lib/tiptap-table-row-resize";
+import {
+  ResizableTableRow,
+  TableRowResize,
+} from "@/lib/tiptap-table-row-resize";
 import { TiptapTableExit } from "@/lib/tiptap-table-exit";
 import { RteTableContextMenuPortal } from "@/components/rte-table-context-menu";
 import { RteImageToolbarPortal } from "@/components/rte-image-toolbar";
@@ -527,8 +530,8 @@ export function RichTextEditor({
               ? (can as { deleteRow: () => boolean }).deleteRow()
               : false,
           canAddColumnAfter:
-            typeof (can as { addColumnAfter?: () => boolean }).addColumnAfter ===
-            "function"
+            typeof (can as { addColumnAfter?: () => boolean })
+              .addColumnAfter === "function"
               ? (can as { addColumnAfter: () => boolean }).addColumnAfter()
               : false,
           canAddColumnBefore:
@@ -680,339 +683,352 @@ export function RichTextEditor({
         <div className="sticky top-0 z-20 rounded-t-xl border border-zinc-300 border-b-zinc-200/80 bg-zinc-50 py-1.5 pl-1 pr-0 shadow-sm dark:border-zinc-700 dark:border-b-zinc-600 dark:bg-zinc-900">
           <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
             <div className="flex w-max min-w-full flex-col gap-0 pr-2 sm:min-w-0">
-            <div className="flex w-max flex-nowrap items-center gap-0.5">
-              <RteTBtn
-                label={t("rteUndo")}
-                active={false}
-                disabled={!tb.canUndo}
-                onClick={() => editor.chain().focus().undo().run()}
-              >
-                <Undo2 size={14} />
-              </RteTBtn>
-              <RteTBtn
-                label={t("rteRedo")}
-                active={false}
-                disabled={!tb.canRedo}
-                onClick={() => editor.chain().focus().redo().run()}
-              >
-                <Redo2 size={14} />
-              </RteTBtn>
-              <div className="mx-1 h-5 w-px shrink-0 bg-zinc-300 dark:bg-zinc-600" />
-              <RteTBtn
-                label={t("rteBold")}
-                active={tb.bold}
-                disabled={!editor.can().toggleBold()}
-                onClick={() => editor.chain().focus().toggleBold().run()}
-              >
-                <Bold size={14} />
-              </RteTBtn>
-              <RteTBtn
-                label={t("rteItalic")}
-                active={tb.italic}
-                disabled={!editor.can().toggleItalic()}
-                onClick={() => editor.chain().focus().toggleItalic().run()}
-              >
-                <Italic size={14} />
-              </RteTBtn>
-              <RteTBtn
-                label={t("rteUnderline")}
-                active={tb.underline}
-                disabled={!editor.can().toggleUnderline()}
-                onClick={() => editor.chain().focus().toggleUnderline().run()}
-              >
-                <UnderlineIcon size={14} />
-              </RteTBtn>
-              <RteTBtn
-                label={t("rteStrikethrough")}
-                active={tb.strike}
-                disabled={!editor.can().toggleStrike()}
-                onClick={() => editor.chain().focus().toggleStrike().run()}
-              >
-                <Strikethrough size={14} />
-              </RteTBtn>
-
-              <div className="mx-1 h-5 w-px shrink-0 bg-zinc-300 dark:bg-zinc-600" />
-
-              <RteTBtn
-                label={t("rteFontSizeDecrease")}
-                active={false}
-                disabled={readOnly}
-                onClick={() => rteBumpFontSize(editor, -1)}
-              >
-                <Minus size={14} />
-              </RteTBtn>
-              <span
-                className="min-w-[1.75rem] shrink-0 text-center text-[11px] font-semibold tabular-nums text-zinc-600 dark:text-zinc-300"
-                aria-hidden
-              >
-                {tb.textFontSizePx}
-              </span>
-              <RteTBtn
-                label={t("rteFontSizeIncrease")}
-                active={false}
-                disabled={readOnly}
-                onClick={() => rteBumpFontSize(editor, 1)}
-              >
-                <Plus size={14} />
-              </RteTBtn>
-
-              <Tooltip
-                content={t("rteTextColor")}
-                delayShow={RTE_TOOLTIP_DELAY}
-                delayHide={RTE_TOOLTIP_HIDE}
-                placement="bottom"
-                offset={RTE_TOOLTIP_OFFSET}
-              >
-                <button
-                  ref={colorBtnRef}
-                  type="button"
-                  disabled={readOnly}
-                  aria-label={t("rteTextColor")}
-                  aria-expanded={colorMenuOpen}
-                  aria-haspopup="dialog"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => setColorMenuOpen((o) => !o)}
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-zinc-300 bg-white transition dark:border-zinc-600 dark:bg-zinc-800"
-                  style={{
-                    borderBottomWidth: 3,
-                    borderBottomColor: tb.textColor || "#a1a1aa",
-                  }}
+              <div className="flex w-max flex-nowrap items-center gap-0.5">
+                <RteTBtn
+                  label={t("rteUndo")}
+                  active={false}
+                  disabled={!tb.canUndo}
+                  onClick={() => editor.chain().focus().undo().run()}
                 >
-                  <Palette size={14} className="text-zinc-700 dark:text-zinc-200" />
-                </button>
-              </Tooltip>
+                  <Undo2 size={14} />
+                </RteTBtn>
+                <RteTBtn
+                  label={t("rteRedo")}
+                  active={false}
+                  disabled={!tb.canRedo}
+                  onClick={() => editor.chain().focus().redo().run()}
+                >
+                  <Redo2 size={14} />
+                </RteTBtn>
+                <div className="mx-1 h-5 w-px shrink-0 bg-zinc-300 dark:bg-zinc-600" />
+                <RteTBtn
+                  label={t("rteBold")}
+                  active={tb.bold}
+                  disabled={!editor.can().toggleBold()}
+                  onClick={() => editor.chain().focus().toggleBold().run()}
+                >
+                  <Bold size={14} />
+                </RteTBtn>
+                <RteTBtn
+                  label={t("rteItalic")}
+                  active={tb.italic}
+                  disabled={!editor.can().toggleItalic()}
+                  onClick={() => editor.chain().focus().toggleItalic().run()}
+                >
+                  <Italic size={14} />
+                </RteTBtn>
+                <RteTBtn
+                  label={t("rteUnderline")}
+                  active={tb.underline}
+                  disabled={!editor.can().toggleUnderline()}
+                  onClick={() => editor.chain().focus().toggleUnderline().run()}
+                >
+                  <UnderlineIcon size={14} />
+                </RteTBtn>
+                <RteTBtn
+                  label={t("rteStrikethrough")}
+                  active={tb.strike}
+                  disabled={!editor.can().toggleStrike()}
+                  onClick={() => editor.chain().focus().toggleStrike().run()}
+                >
+                  <Strikethrough size={14} />
+                </RteTBtn>
 
-              <div className="mx-1 h-5 w-px bg-zinc-300 dark:bg-zinc-600" />
+                <div className="mx-1 h-5 w-px shrink-0 bg-zinc-300 dark:bg-zinc-600" />
 
-              <Tooltip
-                content={t("rteLineHeight")}
-                delayShow={RTE_TOOLTIP_DELAY}
-                delayHide={RTE_TOOLTIP_HIDE}
-                placement="bottom"
-                offset={RTE_TOOLTIP_OFFSET}
-              >
-                <label className="flex shrink-0 items-center gap-1 pl-1">
-                  <span className="sr-only">{t("rteLineHeight")}</span>
-                  <select
-                    aria-label={t("rteLineHeight")}
-                    value={lineHeight}
-                    onChange={(e) => setLineHeightPersist(e.target.value)}
-                    className="h-7 max-w-[4.5rem] cursor-pointer rounded-md border border-zinc-300 bg-white px-1.5 text-xs text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
-                  >
-                    {LINE_HEIGHT_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        ↕ {o.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </Tooltip>
+                <RteTBtn
+                  label={t("rteFontSizeDecrease")}
+                  active={false}
+                  disabled={readOnly}
+                  onClick={() => rteBumpFontSize(editor, -1)}
+                >
+                  <Minus size={14} />
+                </RteTBtn>
+                <span
+                  className="min-w-[1.75rem] shrink-0 text-center text-[11px] font-semibold tabular-nums text-zinc-600 dark:text-zinc-300"
+                  aria-hidden
+                >
+                  {tb.textFontSizePx}
+                </span>
+                <RteTBtn
+                  label={t("rteFontSizeIncrease")}
+                  active={false}
+                  disabled={readOnly}
+                  onClick={() => rteBumpFontSize(editor, 1)}
+                >
+                  <Plus size={14} />
+                </RteTBtn>
 
-              <div className="mx-1 h-5 w-px bg-zinc-300 dark:bg-zinc-600" />
-
-              <RteTBtn
-                label={t("rteHeading1")}
-                active={tb.h1}
-                onClick={() =>
-                  editor.chain().focus().toggleHeading({ level: 1 }).run()
-                }
-              >
-                <Heading1 size={14} />
-              </RteTBtn>
-              <RteTBtn
-                label={t("rteHeading2")}
-                active={tb.h2}
-                onClick={() =>
-                  editor.chain().focus().toggleHeading({ level: 2 }).run()
-                }
-              >
-                <Heading2 size={14} />
-              </RteTBtn>
-              <RteTBtn
-                label={t("rteHeading3")}
-                active={tb.h3}
-                onClick={() =>
-                  editor.chain().focus().toggleHeading({ level: 3 }).run()
-                }
-              >
-                <Heading3 size={14} />
-              </RteTBtn>
-
-              <div className="mx-1 h-5 w-px bg-zinc-300 dark:bg-zinc-600" />
-
-              <RteTBtn
-                label={t("rteBulletList")}
-                active={tb.bulletList}
-                onClick={() => editor.chain().focus().toggleBulletList().run()}
-              >
-                <List size={14} />
-              </RteTBtn>
-              <RteTBtn
-                label={t("rteOrderedList")}
-                active={tb.orderedList}
-                onClick={() => editor.chain().focus().toggleOrderedList().run()}
-              >
-                <ListOrdered size={14} />
-              </RteTBtn>
-              <RteTBtn
-                label={t("rteTaskList")}
-                active={tb.taskList}
-                onClick={() => editor.chain().focus().toggleTaskList().run()}
-              >
-                <ListChecks size={14} />
-              </RteTBtn>
-
-              <div className="mx-1 h-5 w-px bg-zinc-300 dark:bg-zinc-600" />
-
-              <RteTBtn
-                label={t("rteAlignLeft")}
-                active={tb.alignLeft}
-                onClick={() =>
-                  editor.chain().focus().setTextAlign("left").run()
-                }
-              >
-                <AlignLeft size={14} />
-              </RteTBtn>
-              <RteTBtn
-                label={t("rteAlignCenter")}
-                active={tb.alignCenter}
-                onClick={() =>
-                  editor.chain().focus().setTextAlign("center").run()
-                }
-              >
-                <AlignCenter size={14} />
-              </RteTBtn>
-              <RteTBtn
-                label={t("rteAlignRight")}
-                active={tb.alignRight}
-                onClick={() =>
-                  editor.chain().focus().setTextAlign("right").run()
-                }
-              >
-                <AlignRight size={14} />
-              </RteTBtn>
-
-              <div className="mx-1 h-5 w-px bg-zinc-300 dark:bg-zinc-600" />
-
-              <RteTBtn
-                label={t("rteLink")}
-                active={tb.link}
-                onClick={handleLink}
-              >
-                <LinkIcon size={14} />
-              </RteTBtn>
-              <RteTBtn
-                label={t("rteHighlight")}
-                active={tb.highlight}
-                onClick={() => editor.chain().focus().toggleHighlight().run()}
-              >
-                <Highlighter size={14} />
-              </RteTBtn>
-              <RteTBtn
-                label={t("rteBlockquote")}
-                active={tb.blockquote}
-                onClick={() => editor.chain().focus().toggleBlockquote().run()}
-              >
-                <Quote size={14} />
-              </RteTBtn>
-              <RteTBtn
-                label={t("rteCodeBlock")}
-                active={tb.codeBlock}
-                onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-              >
-                <Code size={14} />
-              </RteTBtn>
-
-              {tb.table && (
-                <>
-                  <div className="mx-1 h-5 w-px shrink-0 bg-zinc-300 dark:bg-zinc-600" />
-                  <RteTBtn
-                    label={t("rteTableSelectAll")}
-                    active={false}
-                    disabled={readOnly}
-                    onClick={() => {
-                      editor.chain().focus().run();
-                      selectWholeTable(editor);
-                    }}
-                  >
-                    <Grid2x2 size={14} />
-                  </RteTBtn>
-                  <RteTBtn
-                    label={t("rteTableDelete")}
-                    active={false}
-                    disabled={!tb.canDeleteTable}
-                    onClick={() => editor.chain().focus().deleteTable().run()}
-                  >
-                    <Trash2 size={14} />
-                  </RteTBtn>
-                  <RteTBtn
-                    label={t("rteTableAddRow")}
-                    active={false}
-                    disabled={!tb.canAddRowAfter}
-                    onClick={() => editor.chain().focus().addRowAfter().run()}
-                  >
-                    <BetweenVerticalEnd size={14} />
-                  </RteTBtn>
-                  <RteTBtn
-                    label={t("rteTableDeleteRow")}
-                    active={false}
-                    disabled={!tb.canDeleteRow}
-                    onClick={() => editor.chain().focus().deleteRow().run()}
-                  >
-                    <Minus size={14} />
-                  </RteTBtn>
-                  <RteTBtn
-                    label={t("rteTableAddColumn")}
-                    active={false}
-                    disabled={!tb.canAddColumnAfter}
-                    onClick={() =>
-                      editor.chain().focus().addColumnAfter().run()
-                    }
-                  >
-                    <BetweenHorizontalEnd size={14} />
-                  </RteTBtn>
-                  <RteTBtn
-                    label={t("rteTableDeleteColumn")}
-                    active={false}
-                    disabled={!tb.canDeleteColumn}
-                    onClick={() => editor.chain().focus().deleteColumn().run()}
-                  >
-                    <X size={14} />
-                  </RteTBtn>
-                </>
-              )}
-
-              <div className="mx-1 h-5 w-px shrink-0 bg-zinc-300 dark:bg-zinc-600" />
-
-              <div className="relative shrink-0" ref={tablePickerRef}>
                 <Tooltip
-                  content={t("rteInsertTable")}
+                  content={t("rteTextColor")}
                   delayShow={RTE_TOOLTIP_DELAY}
                   delayHide={RTE_TOOLTIP_HIDE}
                   placement="bottom"
                   offset={RTE_TOOLTIP_OFFSET}
                 >
                   <button
+                    ref={colorBtnRef}
                     type="button"
-                    aria-label={t("rteInsertTable")}
-                    aria-expanded={tablePickerOpen}
+                    disabled={readOnly}
+                    aria-label={t("rteTextColor")}
+                    aria-expanded={colorMenuOpen}
                     aria-haspopup="dialog"
                     onMouseDown={(e) => e.preventDefault()}
-                    onClick={toggleTablePicker}
-                    className={btn(tb.table)}
+                    onClick={() => setColorMenuOpen((o) => !o)}
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-zinc-300 bg-white transition dark:border-zinc-600 dark:bg-zinc-800"
+                    style={{
+                      borderBottomWidth: 3,
+                      borderBottomColor: tb.textColor || "#a1a1aa",
+                    }}
                   >
-                    <TableIcon size={14} />
+                    <Palette
+                      size={14}
+                      className="text-zinc-700 dark:text-zinc-200"
+                    />
                   </button>
                 </Tooltip>
+
+                <div className="mx-1 h-5 w-px bg-zinc-300 dark:bg-zinc-600" />
+
+                <Tooltip
+                  content={t("rteLineHeight")}
+                  delayShow={RTE_TOOLTIP_DELAY}
+                  delayHide={RTE_TOOLTIP_HIDE}
+                  placement="bottom"
+                  offset={RTE_TOOLTIP_OFFSET}
+                >
+                  <label className="flex shrink-0 items-center gap-1 pl-1">
+                    <span className="sr-only">{t("rteLineHeight")}</span>
+                    <select
+                      aria-label={t("rteLineHeight")}
+                      value={lineHeight}
+                      onChange={(e) => setLineHeightPersist(e.target.value)}
+                      className="h-7 max-w-[4.5rem] cursor-pointer rounded-md border border-zinc-300 bg-white px-1.5 text-xs text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                    >
+                      {LINE_HEIGHT_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          ↕ {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </Tooltip>
+
+                <div className="mx-1 h-5 w-px bg-zinc-300 dark:bg-zinc-600" />
+
+                <RteTBtn
+                  label={t("rteHeading1")}
+                  active={tb.h1}
+                  onClick={() =>
+                    editor.chain().focus().toggleHeading({ level: 1 }).run()
+                  }
+                >
+                  <Heading1 size={14} />
+                </RteTBtn>
+                <RteTBtn
+                  label={t("rteHeading2")}
+                  active={tb.h2}
+                  onClick={() =>
+                    editor.chain().focus().toggleHeading({ level: 2 }).run()
+                  }
+                >
+                  <Heading2 size={14} />
+                </RteTBtn>
+                <RteTBtn
+                  label={t("rteHeading3")}
+                  active={tb.h3}
+                  onClick={() =>
+                    editor.chain().focus().toggleHeading({ level: 3 }).run()
+                  }
+                >
+                  <Heading3 size={14} />
+                </RteTBtn>
+
+                <div className="mx-1 h-5 w-px bg-zinc-300 dark:bg-zinc-600" />
+
+                <RteTBtn
+                  label={t("rteBulletList")}
+                  active={tb.bulletList}
+                  onClick={() =>
+                    editor.chain().focus().toggleBulletList().run()
+                  }
+                >
+                  <List size={14} />
+                </RteTBtn>
+                <RteTBtn
+                  label={t("rteOrderedList")}
+                  active={tb.orderedList}
+                  onClick={() =>
+                    editor.chain().focus().toggleOrderedList().run()
+                  }
+                >
+                  <ListOrdered size={14} />
+                </RteTBtn>
+                <RteTBtn
+                  label={t("rteTaskList")}
+                  active={tb.taskList}
+                  onClick={() => editor.chain().focus().toggleTaskList().run()}
+                >
+                  <ListChecks size={14} />
+                </RteTBtn>
+
+                <div className="mx-1 h-5 w-px bg-zinc-300 dark:bg-zinc-600" />
+
+                <RteTBtn
+                  label={t("rteAlignLeft")}
+                  active={tb.alignLeft}
+                  onClick={() =>
+                    editor.chain().focus().setTextAlign("left").run()
+                  }
+                >
+                  <AlignLeft size={14} />
+                </RteTBtn>
+                <RteTBtn
+                  label={t("rteAlignCenter")}
+                  active={tb.alignCenter}
+                  onClick={() =>
+                    editor.chain().focus().setTextAlign("center").run()
+                  }
+                >
+                  <AlignCenter size={14} />
+                </RteTBtn>
+                <RteTBtn
+                  label={t("rteAlignRight")}
+                  active={tb.alignRight}
+                  onClick={() =>
+                    editor.chain().focus().setTextAlign("right").run()
+                  }
+                >
+                  <AlignRight size={14} />
+                </RteTBtn>
+
+                <div className="mx-1 h-5 w-px bg-zinc-300 dark:bg-zinc-600" />
+
+                <RteTBtn
+                  label={t("rteLink")}
+                  active={tb.link}
+                  onClick={handleLink}
+                >
+                  <LinkIcon size={14} />
+                </RteTBtn>
+                <RteTBtn
+                  label={t("rteHighlight")}
+                  active={tb.highlight}
+                  onClick={() => editor.chain().focus().toggleHighlight().run()}
+                >
+                  <Highlighter size={14} />
+                </RteTBtn>
+                <RteTBtn
+                  label={t("rteBlockquote")}
+                  active={tb.blockquote}
+                  onClick={() =>
+                    editor.chain().focus().toggleBlockquote().run()
+                  }
+                >
+                  <Quote size={14} />
+                </RteTBtn>
+                <RteTBtn
+                  label={t("rteCodeBlock")}
+                  active={tb.codeBlock}
+                  onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+                >
+                  <Code size={14} />
+                </RteTBtn>
+
+                {tb.table && (
+                  <>
+                    <div className="mx-1 h-5 w-px shrink-0 bg-zinc-300 dark:bg-zinc-600" />
+                    <RteTBtn
+                      label={t("rteTableSelectAll")}
+                      active={false}
+                      disabled={readOnly}
+                      onClick={() => {
+                        editor.chain().focus().run();
+                        selectWholeTable(editor);
+                      }}
+                    >
+                      <Grid2x2 size={14} />
+                    </RteTBtn>
+                    <RteTBtn
+                      label={t("rteTableDelete")}
+                      active={false}
+                      disabled={!tb.canDeleteTable}
+                      onClick={() => editor.chain().focus().deleteTable().run()}
+                    >
+                      <Trash2 size={14} />
+                    </RteTBtn>
+                    <RteTBtn
+                      label={t("rteTableAddRow")}
+                      active={false}
+                      disabled={!tb.canAddRowAfter}
+                      onClick={() => editor.chain().focus().addRowAfter().run()}
+                    >
+                      <BetweenVerticalEnd size={14} />
+                    </RteTBtn>
+                    <RteTBtn
+                      label={t("rteTableDeleteRow")}
+                      active={false}
+                      disabled={!tb.canDeleteRow}
+                      onClick={() => editor.chain().focus().deleteRow().run()}
+                    >
+                      <Minus size={14} />
+                    </RteTBtn>
+                    <RteTBtn
+                      label={t("rteTableAddColumn")}
+                      active={false}
+                      disabled={!tb.canAddColumnAfter}
+                      onClick={() =>
+                        editor.chain().focus().addColumnAfter().run()
+                      }
+                    >
+                      <BetweenHorizontalEnd size={14} />
+                    </RteTBtn>
+                    <RteTBtn
+                      label={t("rteTableDeleteColumn")}
+                      active={false}
+                      disabled={!tb.canDeleteColumn}
+                      onClick={() =>
+                        editor.chain().focus().deleteColumn().run()
+                      }
+                    >
+                      <X size={14} />
+                    </RteTBtn>
+                  </>
+                )}
+
+                <div className="mx-1 h-5 w-px shrink-0 bg-zinc-300 dark:bg-zinc-600" />
+
+                <div className="relative shrink-0" ref={tablePickerRef}>
+                  <Tooltip
+                    content={t("rteInsertTable")}
+                    delayShow={RTE_TOOLTIP_DELAY}
+                    delayHide={RTE_TOOLTIP_HIDE}
+                    placement="bottom"
+                    offset={RTE_TOOLTIP_OFFSET}
+                  >
+                    <button
+                      type="button"
+                      aria-label={t("rteInsertTable")}
+                      aria-expanded={tablePickerOpen}
+                      aria-haspopup="dialog"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={toggleTablePicker}
+                      className={btn(tb.table)}
+                    >
+                      <TableIcon size={14} />
+                    </button>
+                  </Tooltip>
+                </div>
+                <RteTBtn
+                  label={t("rteHorizontalRule")}
+                  active={false}
+                  onClick={() =>
+                    editor.chain().focus().setHorizontalRule().run()
+                  }
+                >
+                  <Minus size={14} />
+                </RteTBtn>
               </div>
-              <RteTBtn
-                label={t("rteHorizontalRule")}
-                active={false}
-                onClick={() => editor.chain().focus().setHorizontalRule().run()}
-              >
-                <Minus size={14} />
-              </RteTBtn>
-            </div>
             </div>
           </div>
         </div>
@@ -1151,30 +1167,28 @@ export function RichTextEditor({
           document.body,
         )}
 
-      {!readOnly &&
-        typeof document !== "undefined" &&
-        tableContextMenu && (
-          <RteTableContextMenuPortal
-            key={`${tableContextMenu.x}-${tableContextMenu.y}`}
-            editor={editor}
-            position={tableContextMenu}
-            onClose={closeTableContextMenu}
-            t={t}
-            can={{
-              canDeleteTable: tb.canDeleteTable,
-              canAddRowBefore: tb.canAddRowBefore,
-              canAddRowAfter: tb.canAddRowAfter,
-              canDeleteRow: tb.canDeleteRow,
-              canAddColumnBefore: tb.canAddColumnBefore,
-              canAddColumnAfter: tb.canAddColumnAfter,
-              canDeleteColumn: tb.canDeleteColumn,
-              canMergeCells: tb.canMergeCells,
-              canSplitCell: tb.canSplitCell,
-              canToggleHeaderRow: tb.canToggleHeaderRow,
-            }}
-            onInsertLink={handleLink}
-          />
-        )}
+      {!readOnly && typeof document !== "undefined" && tableContextMenu && (
+        <RteTableContextMenuPortal
+          key={`${tableContextMenu.x}-${tableContextMenu.y}`}
+          editor={editor}
+          position={tableContextMenu}
+          onClose={closeTableContextMenu}
+          t={t}
+          can={{
+            canDeleteTable: tb.canDeleteTable,
+            canAddRowBefore: tb.canAddRowBefore,
+            canAddRowAfter: tb.canAddRowAfter,
+            canDeleteRow: tb.canDeleteRow,
+            canAddColumnBefore: tb.canAddColumnBefore,
+            canAddColumnAfter: tb.canAddColumnAfter,
+            canDeleteColumn: tb.canDeleteColumn,
+            canMergeCells: tb.canMergeCells,
+            canSplitCell: tb.canSplitCell,
+            canToggleHeaderRow: tb.canToggleHeaderRow,
+          }}
+          onInsertLink={handleLink}
+        />
+      )}
 
       {!readOnly && editor && (
         <RteImageToolbarPortal editor={editor} readOnly={readOnly} t={t} />
@@ -1315,17 +1329,26 @@ export function RichTextEditor({
           margin: 0;
         }
 
-        .tiptap [data-resize-container][data-node="image"]:has(img[data-align="center"]) {
+        .tiptap
+          [data-resize-container][data-node="image"]:has(
+            img[data-align="center"]
+          ) {
           margin-left: auto;
           margin-right: auto;
         }
 
-        .tiptap [data-resize-container][data-node="image"]:has(img[data-align="right"]) {
+        .tiptap
+          [data-resize-container][data-node="image"]:has(
+            img[data-align="right"]
+          ) {
           margin-left: auto;
           margin-right: 0;
         }
 
-        .tiptap [data-resize-container][data-node="image"]:has(img[data-align="left"]) {
+        .tiptap
+          [data-resize-container][data-node="image"]:has(
+            img[data-align="left"]
+          ) {
           margin-left: 0;
           margin-right: auto;
         }
@@ -1409,7 +1432,11 @@ export function RichTextEditor({
           transform: translateX(50%);
         }
 
-        .tiptap [data-resize-container][data-node="image"]:not(.ProseMirror-selectednode) [data-resize-handle] {
+        .tiptap
+          [data-resize-container][data-node="image"]:not(
+            .ProseMirror-selectednode
+          )
+          [data-resize-handle] {
           display: none !important;
         }
 
