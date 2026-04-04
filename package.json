@@ -128,6 +128,7 @@
     "typescript": "^5"
   },
   "overrides": {
-    "@tiptap/core": "3.20.4"
+    "@tiptap/core": "3.20.4",
+    "html-encoding-sniffer": "4.0.0"
   }
 }
