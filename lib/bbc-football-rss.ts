@@ -1,4 +1,4 @@
-import { JSDOM } from "jsdom";
+import * as cheerio from "cheerio";
 import { normalizeBbcArticleUrl } from "@/lib/bbc-article-url";
 import {
   upgradeBbcRssThumbnailUrl,
@@ -14,33 +14,30 @@ export {
   WOMENS_FOOTBALL_EXCLUDE_KEYWORDS,
 } from "@/lib/bbc-football-rss-shared";
 
-const MRSS_NS = "http://search.yahoo.com/mrss/";
-
 function textFromHtmlish(raw: string): string {
   const t = raw.trim();
   if (!t) return "";
   try {
-    const { document } = new JSDOM(`<div>${t}</div>`).window;
-    const plain = document.body.textContent ?? "";
+    const $ = cheerio.load(t, null, false);
+    $("script, style").remove();
+    const plain = $.root().text();
     return plain.replace(/\s+/g, " ").trim();
   } catch {
     return t.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
   }
 }
 
-/** Parse BBC Sport Football RSS 2.0 (or compatible) into headline rows. Server-only. */
+/** Parse BBC Sport Football RSS 2.0 (or compatible). Uses cheerio only (no jsdom) for Netlify/Lambda stability. */
 export function parseFootballRssXml(xml: string): FootballRssHeadline[] {
-  const dom = new JSDOM(xml, { contentType: "text/xml" });
-  const doc = dom.window.document;
-  const nodes = doc.querySelectorAll("item");
+  const $ = cheerio.load(xml, { xmlMode: true });
   const out: FootballRssHeadline[] = [];
 
-  nodes.forEach((el) => {
-    const title = el.querySelector("title")?.textContent?.trim() ?? "";
-    let link = el.querySelector("link")?.textContent?.trim() ?? "";
+  $("item").each((_, el) => {
+    const item = $(el);
+    const title = item.find("title").first().text().trim();
+    let link = item.find("link").first().text().trim();
     if (!link) {
-      const guid = el.querySelector("guid");
-      link = guid?.textContent?.trim() ?? "";
+      link = item.find("guid").first().text().trim();
     }
     if (!title || !link) return;
     try {
@@ -48,20 +45,28 @@ export function parseFootballRssXml(xml: string): FootballRssHeadline[] {
     } catch {
       /* keep RSS link as-is if malformed */
     }
-    const pub = el.querySelector("pubDate")?.textContent?.trim() ?? "";
-    const descRaw = el.querySelector("description")?.textContent ?? "";
+    const pub = item.find("pubDate").first().text().trim();
+    const descRaw = item.find("description").first().text() ?? "";
     const summary = textFromHtmlish(descRaw).slice(0, 280);
-    const thumbRaw =
-      el.getElementsByTagNameNS(MRSS_NS, "thumbnail")[0]?.getAttribute("url")?.trim() ??
-      "";
+
     let thumbnailUrl: string | null = null;
-    if (thumbRaw.startsWith("https://")) {
-      thumbnailUrl = upgradeBbcRssThumbnailUrl(thumbRaw);
-    } else if (thumbRaw.startsWith("http://")) {
-      thumbnailUrl = upgradeBbcRssThumbnailUrl(
-        thumbRaw.replace(/^http:\/\//i, "https://"),
-      );
-    }
+    item.find("*").each((__, node) => {
+      if (thumbnailUrl) return false;
+      const name = (node.tagName || (node as { name?: string }).name || "")
+        .toLowerCase();
+      if (!name.includes("thumbnail")) return;
+      const raw = $(node).attr("url")?.trim() ?? "";
+      if (!raw.startsWith("http")) return;
+      if (raw.startsWith("https://")) {
+        thumbnailUrl = upgradeBbcRssThumbnailUrl(raw);
+      } else {
+        thumbnailUrl = upgradeBbcRssThumbnailUrl(
+          raw.replace(/^http:\/\//i, "https://"),
+        );
+      }
+      return false;
+    });
+
     out.push({
       id: link,
       title,

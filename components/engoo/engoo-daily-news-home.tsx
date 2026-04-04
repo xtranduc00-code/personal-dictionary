@@ -25,6 +25,7 @@ import {
 } from "@/lib/engoo-daily-news-categories";
 import { formatRelativeDaysAgo } from "@/lib/format-relative-days-ago";
 import { FOOTBALL_HIDE_WOMENS_STORAGE_KEY } from "@/lib/football-ui-constants";
+import { parseResponseJson } from "@/lib/read-response-json";
 
 const NEW_BADGE_MAX_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -457,26 +458,24 @@ function EngooDailyNewsHomeInner() {
     try {
       if (activeCategory.slug === "football") {
         const res = await fetch("/api/football-rss");
-        if (!res.ok) {
-          const j = (await res.json()) as { error?: string };
-          setError(j.error ?? "Failed to load football headlines");
+        const parsed = await parseResponseJson<{
+          items?: FootballRssHeadline[];
+        }>(res);
+        if (!parsed.ok) {
+          setError(parsed.message);
           return;
         }
-        const body = (await res.json()) as {
-          items?: FootballRssHeadline[];
-        };
-        setFootballItems(body.items ?? []);
+        setFootballItems(parsed.data.items ?? []);
         return;
       }
       const res = await fetch(listQuery(activeCategory.slug));
-      if (!res.ok) {
-        const j = (await res.json()) as { error?: string };
-        setError(j.error ?? "Failed to load list");
+      const parsed = await parseResponseJson<EngooListApiResponse>(res);
+      if (!parsed.ok) {
+        setError(parsed.message);
         return;
       }
-      const body = (await res.json()) as EngooListApiResponse;
-      setItems(body.items ?? []);
-      setNextCursor(body.nextCursor ?? null);
+      setItems(parsed.data.items ?? []);
+      setNextCursor(parsed.data.nextCursor ?? null);
     } catch {
       setError("Network error");
     } finally {
@@ -500,13 +499,12 @@ function EngooDailyNewsHomeInner() {
           pageSize: morePageSize,
         }),
       );
-      if (!res.ok) {
-        const j = (await res.json()) as { error?: string };
-        setError(j.error ?? "Failed to load more");
+      const parsed = await parseResponseJson<EngooListApiResponse>(res);
+      if (!parsed.ok) {
+        setError(parsed.message);
         return;
       }
-      const body = (await res.json()) as EngooListApiResponse;
-      const more = body.items ?? [];
+      const more = parsed.data.items ?? [];
       setItems((prev) => {
         const seen = new Set(prev.map((c) => c.masterId));
         const merged = [...prev];
@@ -518,7 +516,7 @@ function EngooDailyNewsHomeInner() {
         }
         return merged;
       });
-      setNextCursor(body.nextCursor ?? null);
+      setNextCursor(parsed.data.nextCursor ?? null);
     } catch {
       setError("Network error");
     } finally {
@@ -568,6 +566,7 @@ function EngooDailyNewsHomeInner() {
   }, [filteredForSearch, isAllTab, searchQuery, isFootballTab]);
 
   const emptyAfterLoad = !listLoading &&
+    !error &&
     (isFootballTab ? footballItems.length === 0 : items.length === 0);
   const listHadDataButNoneVisible =
     !listLoading &&
