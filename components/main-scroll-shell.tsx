@@ -57,7 +57,8 @@ export function MainScrollShell({ children }: PropsWithChildren) {
             </div>
         );
     }
-    if (pathname === "/" || pathname === "/notes" || meetInRoom || watchInRoom) {
+    /** Notes + in-room video: inner panes manage scroll. Home /news must scroll in this shell (md:h-screen + overflow-hidden on root). */
+    if (pathname === "/notes" || meetInRoom || watchInRoom) {
         return (
             <div className="flex min-h-0 min-h-[100svh] flex-1 flex-col overflow-hidden md:h-full md:min-h-0">
                 {children}

@@ -21,6 +21,10 @@ export function AppShell({ children }: {
     const pathSeg = pathname?.split("/").filter(Boolean) ?? [];
     /** `/watch/:room` — full-bleed giống cuộc gọi full để video rộng tối đa */
     const isWatchPartyRoom = pathSeg[0] === "watch" && pathSeg.length >= 2;
+    const isDailyNewsRoute =
+        pathname === "/" ||
+        pathname === "/news" ||
+        (Boolean(pathname) && pathname.startsWith("/news/"));
     const noOuterMainPadding =
         !isStandaloneAuth && (fullMeet || isWatchPartyRoom);
 
@@ -37,6 +41,8 @@ export function AppShell({ children }: {
             ? "bg-[#F6F7F9] p-0 text-[#111827] antialiased dark:bg-[#0a0a0b] dark:text-zinc-100"
             : isMeetShell && !isStandaloneAuth
                 ? "bg-[#F6F7F9] px-4 py-6 text-[#111827] antialiased sm:px-6 md:px-8 md:py-7 dark:bg-[#0a0a0b] dark:p-0 dark:text-zinc-100 md:dark:p-1"
+                : isDailyNewsRoute && !isStandaloneAuth
+                    ? "bg-[#F6F7F9] px-4 py-6 text-[#111827] antialiased sm:px-6 md:px-8 md:py-7 dark:bg-zinc-950 dark:text-zinc-100"
                 : !isStandaloneAuth
                     ? "px-4 py-6 md:px-8 md:py-8"
                     : "",

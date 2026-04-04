@@ -14,13 +14,24 @@ import {
 } from "@/features/call-ken/lib/extract-pdf-text";
 import { convertFileToBase64 } from "@/features/call-ken/lib/utils";
 import { playBeep } from "@/lib/beep";
+import { buildArticleLessonSessionOverrides } from "@/lib/article-tutor-session-rules";
+import {
+  buildEngooTutorInstructionPreamble,
+  readEngooCallContext,
+} from "@/lib/engoo-call-context";
+import type { EngooArticlePayload } from "@/lib/engoo-types";
+import {
+  buildArticleInstructionPreamble,
+  getSavedArticle,
+} from "@/lib/saved-articles";
 import {
   RealtimeAgent,
   RealtimeItem,
   RealtimeSession,
-  tool,
 } from "@openai/agents-realtime";
 import { Phone, PhoneCall01, PhoneHangUp, X } from "@untitledui/icons";
+import { useI18n } from "@/components/i18n-provider";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 function AttachmentPreviewPane({
@@ -275,11 +286,24 @@ const SESSIONS_STORAGE_KEY = "realtime-sessions";
 const ONBOARDING_STORAGE_KEY = "realtime-onboarding-dismissed";
 export function CallKenPage({
   getApiKey,
+  initialArticleId = null,
+  initialEngooMasterId = null,
+  engooPayloadOverride = null,
+  layout = "page",
 }: {
   getApiKey: () => Promise<{
     apiKey: string;
   }>;
+  /** Saved reading (UUID) from localStorage — generic article discussion. */
+  initialArticleId?: string | null;
+  /** Engoo lesson master_id — load structured lesson from sessionStorage. */
+  initialEngooMasterId?: string | null;
+  /** In-page lesson: use live payload so tutor matches the article on screen. */
+  engooPayloadOverride?: EngooArticlePayload | null;
+  /** `embedded` = right panel / sheet on reading page; `page` = standalone route. */
+  layout?: "page" | "embedded";
 }) {
+  const { t } = useI18n();
   const SPEAKING_OFF_DELAY_MS = 1200;
   const [loading, setLoading] = useState(false);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
@@ -296,7 +320,18 @@ export function CallKenPage({
   const [isAgentSpeaking, setIsAgentSpeaking] = useState(false);
   const [attachmentPreview, setAttachmentPreview] =
     useState<CallKenAttachmentPreview>(null);
+  const [discussionArticle, setDiscussionArticle] = useState<{
+    id: string;
+    title: string;
+    content: string;
+    sourceUrl: string | null;
+    sourceLabel: string;
+  } | null>(null);
+  const [engooArticle, setEngooArticle] = useState<EngooArticlePayload | null>(
+    null,
+  );
   const messageInputRef = useRef<MessageActionTextareaHandle>(null);
+  const sessionRef = useRef<RealtimeSession | null>(null);
   const speakingOffTimerRef = useRef<number | null>(null);
   const clearSpeakingOffTimer = () => {
     if (speakingOffTimerRef.current !== null) {
@@ -333,6 +368,54 @@ export function CallKenPage({
     }
   }, []);
   useEffect(() => {
+    if (engooPayloadOverride) {
+      setEngooArticle(engooPayloadOverride);
+      return;
+    }
+    const mid = initialEngooMasterId?.trim();
+    if (!mid) {
+      setEngooArticle(null);
+      return;
+    }
+    setEngooArticle(readEngooCallContext(mid));
+  }, [initialEngooMasterId, engooPayloadOverride]);
+
+  useEffect(() => {
+    if (initialEngooMasterId?.trim() || engooPayloadOverride) {
+      setDiscussionArticle(null);
+      return;
+    }
+    if (!initialArticleId?.trim()) {
+      setDiscussionArticle(null);
+      return;
+    }
+    const saved = getSavedArticle(initialArticleId.trim());
+    if (!saved) {
+      setDiscussionArticle(null);
+      return;
+    }
+    setDiscussionArticle({
+      id: saved.id,
+      title: saved.title,
+      content: saved.content,
+      sourceUrl: saved.sourceUrl,
+      sourceLabel: saved.sourceLabel,
+    });
+  }, [initialArticleId, initialEngooMasterId, engooPayloadOverride]);
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+  useEffect(() => {
+    return () => {
+      try {
+        sessionRef.current?.close();
+      } catch {
+        /* ignore */
+      }
+    };
+  }, []);
+  useEffect(() => {
     if (!session) {
       clearSpeakingOffTimer();
       setIsAgentSpeaking(false);
@@ -347,153 +430,238 @@ export function CallKenPage({
     if (typeof window === "undefined") return;
     window.localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
   };
+  const isEmbedded = layout === "embedded";
+  const outerShellClass = isEmbedded
+    ? "flex h-full min-h-0 w-full min-w-0 flex-col bg-zinc-50 dark:bg-zinc-950"
+    : "flex w-full min-w-0 flex-1 flex-col justify-start bg-zinc-50 p-2 pb-24 dark:bg-zinc-950 sm:pb-28";
+  const innerRowClass = isEmbedded
+    ? "flex h-full min-h-0 w-full min-w-0 flex-col"
+    : "mx-auto flex w-full min-w-0 max-w-full flex-col gap-4 lg:max-w-6xl lg:flex-row lg:items-stretch lg:gap-5";
+  const mainCardClass = isEmbedded
+    ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-0 bg-white dark:bg-zinc-900"
+    : "flex min-w-0 flex-1 flex-col rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-4";
+  const headerAreaClass = isEmbedded
+    ? "relative z-10 flex shrink-0 flex-col items-stretch gap-2.5 rounded-lg border-b border-zinc-200 bg-zinc-50 px-3 py-2.5 dark:border-zinc-700 dark:bg-zinc-800/50"
+    : "relative z-10 flex flex-col items-center justify-between gap-4 rounded-lg bg-zinc-50 p-4 sm:p-8 dark:bg-zinc-800/50";
+  const embeddedStatusText = loading
+    ? "Connecting…"
+    : session && isAgentSpeaking
+      ? "AI is speaking…"
+      : session
+        ? "Listening…"
+        : "Start speaking about this article";
   return (
-    <div className="flex w-full min-w-0 flex-1 flex-col justify-start bg-zinc-50 p-2 pb-24 dark:bg-zinc-950 sm:pb-28">
-      <div className="mx-auto flex w-full min-w-0 max-w-full flex-col gap-4 lg:max-w-6xl lg:flex-row lg:items-stretch lg:gap-5">
-        <div className="flex min-w-0 flex-1 flex-col rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-4">
-        <div className="relative flex justify-between flex-col rounded-lg p-4 sm:p-8 items-center gap-4 bg-zinc-50 dark:bg-zinc-800/50">
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 z-10 text-center">
-            English Realtime Tutor
-          </h1>
+    <div className={outerShellClass}>
+      <div className={innerRowClass}>
+        <div className={mainCardClass}>
+        <div className={headerAreaClass}>
+          {!isEmbedded ? (
+            <h1 className="z-10 text-center text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-3xl">
+              English Realtime Tutor
+            </h1>
+          ) : null}
 
-          <div className="z-10 grid w-full grid-cols-2 gap-2 sm:gap-3 text-xs text-zinc-600 dark:text-zinc-400 md:grid-cols-4">
-            <label className="flex flex-col gap-1">
-              <span className="font-medium text-[11px] uppercase tracking-wide">
-                Mode
-              </span>
-              <select
-                className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition focus:ring-1 focus:ring-zinc-300 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:ring-zinc-600"
-                value={modeId}
-                onChange={(e) => setModeId(e.target.value as LearningModeId)}
-              >
-                {LEARNING_MODES.map((mode) => (
-                  <option key={mode.id} value={mode.id}>
-                    {mode.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="flex flex-col gap-1">
-              <span className="font-medium text-[11px] uppercase tracking-wide">
-                {modeId === "networking" ? "Depth" : "Level (IELTS)"}
-              </span>
-              <select
-                className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition focus:ring-1 focus:ring-zinc-300 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:ring-zinc-600"
-                value={level}
-                onChange={(e) => setLevel(e.target.value as LearningLevel)}
-              >
-                {modeId === "networking" ? (
-                  <>
-                    <option value="band_4_5">Introductory</option>
-                    <option value="band_5_6">Intermediate</option>
-                    <option value="band_7_plus">Advanced</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="band_4_5">Band 4.0 – 5.0</option>
-                    <option value="band_5_6">Band 5.5 – 6.5</option>
-                    <option value="band_7_plus">Band 7.0+</option>
-                  </>
-                )}
-              </select>
-            </label>
-
-            <label className="flex flex-col gap-1">
-              <span className="font-medium text-[11px] uppercase tracking-wide">
-                {modeId === "networking" ? "Focus" : "Goal"}
-              </span>
-              <select
-                className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition focus:ring-1 focus:ring-zinc-300 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:ring-zinc-600"
-                value={goal}
-                onChange={(e) => setGoal(e.target.value as LearningGoal)}
-              >
-                {modeId === "networking" ? (
-                  <>
-                    <option value="fluency">Explain clearly</option>
-                    <option value="vocabulary">Terminology</option>
-                    <option value="pronunciation">Say terms aloud</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="fluency">Fluency</option>
-                    <option value="vocabulary">Vocabulary</option>
-                    <option value="pronunciation">Pronunciation</option>
-                  </>
-                )}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="font-medium text-[11px] uppercase tracking-wide">
-                Speaking speed
-              </span>
-              <select
-                className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition focus:ring-1 focus:ring-zinc-300 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:ring-zinc-600"
-                value={speakingSpeed}
-                onChange={(e) =>
-                  setSpeakingSpeed(e.target.value as "slow" | "normal" | "fast")
-                }
-              >
-                <option value="slow">Slow</option>
-                <option value="normal">Normal</option>
-                <option value="fast">Fast</option>
-              </select>
-            </label>
-          </div>
-
-          <p className="z-10 mt-1 text-sm sm:text-xs text-zinc-600 dark:text-zinc-400 text-center">
-            {LEARNING_MODES.find((m) => m.id === modeId)?.description ??
-              LEARNING_MODES[0].description}
-          </p>
-
-          <div className="z-10 mt-1 flex flex-col items-center gap-2">
-            <AgentSpeakingAvatar
-              isSpeaking={isAgentSpeaking}
-              isCallActive={Boolean(session)}
-            />
-          </div>
-
-          {showOnboarding && (
-            <div className="z-10 mt-2 w-full rounded-xl border border-zinc-200 bg-zinc-50/90 p-3 text-sm sm:text-xs text-zinc-600 shadow-sm dark:border-zinc-700 dark:bg-zinc-800/90 dark:text-zinc-400">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="font-medium text-zinc-900 dark:text-zinc-100">
-                    Quick start
-                  </p>
-                  <ol className="mt-1 list-decimal space-y-0.5 pl-4">
-                    <li>
-                      {modeId === "networking"
-                        ? "Choose mode, depth, and focus."
-                        : "Choose mode, IELTS band, and goal."}
-                    </li>
-                    <li>Press “Start Call” and speak or type.</li>
-                    <li>
-                      Review past sessions below and use buttons on messages for
-                      corrections.
-                    </li>
-                  </ol>
-                </div>
-                <button
-                  type="button"
-                  className="text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
-                  onClick={() => {
-                    setShowOnboarding(false);
-                    if (typeof window !== "undefined") {
-                      window.localStorage.setItem(ONBOARDING_STORAGE_KEY, "1");
-                    }
-                  }}
+          {!isEmbedded && engooArticle ? (
+            <div className="z-10 w-full max-w-lg rounded-xl border border-emerald-200 bg-emerald-50/90 px-3 py-2 text-center text-xs text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-100">
+              <span className="font-medium">{t("articleDiscussingBanner")}</span>{" "}
+              <span className="line-clamp-2">{engooArticle.title}</span>
+              <div className="mt-1">
+                <Link
+                  href={`/news/${encodeURIComponent(engooArticle.masterId)}`}
+                  className="underline decoration-emerald-600/50 underline-offset-2 hover:text-emerald-800 dark:hover:text-emerald-200"
                 >
-                  Dismiss
-                </button>
+                  {t("articleDiscussingOpenReading")}
+                </Link>
               </div>
             </div>
+          ) : !isEmbedded && discussionArticle ? (
+            <div className="z-10 w-full max-w-lg rounded-xl border border-emerald-200 bg-emerald-50/90 px-3 py-2 text-center text-xs text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-100">
+              <span className="font-medium">{t("articleDiscussingBanner")}</span>{" "}
+              <span className="line-clamp-2">{discussionArticle.title}</span>
+              <div className="mt-1">
+                <Link
+                  href={`/articles/${discussionArticle.id}`}
+                  className="underline decoration-emerald-600/50 underline-offset-2 hover:text-emerald-800 dark:hover:text-emerald-200"
+                >
+                  {t("articleDiscussingOpenReading")}
+                </Link>
+              </div>
+            </div>
+          ) : null}
+
+          {isEmbedded ? (
+            <div className="flex w-full items-start gap-3">
+              <AgentSpeakingAvatar
+                size="compact"
+                isSpeaking={isAgentSpeaking}
+                isCallActive={Boolean(session)}
+                className="shrink-0"
+              />
+              <div className="min-w-0 flex-1 pt-0.5">
+                <p className="text-sm font-semibold leading-tight text-zinc-900 dark:text-zinc-100">
+                  Your English Tutor
+                </p>
+                <p
+                  className="mt-1 text-xs leading-snug text-zinc-500 dark:text-zinc-400"
+                  aria-live="polite"
+                >
+                  {embeddedStatusText}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="z-10 grid w-full grid-cols-2 gap-2 sm:gap-3 text-xs text-zinc-600 dark:text-zinc-400 md:grid-cols-4">
+                <label className="flex flex-col gap-1">
+                  <span className="font-medium text-[11px] uppercase tracking-wide">
+                    Mode
+                  </span>
+                  <select
+                    className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition focus:ring-1 focus:ring-zinc-300 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:ring-zinc-600"
+                    value={modeId}
+                    onChange={(e) =>
+                      setModeId(e.target.value as LearningModeId)
+                    }
+                  >
+                    {LEARNING_MODES.map((mode) => (
+                      <option key={mode.id} value={mode.id}>
+                        {mode.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="flex flex-col gap-1">
+                  <span className="font-medium text-[11px] uppercase tracking-wide">
+                    {modeId === "networking" ? "Depth" : "Level (IELTS)"}
+                  </span>
+                  <select
+                    className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition focus:ring-1 focus:ring-zinc-300 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:ring-zinc-600"
+                    value={level}
+                    onChange={(e) => setLevel(e.target.value as LearningLevel)}
+                  >
+                    {modeId === "networking" ? (
+                      <>
+                        <option value="band_4_5">Introductory</option>
+                        <option value="band_5_6">Intermediate</option>
+                        <option value="band_7_plus">Advanced</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="band_4_5">Band 4.0 – 5.0</option>
+                        <option value="band_5_6">Band 5.5 – 6.5</option>
+                        <option value="band_7_plus">Band 7.0+</option>
+                      </>
+                    )}
+                  </select>
+                </label>
+
+                <label className="flex flex-col gap-1">
+                  <span className="font-medium text-[11px] uppercase tracking-wide">
+                    {modeId === "networking" ? "Focus" : "Goal"}
+                  </span>
+                  <select
+                    className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition focus:ring-1 focus:ring-zinc-300 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:ring-zinc-600"
+                    value={goal}
+                    onChange={(e) => setGoal(e.target.value as LearningGoal)}
+                  >
+                    {modeId === "networking" ? (
+                      <>
+                        <option value="fluency">Explain clearly</option>
+                        <option value="vocabulary">Terminology</option>
+                        <option value="pronunciation">Say terms aloud</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="fluency">Fluency</option>
+                        <option value="vocabulary">Vocabulary</option>
+                        <option value="pronunciation">Pronunciation</option>
+                      </>
+                    )}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="font-medium text-[11px] uppercase tracking-wide">
+                    Speaking speed
+                  </span>
+                  <select
+                    className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition focus:ring-1 focus:ring-zinc-300 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:ring-zinc-600"
+                    value={speakingSpeed}
+                    onChange={(e) =>
+                      setSpeakingSpeed(
+                        e.target.value as "slow" | "normal" | "fast",
+                      )
+                    }
+                  >
+                    <option value="slow">Slow</option>
+                    <option value="normal">Normal</option>
+                    <option value="fast">Fast</option>
+                  </select>
+                </label>
+              </div>
+
+              <p className="z-10 mt-1 text-center text-sm text-zinc-600 dark:text-zinc-400 sm:text-xs">
+                {LEARNING_MODES.find((m) => m.id === modeId)?.description ??
+                  LEARNING_MODES[0].description}
+              </p>
+
+              <div className="z-10 mt-1 flex flex-col items-center gap-2">
+                <AgentSpeakingAvatar
+                  isSpeaking={isAgentSpeaking}
+                  isCallActive={Boolean(session)}
+                />
+              </div>
+
+              {showOnboarding ? (
+                <div className="z-10 mt-2 w-full rounded-xl border border-zinc-200 bg-zinc-50/90 p-3 text-sm text-zinc-600 shadow-sm dark:border-zinc-700 dark:bg-zinc-800/90 dark:text-zinc-400 sm:text-xs">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-zinc-900 dark:text-zinc-100">
+                        Quick start
+                      </p>
+                      <ol className="mt-1 list-decimal space-y-0.5 pl-4">
+                        <li>
+                          {modeId === "networking"
+                            ? "Choose mode, depth, and focus."
+                            : "Choose mode, IELTS band, and goal."}
+                        </li>
+                        <li>Press “Start Call” and speak or type.</li>
+                        <li>
+                          Review past sessions below and use buttons on messages
+                          for corrections.
+                        </li>
+                      </ol>
+                    </div>
+                    <button
+                      type="button"
+                      className="text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                      onClick={() => {
+                        setShowOnboarding(false);
+                        if (typeof window !== "undefined") {
+                          window.localStorage.setItem(
+                            ONBOARDING_STORAGE_KEY,
+                            "1",
+                          );
+                        }
+                      }}
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </>
           )}
 
           {session && !loading ? (
             <Button
               color="primary-destructive"
-              className="z-10 !rounded-xl !bg-red-600 !px-5 !py-3 !text-sm !font-semibold !text-white hover:!bg-red-700 dark:!bg-red-600 dark:hover:!bg-red-700"
-              size="lg"
+              className={
+                isEmbedded
+                  ? "z-10 w-auto max-w-full self-start !rounded-lg !bg-red-600 !px-3 !py-1.5 !text-xs !font-semibold !text-white !shadow-none hover:!bg-red-700 dark:!bg-red-600 dark:hover:!bg-red-700"
+                  : "z-10 !rounded-xl !bg-red-600 !px-5 !py-3 !text-sm !font-semibold !text-white hover:!bg-red-700 dark:!bg-red-600 dark:hover:!bg-red-700"
+              }
+              size={isEmbedded ? "sm" : "lg"}
               onClick={() => {
                 session.close();
                 setSession(null);
@@ -501,13 +669,17 @@ export function CallKenPage({
               }}
               iconLeading={<PhoneHangUp data-icon />}
             >
-              End Call
+              {isEmbedded ? "End" : "End Call"}
             </Button>
           ) : (
             <Button
               isDisabled={loading}
-              size="lg"
-              className="z-10 !rounded-xl !bg-zinc-900 !px-5 !py-3 !text-sm !font-semibold !text-white !transition hover:!bg-zinc-800 disabled:!opacity-50 dark:!bg-zinc-100 dark:!text-zinc-900 dark:hover:!bg-zinc-200"
+              size={isEmbedded ? "sm" : "lg"}
+              className={
+                isEmbedded
+                  ? "z-10 w-auto max-w-full self-start !rounded-lg !bg-zinc-900 !px-3 !py-1.5 !text-xs !font-semibold !text-white !shadow-none !transition hover:!bg-zinc-800 disabled:!opacity-50 dark:!bg-zinc-100 dark:!text-zinc-900 dark:hover:!bg-zinc-200"
+                  : "z-10 !rounded-xl !bg-zinc-900 !px-5 !py-3 !text-sm !font-semibold !text-white !transition hover:!bg-zinc-800 disabled:!opacity-50 dark:!bg-zinc-100 dark:!text-zinc-900 dark:hover:!bg-zinc-200"
+              }
               onClick={async () => {
                 const audio = createAudio(sounds.dialing, { loop: true });
                 setRuntimeError(null);
@@ -526,7 +698,9 @@ export function CallKenPage({
                       stream.getTracks().forEach((track) => track.stop());
                     } catch {
                       setRuntimeError(
-                        "Microphone permission is blocked. You can still type, but voice input will not work.",
+                        isEmbedded
+                          ? "Microphone permission is blocked. Voice input will not work."
+                          : "Microphone permission is blocked. You can still type, but voice input will not work.",
                       );
                     }
                   }
@@ -550,7 +724,23 @@ export function CallKenPage({
                     level,
                     goal,
                   });
-                  const instructions = `${baseInstructions}
+                  const engooPreamble = engooArticle
+                    ? buildEngooTutorInstructionPreamble(engooArticle)
+                    : "";
+                  const articlePreamble =
+                    !engooArticle && discussionArticle
+                      ? buildArticleInstructionPreamble({
+                          title: discussionArticle.title,
+                          content: discussionArticle.content,
+                          sourceUrl: discussionArticle.sourceUrl,
+                          sourceLabel: discussionArticle.sourceLabel,
+                        })
+                      : "";
+                  const articleLessonOverrides =
+                    engooArticle || discussionArticle
+                      ? buildArticleLessonSessionOverrides()
+                      : "";
+                  const instructions = `${engooPreamble}${articlePreamble}${baseInstructions}
 
 When speaking aloud:
 - Match this speaking speed: ${speakingSpeed}.
@@ -560,25 +750,11 @@ When speaking aloud:
                       ? "Keep each turn concise by default (about 3–6 sentences unless they ask for more); ask only one question at a time and wait for their answer."
                       : "Keep answers short (1–3 sentences) and ask only one question at a time."
                   }
-- If the user starts speaking while you're talking, immediately stop and let them finish.`;
+- If the user starts speaking while you're talking, immediately stop and let them finish.${articleLessonOverrides}`;
                   const agent = new RealtimeAgent({
                     name: "Agent",
                     instructions,
-                    tools: [
-                      tool({
-                        name: "Test Tool",
-                        description:
-                          "This is a test tool. Use this at the start of a conversation to test the tool.",
-                        execute: async () => {},
-                        parameters: {
-                          type: "object",
-                          properties: {},
-                          required: [],
-                          additionalProperties: true,
-                        },
-                        strict: false,
-                      }),
-                    ],
+                    tools: [],
                   });
                   // Keep VAD patience separate from TTS speaking speed: short silence_ms + low threshold
                   // makes rustle/noise look like “user spoke” and steals the turn from the assistant.
@@ -607,7 +783,11 @@ When speaking aloud:
                             prompt:
                               modeId === "networking"
                                 ? "User speaks English; computer networking and IT vocabulary."
-                                : "User speaks English.",
+                                : engooArticle
+                                  ? "User speaks English; structured Engoo Daily News lesson with vocabulary, article, and discussion questions."
+                                  : discussionArticle
+                                    ? "User speaks English; discussing a reading or news article with the tutor."
+                                    : "User speaks English.",
                           },
                         },
                       },
@@ -708,7 +888,13 @@ When speaking aloud:
                 loading ? <PhoneCall01 data-icon /> : <Phone data-icon />
               }
             >
-              {loading ? "Calling..." : "Start Call"}
+              {loading
+                ? isEmbedded
+                  ? "Connecting…"
+                  : "Calling..."
+                : isEmbedded
+                  ? "Start speaking"
+                  : "Start Call"}
             </Button>
           )}
 
@@ -719,7 +905,7 @@ When speaking aloud:
           )}
         </div>
 
-        {attachmentPreview ? (
+        {!isEmbedded && attachmentPreview ? (
           <div className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-700 lg:hidden">
             <AttachmentPreviewPane
               preview={attachmentPreview}
@@ -729,7 +915,20 @@ When speaking aloud:
           </div>
         ) : null}
 
-        <ol className="flex flex-col gap-4 px-4 py-4 md:px-6 md:py-6 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-100 dark:[&::-webkit-scrollbar-track]:bg-zinc-800">
+        <ol
+          className={
+            isEmbedded
+              ? "flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-3 py-3 md:px-4 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-100 dark:[&::-webkit-scrollbar-track]:bg-zinc-800"
+              : "flex flex-col gap-4 px-4 py-4 md:px-6 md:py-6 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-100 dark:[&::-webkit-scrollbar-track]:bg-zinc-800"
+          }
+        >
+          {isEmbedded &&
+          !(session?.history ?? []).some((item) => item.type === "message") ? (
+            <li className="list-none rounded-xl border border-dashed border-zinc-200 bg-zinc-50/80 px-4 py-8 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/40 dark:text-zinc-400">
+              Conversation transcript will appear here as you speak with the
+              tutor.
+            </li>
+          ) : null}
           {session?.history.map((item) => {
             if (item.type === "message") {
               const content = item.content as MessageContentPart[];
@@ -796,38 +995,13 @@ When speaking aloud:
           })}
         </ol>
 
-        {session && session.history.length > 0 && (
-          <div className="px-4">
-            <Button
-              size="sm"
-              color="secondary"
-              className="!rounded-xl !border-zinc-300 !bg-zinc-50 !text-zinc-700 hover:!bg-zinc-100 dark:!border-zinc-600 dark:!bg-zinc-800 dark:!text-zinc-200 dark:hover:!bg-zinc-700"
-              onClick={() => {
-                if (!session) return;
-                session.sendMessage({
-                  role: "user",
-                  type: "message",
-                  content: [
-                    {
-                      type: "input_text",
-                      text: `Before we finish, please give me a brief end-of-session summary: 1) 3 main topics we discussed, 2) 3–5 common mistakes I made, 3) what I should practice next time. Keep it under 6 sentences.`,
-                    },
-                  ],
-                });
-              }}
-            >
-              Summarize this session
-            </Button>
-          </div>
-        )}
-
-        {savedSessions.length > 0 && (
-          <div className="mt-4 border-t border-zinc-200 dark:border-zinc-700 pt-4">
-            <h2 className="text-sm font-medium mb-2 text-zinc-900 dark:text-zinc-100">
+        {!isEmbedded && savedSessions.length > 0 && (
+          <div className="mt-4 border-t border-zinc-200 pt-4 dark:border-zinc-700">
+            <h2 className="mb-2 text-sm font-medium text-zinc-900 dark:text-zinc-100">
               Past sessions
             </h2>
 
-            <div className="flex flex-col gap-2 max-h-60 overflow-y-auto text-xs">
+            <div className="flex max-h-60 flex-col gap-2 overflow-y-auto text-xs">
               {[...savedSessions]
                 .slice()
                 .reverse()
@@ -864,6 +1038,7 @@ When speaking aloud:
           </div>
         )}
 
+        {!isEmbedded ? (
         <MessageActionTextarea
           ref={messageInputRef}
           onAttachmentPreviewChange={setAttachmentPreview}
@@ -957,9 +1132,10 @@ When speaking aloud:
             }
           }}
         />
+        ) : null}
         </div>
 
-        {attachmentPreview ? (
+        {!isEmbedded && attachmentPreview ? (
           <aside className="hidden min-h-0 w-full shrink-0 lg:flex lg:w-[min(42vw,520px)] lg:min-w-[280px] lg:max-w-[520px] lg:flex-col lg:self-start">
             <AttachmentPreviewPane
               preview={attachmentPreview}

@@ -13,7 +13,7 @@ import {
 import { NavAccountFooter } from "@/components/nav-account-footer";
 import { ProfileModal } from "@/components/profile-modal";
 import { SecurityModal } from "@/components/security-modal";
-import { BookOpen, BookMarked, BookText, Bot, CalendarClock, CalendarDays, ChevronLeft, ChevronRight, Clapperboard, Cloud, FileText, FolderOpen, GraduationCap, Headphones, Image as LucideImage, History, Home, Languages, LayoutDashboard, Layers, LayoutGrid, LibraryBig, LogIn, LogOut, Mail, Menu, Mic, Moon, NotebookText, PenLine, PhoneCall, Search, Sparkles, Star, Sun, Table2, UserCircle, Video, X, type LucideIcon, } from "lucide-react";
+import { BookOpen, BookMarked, BookText, Bot, CalendarClock, CalendarDays, ChevronLeft, ChevronRight, Clapperboard, Cloud, FileText, FolderOpen, GraduationCap, Headphones, Image as LucideImage, History, Home, Languages, LayoutDashboard, Layers, LayoutGrid, LibraryBig, LogIn, LogOut, Mail, Menu, Mic, Moon, Newspaper, NotebookText, PartyPopper, PenLine, PhoneCall, Search, Sparkles, Star, Sun, Table2, UserCircle, Video, X, type LucideIcon, } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useMeetCallOptional } from "@/lib/meet-call-context";
 import { CLEAR_NAV_QUICK_SEARCH_EVENT } from "@/lib/nav-quick-search-events";
@@ -54,6 +54,14 @@ const studyNavEntries: {
     { href: "/study-kit/history", labelKey: "studyKitSessionHistory", icon: History, sub: true },
     { href: "/study-kit/saved", labelKey: "studyKitSavedFolder", icon: FolderOpen, sub: false },
 ];
+const entertainmentSectionLinks: {
+    href: string;
+    labelKey: TranslationKey;
+    icon: LucideIcon;
+}[] = [
+    { href: "/", labelKey: "articleHomeNav", icon: Newspaper },
+    { href: "/watch", labelKey: "watchTogetherNav", icon: Clapperboard },
+];
 const scheduleSectionLinks: {
     href: string;
     labelKey: TranslationKey;
@@ -62,7 +70,6 @@ const scheduleSectionLinks: {
     { href: "/calendar", labelKey: "calendar", icon: CalendarDays },
     { href: "/study-schedule", labelKey: "studySchedule", icon: Table2 },
     { href: "/call", labelKey: "meets", icon: PhoneCall },
-    { href: "/watch", labelKey: "watchTogetherNav", icon: Clapperboard },
     { href: "/notes", labelKey: "notes", icon: FileText },
 ];
 const portfolioSectionLinks: {
@@ -70,7 +77,7 @@ const portfolioSectionLinks: {
     labelKey: TranslationKey;
     icon: typeof Home;
 }[] = [
-    { href: "/", labelKey: "portfolioHome", icon: Home },
+    { href: "/portfolio", labelKey: "portfolioHome", icon: Home },
     { href: "/profile", labelKey: "portfolioProfile", icon: UserCircle },
     { href: "/contact", labelKey: "portfolioContact", icon: Mail },
 ];
@@ -117,7 +124,11 @@ const NAV_LINK_ROW_MEETS_LIVE =
 
 function isActive(pathname: string, href: string) {
     if (href === "/")
-        return pathname === "/";
+        return (pathname === "/" ||
+            pathname === "/news" ||
+            pathname.startsWith("/news/") ||
+            pathname.startsWith("/articles/") ||
+            pathname.startsWith("/reading/"));
     if (href === "/dictionary")
         return pathname === "/dictionary";
     /** `/study-kit` is not active on `/study-kit/saved` or `/study-kit/result`. */
@@ -126,7 +137,7 @@ function isActive(pathname: string, href: string) {
     return pathname.startsWith(href);
 }
 function isPortfolioPath(pathname: string) {
-    if (pathname === "/")
+    if (pathname === "/portfolio")
         return true;
     return ["/profile", "/contact"].includes(pathname);
 }
@@ -154,13 +165,24 @@ function isIeltsPath(pathname: string) {
 function isStudyPath(pathname: string) {
     return pathname.startsWith("/study-kit");
 }
+function isEntertainmentPath(pathname: string) {
+    if (pathname === "/" ||
+        pathname === "/news" ||
+        pathname.startsWith("/news/") ||
+        pathname.startsWith("/articles/") ||
+        pathname.startsWith("/reading/"))
+        return true;
+    return pathname === "/watch" || pathname.startsWith("/watch/");
+}
 function isSchedulePath(pathname: string) {
     return scheduleSectionLinks.some((link) => pathname.startsWith(link.href));
 }
 function isDictionaryPath(pathname: string) {
-    return dictionarySectionLinks.some((link) => link.href === "/dictionary"
-        ? pathname === "/dictionary"
-        : pathname.startsWith(link.href));
+    return dictionarySectionLinks.some((link) => {
+        if (link.href === "/dictionary")
+            return pathname === "/dictionary";
+        return pathname.startsWith(link.href);
+    });
 }
 function navSearchNormalize(s: string): string {
     try {
@@ -227,6 +249,28 @@ function IeltsExpandedNavLinks({ pathname, t, filterQuery = "", onLinkClick, }: 
             const Icon = link.icon;
             return (<NavSidebarRow key={link.href} href={link.href} labelKey={link.labelKey} onLinkClick={onLinkClick} className={[rowBase, active ? rowActive : rowIdle].join(" ")} active={active} icon={Icon}/>);
         })() : null}
+    </>);
+}
+function EntertainmentExpandedNavLinks({ pathname, t, filterQuery = "", onLinkClick, links, }: {
+    pathname: string;
+    t: (key: TranslationKey) => string;
+    filterQuery?: string;
+    onLinkClick?: () => void;
+    links: typeof entertainmentSectionLinks;
+}) {
+    const rowBase = "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200";
+    const rowActive = NAV_LINK_ROW_ACTIVE;
+    const rowIdle = NAV_LINK_ROW_IDLE;
+    const fq = filterQuery.trim();
+    const entHit = !fq || navMatches(t("navEntertainmentSection"), filterQuery);
+    const matchKey = (key: TranslationKey) =>
+        !fq || entHit || navMatches(t(key), filterQuery);
+    return (<>
+      {links.filter((e) => matchKey(e.labelKey)).map((e) => {
+            const active = isActive(pathname, e.href);
+            const Icon = e.icon;
+            return (<NavSidebarRow key={e.href} href={e.href} labelKey={e.labelKey} onLinkClick={onLinkClick} className={[rowBase, active ? rowActive : rowIdle].join(" ")} active={active} icon={Icon}/>);
+        })}
     </>);
 }
 function StudyExpandedNavLinks({ pathname, t, filterQuery = "", onLinkClick, links, }: {
@@ -318,6 +362,7 @@ function SiteNavInner() {
     const [ieltsOpen, setIeltsOpen] = useState(true);
     const [studyOpen, setStudyOpen] = useState(true);
     const [scheduleOpen, setScheduleOpen] = useState(true);
+    const [entertainmentOpen, setEntertainmentOpen] = useState(true);
     const [dictionaryOpen, setDictionaryOpen] = useState(true);
     const [portfolioOpen, setPortfolioOpen] = useState(true);
     const [othersOpen, setOthersOpen] = useState(true);
@@ -355,6 +400,27 @@ function SiteNavInner() {
             match(navT("studyKitSessionHistory")) ||
             match(navT("studyKitSavedFolder")) ||
             studyLinks.length > 0;
+        const entertainmentFqMatch =
+            match(navT("navEntertainmentSection")) ||
+            match(navT("articleHomeNav")) ||
+            match(navT("watchTogetherNav")) ||
+            navMatches("article", navQ) ||
+            navMatches("articles", navQ) ||
+            navMatches("engoo", navQ) ||
+            navMatches("daily news", navQ) ||
+            navMatches("bài đọc", navQ) ||
+            navMatches("doc bai", navQ) ||
+            navMatches("giai tri", navQ) ||
+            navMatches("giải trí", navQ) ||
+            navMatches("watch together", navQ) ||
+            navMatches("xem chung", navQ);
+        const entertainmentLinks = !fq
+            ? entertainmentSectionLinks
+            : entertainmentFqMatch
+              ? entertainmentSectionLinks
+              : entertainmentSectionLinks.filter((l) => match(navT(l.labelKey)));
+        const showEntertainment =
+            !fq || entertainmentFqMatch || entertainmentLinks.length > 0;
         const scheduleLinks = !fq
             ? scheduleSectionLinks
             : match(navT("navScheduleSection")) || match(navT("notes"))
@@ -386,6 +452,7 @@ function SiteNavInner() {
             showDictionary ||
             showIelts ||
             showStudy ||
+            showEntertainment ||
             showSchedule ||
             showOthers;
         return {
@@ -393,11 +460,13 @@ function SiteNavInner() {
             plinks,
             dlinks,
             studyLinks,
+            entertainmentLinks,
             scheduleLinks,
             showPortfolio,
             showDictionary,
             showIelts,
             showStudy,
+            showEntertainment,
             showSchedule,
             showOthers,
             anyShown,
@@ -411,6 +480,7 @@ function SiteNavInner() {
         setDictionaryOpen(true);
         setIeltsOpen(true);
         setStudyOpen(true);
+        setEntertainmentOpen(true);
         setScheduleOpen(true);
         setOthersOpen(true);
     }, [navSearch]);
@@ -468,6 +538,9 @@ function SiteNavInner() {
         else if (legacy !== null) {
             setScheduleOpen(legacy === "true");
         }
+        const savedEntertainment = window.localStorage.getItem("entertainmentSectionOpen");
+        if (savedEntertainment !== null)
+            setEntertainmentOpen(savedEntertainment === "true");
     }, []);
     useEffect(() => {
         const saved = window.localStorage.getItem("othersSectionOpen");
@@ -481,6 +554,10 @@ function SiteNavInner() {
     useEffect(() => {
         if (isStudyPath(pathname))
             setStudyOpen(true);
+    }, [pathname]);
+    useEffect(() => {
+        if (isEntertainmentPath(pathname))
+            setEntertainmentOpen(true);
     }, [pathname]);
     useEffect(() => {
         if (isSchedulePath(pathname))
@@ -512,6 +589,11 @@ function SiteNavInner() {
         const next = !scheduleOpen;
         setScheduleOpen(next);
         window.localStorage.setItem("scheduleSectionOpen", String(next));
+    }
+    function toggleEntertainmentSection() {
+        const next = !entertainmentOpen;
+        setEntertainmentOpen(next);
+        window.localStorage.setItem("entertainmentSectionOpen", String(next));
     }
     function toggleDictionarySection() {
         const next = !dictionaryOpen;
@@ -681,7 +763,24 @@ function SiteNavInner() {
                 {studyOpen && (<StudyExpandedNavLinks pathname={pathname} t={navT} filterQuery={navSearch} onLinkClick={clearQuickSearch} links={navFilter.studyLinks}/>)}
               </div>) : null}
 
-              {navFilter.showStudy && navFilter.showSchedule ? (<div className="my-2 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
+              {navFilter.showStudy && navFilter.showEntertainment ? (<div className="my-2 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
+
+              {navFilter.showEntertainment ? (<div className="flex flex-col gap-0.5">
+                <NavSectionHeader isOpen={entertainmentOpen} onToggle={toggleEntertainmentSection} icon={PartyPopper} labelKey="navEntertainmentSection" outerClass={[
+                "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
+                isEntertainmentPath(pathname)
+                    ? "bg-zinc-100 text-zinc-900 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
+                    : "text-zinc-500 hover:bg-blue-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+            ].join(" ")} iconBoxClass={[
+                "flex h-10 w-10 items-center justify-center rounded-xl transition",
+                isEntertainmentPath(pathname)
+                    ? "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900"
+                    : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
+            ].join(" ")}/>
+                {entertainmentOpen && (<EntertainmentExpandedNavLinks pathname={pathname} t={navT} filterQuery={navSearch} onLinkClick={clearQuickSearch} links={navFilter.entertainmentLinks}/>)}
+              </div>) : null}
+
+              {navFilter.showEntertainment && navFilter.showSchedule ? (<div className="my-2 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
 
               {navFilter.showSchedule ? (<div className="flex flex-col gap-0.5">
                 <NavSectionHeader isOpen={scheduleOpen} onToggle={toggleScheduleSection} icon={CalendarClock} labelKey="navScheduleSection" outerClass={[
@@ -859,7 +958,24 @@ function SiteNavInner() {
               {studyOpen && (<StudyExpandedNavLinks pathname={pathname} t={navT} filterQuery={navSearch} onLinkClick={clearQuickSearch} links={navFilter.studyLinks}/>)}
             </div>) : null}
 
-            {navFilter.showStudy && navFilter.showSchedule ? (<div className="my-2 shrink-0 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
+            {navFilter.showStudy && navFilter.showEntertainment ? (<div className="my-2 shrink-0 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
+
+            {navFilter.showEntertainment ? (<div className="flex shrink-0 flex-col gap-0.5">
+              <NavSectionHeader isOpen={entertainmentOpen} onToggle={toggleEntertainmentSection} icon={PartyPopper} labelKey="navEntertainmentSection" outerClass={[
+            "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
+            isEntertainmentPath(pathname)
+                ? "bg-white text-zinc-900 shadow-sm ring-1 ring-blue-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
+                : "text-zinc-500 hover:bg-blue-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+        ].join(" ")} iconBoxClass={[
+            "flex h-10 w-10 items-center justify-center rounded-xl transition",
+            isEntertainmentPath(pathname)
+                ? "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900"
+                : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
+        ].join(" ")}/>
+              {entertainmentOpen && (<EntertainmentExpandedNavLinks pathname={pathname} t={navT} filterQuery={navSearch} onLinkClick={clearQuickSearch} links={navFilter.entertainmentLinks}/>)}
+            </div>) : null}
+
+            {navFilter.showEntertainment && navFilter.showSchedule ? (<div className="my-2 shrink-0 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
 
             {navFilter.showSchedule ? (<div className="flex shrink-0 flex-col gap-0.5">
               <NavSectionHeader isOpen={scheduleOpen} onToggle={toggleScheduleSection} icon={CalendarClock} labelKey="navScheduleSection" outerClass={[

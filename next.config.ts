@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
         "@napi-rs/canvas",
         "mammoth",
         "xlsx",
+        "jsdom",
+        "isomorphic-dompurify",
+        "@mozilla/readability",
     ],
     turbopack: {},
     async headers() {
@@ -30,6 +33,13 @@ const nextConfig: NextConfig = {
             { protocol: "https", hostname: "lh3.googleusercontent.com", pathname: "/**" },
             { protocol: "https", hostname: "drive.google.com", pathname: "/**" },
             { protocol: "https", hostname: "img.freepik.com", pathname: "/**" },
+            { protocol: "https", hostname: "images.unsplash.com", pathname: "/**" },
+            { protocol: "https", hostname: "assets.app.engoo.com", pathname: "/**" },
+            {
+                protocol: "https",
+                hostname: "ichef.bbci.co.uk",
+                pathname: "/**",
+            },
         ],
     },
     experimental: {
