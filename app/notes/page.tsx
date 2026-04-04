@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import { toast } from "react-toastify";
 import {
@@ -31,8 +32,16 @@ import {
   Trash2,
   UserMinus,
 } from "lucide-react";
+import { NotesFolderTreeNav, NOTE_DRAG } from "@/components/notes/NotesFolderTreeNav";
 import { authFetch } from "@/lib/auth-context";
 import { noteFolderDisplayName } from "@/lib/note-folder-display-name";
+import {
+  buildFolderTree,
+  flattenFolderTreeForSelect,
+  getFolderPath,
+  type FolderTreeNode,
+  type NoteFolderRow,
+} from "@/lib/note-folder-tree";
 import { dispatchClearNavQuickSearch } from "@/lib/nav-quick-search-events";
 import dynamic from "next/dynamic";
 import { useI18n } from "@/components/i18n-provider";
@@ -55,7 +64,7 @@ type NoteAccess = "owner" | "shared";
 
 type NoteLabel = { id: string; name: string };
 
-type NoteFolder = { id: string; name: string };
+type NoteFolder = NoteFolderRow;
 
 type Note = {
   id: string;
@@ -194,6 +203,7 @@ function formatDate(iso: string) {
 }
 
 const NOTES_SIDEBAR_LS = "ken-notes-sidebar";
+const NOTES_FOLDER_EXPANDED_LS = "ken-notes-folder-expanded";
 
 function snippet(text: string, maxLen: number, emptyLabel: string) {
   const withoutTags = text.replace(/<[^>]+>/g, " ");
@@ -283,6 +293,10 @@ export default function NotesPage() {
   const [editingFolderName, setEditingFolderName] = useState("");
   const [folderPendingDelete, setFolderPendingDelete] = useState<NoteFolder | null>(
     null,
+  );
+  const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null);
+  const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(
+    () => new Set(),
   );
   const [orgBusy, setOrgBusy] = useState(false);
 
@@ -395,9 +409,13 @@ export default function NotesPage() {
         setNoteFolders(
           arr.map((x) => {
             const o = x as Record<string, unknown>;
+            const pid = o.parentId ?? o.parent_id;
             return {
               id: String(o.id ?? ""),
               name: String(o.name ?? ""),
+              parentId:
+                pid != null && pid !== "" ? String(pid) : null,
+              sortOrder: Number(o.sortOrder ?? o.sort_order ?? 0),
             };
           }),
         );
@@ -454,6 +472,47 @@ export default function NotesPage() {
   useEffect(() => {
     loadNotes();
   }, [loadNotes]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(NOTES_FOLDER_EXPANDED_LS);
+      if (!raw) return;
+      const arr = JSON.parse(raw) as unknown;
+      if (!Array.isArray(arr)) return;
+      setExpandedFolderIds(
+        new Set(arr.filter((x): x is string => typeof x === "string")),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (listFolderFilter === "all" || noteFolders.length === 0) return;
+    setExpandedFolderIds((prev) => {
+      const path = getFolderPath(noteFolders, listFolderFilter);
+      const next = new Set(prev);
+      for (const p of path.slice(0, -1)) next.add(p.id);
+      return next;
+    });
+  }, [listFolderFilter, noteFolders]);
+
+  const toggleFolderExpand = useCallback((id: string) => {
+    setExpandedFolderIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      try {
+        localStorage.setItem(
+          NOTES_FOLDER_EXPANDED_LS,
+          JSON.stringify([...next]),
+        );
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
 
   /** Shared note: chỉ fetch đúng 1 note (không tải lại cả list + mọi body). */
   useEffect(() => {
@@ -1048,6 +1107,53 @@ export default function NotesPage() {
     [notes, t],
   );
 
+  const moveFolderToParent = useCallback(
+    async (folderId: string, newParentId: string | null) => {
+      if (folderId === newParentId) return;
+      setOrgBusy(true);
+      try {
+        const res = await authFetch(`/api/notes/folders/${folderId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ parentId: newParentId }),
+        });
+        if (!res.ok) {
+          toast.error(t("notesFolderMoveFailed"));
+          return;
+        }
+        const data = (await res.json()) as {
+          folder?: {
+            id?: string;
+            parentId?: string | null;
+            sortOrder?: number;
+          };
+        };
+        const pf = data.folder;
+        if (!pf?.id) return;
+        setNoteFolders((prev) =>
+          prev.map((f) =>
+            f.id === folderId
+              ? {
+                  ...f,
+                  parentId:
+                    pf.parentId != null && pf.parentId !== ""
+                      ? String(pf.parentId)
+                      : null,
+                  sortOrder: Number(pf.sortOrder ?? f.sortOrder),
+                }
+              : f,
+          ),
+        );
+        toast.success(t("notesFolderUpdated"));
+      } catch {
+        toast.error(t("notesFolderMoveFailed"));
+      } finally {
+        setOrgBusy(false);
+      }
+    },
+    [t],
+  );
+
   const moveNoteToFolder = useCallback(
     async (folderId: string | null) => {
       const sid = selectedId;
@@ -1073,7 +1179,12 @@ export default function NotesPage() {
       const res = await authFetch("/api/notes/folders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({
+          name,
+          ...(newFolderParentId
+            ? { parentId: newFolderParentId }
+            : {}),
+        }),
       });
       if (!res.ok) {
         toast.error(t("notesFolderCreateFailed"));
@@ -1084,20 +1195,38 @@ export default function NotesPage() {
       if (!f?.id) {
         return;
       }
+      const pid = f.parentId ?? f.parent_id;
       const row: NoteFolder = {
         id: String(f.id),
         name: String(f.name ?? ""),
+        parentId:
+          pid != null && pid !== "" ? String(pid) : null,
+        sortOrder: Number(f.sortOrder ?? f.sort_order ?? 0),
       };
-      setNoteFolders((prev) =>
-        [...prev, row].sort((a, b) => a.name.localeCompare(b.name)),
-      );
+      setNoteFolders((prev) => [...prev, row]);
       setNewFolderName("");
+      setNewFolderParentId(null);
       setFolderInputOpen(false);
+      if (row.parentId) {
+        setExpandedFolderIds((prev) => {
+          const next = new Set(prev);
+          next.add(row.parentId!);
+          try {
+            localStorage.setItem(
+              NOTES_FOLDER_EXPANDED_LS,
+              JSON.stringify([...next]),
+            );
+          } catch {
+            /* ignore */
+          }
+          return next;
+        });
+      }
       toast.success(t("notesFolderCreated"));
     } catch {
       toast.error(t("notesFolderCreateFailed"));
     }
-  }, [newFolderName, t]);
+  }, [newFolderName, newFolderParentId, t]);
 
   const closeFolderManager = useCallback(() => {
     if (folderModalBusy) {
@@ -1129,12 +1258,27 @@ export default function NotesPage() {
         return;
       }
       const data = (await res.json()) as {
-        folder?: { id?: string; name?: string };
+        folder?: {
+          id?: string;
+          name?: string;
+          parentId?: string | null;
+          parent_id?: string | null;
+        };
       };
-      const nm = String(data.folder?.name ?? name);
+      const fr = data.folder;
+      const nm = String(fr?.name ?? name);
+      const pRaw = fr?.parentId ?? fr?.parent_id;
+      const newParent =
+        pRaw != null && pRaw !== "" ? String(pRaw) : null;
       setNoteFolders((prev) =>
-        [...prev.map((f) => (f.id === editingFolderId ? { ...f, name: nm } : f))].sort(
-          (a, b) => a.name.localeCompare(b.name),
+        prev.map((f) =>
+          f.id === editingFolderId
+            ? {
+                ...f,
+                name: nm,
+                ...(fr !== undefined ? { parentId: newParent } : {}),
+              }
+            : f,
         ),
       );
       setNotes((prev) =>
@@ -1335,6 +1479,117 @@ export default function NotesPage() {
     }
   };
 
+  function renderFolderManageNode(
+    node: FolderTreeNode,
+    depth: number,
+  ): ReactNode[] {
+    const f = node;
+    const row = (
+      <li
+        key={f.id}
+        style={{ marginLeft: depth * 12 }}
+        className="rounded-lg border border-zinc-200 bg-zinc-50/80 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800/40"
+      >
+        {editingFolderId === f.id ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              value={editingFolderName}
+              onChange={(e) => setEditingFolderName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  void commitRenameFolder();
+                }
+                if (e.key === "Escape") {
+                  setEditingFolderId(null);
+                  setEditingFolderName("");
+                }
+              }}
+              disabled={folderModalBusy}
+              className="min-w-0 flex-1 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+              autoFocus
+            />
+            <button
+              type="button"
+              disabled={folderModalBusy || !editingFolderName.trim()}
+              onClick={() => void commitRenameFolder()}
+              className="shrink-0 rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+            >
+              {t("notesFolderSaveName")}
+            </button>
+            <button
+              type="button"
+              disabled={folderModalBusy}
+              onClick={() => {
+                setEditingFolderId(null);
+                setEditingFolderName("");
+              }}
+              className="shrink-0 rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-700"
+            >
+              {t("cancel")}
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-2">
+            <span className="min-w-0 truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+              {noteFolderDisplayName(f.name) ?? f.name}
+            </span>
+            <div className="flex shrink-0 items-center gap-0.5">
+              <button
+                type="button"
+                disabled={folderModalBusy || editingFolderId !== null}
+                onClick={() => {
+                  setNewFolderParentId(f.id);
+                  setFolderInputOpen(true);
+                  closeFolderManager();
+                }}
+                className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-200/80 hover:text-zinc-800 disabled:opacity-40 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
+                title={t("notesNewSubfolder")}
+                aria-label={t("notesNewSubfolder")}
+              >
+                <Plus className="h-4 w-4" strokeWidth={2} />
+              </button>
+              <button
+                type="button"
+                disabled={folderModalBusy || editingFolderId !== null}
+                onClick={() => {
+                  setEditingFolderId(f.id);
+                  setEditingFolderName(f.name);
+                }}
+                className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-200/80 hover:text-zinc-800 disabled:opacity-40 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
+                title={t("notesFolderRename")}
+                aria-label={t("notesFolderRename")}
+              >
+                <Pencil className="h-4 w-4" strokeWidth={2} />
+              </button>
+              <button
+                type="button"
+                disabled={folderModalBusy || editingFolderId !== null}
+                onClick={() =>
+                  setFolderPendingDelete({
+                    id: f.id,
+                    name: f.name,
+                    parentId: f.parentId,
+                    sortOrder: f.sortOrder,
+                  })
+                }
+                className="rounded-lg p-2 text-zinc-500 hover:bg-red-100 hover:text-red-600 disabled:opacity-40 dark:hover:bg-red-900/30"
+                title={t("notesFolderDelete")}
+                aria-label={t("notesFolderDelete")}
+              >
+                <Trash2 className="h-4 w-4" strokeWidth={2} />
+              </button>
+            </div>
+          </div>
+        )}
+      </li>
+    );
+    return [
+      row,
+      ...f.children.flatMap((ch) => renderFolderManageNode(ch, depth + 1)),
+    ];
+  }
+
   const showListPanel = !isNarrow || !mobileEditorOpen;
   const showEditorPanel = !isNarrow || mobileEditorOpen;
   const showNotesSidebar =
@@ -1392,28 +1647,112 @@ export default function NotesPage() {
               </button>
             </div>
           </div>
-          {isNarrow && notes.length > 0 ? (
-            <div className="border-b border-zinc-200 px-3 py-1.5 dark:border-zinc-800">
-              <label
-                className="sr-only"
-                htmlFor="notes-list-folder-filter-mobile"
+          <NotesFolderTreeNav
+            folders={noteFolders}
+            selectedFilter={listFolderFilter}
+            onSelectFilter={setListFolderFilter}
+            expandedIds={expandedFolderIds}
+            onToggleExpand={toggleFolderExpand}
+            canOrganize
+            onRequestSubfolder={(parentId) => {
+              setNewFolderParentId(parentId);
+              setFolderInputOpen(true);
+            }}
+            onNoteDroppedOnFolder={(noteId, folderId) => {
+              void patchNoteOrg(noteId, { folderId });
+            }}
+            onNoteDroppedUncategorized={(noteId) => {
+              void patchNoteOrg(noteId, { folderId: null });
+            }}
+            onFolderMoved={(fid, newParent) => {
+              void moveFolderToParent(fid, newParent);
+            }}
+            disabled={orgBusy}
+            labels={{
+              allNotes: t("notesFolderAll"),
+              newSubfolder: t("notesNewSubfolder"),
+              expandFolder: t("notesFolderExpandAria"),
+            }}
+          />
+          {folderInputOpen ? (
+            <div className="border-b border-zinc-200 px-2 py-2 dark:border-zinc-800">
+              {newFolderParentId ? (
+                <p className="mb-1 text-[10px] font-medium text-zinc-500 dark:text-zinc-400">
+                  {t("notesNewSubfolderHint")}
+                </p>
+              ) : null}
+              <div className="flex flex-wrap gap-1.5">
+                <input
+                  type="text"
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      void createFolder();
+                    }
+                    if (e.key === "Escape") {
+                      setFolderInputOpen(false);
+                      setNewFolderName("");
+                      setNewFolderParentId(null);
+                    }
+                  }}
+                  placeholder={t("notesNewFolderPlaceholder")}
+                  className="min-w-0 flex-1 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-800 placeholder:text-zinc-400 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => void createFolder()}
+                  className="shrink-0 rounded-lg bg-zinc-900 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                >
+                  {t("notesFolderAdd")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFolderInputOpen(false);
+                    setNewFolderName("");
+                    setNewFolderParentId(null);
+                  }}
+                  className="shrink-0 rounded-lg border border-zinc-300 px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                >
+                  {t("cancel")}
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {listFolderFilter !== "all" && noteFolders.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 border-b border-zinc-200 px-2 py-1.5 text-[11px] dark:border-zinc-800">
+              <button
+                type="button"
+                className="font-semibold text-rose-700 hover:underline dark:text-rose-300"
+                onClick={() => setListFolderFilter("all")}
               >
-                {t("notesFolderFilterAria")}
-              </label>
-              <select
-                id="notes-list-folder-filter-mobile"
-                value={listFolderFilter}
-                onChange={(e) => setListFolderFilter(e.target.value)}
-                className="w-full rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
-                aria-label={t("notesFolderFilterAria")}
-              >
-                <option value="all">{t("notesFolderFilterOptionAll")}</option>
-                {noteFolders.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {noteFolderDisplayName(f.name) ?? f.name}
-                  </option>
-                ))}
-              </select>
+                {t("notesFolderFilterOptionAll")}
+              </button>
+              {getFolderPath(noteFolders, listFolderFilter).map((seg, i, arr) => (
+                <span
+                  key={seg.id}
+                  className="flex min-w-0 items-center gap-1 text-zinc-500 dark:text-zinc-400"
+                >
+                  <span className="text-zinc-400" aria-hidden>
+                    /
+                  </span>
+                  {i < arr.length - 1 ? (
+                    <button
+                      type="button"
+                      className="truncate hover:underline"
+                      onClick={() => setListFolderFilter(seg.id)}
+                    >
+                      {noteFolderDisplayName(seg.name) ?? seg.name}
+                    </button>
+                  ) : (
+                    <span className="truncate font-semibold text-zinc-800 dark:text-zinc-200">
+                      {noteFolderDisplayName(seg.name) ?? seg.name}
+                    </span>
+                  )}
+                </span>
+              ))}
             </div>
           ) : null}
           <ul className="flex-1 overflow-y-auto px-1 pb-2 pt-1">
@@ -1438,11 +1777,17 @@ export default function NotesPage() {
               filteredNotes.map((n) => (
                 <li
                   key={n.id}
+                  draggable={isOwner(n)}
+                  onDragStart={(e) => {
+                    if (!isOwner(n)) return;
+                    e.dataTransfer.setData(NOTE_DRAG, n.id);
+                    e.dataTransfer.effectAllowed = "move";
+                  }}
                   className={`group flex items-stretch rounded-lg border ${
                     selectedId === n.id
                       ? "border-transparent bg-amber-50 shadow-sm dark:bg-amber-950/25"
                       : "border-transparent hover:border-neutral-200 hover:bg-neutral-50 dark:hover:border-neutral-700 dark:hover:bg-neutral-900/50"
-                  }`}
+                  } ${isOwner(n) ? "cursor-grab active:cursor-grabbing" : ""}`}
                 >
                   <button
                     type="button"
@@ -1653,32 +1998,6 @@ export default function NotesPage() {
                       {t("noteExportPdf")}
                     </span>
                   </button>
-                  {notes.length > 0 ? (
-                    <>
-                      <label
-                        className="sr-only"
-                        htmlFor="notes-list-folder-filter"
-                      >
-                        {t("notesFolderFilterAria")}
-                      </label>
-                      <select
-                        id="notes-list-folder-filter"
-                        value={listFolderFilter}
-                        onChange={(e) => setListFolderFilter(e.target.value)}
-                        className="max-w-[6.5rem] shrink-0 cursor-pointer rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs font-medium text-zinc-800 shadow-sm sm:max-w-[8.5rem] sm:text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
-                        aria-label={t("notesFolderFilterAria")}
-                      >
-                        <option value="all">
-                          {t("notesFolderFilterOptionAll")}
-                        </option>
-                        {noteFolders.map((f) => (
-                          <option key={f.id} value={f.id}>
-                            {noteFolderDisplayName(f.name) ?? f.name}
-                          </option>
-                        ))}
-                      </select>
-                    </>
-                  ) : null}
                   {isOwner(selectedNote) ? (
                     <>
                       <button
@@ -1694,7 +2013,10 @@ export default function NotesPage() {
                       <div className="flex min-w-0 shrink-0 items-stretch overflow-hidden rounded-lg border border-zinc-200/90 bg-zinc-50/90 shadow-sm dark:border-zinc-600 dark:bg-zinc-900/55">
                         <button
                           type="button"
-                          onClick={() => setFolderInputOpen((v) => !v)}
+                          onClick={() => {
+                            setNewFolderParentId(null);
+                            setFolderInputOpen((v) => !v);
+                          }}
                           disabled={orgBusy}
                           className="flex h-8 w-9 shrink-0 items-center justify-center text-zinc-600 hover:bg-zinc-100 disabled:opacity-60 dark:text-zinc-300 dark:hover:bg-zinc-800/80"
                           title={t("notesNewFolderTitle")}
@@ -1731,34 +2053,6 @@ export default function NotesPage() {
                   ) : null}
                 </div>
               </div>
-              {isOwner(selectedNote) && folderInputOpen ? (
-                <div className="flex flex-wrap gap-2 border-b border-zinc-200 bg-zinc-50/70 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900/35 sm:px-5">
-                  <input
-                    type="text"
-                    value={newFolderName}
-                    onChange={(e) => setNewFolderName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        void createFolder();
-                      }
-                      if (e.key === "Escape") {
-                        setFolderInputOpen(false);
-                        setNewFolderName("");
-                      }
-                    }}
-                    placeholder={t("notesNewFolderPlaceholder")}
-                    className="min-w-0 flex-1 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs text-zinc-800 placeholder:text-zinc-400 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500 sm:text-sm"
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void createFolder()}
-                    className="shrink-0 rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                  >
-                    {t("notesFolderAdd")}
-                  </button>
-                </div>
-              ) : null}
               {isOwner(selectedNote)
                 ? null
                 : selectedNote.folderName ? (
@@ -2012,25 +2306,27 @@ export default function NotesPage() {
                   {t("notesFolderFilterOptionAll")}
                 </button>
               </li>
-              {noteFolders.map((f) => {
-                const on = selectedNote.folderId === f.id;
-                return (
-                  <li key={f.id}>
-                    <button
-                      type="button"
-                      disabled={orgBusy}
-                      onClick={() => void moveNoteToFolder(f.id)}
-                      className={`w-full rounded-lg border px-3 py-2.5 text-left text-sm font-medium transition-colors disabled:opacity-50 ${
-                        on
-                          ? "border-zinc-900 bg-zinc-100 text-zinc-900 dark:border-zinc-100 dark:bg-zinc-800 dark:text-zinc-50"
-                          : "border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800/40 dark:text-zinc-100 dark:hover:bg-zinc-800"
-                      }`}
-                    >
-                      {noteFolderDisplayName(f.name) ?? f.name}
-                    </button>
-                  </li>
-                );
-              })}
+              {flattenFolderTreeForSelect(buildFolderTree(noteFolders)).map(
+                (opt) => {
+                  const on = selectedNote.folderId === opt.id;
+                  return (
+                    <li key={opt.id}>
+                      <button
+                        type="button"
+                        disabled={orgBusy}
+                        onClick={() => void moveNoteToFolder(opt.id)}
+                        className={`w-full rounded-lg border px-3 py-2.5 text-left text-sm font-medium transition-colors disabled:opacity-50 ${
+                          on
+                            ? "border-zinc-900 bg-zinc-100 text-zinc-900 dark:border-zinc-100 dark:bg-zinc-800 dark:text-zinc-50"
+                            : "border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800/40 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    </li>
+                  );
+                },
+              )}
             </ul>
             {noteFolders.length === 0 ? (
               <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">
@@ -2114,86 +2410,9 @@ export default function NotesPage() {
                   </p>
                 ) : (
                   <ul className="mt-4 space-y-2">
-                    {noteFolders.map((f) => (
-                      <li
-                        key={f.id}
-                        className="rounded-lg border border-zinc-200 bg-zinc-50/80 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800/40"
-                      >
-                        {editingFolderId === f.id ? (
-                          <div className="flex flex-wrap items-center gap-2">
-                            <input
-                              type="text"
-                              value={editingFolderName}
-                              onChange={(e) => setEditingFolderName(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  void commitRenameFolder();
-                                }
-                                if (e.key === "Escape") {
-                                  setEditingFolderId(null);
-                                  setEditingFolderName("");
-                                }
-                              }}
-                              disabled={folderModalBusy}
-                              className="min-w-0 flex-1 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
-                              autoFocus
-                            />
-                            <button
-                              type="button"
-                              disabled={folderModalBusy || !editingFolderName.trim()}
-                              onClick={() => void commitRenameFolder()}
-                              className="shrink-0 rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                            >
-                              {t("notesFolderSaveName")}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={folderModalBusy}
-                              onClick={() => {
-                                setEditingFolderId(null);
-                                setEditingFolderName("");
-                              }}
-                              className="shrink-0 rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-700"
-                            >
-                              {t("cancel")}
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="min-w-0 truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                              {noteFolderDisplayName(f.name) ?? f.name}
-                            </span>
-                            <div className="flex shrink-0 items-center gap-0.5">
-                              <button
-                                type="button"
-                                disabled={
-                                  folderModalBusy || editingFolderId !== null
-                                }
-                                onClick={() => {
-                                  setEditingFolderId(f.id);
-                                  setEditingFolderName(f.name);
-                                }}
-                                className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-200/80 hover:text-zinc-800 disabled:opacity-40 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
-                                title={t("notesFolderRename")}
-                                aria-label={t("notesFolderRename")}
-                              >
-                                <Pencil className="h-4 w-4" strokeWidth={2} />
-                              </button>
-                              <button
-                                type="button"
-                                disabled={folderModalBusy || editingFolderId !== null}
-                                onClick={() => setFolderPendingDelete(f)}
-                                className="rounded-lg p-2 text-zinc-500 hover:bg-red-100 hover:text-red-600 disabled:opacity-40 dark:hover:bg-red-900/30"
-                                title={t("notesFolderDelete")}
-                                aria-label={t("notesFolderDelete")}
-                              >
-                                <Trash2 className="h-4 w-4" strokeWidth={2} />
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </li>
-                    ))}
+                    {buildFolderTree(noteFolders).flatMap((n) =>
+                      renderFolderManageNode(n, 0),
+                    )}
                   </ul>
                 )}
                 <div className="mt-6 flex justify-end">

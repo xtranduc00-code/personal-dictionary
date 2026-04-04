@@ -20,6 +20,13 @@ create table if not exists public.note_folders (
 create index if not exists note_folders_user_sort_idx
   on public.note_folders (user_id, sort_order, name);
 
+-- Nested folders (optional; same as scripts/sql/note_folders_parent_id.sql)
+alter table public.note_folders
+  add column if not exists parent_id uuid references public.note_folders (id) on delete set null;
+
+create index if not exists note_folders_user_parent_idx
+  on public.note_folders (user_id, parent_id);
+
 create table if not exists public.note_labels (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.auth_users (id) on delete cascade,
