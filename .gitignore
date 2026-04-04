@@ -60,3 +60,6 @@ yarn-error.log*
 
 # Cursor / IDE (tùy chọn — bỏ comment nếu muốn ẩn hẳn)
 # .cursor/
+
+# Local Netlify folder
+.netlify
