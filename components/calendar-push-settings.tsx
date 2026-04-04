@@ -256,6 +256,9 @@ export function CalendarPushSettings() {
           <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             {t("calendarPushTitle")}
           </h3>
+          <p className="mt-2 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
+            {t("calendarPushDescription")}
+          </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {active ? (
               <>

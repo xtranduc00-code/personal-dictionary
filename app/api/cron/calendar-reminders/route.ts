@@ -38,10 +38,20 @@ export async function GET(req: Request) {
       );
     }
     const siteUrl = getSiteUrl();
+    // Isolated sweeps: one throwing (DB blip, bad row) must not take down the others.
     const [calendar, studySchedule, vocab] = await Promise.all([
-      runCalendarReminderSweep(db, siteUrl),
-      runStudyScheduleReminderSweep(db, siteUrl),
-      runVocabReminderSweep(db, siteUrl),
+      runCalendarReminderSweep(db, siteUrl).catch((e) => {
+        console.error("calendar-reminders: calendar sweep", e);
+        return { checked: 0, sent: 0, errors: 0 };
+      }),
+      runStudyScheduleReminderSweep(db, siteUrl).catch((e) => {
+        console.error("calendar-reminders: study schedule sweep", e);
+        return { checked: 0, sent: 0, errors: 0 };
+      }),
+      runVocabReminderSweep(db, siteUrl).catch((e) => {
+        console.error("calendar-reminders: vocab sweep", e);
+        return { sent: 0, errors: 0, skipped: `error: ${e instanceof Error ? e.message : String(e)}` };
+      }),
     ]);
     return NextResponse.json({
       ok: true,

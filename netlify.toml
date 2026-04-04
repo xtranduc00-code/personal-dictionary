@@ -12,6 +12,9 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# Push reminders (calendar, study grid, IELTS vocab): Vercel crons in vercel.json do not run here.
+# netlify/functions/calendar-reminders-cron.ts invokes GET /api/cron/calendar-reminders with CRON_SECRET.
+
 [build.environment]
   # pdf-parse declares: node >=20.16 <21 || >=22.3
   NODE_VERSION = "22"

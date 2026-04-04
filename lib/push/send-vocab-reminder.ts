@@ -188,6 +188,19 @@ export async function runVocabReminderSweep(
   db: SupabaseClient,
   siteUrl: string,
 ): Promise<{ sent: number; errors: number; skipped: string }> {
+  try {
+    return await runVocabReminderSweepImpl(db, siteUrl);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("runVocabReminderSweep", e);
+    return { sent: 0, errors: 0, skipped: `error: ${msg}` };
+  }
+}
+
+async function runVocabReminderSweepImpl(
+  db: SupabaseClient,
+  siteUrl: string,
+): Promise<{ sent: number; errors: number; skipped: string }> {
   if (!isWebPushConfigured()) {
     return { sent: 0, errors: 0, skipped: "web-push not configured" };
   }
@@ -300,3 +313,4 @@ export async function runVocabReminderSweep(
 
   return { sent, errors, skipped: "" };
 }
+
