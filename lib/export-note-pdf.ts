@@ -1,4 +1,4 @@
-import DOMPurify from "isomorphic-dompurify";
+import { sanitizeTiptapUserHtml } from "@/lib/sanitize-html-app";
 
 export type ExportNotePdfOptions = {
   title: string;
@@ -195,24 +195,7 @@ export async function exportNoteToPdf(
 ): Promise<void> {
   const { title, htmlBody, fileNameBase } = options;
 
-  const cleanBody = DOMPurify.sanitize(htmlBody || "", {
-    USE_PROFILES: { html: true },
-    ADD_ATTR: [
-      "style",
-      "class",
-      "colspan",
-      "rowspan",
-      "width",
-      "height",
-      "src",
-      "alt",
-      "title",
-      "data-row-height",
-      "data-align",
-      "colwidth",
-    ],
-    ADD_TAGS: ["colgroup", "col"],
-  });
+  const cleanBody = sanitizeTiptapUserHtml(htmlBody || "");
 
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
     import("html2canvas"),

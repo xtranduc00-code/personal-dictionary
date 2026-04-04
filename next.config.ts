@@ -7,7 +7,6 @@ const nextConfig: NextConfig = {
         "mammoth",
         "xlsx",
         "jsdom",
-        "isomorphic-dompurify",
         "@mozilla/readability",
     ],
     turbopack: {},

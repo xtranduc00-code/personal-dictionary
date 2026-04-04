@@ -7,7 +7,7 @@ import { Check, Layers, MoreHorizontal, NotebookText, Pencil, Pin, Plus, Trash2,
 import { useI18n } from "@/components/i18n-provider";
 import { AddFlashcardModal } from "@/components/ielts";
 import { RichTextEditor } from "@/components/RichTextEditor";
-import DOMPurify from "isomorphic-dompurify";
+import { sanitizeFlashcardDefinitionHtml } from "@/lib/sanitize-html-app";
 export default function FlashcardsPage() {
     const { t } = useI18n();
     const [sets, setSets] = useState<FlashcardSet[]>([]);
@@ -303,7 +303,7 @@ export default function FlashcardsPage() {
                                     {c.word}
                                   </p>
                                   {c.definition ? (<div className="mt-1 prose prose-sm prose-zinc max-w-none text-zinc-600 dark:prose-invert dark:text-zinc-400" dangerouslySetInnerHTML={{
-                                        __html: DOMPurify.sanitize(c.definition),
+                                        __html: sanitizeFlashcardDefinitionHtml(c.definition),
                                     }}/>) : (<p className="mt-1 text-sm text-zinc-400">—</p>)}
                                 </div>
                                 <div className="flex shrink-0 items-center gap-1">

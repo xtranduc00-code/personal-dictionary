@@ -1,5 +1,4 @@
 import { Readability } from "@mozilla/readability";
-import DOMPurify from "isomorphic-dompurify";
 import { NextRequest, NextResponse } from "next/server";
 import { JSDOM } from "jsdom";
 import {
@@ -12,81 +11,13 @@ import {
   normalizeBbcArticleUrl,
 } from "@/lib/bbc-article-url";
 import { polishBbcReaderHtml } from "@/lib/bbc-reader-html";
+import { sanitizeBbcArticleHtml } from "@/lib/sanitize-html-app";
 
 export const runtime = "nodejs";
 export const maxDuration = 45;
 
 const UA =
   "Mozilla/5.0 (compatible; KenWorkspace/1.0; private in-app article reader)";
-
-function sanitizeArticleHtml(raw: string): string {
-  try {
-    return DOMPurify.sanitize(raw, {
-      ALLOWED_TAGS: [
-        "p",
-        "br",
-        "strong",
-        "b",
-        "em",
-        "i",
-        "u",
-        "a",
-        "ul",
-        "ol",
-        "li",
-        "h1",
-        "h2",
-        "h3",
-        "h4",
-        "blockquote",
-        "cite",
-        "figure",
-        "figcaption",
-        "img",
-        "picture",
-        "source",
-        "video",
-        "iframe",
-        "span",
-        "div",
-        "section",
-        "article",
-        "time",
-        "hr",
-      ],
-      ALLOWED_ATTR: [
-        "href",
-        "src",
-        "alt",
-        "title",
-        "class",
-        "datetime",
-        "srcset",
-        "sizes",
-        "type",
-        "media",
-        "loading",
-        "decoding",
-        "referrerpolicy",
-        "poster",
-        "controls",
-        "playsinline",
-        "width",
-        "height",
-        "frameborder",
-        "allowfullscreen",
-        "allow",
-        "sandbox",
-      ],
-    });
-  } catch {
-    return raw
-      .replace(/<script[\s\S]*?<\/script>/gi, "")
-      .replace(/<style[\s\S]*?<\/style>/gi, "")
-      .replace(/ on\w+="[^"]*"/gi, "")
-      .replace(/ on\w+='[^']*'/gi, "");
-  }
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -196,7 +127,7 @@ export async function GET(req: NextRequest) {
         articleUrl.toString(),
       );
       const absolutized = absolutizeArticleHtml(merged, articleUrl.toString());
-      const htmlSanitized = sanitizeArticleHtml(absolutized);
+      const htmlSanitized = sanitizeBbcArticleHtml(absolutized);
       const htmlOut = polishBbcReaderHtml(htmlSanitized);
 
       if (!htmlOut.trim() || htmlOut.length < 40) {
