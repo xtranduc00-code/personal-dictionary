@@ -150,10 +150,20 @@ export default function FlashcardsPage() {
           <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">
             {t("createFirstSetHint")}
           </p>
-          <button type="button" onClick={handleAddSet} className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200">
-            <Plus className="h-4 w-4"/>
-            {t("createFirstSet")}
-          </button>
+          {!isAddingSet ? (<button type="button" onClick={handleAddSet} className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200">
+              <Plus className="h-4 w-4"/>
+              {t("createFirstSet")}
+            </button>) : (<div className="w-full max-w-sm px-2 text-left">
+              <input type="text" value={newSetName} onChange={(e) => setNewSetName(e.target.value)} onKeyDown={(e) => {
+                if (e.key === "Enter")
+                  handleConfirmAddSet();
+                if (e.key === "Escape") {
+                  setIsAddingSet(false);
+                  setNewSetName("");
+                }
+              }} placeholder={t("newSet")} className="w-full rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100" autoFocus/>
+              <p className="mt-1 text-[11px] text-zinc-400">{t("enterToSaveEscToCancel")}</p>
+            </div>)}
         </div>) : (<div className="flex flex-col gap-6 sm:flex-row sm:items-start">
           
           <aside className="flex w-full shrink-0 flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white sm:h-[calc(100vh-7rem)] sm:w-60 dark:border-zinc-800 dark:bg-zinc-900">
