@@ -123,12 +123,37 @@ export async function fetchGuardianArticlesForKindleEpub(
       const res = await fetch(
         `/api/guardian-read?url=${encodeURIComponent(item.webUrl)}`,
       );
-      const data = (await res.json()) as {
+      const raw = await res.text();
+      const ct = res.headers.get("content-type") ?? "";
+      let data: {
         error?: string;
         title?: string;
         html?: string;
         url?: string;
       };
+      const trimmed = raw.trimStart();
+      const ctLooksJson = ct.includes("application/json");
+      if (ctLooksJson || trimmed.startsWith("{")) {
+        try {
+          data = JSON.parse(raw) as typeof data;
+        } catch {
+          const fallback = [item.trailText].filter(Boolean) as string[];
+          return {
+            title: item.webTitle,
+            paragraphs: fallback.length ? fallback : ["(Could not load full text.)"],
+            bodyHtml: "",
+            sourceUrl: item.webUrl,
+          };
+        }
+      } else {
+        const fallback = [item.trailText].filter(Boolean) as string[];
+        return {
+          title: item.webTitle,
+          paragraphs: fallback.length ? fallback : ["(Could not load full text.)"],
+          bodyHtml: "",
+          sourceUrl: item.webUrl,
+        };
+      }
       if (!res.ok) {
         const fallback = [item.trailText].filter(Boolean) as string[];
         return {

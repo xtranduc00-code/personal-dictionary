@@ -328,8 +328,10 @@ function SpotifyDockInner({ embedded = false }: { embedded?: boolean }) {
     };
   }, [sessionState]);
 
-  const openSpotifyLoginPopup = useCallback(() => {
-    const url = "/api/spotify/login?popup=1";
+  const openSpotifyLoginPopup = useCallback((opts?: { reconsent?: boolean }) => {
+    const qs = new URLSearchParams({ popup: "1" });
+    if (opts?.reconsent) qs.set("reconsent", "1");
+    const url = `/api/spotify/login?${qs}`;
     const w = window.open(
       url,
       "ken_spotify_oauth",
@@ -337,7 +339,12 @@ function SpotifyDockInner({ embedded = false }: { embedded?: boolean }) {
     );
     if (!w) {
       toast.warning(tRef.current("spotifyPopupBlocked"));
-      window.location.href = "/api/spotify/login";
+      const fallbackQs = new URLSearchParams();
+      if (opts?.reconsent) fallbackQs.set("reconsent", "1");
+      const q = fallbackQs.toString();
+      window.location.href = q
+        ? `/api/spotify/login?${q}`
+        : "/api/spotify/login";
       return;
     }
     w.focus();
@@ -1327,6 +1334,9 @@ function SpotifyDockInner({ embedded = false }: { embedded?: boolean }) {
                 playlistTracksLoading || Boolean(playlistTracksError)
               }
               onPlayTrack={(uri) => void playFromLibraryPanel(uri)}
+              onReconnectForPlaylistTracks={() =>
+                openSpotifyLoginPopup({ reconsent: true })
+              }
               maxHeightClass={playlistPanelMaxHeightClass}
             />
           </div>

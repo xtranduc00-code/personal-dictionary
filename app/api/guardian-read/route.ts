@@ -7,15 +7,22 @@ import {
   normalizeGuardianArticleUrl,
 } from "@/lib/guardian-article-url";
 import {
+  guardianReadFetchTimeoutMs,
+  guardianReadTotalBudgetMs,
+} from "@/lib/guardian-read-budget";
+import { stripHeavyHtmlNoiseForParse } from "@/lib/guardian-read-preparse";
+import {
   guardianReadEnvSnapshot,
   logGuardianReadFailure,
   logGuardianReadRequest,
+  logGuardianReadTiming,
   logGuardianReadUpstream,
 } from "@/lib/guardian-read-server-log";
 import { sanitizeGuardianArticleHtml } from "@/lib/sanitize-html-app";
 
 export const runtime = "nodejs";
-export const maxDuration = 45;
+/** Pro / paid tiers; hobby may cap lower — see `guardian-read-budget` defaults. */
+export const maxDuration = 60;
 /** Avoid WAF / bot blocks on cloud IPs (custom “compatible; …” UAs often get 403 or empty bodies). */
 export const dynamic = "force-dynamic";
 
@@ -46,8 +53,43 @@ function jsonResponse(
   });
 }
 
+class GuardianReadBudgetError extends Error {
+  constructor(readonly phase: string) {
+    super(`guardian_read_budget:${phase}`);
+    this.name = "GuardianReadBudgetError";
+  }
+}
+
+async function withBudget<T>(promise: Promise<T>, ms: number, phase: string) {
+  if (ms < 500) {
+    throw new GuardianReadBudgetError(phase);
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeoutP = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new GuardianReadBudgetError(phase)), ms);
+  });
+  try {
+    return await Promise.race([promise, timeoutP]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function fetchGuardianPage(url: string): Promise<{
+  res: Response;
+  html: string;
+}> {
+  const res = await fetch(url, {
+    redirect: "follow",
+    headers: GUARDIAN_FETCH_HEADERS,
+  });
+  const html = await res.text();
+  return { res, html };
+}
+
 export async function GET(req: NextRequest) {
   const env = guardianReadEnvSnapshot();
+  const requestStarted = Date.now();
 
   try {
     const raw = req.nextUrl.searchParams.get("url")?.trim() ?? "";
@@ -80,32 +122,50 @@ export async function GET(req: NextRequest) {
       env,
     });
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 25_000);
+    const budgetMs = guardianReadTotalBudgetMs();
+    const fetchCapMs = guardianReadFetchTimeoutMs(budgetMs);
+    /** Leave headroom for JSDOM + Readability after HTML is in memory. */
+    const PARSE_RESERVE_MS = 3200;
+    const networkBudgetMs = Math.max(2500, budgetMs - PARSE_RESERVE_MS);
+    const t0 = Date.now();
 
     try {
-      const res = await fetch(articleUrl.toString(), {
-        redirect: "follow",
-        signal: controller.signal,
-        headers: GUARDIAN_FETCH_HEADERS,
-      });
-
-      const ct = res.headers.get("content-type");
+      let res: Response;
       let html: string;
       try {
-        html = await res.text();
+        const net = await withBudget(
+          fetchGuardianPage(articleUrl.toString()),
+          Math.min(fetchCapMs, networkBudgetMs),
+          "network",
+        );
+        res = net.res;
+        html = net.html;
       } catch (e) {
+        if (e instanceof GuardianReadBudgetError) {
+          logGuardianReadFailure({
+            phase: "network_budget",
+            message: `${e.phase} exceeded ${Math.min(fetchCapMs, networkBudgetMs)}ms`,
+          });
+          return jsonResponse(408, {
+            error:
+              "Loading the Guardian page took too long for this hosting plan. Try again, open the article on the Guardian site, or raise GUARDIAN_READ_TOTAL_MS / function timeout.",
+            code: "timeout",
+          });
+        }
         const msg = e instanceof Error ? e.message : String(e);
         logGuardianReadFailure({
-          phase: "read_upstream_body",
+          phase: "fetch_guardian",
           message: msg,
           stack: e instanceof Error ? e.stack : undefined,
         });
         return jsonResponse(422, {
-          error: "Could not read the Guardian page response.",
-          code: "upstream_body_read_failed",
+          error: "Could not reach the Guardian page.",
+          code: "upstream_fetch_failed",
         });
       }
+
+      const fetchAndBodyMs = Date.now() - t0;
+      const ct = res.headers.get("content-type");
 
       logGuardianReadUpstream({
         status: res.status,
@@ -115,11 +175,13 @@ export async function GET(req: NextRequest) {
       });
 
       if (!res.ok) {
-        const preview = html.replace(/\s+/g, " ").trim().slice(0, 240);
+        const preview = html.replace(/\s+/g, " ").trim().slice(0, 300);
         logGuardianReadFailure({
           phase: "upstream_http_error",
           message: `HTTP ${res.status}`,
           bodyPreview: preview,
+          contentType: ct,
+          elapsedMs: Date.now() - t0,
         });
         return jsonResponse(422, {
           error:
@@ -145,9 +207,25 @@ export async function GET(req: NextRequest) {
         });
       }
 
+      const parseBudgetMs = budgetMs - (Date.now() - t0) - 200;
+      if (parseBudgetMs < 400) {
+        logGuardianReadFailure({
+          phase: "budget_before_parse",
+          message: `elapsed ${Date.now() - t0}ms budget ${budgetMs}ms`,
+        });
+        return jsonResponse(408, {
+          error:
+            "Not enough time left to extract the article on this server. Try again or increase GUARDIAN_READ_TOTAL_MS / hosting function timeout.",
+          code: "timeout",
+        });
+      }
+
+      const htmlForDom = stripHeavyHtmlNoiseForParse(html);
+      const tParse = Date.now();
+
       let dom: JSDOM;
       try {
-        dom = new JSDOM(html, { url: articleUrl.toString() });
+        dom = new JSDOM(htmlForDom, { url: articleUrl.toString() });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         logGuardianReadFailure({
@@ -158,6 +236,18 @@ export async function GET(req: NextRequest) {
         return jsonResponse(422, {
           error: "Could not parse the Guardian page structure.",
           code: "jsdom_failed",
+        });
+      }
+
+      if (Date.now() - t0 > budgetMs) {
+        logGuardianReadFailure({
+          phase: "wallclock_after_jsdom",
+          message: `elapsed ${Date.now() - t0}ms > budget ${budgetMs}ms`,
+        });
+        return jsonResponse(408, {
+          error:
+            "Extracting the article took too long on this host. Try again or increase GUARDIAN_READ_TOTAL_MS / function timeout.",
+          code: "timeout",
         });
       }
 
@@ -177,6 +267,8 @@ export async function GET(req: NextRequest) {
           code: "readability_failed",
         });
       }
+
+      const parseMs = Date.now() - tParse;
 
       if (!parsed?.content) {
         return jsonResponse(422, {
@@ -251,6 +343,16 @@ export async function GET(req: NextRequest) {
         });
       }
 
+      logGuardianReadTiming({
+        totalMs: Date.now() - t0,
+        fetchMs: fetchAndBodyMs,
+        parseMs,
+        budgetMs,
+        fetchTimeoutMs: fetchCapMs,
+        htmlInChars: html.length,
+        htmlStrippedChars: htmlForDom.length,
+      });
+
       return new NextResponse(bodyStr, {
         status: 200,
         headers: {
@@ -276,8 +378,6 @@ export async function GET(req: NextRequest) {
         error: "Could not load or parse this Guardian page.",
         code: "process_failed",
       });
-    } finally {
-      clearTimeout(timeout);
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -285,6 +385,7 @@ export async function GET(req: NextRequest) {
       phase: "fatal",
       message: msg,
       stack: e instanceof Error ? e.stack : undefined,
+      elapsedMs: Date.now() - requestStarted,
     });
     return jsonResponse(500, {
       error:

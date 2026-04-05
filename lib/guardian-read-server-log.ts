@@ -50,11 +50,28 @@ export function logGuardianReadFailure(meta: {
   message: string;
   stack?: string;
   bodyPreview?: string;
+  contentType?: string | null;
+  elapsedMs?: number;
 }) {
   console.error(PREFIX, "failure", {
     phase: meta.phase,
     message: meta.message,
     stack: meta.stack,
     bodyPreview: meta.bodyPreview,
+    contentType: meta.contentType,
+    elapsedMs: meta.elapsedMs,
   });
+}
+
+export function logGuardianReadTiming(meta: {
+  totalMs: number;
+  fetchMs?: number;
+  bodyReadMs?: number;
+  parseMs?: number;
+  budgetMs: number;
+  fetchTimeoutMs: number;
+  htmlInChars: number;
+  htmlStrippedChars?: number;
+}) {
+  console.info(PREFIX, "timing", meta);
 }

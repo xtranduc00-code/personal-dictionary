@@ -12,6 +12,8 @@
 # Guardian in-app reader (`/api/guardian-read`) fetches www.theguardian.com HTML + runs JSDOM/Readability.
 # If the reader returns HTTP 500 with an HTML body in the browser, raise Functions timeout in the Netlify UI
 # and ensure outbound HTTPS to the Guardian is not blocked.
+# Optional env: GUARDIAN_READ_TOTAL_MS (e.g. 25000), GUARDIAN_READ_FETCH_TIMEOUT_MS, GUARDIAN_READ_SERVERLESS_SAFE=0
+# for long-running local/self-hosted. Defaults target ~9.5s on Netlify/Vercel to return JSON before hard timeouts.
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 

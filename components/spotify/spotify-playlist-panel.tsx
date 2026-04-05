@@ -24,6 +24,8 @@ export function SpotifyPlaylistPanel({
   /** True while tracks are loading or the track list failed — play buttons stay off. */
   tracksPlayDisabled,
   onPlayTrack,
+  /** Shown under track-load errors so users can force Spotify consent again (scopes). */
+  onReconnectForPlaylistTracks,
   maxHeightClass,
 }: {
   t: Translate;
@@ -38,6 +40,7 @@ export function SpotifyPlaylistPanel({
   playlistTracksError: string | null;
   tracksPlayDisabled: boolean;
   onPlayTrack: (uri: string) => void;
+  onReconnectForPlaylistTracks?: () => void;
   maxHeightClass: string;
 }) {
   return (
@@ -132,8 +135,17 @@ export function SpotifyPlaylistPanel({
                 <Loader2 className="h-8 w-8 animate-spin text-zinc-500 dark:text-zinc-400" />
               </div>
             ) : playlistTracksError ? (
-              <div className="px-2 pt-2">
+              <div className="flex flex-col gap-3 px-2 pt-2">
                 <SpotifyErrorAlert message={playlistTracksError} />
+                {onReconnectForPlaylistTracks ? (
+                  <button
+                    type="button"
+                    onClick={() => onReconnectForPlaylistTracks()}
+                    className="self-center rounded-full border border-zinc-300 bg-white px-4 py-2 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
+                  >
+                    {t("spotifyPlaylistTracksReconnectCta")}
+                  </button>
+                ) : null}
               </div>
             ) : playlistTracks.length === 0 ? (
               <p className="px-3 py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">

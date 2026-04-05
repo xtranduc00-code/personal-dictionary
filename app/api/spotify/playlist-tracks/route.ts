@@ -34,13 +34,21 @@ export async function GET(req: Request) {
     );
     url.searchParams.set("limit", String(PAGE));
     url.searchParams.set("offset", String(offset));
+    /** Improves track availability / relinking for the signed-in user’s market. */
+    url.searchParams.set("market", "from_token");
 
     const res = await fetch(url.toString(), { headers: { Authorization: auth } });
     if (!res.ok) {
-      return NextResponse.json(
-        { error: await res.text() },
-        { status: res.status },
-      );
+      const body = await res.text();
+      if (process.env.NODE_ENV === "development") {
+        console.warn("[spotify/playlist-tracks]", {
+          playlistId,
+          endpoint: `${url.pathname}?${url.searchParams.toString()}`,
+          status: res.status,
+          bodyPreview: body.slice(0, 600),
+        });
+      }
+      return NextResponse.json({ error: body }, { status: res.status });
     }
 
     const data = (await res.json()) as {

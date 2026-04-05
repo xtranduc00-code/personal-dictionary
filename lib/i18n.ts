@@ -698,7 +698,11 @@ export const translations = {
     spotifyErrPlaybackRestricted:
       "Spotify blocked this action for your account or region.",
     spotifyErrPlaylistTracksRefused:
-      "Spotify wouldn’t open this playlist’s track list (permissions or catalog). Try another playlist — the in-browser player can still play music.",
+      "Spotify wouldn’t load this playlist’s tracks (private or collaborative lists, catalog limits, or a permission mismatch with Spotify). Try another playlist, or disconnect Spotify here and connect again so permissions stay in sync. Playback can still work while you try this.",
+    spotifyErrPlaylistScopeReconnect:
+      "This Spotify login is missing permission to read playlist tracks. Disconnect Spotify in this app, then connect again and accept all requested permissions.",
+    spotifyPlaylistTracksReconnectCta:
+      "Reconnect Spotify (refresh permissions)",
     spotifyErrPlaybackForbiddenGeneric:
       "Spotify didn’t start playback on this device (often the web player wasn’t active yet). Wait a moment and try again, or pick another track.",
     spotifyErrRateLimited:
@@ -810,7 +814,9 @@ export const translations = {
     guardianReadKicker: "Reader view · The Guardian",
     guardianReadOpenInstead: "Open on the Guardian instead",
     guardianReadUnexpectedResponse:
-      "The reader service returned a non-JSON response (HTTP {status}). Your host may have timed out, blocked outbound requests to the Guardian, or returned an HTML error page. Try again, increase the serverless function timeout, or open the article on the Guardian site.",
+      "The reader API did not return JSON (HTTP {status}). If the body was not HTML, the response may be truncated or from a proxy. Try again or open the article on the Guardian site.",
+    guardianReadHostHtmlError:
+      "The reader API returned an HTML error page (HTTP {status}) — usually a hosting timeout or crash before our JSON ran. Try again, set GUARDIAN_READ_TOTAL_MS / raise your serverless function timeout for /api/guardian-read, or open the article on the Guardian site.",
     guardianReadErrorWithCode: "{message} (code: {code})",
     articleHomeTitle: "Read, then talk about it",
     articleHomeSubtitle:
@@ -2144,7 +2150,11 @@ export const translations = {
     spotifyErrPlaybackRestricted:
       "Spotify không cho phép thao tác này với tài khoản hoặc khu vực của bạn.",
     spotifyErrPlaylistTracksRefused:
-      "Spotify không mở được danh sách bài trong playlist này (quyền hoặc catalog). Thử playlist khác — trình phát trên trình duyệt vẫn có thể phát nhạc.",
+      "Spotify không tải được bài trong playlist này (playlist riêng/collaborative, giới hạn catalog, hoặc quyền với Spotify không khớp). Thử playlist khác, hoặc ngắt Spotify ở app này rồi kết nối lại để đồng bộ quyền. Trình phát vẫn có thể phát nhạc trong lúc bạn thử.",
+    spotifyErrPlaylistScopeReconnect:
+      "Đăng nhập Spotify này thiếu quyền đọc bài trong playlist. Hãy ngắt Spotify trong app, rồi kết nối lại và chấp nhận đủ quyền được yêu cầu.",
+    spotifyPlaylistTracksReconnectCta:
+      "Kết nối lại Spotify (làm mới quyền)",
     spotifyErrPlaybackForbiddenGeneric:
       "Spotify chưa phát được trên thiết bị này (thường do trình phát web chưa được chọn làm thiết bị đang phát). Đợi vài giây rồi thử lại, hoặc chọn bài khác.",
     spotifyErrRateLimited:
@@ -2256,7 +2266,9 @@ export const translations = {
     guardianReadKicker: "Chế độ đọc · The Guardian",
     guardianReadOpenInstead: "Mở trên The Guardian",
     guardianReadUnexpectedResponse:
-      "Dịch vụ đọc bài trả về phản hồi không phải JSON (HTTP {status}). Máy chủ có thể hết thời gian, chặn kết nối ra trang Guardian, hoặc trả về trang lỗi HTML. Thử lại, tăng timeout cho function serverless, hoặc mở bài trực tiếp trên Guardian.",
+      "API đọc bài không trả về JSON (HTTP {status}). Nếu không phải HTML, phản hồi có thể bị cắt hoặc từ proxy. Thử lại hoặc mở bài trên Guardian.",
+    guardianReadHostHtmlError:
+      "API đọc bài trả về trang lỗi HTML (HTTP {status}) — thường do hosting timeout hoặc crash trước khi JSON chạy xong. Thử lại, đặt GUARDIAN_READ_TOTAL_MS / tăng timeout function cho /api/guardian-read, hoặc mở bài trên Guardian.",
     guardianReadErrorWithCode: "{message} (mã: {code})",
     articleHomeTitle: "Đọc rồi nói chuyện về bài",
     articleHomeSubtitle:

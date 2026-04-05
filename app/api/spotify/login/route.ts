@@ -27,6 +27,11 @@ export async function GET(req: Request) {
   const challenge = codeChallengeS256(verifier);
   const state = generateOAuthState();
 
+  const loginUrl = new URL(req.url);
+  const reconsent =
+    loginUrl.searchParams.get("reconsent") === "1" ||
+    loginUrl.searchParams.get("reconsent") === "true";
+
   const url = new URL(SPOTIFY_AUTH_URL);
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("response_type", "code");
@@ -35,10 +40,12 @@ export async function GET(req: Request) {
   url.searchParams.set("code_challenge_method", "S256");
   url.searchParams.set("code_challenge", challenge);
   url.searchParams.set("state", state);
+  if (reconsent) {
+    url.searchParams.set("show_dialog", "true");
+  }
 
   const res = NextResponse.redirect(url.toString());
   const secure = process.env.NODE_ENV === "production";
-  const loginUrl = new URL(req.url);
   const popup =
     loginUrl.searchParams.get("popup") === "1" ||
     loginUrl.searchParams.get("popup") === "true";

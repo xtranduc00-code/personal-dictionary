@@ -75,6 +75,13 @@ function GuardianReadInner() {
           `/api/guardian-read?url=${encodeURIComponent(urlParam)}`,
         );
         const text = await res.text();
+        const contentType = res.headers.get("content-type") ?? "";
+        const trimmed = text.trimStart();
+        const looksLikeHtml =
+          contentType.includes("text/html") ||
+          /^<!DOCTYPE\s+html/i.test(trimmed) ||
+          /^<html[\s>]/i.test(trimmed);
+
         let data: {
           error?: string;
           code?: string;
@@ -84,20 +91,22 @@ function GuardianReadInner() {
         };
         try {
           data = JSON.parse(text) as typeof data;
-        } catch {
+        } catch (parseErr) {
           if (!cancelled) {
-            if (process.env.NODE_ENV === "development") {
-              console.warn("[guardian-read:client] non-JSON body", {
-                status: res.status,
-                contentType: res.headers.get("content-type"),
-                preview: text.replace(/\s+/g, " ").trim().slice(0, 200),
-              });
-            }
+            const preview = text.replace(/\s+/g, " ").trim().slice(0, 300);
+            console.warn("[guardian-read:client] non-JSON body", {
+              status: res.status,
+              contentType,
+              looksLikeHtml,
+              preview,
+              parseError:
+                parseErr instanceof Error ? parseErr.message : String(parseErr),
+            });
             setError(
-              t("guardianReadUnexpectedResponse").replace(
-                "{status}",
-                String(res.status),
-              ),
+              (looksLikeHtml
+                ? t("guardianReadHostHtmlError")
+                : t("guardianReadUnexpectedResponse")
+              ).replace("{status}", String(res.status)),
             );
           }
           return;
