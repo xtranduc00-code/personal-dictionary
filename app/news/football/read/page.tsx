@@ -8,7 +8,13 @@ import { FOOTBALL_READ_BODY_CLASS } from "@/lib/football-read-body-class";
 
 function safeReturnTo(raw: string | null): string {
   if (!raw || !raw.startsWith("/") || raw.startsWith("//")) {
-    return "/?src=guardian&gtab=sport";
+    return "/news?src=guardian&gtab=sport";
+  }
+  if (raw === "/") {
+    return "/news?src=guardian&gtab=sport";
+  }
+  if (raw.startsWith("/?")) {
+    return `/news${raw.slice(1)}`;
   }
   return raw;
 }

@@ -7,6 +7,7 @@ type ChangeFreq = NonNullable<MetadataRoute.Sitemap[number]["changeFrequency"]>;
 /** Indexable tool and marketing routes (no auth-only or dynamic IDs). */
 const PATHS: { path: string; changeFrequency: ChangeFreq; priority: number }[] = [
     { path: "/", changeFrequency: "weekly", priority: 1 },
+    { path: "/news", changeFrequency: "daily", priority: 0.95 },
     { path: "/profile", changeFrequency: "monthly", priority: 0.9 },
     { path: "/contact", changeFrequency: "monthly", priority: 0.85 },
     { path: "/dictionary", changeFrequency: "weekly", priority: 0.95 },

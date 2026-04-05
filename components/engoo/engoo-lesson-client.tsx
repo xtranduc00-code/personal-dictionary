@@ -820,7 +820,7 @@ export function EngooLessonClient({ masterId }: { masterId: string }) {
         <p className="text-zinc-600 dark:text-zinc-400">
           {error ?? "Not found."}
         </p>
-        <Link href="/" className="mt-4 inline-block text-sm underline">
+        <Link href="/news" className="mt-4 inline-block text-sm underline">
           Back to Daily News
         </Link>
       </div>
@@ -846,7 +846,7 @@ export function EngooLessonClient({ masterId }: { masterId: string }) {
       <header className="mx-auto mb-3 max-w-6xl overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/95 shadow-[0_2px_12px_-4px_rgba(15,23,42,0.06)] backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-900/95">
         <div className="flex items-center px-5 py-3">
           <Link
-            href="/"
+            href="/news"
             className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-50"
           >
             ← Daily News

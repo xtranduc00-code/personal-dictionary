@@ -17,8 +17,8 @@ import {
 const GUARDIAN_PILL =
   "border-rose-200/90 bg-rose-50 text-rose-950 dark:border-rose-800/80 dark:bg-rose-950/50 dark:text-rose-100";
 
-function guardianListReturnHref(pathname: string, tab: "news" | "sport"): string {
-  const base = pathname === "/" ? "/" : pathname;
+function guardianListReturnHref(tab: "news" | "sport"): string {
+  const base = "/news";
   const p = new URLSearchParams();
   p.set("src", "guardian");
   if (tab === "sport") p.set("gtab", "sport");
@@ -207,10 +207,7 @@ export function GuardianDailyNewsPanel() {
       ? t("dailyNewsGuardianEmpty")
       : t("dailyNewsSportEmpty");
 
-  const listReturnTo = useMemo(
-    () => guardianListReturnHref(pathname, tab),
-    [pathname, tab],
-  );
+  const listReturnTo = useMemo(() => guardianListReturnHref(tab), [tab]);
 
   const downloadSportKindleEpub = useCallback(async () => {
     if (tab !== "sport" || filteredSport.length === 0) return;

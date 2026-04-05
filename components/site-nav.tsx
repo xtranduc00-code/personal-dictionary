@@ -62,13 +62,13 @@ type NewsSourceLink = {
 };
 const newsSectionLinks: NewsSourceLink[] = [
     {
-        href: "/",
+        href: "/news",
         labelKey: "dailyNewsSourceEngoo",
         icon: Newspaper,
         dailyNewsSource: "engoo",
     },
     {
-        href: "/?src=guardian",
+        href: "/news?src=guardian",
         labelKey: "dailyNewsSourceGuardian",
         icon: Newspaper,
         dailyNewsSource: "guardian",
@@ -97,7 +97,7 @@ const portfolioSectionLinks: {
     labelKey: TranslationKey;
     icon: typeof Home;
 }[] = [
-    { href: "/portfolio", labelKey: "portfolioHome", icon: Home },
+    { href: "/", labelKey: "portfolioHome", icon: Home },
     { href: "/profile", labelKey: "portfolioProfile", icon: UserCircle },
     { href: "/contact", labelKey: "portfolioContact", icon: Mail },
 ];
@@ -152,11 +152,7 @@ function EntertainmentNewsGroupTitle({ label }: { label: string }) {
 
 function isActive(pathname: string, href: string) {
     if (href === "/")
-        return (pathname === "/" ||
-            pathname === "/news" ||
-            pathname.startsWith("/news/") ||
-            pathname.startsWith("/articles/") ||
-            pathname.startsWith("/reading/"));
+        return pathname === "/" || pathname === "/portfolio";
     if (href === "/dictionary")
         return pathname === "/dictionary";
     /** `/study-kit` is not active on `/study-kit/saved` or `/study-kit/result`. */
@@ -168,7 +164,7 @@ function isActive(pathname: string, href: string) {
     return pathname.startsWith(href);
 }
 function isPortfolioPath(pathname: string) {
-    if (pathname === "/portfolio")
+    if (pathname === "/" || pathname === "/portfolio")
         return true;
     return ["/profile", "/contact"].includes(pathname);
 }
@@ -197,8 +193,7 @@ function isStudyPath(pathname: string) {
     return pathname.startsWith("/study-kit");
 }
 function isNewsPath(pathname: string) {
-    if (pathname === "/" ||
-        pathname === "/news" ||
+    if (pathname === "/news" ||
         pathname.startsWith("/news/") ||
         pathname.startsWith("/articles/") ||
         pathname.startsWith("/reading/"))
@@ -225,14 +220,14 @@ function isEngooDailyNewsNavActive(pathname: string, src: string | null): boolea
         return false;
     if (pathname.startsWith("/news/"))
         return true;
-    if (pathname === "/" || pathname === "/news")
+    if (pathname === "/news")
         return src !== "guardian";
     return false;
 }
 function isGuardianDailyNewsNavActive(pathname: string, src: string | null): boolean {
     if (pathname.startsWith("/news/football") || pathname.startsWith("/news/guardian"))
         return true;
-    if (pathname === "/" || pathname === "/news")
+    if (pathname === "/news")
         return src === "guardian";
     return false;
 }

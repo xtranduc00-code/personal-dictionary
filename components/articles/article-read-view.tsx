@@ -32,7 +32,7 @@ export function ArticleReadView({ articleId }: { articleId: string }) {
       <div className="mx-auto max-w-lg px-4 py-16 text-center">
         <p className="text-zinc-600 dark:text-zinc-400">{t("articleNotFound")}</p>
         <Link
-          href="/"
+          href="/news"
           className="mt-4 inline-block text-sm font-medium text-zinc-900 underline dark:text-zinc-100"
         >
           {t("articleBackHome")}
@@ -56,7 +56,7 @@ export function ArticleReadView({ articleId }: { articleId: string }) {
     <div className="relative mx-auto max-w-3xl px-4 pb-32 pt-8 md:pb-24 md:pt-12">
       <div className="mb-6 flex flex-wrap items-center gap-3 text-sm">
         <Link
-          href="/"
+          href="/news"
           className="text-zinc-500 underline-offset-2 hover:text-zinc-800 hover:underline dark:text-zinc-400 dark:hover:text-zinc-200"
         >
           {t("articleBackHome")}

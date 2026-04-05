@@ -12,7 +12,13 @@ import { GUARDIAN_READ_BODY_CLASS } from "@/lib/guardian-read-body-class";
 
 function safeReturnTo(raw: string | null): string {
   if (!raw || !raw.startsWith("/") || raw.startsWith("//")) {
-    return "/?src=guardian";
+    return "/news?src=guardian";
+  }
+  if (raw === "/") {
+    return "/news?src=guardian";
+  }
+  if (raw.startsWith("/?")) {
+    return `/news${raw.slice(1)}`;
   }
   return raw;
 }

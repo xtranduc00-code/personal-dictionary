@@ -14,7 +14,7 @@ export default async function NewsLessonPage({
     return (
       <div className="mx-auto max-w-lg px-4 py-16 text-center text-zinc-600">
         <p>Invalid lesson link.</p>
-        <a href="/" className="mt-4 inline-block text-sm underline">
+        <a href="/news" className="mt-4 inline-block text-sm underline">
           Back to Daily News
         </a>
       </div>

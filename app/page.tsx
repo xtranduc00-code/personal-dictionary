@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { DailyNewsHub } from "@/components/engoo/daily-news-hub";
+import { PortfolioHome } from "@/components/portfolio/portfolio-home";
 
 export const metadata: Metadata = {
-  title: "Daily News | Ken Workspace",
+  title: "Ken Workspace",
   description:
-    "Engoo-style Daily News and Guardian headlines — read structured lessons and start an AI tutor call with full context.",
+    "All-in-One Productivity App — portfolio, IELTS tools, Daily News, notes, calendar, and more.",
 };
 
 export default function HomePage() {
-  return <DailyNewsHub />;
+  return <PortfolioHome />;
 }

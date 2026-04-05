@@ -22,7 +22,7 @@ export default async function ArticlePage({
         </a>
         .
       </p>
-      <a href="/" className="mt-4 inline-block text-sm underline">
+      <a href="/news" className="mt-4 inline-block text-sm underline">
         Back to Daily News
       </a>
     </div>

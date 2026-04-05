@@ -22,7 +22,6 @@ export function AppShell({ children }: {
     /** `/watch/:room` — full-bleed giống cuộc gọi full để video rộng tối đa */
     const isWatchPartyRoom = pathSeg[0] === "watch" && pathSeg.length >= 2;
     const isDailyNewsRoute =
-        pathname === "/" ||
         pathname === "/news" ||
         (Boolean(pathname) && pathname.startsWith("/news/"));
     const noOuterMainPadding =
