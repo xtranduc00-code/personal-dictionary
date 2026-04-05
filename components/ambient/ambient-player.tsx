@@ -257,16 +257,17 @@ function savePrefs(sound: SoundId, volume: number, wasPlaying: boolean) {
 export function AmbientPlayer() {
   const prefs = useRef(loadPrefs());
 
-  const [playing, setPlaying]       = useState(false);
-  const [sound, setSound]           = useState<SoundId>(prefs.current.sound);
-  const [volume, setVolume]         = useState(prefs.current.volume);
-  const [open, setOpen]             = useState(false);
-  // true = user had it playing last session; waiting for first click to auto-resume
-  const [pendingPlay, setPending]   = useState(prefs.current.wasPlaying);
+  const [playing, setPlaying] = useState(false);
+  const [sound, setSound]     = useState<SoundId>(prefs.current.sound);
+  const [volume, setVolume]   = useState(prefs.current.volume);
+  /** Open the panel by default when the user had ambient playing last session. */
+  const [open, setOpen]       = useState(prefs.current.wasPlaying);
+  /** true when user had it playing last session — pill pulses to invite resume */
+  const wasPlaying            = useRef(prefs.current.wasPlaying);
 
-  const ctxRef      = useRef<AudioContext | null>(null);
-  const gainRef     = useRef<GainNode | null>(null);
-  const nodesRef    = useRef<(AudioBufferSourceNode | OscillatorNode)[]>([]);
+  const ctxRef   = useRef<AudioContext | null>(null);
+  const gainRef  = useRef<GainNode | null>(null);
+  const nodesRef = useRef<(AudioBufferSourceNode | OscillatorNode)[]>([]);
 
   /* Stop all running audio nodes */
   const stopNodes = useCallback(() => {
@@ -291,7 +292,7 @@ export function AmbientPlayer() {
 
   /* Toggle play / pause */
   const toggle = useCallback(() => {
-    setPending(false);
+    wasPlaying.current = false;
     if (playing) {
       stopNodes();
       setPlaying(false);
@@ -301,11 +302,13 @@ export function AmbientPlayer() {
     }
   }, [playing, sound, volume, startSound, stopNodes]);
 
-  /* Change sound while keeping playback state */
+  /* Select sound — always starts playing (clicking a sound = intent to hear it) */
   const changeSound = useCallback((id: SoundId) => {
     setSound(id);
-    if (playing) startSound(id, volume);
-  }, [playing, volume, startSound]);
+    startSound(id, volume);
+    setPlaying(true);
+    wasPlaying.current = false;
+  }, [volume, startSound]);
 
   /* Smooth volume ramp */
   const changeVolume = useCallback((v: number) => {
@@ -317,25 +320,12 @@ export function AmbientPlayer() {
     }
   }, []);
 
-  /* Auto-resume on first user interaction if wasPlaying last session */
-  useEffect(() => {
-    if (!pendingPlay) return;
-    const resume = () => {
-      setPending(false);
-      startSound(sound, volume);
-      setPlaying(true);
-      document.removeEventListener("click", resume, true);
-    };
-    document.addEventListener("click", resume, true);
-    return () => document.removeEventListener("click", resume, true);
-  }, [pendingPlay, sound, volume, startSound]);
-
   /* Persist preferences */
   useEffect(() => {
     savePrefs(sound, volume, playing);
   }, [sound, volume, playing]);
 
-  /* Cleanup */
+  /* Cleanup on unmount */
   useEffect(() => {
     return () => {
       stopNodes();
@@ -343,7 +333,7 @@ export function AmbientPlayer() {
     };
   }, [stopNodes]);
 
-  /* Close panel on outside click */
+  /* Close panel on outside click — bubble phase only, no capture */
   const panelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -354,15 +344,15 @@ export function AmbientPlayer() {
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const curr = SOUNDS.find((s) => s.id === sound)!;
-  const isPending = pendingPlay && !playing;
+  const curr      = SOUNDS.find((s) => s.id === sound)!;
+  const showResume = wasPlaying.current && !playing;
 
   return (
-    <div ref={panelRef} className="fixed bottom-[72px] right-3 z-[200] flex flex-col items-end gap-2">
+    <div ref={panelRef} className="fixed bottom-[150px] right-3 z-[200] flex flex-col items-end gap-2">
 
       {/* ── Expanded panel ── */}
       {open && (
-        <div className="w-52 rounded-2xl border border-zinc-200/80 bg-white/96 p-3.5 shadow-xl ring-1 ring-black/[0.04] backdrop-blur-md dark:border-zinc-700/70 dark:bg-zinc-900/96 dark:ring-white/[0.04]">
+        <div className="w-52 rounded-2xl border border-zinc-200/80 bg-white p-3.5 shadow-xl ring-1 ring-black/[0.04] dark:border-zinc-700/70 dark:bg-zinc-900 dark:ring-white/[0.04]">
 
           {/* Sound buttons */}
           <div className="mb-3.5 grid grid-cols-3 gap-1.5">
@@ -422,12 +412,12 @@ export function AmbientPlayer() {
             className={`w-5 select-none text-left text-[10px] font-semibold transition-colors ${
               playing
                 ? "text-zinc-700 dark:text-zinc-200"
-                : isPending
-                  ? "text-amber-500"
+                : showResume
+                  ? "text-amber-500 dark:text-amber-400"
                   : "text-zinc-400 dark:text-zinc-500"
             }`}
           >
-            {playing ? "On" : isPending ? "…" : "Off"}
+            {playing ? "On" : showResume ? "▶" : "Off"}
           </span>
         </button>
 

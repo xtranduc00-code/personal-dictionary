@@ -486,6 +486,16 @@ function SpotifyDockInner({
   useEffect(() => {
     if (sessionState !== "connected_account" || !configured) return;
 
+    /* ── Sync playerRef from global store ──────────────────────────────
+       The previous SpotifyDock (e.g. floating dock on another route) saves
+       its player into the global store during its cleanup effect, which runs
+       AFTER the new component's render phase. So playerRef.current may be
+       null at render time even though hasLivePlayer() returns true by the
+       time this effect executes. Pulling the ref here bridges that gap.   */
+    if (!playerRef.current) {
+      playerRef.current = getGlobalPlayback().player;
+    }
+
     /* ── A single `cancelled` flag shared by fast-path and full init.
        Both paths register their listeners as closures over this flag,
        so the cleanup that fires on unmount silences ALL of them.        */
