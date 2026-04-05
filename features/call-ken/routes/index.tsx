@@ -600,10 +600,6 @@ export function CallKenPage({
                 </label>
               </div>
 
-              <p className="z-10 mt-1 text-center text-sm text-zinc-600 dark:text-zinc-400 sm:text-xs">
-                {LEARNING_MODES.find((m) => m.id === modeId)?.description ??
-                  LEARNING_MODES[0].description}
-              </p>
 
               <div className="z-10 mt-1 flex flex-col items-center gap-2">
                 <AgentSpeakingAvatar

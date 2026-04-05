@@ -20,27 +20,18 @@ export function AppShell({ children }: {
         Boolean(session && micPrecheckDone && meetPathMatchesRoom(pathname, session.displayName));
     const isStandaloneAuth = Boolean(pathname && STANDALONE_AUTH_PATHS.has(pathname));
     const pathSeg = pathname?.split("/").filter(Boolean) ?? [];
-    /** `/watch/:room` — full-bleed giống cuộc gọi full để video rộng tối đa */
     const isWatchPartyRoom = pathSeg[0] === "watch" && pathSeg.length >= 2;
     const isDailyNewsRoute =
         pathname === "/news" ||
         (Boolean(pathname) && pathname.startsWith("/news/"));
     const isSpotifyPage = pathname === "/spotify";
     const isHubGreyShell = isDailyNewsRoute || isSpotifyPage;
-    /** Portfolio landing — full-bleed hero in main; Spotify via sidebar elsewhere. */
     const isPortfolioLanding =
         pathname === "/" || pathname === "/portfolio";
-    /** `/spotify` uses an embedded player — don’t mount a second Web Playback instance. */
     const spotifyDockUnmount = pathname === "/spotify";
-    /**
-     * Home / portfolio: keep the floating dock mounted but invisible so leaving Spotify playing
-     * and opening “/” or “/portfolio” doesn’t disconnect the SDK (unmount used to kill playback).
-     */
-    const spotifyDockVisuallyHidden = isPortfolioLanding;
     const noOuterMainPadding =
         !isStandaloneAuth && (fullMeet || isWatchPartyRoom);
 
-    /** Meet hub + in-call: light-first soft neutrals; dark: immersive shell */
     const isMeetShell =
         pathname === "/call" ||
         pathname.startsWith("/call/") ||
@@ -68,7 +59,7 @@ export function AppShell({ children }: {
       <main className={mainClass}>
         {!isStandaloneAuth ? <MeetPersistentLayer/> : null}
         {!isStandaloneAuth && !spotifyDockUnmount ? (
-          <SpotifyDock visuallyHidden={spotifyDockVisuallyHidden} />
+          <SpotifyDock visuallyHidden={false} />
         ) : null}
         <AuthGate>
           <div className={fullMeet ? "hidden" : "contents"}>

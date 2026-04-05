@@ -11,7 +11,7 @@ export function AgentSpeakingAvatar({
   isSpeaking,
   isCallActive = false,
   className,
-  imageSrc = "https://www.shutterstock.com/editorial/image-editorial/M9TfAb1dO8T1I302NzgwODk=/timothee-chalamet-440nw-10506442ca.jpg",
+  imageSrc = "https://a.pinatafarm.com/1280x720/c2ba90a6a3/ronaldo-drinking.jpg",
   size = "default",
 }: AgentSpeakingAvatarProps) {
   const compact = size === "compact";
@@ -60,7 +60,7 @@ export function AgentSpeakingAvatar({
         <img
           src={imageSrc}
           alt="Male AI avatar"
-          className="h-full w-full object-cover"
+          className="h-full w-full object-cover object-top"
           referrerPolicy="no-referrer"
         />
       </div>
