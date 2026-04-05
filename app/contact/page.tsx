@@ -5,10 +5,10 @@ import { Copy, ExternalLink } from "lucide-react";
 import { useI18n } from "@/components/i18n-provider";
 import { ScrollReveal } from "@/components/portfolio/scroll-reveal";
 const CONTACT_EMAIL = "tranduy10a@gmail.com";
-const GITHUB_HREF = "https://github.com/duytran0209";
-const GITHUB_DISPLAY = "github.com/duytran0209";
-const LINKEDIN_HREF = "https://www.linkedin.com/in/duytran0209/";
-const LINKEDIN_DISPLAY = "linkedin.com/in/duytran0209";
+const GITHUB_HREF = "https://github.com/xtranduc00-code";
+const GITHUB_DISPLAY = "github.com/xtranduc00-code";
+const LINKEDIN_HREF = "https://www.linkedin.com/in/kentuckytran/";
+const LINKEDIN_DISPLAY = "linkedin.com/in/kentuckytran";
 export default function ContactPage() {
     const { t } = useI18n();
     const [copied, setCopied] = useState(false);

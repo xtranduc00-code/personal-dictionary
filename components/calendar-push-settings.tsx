@@ -193,6 +193,8 @@ export function CalendarPushSettings() {
         failed?: number;
         usedSample?: boolean;
         error?: string;
+        ieltsCount?: number;
+        flashcardCount?: number;
       };
       if (res.status === 400 && data.error === "No subscription") {
         toast.info(t("calendarPushTestNoSub"), { containerId: "cal" });
@@ -204,6 +206,9 @@ export function CalendarPushSettings() {
       }
       const sent = data.sent ?? 0;
       const failed = data.failed ?? 0;
+      const ielts = data.ieltsCount ?? 0;
+      const flash = data.flashcardCount ?? 0;
+      const sourceInfo = `(speaking: ${ielts}, vocab: ${flash})`;
       if (failed > 0) {
         toast.warning(
           t("calendarPushTestPartial")
@@ -212,10 +217,13 @@ export function CalendarPushSettings() {
           { containerId: "cal", autoClose: 10000 },
         );
       } else if (data.usedSample) {
-        toast.success(t("calendarPushTestVocabSample"), { containerId: "cal" });
+        toast.info(
+          `${t("calendarPushTestVocabSample")} ${sourceInfo}`,
+          { containerId: "cal", autoClose: 10000 },
+        );
       } else {
         toast.success(
-          t("calendarPushTestVocabOk").replace("{n}", String(sent)),
+          `${t("calendarPushTestVocabOk").replace("{n}", String(sent))} ${sourceInfo}`,
           { containerId: "cal" },
         );
       }

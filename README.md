@@ -1,155 +1,137 @@
 # Ken Workspace
 
-All-in-One productivity app — full-stack personal productivity and **IELTS preparation**: English dictionary, Listening / Reading / Writing / Speaking practice, flashcards, notes, calendar, translation, **Google Drive** integration, and **AI realtime speaking** (voice).
+> A self-built English learning environment — because the best way to get fluent is to build the tools you actually want to use.
 
-Built for production-style deployment (e.g. Vercel + Supabase + OpenAI).
-
----
-
-## For reviewers and instructors
-
-This is a **Next.js** web app (TypeScript). To run it locally:
-
-1. Install **Node.js 20+** (LTS is recommended).
-2. In the project directory: `npm install`
-3. Copy the env template: `cp .env.example .env.local`  
-   You do **not** need every variable filled in to open some routes (e.g. the portfolio). **Sign-in, persisted data, and AI** need Supabase and OpenAI (see the table below).
-4. Run `npm run dev` and open **http://127.0.0.1:3000** (the dev server binds to `127.0.0.1` per `package.json`).
-
-**Database:** the app uses **Supabase (PostgreSQL)**. Your clone may **not** include a `supabase/migrations/` folder. If it is missing, ask the author for migration SQL or use an already configured Supabase project. Example migration names (when applicable) are referenced in comments inside `.env.example`.
+I learn English by reading real news, practicing IELTS, and looking up words mid-sentence. Every feature in this app exists because I needed it and couldn't find exactly what I wanted elsewhere. Over time it grew into a full-stack production app that I use daily.
 
 ---
 
-## Tech stack
+## The story
 
-| Area | Stack |
-|------|--------|
-| Framework | **Next.js** (App Router), **TypeScript**, **Tailwind CSS** |
-| AI | **OpenAI** — definitions, translation, speaking scoring/feedback, realtime voice |
-| Data & auth | **Supabase** (PostgreSQL) — user auth, flashcards, notes, calendar, IELTS speaking topics |
-| Integrations | Google OAuth (Drive), optional R2 for static audio assets |
+Learning a language daily means constantly switching contexts: you read an article, hit an unknown word, look it up, want to save it, come back later to practice it, get distracted, need to refocus. Most tools solve only one of those steps in isolation. This app connects them all.
+
+**You read → you look up → you save → you practice → you focus.**
+
+- **News** (`/news`) is the starting point. Real articles from The Guardian and Engoo Daily News, rendered with zero loading stutter via server-side pre-fetch and HTTP caching. You pick a story, you read it in English.
+
+- **Dictionary & Translate** (`/dictionary`, `/translate`) are the interruption layer — the moment you hit an unfamiliar word mid-article, you query OpenAI for a full definition, example sentences, and a Vietnamese gloss. No tab-switching.
+
+- **Library & History** (`/library`, `/history`) close the loop. Words you look up are saved and browsable, so nothing disappears into the void.
+
+- **Flashcards** (`/flashcards`) turn your saved vocabulary into spaced-repetition review cards backed by Supabase — synced across devices.
+
+- **IELTS suite** (`/listening`, `/ielts-reading`, `/ielts-writing`, `/ielts-speaking`) covers structured exam practice when you want to go beyond passive reading. The speaking module scores your responses with OpenAI.
+
+- **AI Realtime Speaking** (`/real-time-call`) is a live voice conversation with an AI tutor — WebRTC via LiveKit, scored and transcribed in real time.
+
+- **Spotify** (`/spotify`) is the music layer — a full Web Playback SDK integration with OAuth PKCE flow, playlist browser, and a floating dock that survives client-side navigation without losing playback state (a module-level singleton keeps the SDK player alive across route changes).
+
+- **Ambient Sounds** (floating widget, every page) generates Rain, Café, and Ocean noise entirely in the browser using Web Audio API — three layered noise sources (white/pink/brown) with per-layer EQ filters and convolution reverb. No external audio files, no network requests. Good for focusing without lyrics.
+
+- **Notes, Calendar, Study Schedule** (`/notes`, `/calendar`, `/study-schedule`) are the planning layer — Supabase-backed so changes sync across devices.
+
+- **Google Drive** (`/drive`) lets you browse and open your own Drive files without leaving the app. OAuth scoped to read-only.
 
 ---
 
-## Prerequisites
+## Tech highlights (for technical reviewers)
 
-- **Node.js 20+** (LTS recommended)
-- **npm** (bundled with Node)
+| Concern | Approach |
+|---------|----------|
+| Framework | Next.js 15 App Router, React 19, TypeScript |
+| Styling | Tailwind CSS |
+| Auth & data | Supabase (PostgreSQL + Row Level Security) |
+| AI | OpenAI — definitions, scoring, realtime voice (WebRTC) |
+| Music | Spotify Web Playback SDK — PKCE OAuth, module-level player singleton to survive navigation |
+| Audio synthesis | Web Audio API — multi-layer noise (white/pink/brown) + BiquadFilter EQ + convolution reverb |
+| Performance | Async Server Components + in-memory cache + `Cache-Control: s-maxage` headers — news list loads with zero client waterfall |
+| Realtime voice | LiveKit WebRTC + OpenAI Realtime API |
+| Google OAuth | Drive read-only via NextAuth |
+| Deployment target | Vercel + Supabase + optional Cloudflare R2 |
 
 ---
 
-## Getting started (local)
+## Running locally
 
-### 1. Install & env file
+### 1. Install dependencies
 
 ```bash
 npm install
 cp .env.example .env.local
 ```
 
-Edit `.env.local` as needed. **Per-variable documentation** is in `.env.example` (comments).
+Edit `.env.local` — every variable is documented with comments in `.env.example`.
 
-**Typical minimum for full local feature testing:**
+### 2. Minimum env to open the app
 
-| Purpose | Variables (see `.env.example` for details) |
-|---------|---------------------------------------------|
-| Auth + cloud data | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
-| AI APIs (dictionary, translation, speaking, …) | `OPENAI_API_KEY` |
-| Avatar uploads with Storage RLS | `SUPABASE_JWT_SECRET` (+ `/api/auth/storage-jwt` flow) |
-| Server-side DB writes when RLS blocks anon | `SUPABASE_SERVICE_ROLE_KEY` — **server only**, never in client code |
-| Google Drive OAuth | `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` (+ `/api/drive-auth/callback/google` URIs for host/port) |
-| Video calls (LiveKit) | `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `NEXT_PUBLIC_LIVEKIT_URL` |
+| Feature | Required vars |
+|---------|---------------|
+| Auth + synced data | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
+| AI (dictionary, translate, speaking) | `OPENAI_API_KEY` |
+| Spotify | `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_TOKEN_ENCRYPTION_KEY` |
+| Google Drive | `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` |
+| Realtime voice calls | `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `NEXT_PUBLIC_LIVEKIT_URL` |
+| Avatar uploads | `SUPABASE_JWT_SECRET`, `SUPABASE_SERVICE_ROLE_KEY` |
 
-### 2. Database (Supabase)
+Most routes degrade gracefully — the portfolio, news, dictionary, and ambient player all work without Supabase.
 
-1. Create a project on [Supabase](https://supabase.com) and copy the URL, anon key, and service role if needed.
-2. In the **SQL Editor**, run migration files **in filename order** (timestamp ascending) **if** `supabase/migrations/` exists in your clone.  
-   - Example filenames are referenced in `.env.example` comments (auth password, email, avatar storage, etc.).  
-   - If the repo has **no** migrations folder, you need the SQL bundle from the author — the schema cannot be recreated from this README alone.
+### 3. Database
 
-3. Password reset via email: set `RESEND_API_KEY` (and `AUTH_EMAIL_FROM` in production) — see `.env.example`.
+Create a Supabase project, copy your URL + anon key, and run the migration files (if present in `supabase/migrations/`) in timestamp order via the SQL Editor. If the migrations folder is missing from your clone, contact the author for the SQL bundle.
 
-### 3. Run dev server
+### 4. Start the dev server
 
 ```bash
 npm run dev
 ```
 
-App: **http://127.0.0.1:3000** (or the URL printed in the terminal).
-
-### 4. Drive UI styles (only if you edit Drive feature CSS)
-
-```bash
-npm run build:drive-css
-```
+Opens at **http://127.0.0.1:3000** (bound to `127.0.0.1` by default).
 
 ---
 
-## What works without optional services?
+## Route map
 
-- **Portfolio / some mostly static pages:** often usable with minimal env.
-- **Sign-in, notes, flashcards, calendar, server-backed IELTS:** need Supabase + migrations.
-- **AI speaking, scoring, realtime:** need `OPENAI_API_KEY` (and the corresponding realtime setup).
-- **Google Drive in the app:** need Google OAuth + `AUTH_SECRET`.
-- **`/call` (video rooms):** need LiveKit env vars.
-
----
-
-## Application routes (overview)
-
-| Path | Purpose |
-|------|---------|
-| `/` | Portfolio landing |
-| `/dictionary`, `/translate`, `/library`, `/history` | Vocabulary and lookup history |
-| `/listening`, `/ielts-reading`, `/ielts-writing`, `/ielts-speaking` | IELTS skills |
-| `/real-time-call` | AI speaking (realtime) — implementation in `features/call-ken/` |
-| `/drive` | Embedded Google Drive browser |
-| `/flashcards`, `/notes`, `/calendar` | Study tools |
-
-Realtime voice needs `/api/realtime-client-secret` and a valid `OPENAI_API_KEY`.
-
----
-
-## Repository structure
-
-| Directory | Role |
-|-----------|------|
-| `app/` | Next.js routes, layouts, and `app/api/*` route handlers |
-| `components/` | Shared UI (navigation, modals, editors, IELTS UI) |
-| `lib/` | Shared logic, content data, utilities |
-| `features/` | **Feature modules** (isolated code paths); see below |
-| `supabase/` | SQL schema / migrations **when present in your clone** |
-
-### Feature modules (`features/`)
-
-Self-contained slices (e.g. **Call Ken**, **Google Drive**). Typical layout per feature:
-
-- `components/` — UI scoped to that feature  
-- `lib/` — Hooks, helpers, API helpers  
-- `routes/` or entry — Main screen exported into `app/`  
-- `styles/` — Feature CSS when needed  
-
-**Import path:** `@/features/<feature-name>/...`  
-Example: `@/features/call-ken/routes/index`
-
-**Adding a new feature:** create `features/<your-feature>/` with the folders above, then add a route under `app/` that imports from `@/features/<your-feature>/...`.
+| Path | What it does |
+|------|--------------|
+| `/` | Portfolio / landing |
+| `/news` | News feed — Guardian (world/sport) + Engoo Daily News |
+| `/dictionary` | Word lookup with AI definitions and examples |
+| `/translate` | Sentence-level translation with OpenAI |
+| `/library`, `/history` | Saved words and lookup history |
+| `/flashcards` | Spaced-repetition vocabulary cards (Supabase) |
+| `/listening` | IELTS Listening practice |
+| `/ielts-reading` | IELTS Reading practice |
+| `/ielts-writing` | IELTS Writing practice |
+| `/ielts-speaking` | IELTS Speaking practice with AI scoring |
+| `/real-time-call` | Live AI voice conversation (LiveKit + OpenAI Realtime) |
+| `/spotify` | Spotify player — full Web Playback SDK integration |
+| `/notes` | Markdown notes (Supabase) |
+| `/calendar` | Study calendar (Supabase) |
+| `/study-schedule` | Weekly study planner |
+| `/drive` | Google Drive browser (OAuth, read-only) |
+| `/profile` | User settings and avatar |
 
 ---
 
-## Operational notes
-
-- With Supabase env vars set and the user signed in, data syncs across devices; some paths degrade to browser storage if Supabase is unavailable.
-- **IELTS test content** is for personal/educational use; respect Cambridge and publisher terms if you redistribute or commercialise.
-
----
-
-## Scripts (reference)
+## Scripts
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Development server (`127.0.0.1`) |
+| `npm run dev` | Dev server at `127.0.0.1:3000` |
 | `npm run build` | Production build |
 | `npm run start` | Start production server |
 | `npm run lint` | ESLint |
-| `npm run build:drive-css` | Rebuild `public/gdrive/drive.css` from Drive feature sources |
-| `npm run hash-password` | One-off: hash a password for seeding / support (see script usage) |
+| `npm run build:drive-css` | Rebuild `public/gdrive/drive.css` |
+| `npm run hash-password` | Hash a password for seeding/support |
+
+---
+
+## Repository layout
+
+```
+app/          — Next.js routes and API route handlers
+components/   — Shared UI components
+lib/          — Shared logic, utilities, API helpers
+features/     — Self-contained feature modules (e.g. call-ken, drive)
+supabase/     — SQL migrations (when present)
+```

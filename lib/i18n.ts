@@ -769,7 +769,7 @@ export const translations = {
       "That device subscription was tied to old VAPID keys and was cleared. Click Turn on notifications again (after restarting dev server if you changed .env).",
     calendarPushTestNoSub: "Turn on notifications first.",
     calendarPushVocabHint:
-      "Vocabulary is included: with notifications on, the same server job sends up to two word reminders about every 10 minutes — from IELTS Speaking topic lists and from your Vocabulary notes (flashcards). Use “Test vocabulary” to verify.",
+      "Words are pulled from 2 sources: (1) IELTS Speaking topic vocab, and (2) Vocabulary notes (flashcards). Up to 2 words every ~10 min. Use “Test vocabulary” to verify both sources.",
     calendarPushTestVocab: "Test vocabulary",
     calendarPushTestVocabOk: "Vocabulary test sent ({n}).",
     calendarPushTestVocabSample:
@@ -2223,7 +2223,7 @@ export const translations = {
       "Subscription thiết bị gắn với VAPID cũ đã bị xóa. Bấm Bật thông báo lại (sau khi restart dev server nếu vừa đổi .env).",
     calendarPushTestNoSub: "Bật thông báo trước.",
     calendarPushVocabHint:
-      "Từ vựng được gộp chung: khi bật thông báo, server gửi tối đa hai từ khoảng mỗi 10 phút — lấy từ chủ đề IELTS Speaking và từ Ghi chú từ vựng (flashcard). Bấm «Thử từ vựng» để kiểm tra.",
+      "Từ lấy từ 2 nguồn: (1) từ vựng chủ đề IELTS Speaking, và (2) Ghi chú từ vựng (flashcard). Tối đa 2 từ mỗi ~10 phút. Bấm «Thử từ vựng» để kiểm tra cả hai nguồn.",
     calendarPushTestVocab: "Thử từ vựng",
     calendarPushTestVocabOk: "Đã gửi thử từ vựng ({n}).",
     calendarPushTestVocabSample:

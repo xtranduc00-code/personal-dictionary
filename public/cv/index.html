@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Duy Tran Duc – CV</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ink:      #111827;
+      --muted:    #4b5563;
+      --light:    #9ca3af;
+      --accent:   #1d4ed8;
+      --rule:     #e5e7eb;
+      --page-w:   210mm;
+      --page-h:   297mm;
+      --pad-x:    18mm;
+      --pad-y:    12mm;
+    }
+
+    html, body {
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 9.2pt;
+      line-height: 1.45;
+      color: var(--ink);
+      background: #f3f4f6;
+    }
+
+    /* ── Page shell ── */
+    .page {
+      width: var(--page-w);
+      min-height: var(--page-h);
+      margin: 24px auto;
+      background: #fff;
+      padding: var(--pad-y) var(--pad-x);
+      box-shadow: 0 4px 24px rgba(0,0,0,.10);
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1.5px solid var(--ink);
+    }
+    .name-block h1 {
+      font-size: 18pt;
+      font-weight: 700;
+      letter-spacing: -.5px;
+      line-height: 1.1;
+      white-space: nowrap;
+    }
+    .name-block .title {
+      font-size: 9.5pt;
+      font-weight: 500;
+      color: var(--accent);
+      margin-top: 2px;
+      white-space: nowrap;
+    }
+    .contact-block {
+      text-align: right;
+      font-size: 8.5pt;
+      color: var(--muted);
+      line-height: 1.7;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 0 10px;
+    }
+    .contact-block span.sep { color: var(--rule); }
+    .contact-block a {
+      color: var(--muted);
+      text-decoration: none;
+    }
+    .contact-block a:hover { color: var(--accent); }
+
+    /* ── Section ── */
+    section { margin-top: 10px; }
+    .section-title {
+      font-size: 8pt;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      border-bottom: 1px solid var(--rule);
+      padding-bottom: 2px;
+      margin-bottom: 6px;
+    }
+
+    /* ── Summary ── */
+    .summary p {
+      color: var(--muted);
+      max-width: 100%;
+    }
+
+    /* ── Skills grid ── */
+    .skills-grid {
+      display: grid;
+      grid-template-columns: 90px 1fr;
+      row-gap: 3px;
+      column-gap: 8px;
+    }
+    .skill-label {
+      font-weight: 600;
+      color: var(--ink);
+      white-space: nowrap;
+    }
+    .skill-value { color: var(--muted); }
+
+    /* ── Experience & Projects ── */
+    .entry { margin-bottom: 7px; }
+    .entry:last-child { margin-bottom: 0; }
+
+    .entry-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+    }
+    .entry-title {
+      font-weight: 700;
+      font-size: 9.5pt;
+    }
+    .entry-org {
+      font-weight: 500;
+      color: var(--muted);
+    }
+    .entry-date {
+      font-size: 8.5pt;
+      color: var(--light);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .entry-sub {
+      font-size: 8.5pt;
+      color: var(--muted);
+      margin-bottom: 3px;
+    }
+
+    ul.bullets {
+      list-style: none;
+      padding-left: 0;
+      margin: 2px 0 0;
+    }
+    ul.bullets li {
+      position: relative;
+      padding-left: 11px;
+      color: var(--muted);
+      margin-bottom: 1px;
+    }
+    ul.bullets li::before {
+      content: '›';
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    ul.bullets li strong {
+      color: var(--ink);
+      font-weight: 600;
+    }
+    .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+    .tag {
+      font-size: 7.5pt;
+      font-weight: 600;
+      background: #eff6ff;
+      color: #1d4ed8;
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    /* ── Education ── */
+    .edu-entry {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 4px;
+    }
+    .edu-left .degree { font-weight: 700; }
+    .edu-left .school { font-size: 8.5pt; color: var(--muted); }
+    .edu-right {
+      font-size: 8.5pt;
+      color: var(--light);
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    /* ── Print ── */
+    @media print {
+      html, body { background: #fff; }
+      .page {
+        width: 100%;
+        min-height: 0;
+        margin: 0;
+        padding: var(--pad-y) var(--pad-x);
+        box-shadow: none;
+      }
+      @page { size: A4; margin: 0; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ══════════════════════════════ HEADER ══════════════════════════════ -->
+  <header>
+    <div class="name-block">
+      <h1>Duy Tran Duc</h1>
+      <div class="title">Full-Stack Developer</div>
+    </div>
+    <div class="contact-block">
+      <span>Brno, Czech Republic</span>
+      <span class="sep">·</span>
+      <a href="mailto:tranduy10a@gmail.com">tranduy10a@gmail.com</a>
+      <span class="sep">·</span>
+      <a href="https://linkedin.com/in/kentuckytran" target="_blank">linkedin.com/in/kentuckytran</a>
+      <span class="sep">·</span>
+      <a href="https://github.com/xtranduc00-code" target="_blank">github.com/xtranduc00-code</a>
+      <span class="sep">·</span>
+      <a href="https://kenworkspace.com" target="_blank">kenworkspace.com</a>
+    </div>
+  </header>
+
+  <!-- ══════════════════════════════ SUMMARY ══════════════════════════════ -->
+  <section class="summary">
+    <div class="section-title">Profile</div>
+    <p>
+      Full-stack developer with 3+ years building production web applications in React and Next.js.
+      Hands-on experience integrating AI and real-time features — including OpenAI voice interactions,
+      WebRTC sessions, and push notification pipelines. Passionate about shipping polished,
+      user-facing products and continuously learning through personal projects.
+    </p>
+  </section>
+
+  <!-- ══════════════════════════════ SKILLS ══════════════════════════════ -->
+  <section>
+    <div class="section-title">Technical Skills</div>
+    <div class="skills-grid">
+      <span class="skill-label">Languages</span>
+      <span class="skill-value">TypeScript, JavaScript, Python, Java, C++</span>
+
+      <span class="skill-label">Frontend</span>
+      <span class="skill-value">Next.js 14, React 18, Redux Toolkit, Tailwind CSS, SCSS, Material UI</span>
+
+      <span class="skill-label">Backend & DB</span>
+      <span class="skill-value">Node.js, Express, Supabase (PostgreSQL), Firebase, REST APIs</span>
+
+      <span class="skill-label">AI / Real-time</span>
+      <span class="skill-value">OpenAI API (GPT-4, TTS, Whisper), LiveKit WebRTC, Web Audio API, Web Push</span>
+
+      <span class="skill-label">Tools</span>
+      <span class="skill-value">Git, GitHub, Vercel, Netlify, Docker, Figma, Jira</span>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════ EXPERIENCE ══════════════════════════════ -->
+  <section>
+    <div class="section-title">Experience</div>
+
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-title">Freelance Programming Tutor</span>
+        <span class="entry-date">Dec 2024 – Present</span>
+      </div>
+      <div class="entry-sub">Self-employed · Remote</div>
+      <ul class="bullets">
+        <li>Tutored university students in Java, Python, C++, and full-stack web development</li>
+        <li>Prepared custom exercises and code-review sessions tailored to each student's level</li>
+      </ul>
+    </div>
+
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-title">Programming Instructor</span>
+        <span class="entry-date">Sep 2023 – Nov 2024</span>
+      </div>
+      <div class="entry-sub">Rikkei Academy · Vietnam (Remote)</div>
+      <ul class="bullets">
+        <li>Taught full-stack web development using JavaScript, React, and Node.js</li>
+        <li>Designed course curriculum, lab exercises, and grading rubrics from scratch</li>
+        <li>Guided students through end-to-end capstone projects: requirements → deployment</li>
+        <li>Built demo apps and starter templates used as live teaching material in class</li>
+      </ul>
+    </div>
+
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-title">Teaching Assistant</span>
+        <span class="entry-date">Jun 2022 – Sep 2023</span>
+      </div>
+      <div class="entry-sub">MindX Technology School · Vietnam</div>
+      <ul class="bullets">
+        <li>Delivered courses in Scratch, Python, and HTML/CSS/JS to student groups</li>
+        <li>Built small demo projects during lessons to illustrate concepts hands-on</li>
+      </ul>
+    </div>
+
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-title">Frontend Developer Intern</span>
+        <span class="entry-date">Jun – Dec 2022</span>
+      </div>
+      <div class="entry-sub">Success Software Services · Vietnam</div>
+      <ul class="bullets">
+        <li>Implemented UI components and feature pages using React, Next.js, and TypeScript</li>
+        <li>Collaborated in an Agile team with Git branching, code reviews, and Jira sprint tracking</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════ PROJECTS ══════════════════════════════ -->
+  <section>
+    <div class="section-title">Projects</div>
+
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-title">Personal Productivity & IELTS Learning Platform</span>
+        <span class="entry-date">Jan 2026 – Present</span>
+      </div>
+      <div class="entry-sub">
+        <a href="https://kenworkspace.com" style="color:inherit;text-decoration:none;">kenworkspace.com</a>
+        &nbsp;·&nbsp;
+        <a href="https://github.com/xtranduc00-code" style="color:inherit;text-decoration:none;">GitHub</a>
+      </div>
+      <ul class="bullets">
+        <li><strong>Architecture:</strong> Full-stack PWA (Next.js 14 App Router, TypeScript, Tailwind CSS, Supabase/PostgreSQL). Custom session-based auth with password reset. Deployed on Vercel with Netlify fallback cron.</li>
+        <li><strong>AI Voice Tutor:</strong> Real-time conversational English tutor using OpenAI Realtime API over WebRTC via LiveKit. Lipsync 3D avatar with phoneme-to-viseme mapping and animated mouth shapes synced to speech output in real time.</li>
+        <li><strong>IELTS Suite:</strong> Full four-skill practice platform — Speaking (per-topic vocab, AI-scored free responses), Reading and Listening (Cambridge CAM 10–19 papers with timed audio and highlight tools), and Writing (essay prompts with AI feedback).</li>
+        <li><strong>Engoo & Guardian News:</strong> Fetches live English articles with per-word vocabulary, phonetics, and karaoke-style audio. Guardian Content API with full in-app reader. Both integrate directly with the AI voice tutor for a reading–discussion session. Supports EPUB/Kindle export.</li>
+        <li><strong>Study Kit:</strong> AI-powered document summariser that generates structured notes and quizzes from uploaded content. Tracks session history and lets users save topic sets for repeated review.</li>
+        <li><strong>Watch Together:</strong> Synchronised video watching room — users can watch the same content simultaneously with shared playback controls, enabling a real-time co-watching experience.</li>
+        <li><strong>Meets:</strong> In-app video/audio call feature for live tutoring or conversation practice sessions between users.</li>
+        <li><strong>Spotify Integration:</strong> Embedded Spotify Web Playback SDK with a persistent cross-page mini player. Playback state maintained through a global singleton. Includes playlist browser, track search, and a drag-to-dock floating player.</li>
+        <li><strong>Push Notification Pipeline:</strong> Service worker + VAPID Web Push. Server-side cron (Vercel, every minute) delivers vocabulary word reminders every 10 min, calendar event alerts (15 min / 1 hr / 1 day offsets), and study schedule notifications — all deduplicated via Supabase.</li>
+        <li><strong>Google Drive Integration:</strong> Connected Google Drive dashboard with file browsing across folders, documents, images, and media. Supports starred items and in-app preview.</li>
+        <li><strong>Language Tools:</strong> Built-in dictionary, translator, and personal library for saving and reviewing words and translations.</li>
+        <li><strong>Productivity:</strong> Calendar with timezone-aware event management, shared study schedule grid, rich-text Notes with folder tree and labels, Diary with highlight-to-flashcard flow, and a Vocabulary flashcard system with set management.</li>
+      </ul>
+      <div class="tags">
+        <span class="tag">Next.js 14</span>
+        <span class="tag">TypeScript</span>
+        <span class="tag">Supabase</span>
+        <span class="tag">OpenAI Realtime API</span>
+        <span class="tag">LiveKit WebRTC</span>
+        <span class="tag">Spotify SDK</span>
+        <span class="tag">Web Push</span>
+        <span class="tag">Google Drive API</span>
+        <span class="tag">Tailwind CSS</span>
+        <span class="tag">Vercel</span>
+        <span class="tag">PWA</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════ EDUCATION ══════════════════════════════ -->
+  <section>
+    <div class="section-title">Education</div>
+
+    <div class="edu-entry">
+      <div class="edu-left">
+        <div class="degree">MSc Information Technology</div>
+        <div class="school">Brno University of Technology · Czech Republic</div>
+      </div>
+      <div class="edu-right">2026 – Expected 2028</div>
+    </div>
+
+    <div class="edu-entry">
+      <div class="edu-left">
+        <div class="degree">Bachelor of E-Commerce</div>
+        <div class="school">Vietnam National University · Vietnam</div>
+      </div>
+      <div class="edu-right">2018 – 2022</div>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>

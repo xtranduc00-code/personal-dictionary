@@ -437,6 +437,10 @@ export type VocabTestPushResult = {
   skipped: string;
   /** True when no IELTS/flashcard vocab existed — a help payload was sent instead. */
   usedSample: boolean;
+  /** Number of IELTS speaking topic vocab items found. */
+  ieltsCount?: number;
+  /** Number of user flashcard vocab items found. */
+  flashcardCount?: number;
 };
 
 /**
@@ -527,6 +531,13 @@ export async function sendVocabTestPushToUser(
     }
   }
 
-  return { sent, failed, skipped: "", usedSample };
+  return {
+    sent,
+    failed,
+    skipped: "",
+    usedSample,
+    ieltsCount: ieltsWords.length,
+    flashcardCount: userWords.length,
+  };
 }
 

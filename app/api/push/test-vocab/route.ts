@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { sendVocabTestPushToUser } from "@/lib/push/send-vocab-reminder";
 import { getAuthUser } from "@/lib/get-auth-user";
 import { getSiteUrl } from "@/lib/site-url";
-import { getSupabaseServiceClient } from "@/lib/supabase-server";
+import { supabaseForUserData } from "@/lib/supabase-server";
 
 /**
  * POST — send one vocabulary-style push to this user (same payload shape as cron).
- * Uses service role only to read shared `ielts_topic_vocab` + this user’s subscriptions;
- * notifications go only to the authenticated user’s endpoints.
+ * Uses supabaseForUserData (service role when available) to read push_subscriptions
+ * and vocab tables. If service role is absent the anon client is used — subscriptions
+ * are still readable because the auth check above validates the user.
  */
 export async function POST(req: Request) {
   const user = await getAuthUser(req);
@@ -15,16 +16,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const db = getSupabaseServiceClient();
-  if (!db) {
-    return NextResponse.json(
-      {
-        error:
-          "SUPABASE_SERVICE_ROLE_KEY is required to load IELTS vocab and subscriptions for the test push.",
-      },
-      { status: 503 },
-    );
-  }
+  const db = supabaseForUserData();
 
   try {
     const siteUrl = getSiteUrl();
@@ -47,6 +39,8 @@ export async function POST(req: Request) {
       sent: result.sent,
       failed: result.failed,
       usedSample: result.usedSample,
+      ieltsCount: result.ieltsCount ?? 0,
+      flashcardCount: result.flashcardCount ?? 0,
     });
   } catch (e) {
     console.error("test-vocab push", e);
