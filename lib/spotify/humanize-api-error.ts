@@ -1,0 +1,174 @@
+import type { TranslationKey } from "@/lib/i18n";
+
+type Translate = (key: TranslationKey) => string;
+
+type SpotifyErrShape = {
+  error?: { message?: string; status?: number; reason?: string } | string;
+  message?: string;
+};
+
+/** Pull a human message out of Spotify/Web API error bodies (JSON or plain). */
+export function extractSpotifyApiMessage(raw: string): string {
+  const s = raw.trim();
+  if (!s.startsWith("{")) return s.slice(0, 400);
+  try {
+    const o = JSON.parse(s) as SpotifyErrShape;
+    if (typeof o.error === "object" && o.error && "message" in o.error) {
+      const m = o.error.message;
+      if (typeof m === "string" && m.length > 0) return m;
+    }
+    if (typeof o.error === "string") return o.error;
+    if (typeof o.message === "string") return o.message;
+  } catch {
+    /* ignore */
+  }
+  return s.slice(0, 400);
+}
+
+/** Parsed Spotify error — avoids treating raw JSON (with "403" inside) as user-facing text. */
+export function parseSpotifyError(raw: string): {
+  message: string;
+  httpStatus?: number;
+} {
+  const s = raw.trim();
+  if (!s.startsWith("{")) {
+    return { message: s.slice(0, 400) };
+  }
+  try {
+    const o = JSON.parse(s) as SpotifyErrShape;
+    if (typeof o.error === "object" && o.error) {
+      const m = o.error.message;
+      const st = o.error.status;
+      if (typeof m === "string" && m.length > 0) {
+        return {
+          message: m,
+          httpStatus: typeof st === "number" ? st : undefined,
+        };
+      }
+      if (typeof st === "number") {
+        return { message: "", httpStatus: st };
+      }
+    }
+    if (typeof o.error === "string" && o.error.length > 0) {
+      return { message: o.error };
+    }
+    if (typeof o.message === "string" && o.message.length > 0) {
+      return { message: o.message };
+    }
+  } catch {
+    /* fall through */
+  }
+  return { message: s.slice(0, 400) };
+}
+
+/** True when Spotify text clearly means catalog / geo / account restriction (not generic HTTP Forbidden). */
+function isExplicitRestriction(lower: string): boolean {
+  return (
+    /restriction|not available in your market|not playable in your country|region locked|playback_restricted|content unavailable|victim of account/i.test(
+      lower,
+    )
+  );
+}
+
+/** Playlist / search / non-playback Web API errors. */
+export function humanizeSpotifyApiErrorText(raw: string, t: Translate): string {
+  if (!raw.trim()) return t("spotifyErrGenericRequest");
+
+  const { message: msg, httpStatus } = parseSpotifyError(raw);
+  const lower = msg.toLowerCase();
+
+  if (/invalid limit/i.test(msg)) return t("spotifyErrInvalidLimit");
+  if (/device not found/i.test(lower)) return t("spotifyErrDeviceNotFound");
+  if (/premium|subscription|not available for your country/i.test(msg)) {
+    return t("spotifyPlayerAccountError");
+  }
+  if (/rate limit|429|too many requests/i.test(lower)) {
+    return t("spotifyErrRateLimited");
+  }
+
+  if (isExplicitRestriction(lower)) {
+    return t("spotifyErrPlaybackRestricted");
+  }
+
+  if (httpStatus === 403 && msg.length === 0) {
+    return t("spotifyErrPlaylistTracksRefused");
+  }
+
+  if (
+    msg.length > 0 &&
+    msg.length < 220 &&
+    !msg.includes("{") &&
+    !msg.includes("}")
+  ) {
+    return msg;
+  }
+
+  if (httpStatus === 403) {
+    return t("spotifyErrPlaylistTracksRefused");
+  }
+
+  return t("spotifyErrGenericRequest");
+}
+
+/**
+ * PUT /me/player/play and related playback commands.
+ * Spotify often returns 403 + message "Forbidden" for device/context issues — NOT account/region.
+ */
+export function humanizeSpotifyPlaybackApiError(raw: string, t: Translate): string {
+  if (!raw.trim()) return t("spotifyErrGenericRequest");
+
+  const { message: msg, httpStatus } = parseSpotifyError(raw);
+  const lower = msg.toLowerCase();
+
+  if (/invalid limit/i.test(msg)) return t("spotifyErrInvalidLimit");
+
+  if (
+    /device not found|no active device|device id not found|not active|player command failed:\s*no active|the requested resource could not be found/i.test(
+      lower,
+    )
+  ) {
+    return t("spotifyErrDeviceNotFound");
+  }
+
+  if (/premium|subscription|not available for your country|only premium/i.test(lower)) {
+    return t("spotifyPlayerAccountError");
+  }
+
+  if (/rate limit|429|too many requests/i.test(lower)) {
+    return t("spotifyErrRateLimited");
+  }
+
+  if (isExplicitRestriction(lower)) {
+    return t("spotifyErrPlaybackRestricted");
+  }
+
+  if (httpStatus === 404) {
+    return t("spotifyErrDeviceNotFound");
+  }
+
+  /**
+   * Generic 403 from play endpoint — usually device inactive, scope edge, or transient refusal.
+   * Do NOT label as "account or region" unless isExplicitRestriction matched.
+   */
+  if (httpStatus === 403) {
+    if (msg.length > 0 && msg.length < 180 && !msg.includes("{")) {
+      if (lower === "forbidden" || lower === "access denied") {
+        return t("spotifyErrPlaybackForbiddenGeneric");
+      }
+    }
+    return msg.length > 0 && msg.length < 220 && !msg.includes("{")
+      ? msg
+      : t("spotifyErrPlaybackForbiddenGeneric");
+  }
+
+  if (
+    msg.length > 0 &&
+    msg.length < 220 &&
+    !msg.includes("{") &&
+    !msg.includes("}")
+  ) {
+    return msg;
+  }
+
+  return t("spotifyErrGenericRequest");
+}

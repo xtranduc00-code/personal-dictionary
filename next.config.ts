@@ -39,6 +39,8 @@ const nextConfig: NextConfig = {
                 hostname: "ichef.bbci.co.uk",
                 pathname: "/**",
             },
+            { protocol: "https", hostname: "i.scdn.co", pathname: "/**" },
+            { protocol: "https", hostname: "mosaic.scdn.co", pathname: "/**" },
         ],
     },
     experimental: {

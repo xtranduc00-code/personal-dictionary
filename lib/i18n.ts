@@ -651,6 +651,95 @@ export const translations = {
     calendarQuickAddSave: "Add",
     calendarQuickAddFullForm: "Full form…",
     calendarSearchPlaceholder: "Search name, notes, or date (YYYY-MM-DD)…",
+    spotifyNav: "Spotify",
+    spotifyPageTitle: "Spotify",
+    spotifyPageSubtitle:
+      "Connect your account, browse your playlists, and play in the browser (Premium).",
+    spotifyConnectCardEyebrow: "Integration",
+    spotifyConnectCardTitle: "Spotify",
+    spotifyConnectCardSubtitle:
+      "Link your account to open your playlists, pick songs, and use the in-browser player without leaving Ken Workspace.",
+    spotifyConnectBenefit1:
+      "In-browser playback with the official Web Playback experience",
+    spotifyConnectBenefit2: "Open any playlist and play tracks from your library",
+    spotifyConnectBenefit3: "Works with Spotify Premium for streaming in the browser",
+    spotifyConnectSecureNote:
+      "Secure OAuth connection. We never receive or store your Spotify password.",
+    spotifyConfigureEnvHint:
+      "Spotify is not configured (set SPOTIFY_CLIENT_ID on the server).",
+    spotifyConnect: "Connect Spotify",
+    spotifyPopupBlocked:
+      "Popup blocked — continuing in this tab instead.",
+    spotifyConnectFailed: "Spotify connection failed",
+    spotifyConnectedToast: "Spotify connected.",
+    spotifyDisconnectedToast: "Spotify disconnected.",
+    spotifyPlayerInitError: "Could not start Spotify player (Premium required in browser).",
+    spotifyWaitForDevice: "Connecting player… try again in a second.",
+    spotifyPlayFailed: "Could not start playback.",
+    spotifyNoTrack: "Nothing playing",
+    spotifyExpandPanel: "Playlists",
+    spotifyCollapsePanel: "Hide panel",
+    spotifyDisconnect: "Disconnect Spotify",
+    spotifyDockDragHint: "Drag to move",
+    spotifySearchTab: "Search",
+    spotifyPlaylistsTab: "Playlists",
+    spotifySearchPlaceholder: "Tracks & playlists…",
+    spotifySearchTracksHeading: "Tracks",
+    spotifySearchEmpty: "No results.",
+    spotifySearchModeAll: "All",
+    spotifySearchModeTracks: "Tracks",
+    spotifySearchModePlaylists: "Playlists",
+    spotifySearchResultsPlaylists: "Playlist matches",
+    spotifySearchFailed: "Spotify search failed. Try again.",
+    spotifyErrInvalidLimit:
+      "Search hit a temporary limit. Please try again in a moment.",
+    spotifyErrDeviceNotFound:
+      "The Spotify player wasn’t ready. Wait a second and try again, or make sure this browser tab is your active player.",
+    spotifyErrPlaybackRestricted:
+      "Spotify blocked this action for your account or region.",
+    spotifyErrPlaylistTracksRefused:
+      "Spotify wouldn’t open this playlist’s track list (permissions or catalog). Try another playlist — the in-browser player can still play music.",
+    spotifyErrPlaybackForbiddenGeneric:
+      "Spotify didn’t start playback on this device (often the web player wasn’t active yet). Wait a moment and try again, or pick another track.",
+    spotifyErrRateLimited:
+      "Too many requests to Spotify. Please wait a moment and try again.",
+    spotifyErrGenericRequest:
+      "Something went wrong. Please try again.",
+    spotifySearchEmptyTitle: "No results found",
+    spotifySearchEmptySubtitle:
+      "Try different words, another filter, or check spelling.",
+    spotifySearchTypeHint:
+      "Type at least 2 characters. Use All, Tracks, or Playlists to choose what to search — Playlists finds public playlists by name.",
+    spotifyPlaylistsEmpty:
+      "No playlists found. Create some in the Spotify app, or check you’re logged into the right account.",
+    spotifyPlaylistsLoadFailed: "Could not load playlists.",
+    spotifyPlaylistLibraryHeading: "Your playlists",
+    spotifyPlaylistTracksHeading: "Tracks",
+    spotifyPlaylistSelectHint:
+      "Choose a playlist on the left to see all of its songs here.",
+    spotifyPlaylistTracksEmpty:
+      "No playable tracks in this playlist.",
+    spotifySessionExpiredReconnect:
+      "Spotify session is invalid or expired. Please connect again (e.g. after changing SPOTIFY_TOKEN_ENCRYPTION_KEY).",
+    spotifyReconnect: "Reconnect Spotify",
+    spotifyConnectedPendingVerification:
+      "Sign-in finished, but the server could not verify your Spotify session. Try connecting again.",
+    spotifyPlayerAccountError:
+      "Spotify Premium is required for in-browser playback.",
+    spotifyPlaybackErrorToast: "Spotify reported a playback error.",
+    spotifyPlaybackErrorHint: "Playback issue — try another track or reconnect.",
+    spotifyCheckingSession: "Checking Spotify session…",
+    spotifySessionTransientHint:
+      "Spotify didn’t respond in time (network or a brief outage). We’ll keep retrying — you usually don’t need to log in again. Use Reconnect only if this persists.",
+    spotifySessionRetryNow: "Try now",
+    spotifySessionRecoveredToast: "Spotify session refreshed.",
+    spotifySearchPickToPlay: "Tap a row to play that track or playlist.",
+    spotifySearchPlaylistBy: "by {owner}",
+    spotifyPlayerShuffle: "Shuffle",
+    spotifyPlayerRepeat: "Repeat: off / playlist / one track",
+    spotifyPlayerSeek: "Seek",
+    spotifySearchPlaylistNotForSongs:
+      "Looking for a song (e.g. “Talking to the Moon”)? Use Tracks or All — Playlist mode only searches public playlists by name, not individual tracks.",
     calendarPushTitle: "Calendar & schedule notifications",
     calendarPushEnable: "Turn on notifications",
     calendarPushDisable: "Turn off notifications",
@@ -1988,6 +2077,95 @@ export const translations = {
     calendarQuickAddSave: "Thêm",
     calendarQuickAddFullForm: "Form đầy đủ…",
     calendarSearchPlaceholder: "Tìm tên, ghi chú hoặc ngày (YYYY-MM-DD)…",
+    spotifyNav: "Spotify",
+    spotifyPageTitle: "Spotify",
+    spotifyPageSubtitle:
+      "Kết nối tài khoản, mở playlist và phát nhạc trong trình duyệt (cần Premium).",
+    spotifyConnectCardEyebrow: "Tích hợp",
+    spotifyConnectCardTitle: "Spotify",
+    spotifyConnectCardSubtitle:
+      "Liên kết tài khoản để mở playlist, chọn bài và dùng trình phát trong trình duyệt ngay trên Ken Workspace.",
+    spotifyConnectBenefit1:
+      "Phát trong trình duyệt với Web Playback chính thức",
+    spotifyConnectBenefit2: "Mở mọi playlist và phát bài từ thư viện",
+    spotifyConnectBenefit3: "Cần Spotify Premium để stream trên trình duyệt",
+    spotifyConnectSecureNote:
+      "Kết nối OAuth bảo mật. Chúng tôi không nhận hay lưu mật khẩu Spotify của bạn.",
+    spotifyConfigureEnvHint:
+      "Spotify chưa cấu hình (đặt SPOTIFY_CLIENT_ID trên server).",
+    spotifyConnect: "Kết nối Spotify",
+    spotifyPopupBlocked:
+      "Trình duyệt chặn popup — chuyển sang đăng nhập trong tab này.",
+    spotifyConnectFailed: "Kết nối Spotify thất bại",
+    spotifyConnectedToast: "Đã kết nối Spotify.",
+    spotifyDisconnectedToast: "Đã ngắt Spotify.",
+    spotifyPlayerInitError: "Không khởi tạo được trình phát (cần Premium trên trình duyệt).",
+    spotifyWaitForDevice: "Đang kết nối trình phát… thử lại sau vài giây.",
+    spotifyPlayFailed: "Không phát được.",
+    spotifyNoTrack: "Chưa có bài nào",
+    spotifyExpandPanel: "Playlist",
+    spotifyCollapsePanel: "Thu gọn",
+    spotifyDisconnect: "Ngắt Spotify",
+    spotifyDockDragHint: "Kéo để di chuyển",
+    spotifySearchTab: "Tìm",
+    spotifyPlaylistsTab: "Playlist",
+    spotifySearchPlaceholder: "Bài hát & playlist…",
+    spotifySearchTracksHeading: "Bài hát",
+    spotifySearchEmpty: "Không có kết quả.",
+    spotifySearchModeAll: "Tất cả",
+    spotifySearchModeTracks: "Bài hát",
+    spotifySearchModePlaylists: "Playlist",
+    spotifySearchResultsPlaylists: "Playlist khớp",
+    spotifySearchFailed: "Tìm kiếm Spotify lỗi. Thử lại.",
+    spotifyErrInvalidLimit:
+      "Tìm kiếm gặp giới hạn tạm thời. Thử lại sau ít phút.",
+    spotifyErrDeviceNotFound:
+      "Trình phát Spotify chưa sẵn sàng. Đợi vài giây rồi thử lại, hoặc đảm bảo tab này là thiết bị phát đang chọn.",
+    spotifyErrPlaybackRestricted:
+      "Spotify không cho phép thao tác này với tài khoản hoặc khu vực của bạn.",
+    spotifyErrPlaylistTracksRefused:
+      "Spotify không mở được danh sách bài trong playlist này (quyền hoặc catalog). Thử playlist khác — trình phát trên trình duyệt vẫn có thể phát nhạc.",
+    spotifyErrPlaybackForbiddenGeneric:
+      "Spotify chưa phát được trên thiết bị này (thường do trình phát web chưa được chọn làm thiết bị đang phát). Đợi vài giây rồi thử lại, hoặc chọn bài khác.",
+    spotifyErrRateLimited:
+      "Gọi Spotify quá nhiều. Đợi chút rồi thử lại.",
+    spotifyErrGenericRequest:
+      "Đã có lỗi. Vui lòng thử lại.",
+    spotifySearchEmptyTitle: "Không có kết quả",
+    spotifySearchEmptySubtitle:
+      "Thử từ khác, đổi bộ lọc, hoặc kiểm tra chính tả.",
+    spotifySearchTypeHint:
+      "Gõ ít nhất 2 ký tự. Chọn Tất cả / Bài hát / Playlist — mục Playlist tìm playlist công khai theo tên (khác tab Playlist là thư viện của bạn).",
+    spotifyPlaylistsEmpty:
+      "Chưa có playlist hoặc không tải được. Tạo playlist trong app Spotify hoặc kiểm tra đúng tài khoản.",
+    spotifyPlaylistsLoadFailed: "Không tải được danh sách playlist.",
+    spotifyPlaylistLibraryHeading: "Playlist của bạn",
+    spotifyPlaylistTracksHeading: "Bài hát",
+    spotifyPlaylistSelectHint:
+      "Chọn một playlist bên trái để xem toàn bộ bài hát bên này.",
+    spotifyPlaylistTracksEmpty:
+      "Không có bài phát được trong playlist này.",
+    spotifySessionExpiredReconnect:
+      "Phiên Spotify không còn hợp lệ hoặc đã hết hạn. Hãy kết nối lại (ví dụ sau khi đổi SPOTIFY_TOKEN_ENCRYPTION_KEY).",
+    spotifyReconnect: "Kết nối lại Spotify",
+    spotifyConnectedPendingVerification:
+      "Đăng nhập xong nhưng server không xác minh được phiên Spotify. Hãy thử kết nối lại.",
+    spotifyPlayerAccountError:
+      "Cần Spotify Premium để phát nhạc trong trình duyệt.",
+    spotifyPlaybackErrorToast: "Spotify báo lỗi phát.",
+    spotifyPlaybackErrorHint: "Lỗi phát — thử bài khác hoặc kết nối lại.",
+    spotifyCheckingSession: "Đang kiểm tra phiên Spotify…",
+    spotifySessionTransientHint:
+      "Spotify tạm không phản hồi (mạng hoặc lỗi ngắn). Ứng dụng sẽ tự thử lại — thường không cần đăng nhập lại. Chỉ dùng Kết nối lại nếu tình trạng kéo dài.",
+    spotifySessionRetryNow: "Thử lại ngay",
+    spotifySessionRecoveredToast: "Đã làm mới phiên Spotify.",
+    spotifySearchPickToPlay: "Chạm một dòng để phát bài hoặc playlist đó.",
+    spotifySearchPlaylistBy: "của {owner}",
+    spotifyPlayerShuffle: "Trộn bài",
+    spotifyPlayerRepeat: "Lặp: tắt / cả playlist / một bài",
+    spotifyPlayerSeek: "Tua",
+    spotifySearchPlaylistNotForSongs:
+      "Bạn đang tìm một bài hát (vd. “Talking to the Moon”)? Chọn Bài hát hoặc Tất cả — chế độ Playlist chỉ tìm playlist công khai theo tên, không tìm từng bài.",
     calendarPushTitle: "Thông báo lịch & lưới học",
     calendarPushEnable: "Bật thông báo",
     calendarPushDisable: "Tắt thông báo",

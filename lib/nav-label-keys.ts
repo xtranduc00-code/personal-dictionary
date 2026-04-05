@@ -35,6 +35,7 @@ export const NAV_LABEL_KEYS = [
     "dailyNewsSourceEngoo",
     "dailyNewsSourceGuardian",
     "watchTogetherNav",
+    "spotifyNav",
     "navDriveDashboard",
     "navDriveFolders",
     "navDriveDocuments",

@@ -319,6 +319,7 @@ export function NavSidebarRow({
     onLinkClick,
     meetsLive: _meetsLive,
     badge,
+    preventNavigation,
 }: {
     href: string;
     labelKey: TranslationKey;
@@ -329,6 +330,8 @@ export function NavSidebarRow({
     onLinkClick?: () => void;
     meetsLive?: boolean;
     badge?: ReactNode;
+    /** If true, click does not navigate (e.g. open in-app Spotify dock). */
+    preventNavigation?: boolean;
 }) {
     const { navT, requestRename, editable } = useNavLabels();
     const { t } = useI18n();
@@ -341,7 +344,15 @@ export function NavSidebarRow({
 
     if (!editable) {
         return (
-            <Link href={href} onClick={onLinkClick} className={className}>
+            <Link
+                href={href}
+                onClick={(e) => {
+                    if (preventNavigation)
+                        e.preventDefault();
+                    onLinkClick?.();
+                }}
+                className={className}
+            >
                 <Icon className={iconCls}/>
                 <span className="flex min-w-0 flex-wrap items-center gap-2">
                     {label}
@@ -363,10 +374,22 @@ export function NavSidebarRow({
                 if (e.key !== "Enter" && e.key !== " ")
                     return;
                 e.preventDefault();
+                if (preventNavigation) {
+                    onLinkClick?.();
+                    return;
+                }
                 router.push(href);
                 onLinkClick?.();
             }}
             onClick={(e) => {
+                if (preventNavigation) {
+                    if (e.metaKey || e.ctrlKey)
+                        return;
+                    e.preventDefault();
+                    clearTimeout(navTimer.current);
+                    onLinkClick?.();
+                    return;
+                }
                 if (e.metaKey || e.ctrlKey) {
                     window.open(href, "_blank", "noopener,noreferrer");
                     return;

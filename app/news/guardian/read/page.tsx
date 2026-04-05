@@ -74,12 +74,25 @@ function GuardianReadInner() {
         const res = await fetch(
           `/api/guardian-read?url=${encodeURIComponent(urlParam)}`,
         );
-        const data = (await res.json()) as {
+        const text = await res.text();
+        let data: {
           error?: string;
           title?: string;
           html?: string;
           url?: string;
         };
+        try {
+          data = JSON.parse(text) as typeof data;
+        } catch {
+          if (!cancelled) {
+            setError(
+              text.trim().startsWith("<")
+                ? `Server returned HTML (${res.status}). Try again or open the article on the Guardian site.`
+                : `Could not read response (${res.status}).`,
+            );
+          }
+          return;
+        }
         if (cancelled) return;
         if (!res.ok) {
           setError(data.error ?? "Could not load article.");
@@ -89,7 +102,7 @@ function GuardianReadInner() {
         setHtml(data.html ?? "");
         setSourceUrl(data.url ?? urlParam);
       } catch {
-        if (!cancelled) setError("Network error.");
+        if (!cancelled) setError(t("networkErrorTryAgain"));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -98,7 +111,7 @@ function GuardianReadInner() {
     return () => {
       cancelled = true;
     };
-  }, [urlParam]);
+  }, [urlParam, t]);
 
   if (!urlParam) {
     return (

@@ -13,15 +13,15 @@ const SOCIAL: {
 export function PortfolioHome() {
     const { t } = useI18n();
     const { user, openAuthModal } = useAuth();
-    return (<div className="relative flex min-h-0 flex-1 flex-col bg-gradient-to-b from-zinc-50 via-white to-zinc-100 text-zinc-900 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-950 dark:text-zinc-100">
-      <div className="relative flex min-h-[100svh] w-[calc(100%+2rem)] flex-1 flex-col overflow-hidden -mx-4 -my-6 md:min-h-0 md:w-[calc(100%+4rem)] md:flex-1 md:-mx-8 md:-my-8">
+    return (<div className="relative flex min-h-[100svh] w-full flex-1 flex-col bg-gradient-to-b from-zinc-50 via-white to-zinc-100 text-zinc-900 md:h-full md:min-h-0 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-950 dark:text-zinc-100">
+      <div className="relative flex min-h-[100svh] w-full flex-1 flex-col overflow-hidden md:h-full md:min-h-0">
         <PortfolioParticles />
 
         <div className="pointer-events-none absolute inset-0 flex justify-evenly opacity-[0.35] dark:opacity-[0.08]" aria-hidden>
           {[0, 1, 2, 3].map((i) => (<div key={i} className="w-px bg-zinc-300/80 dark:bg-zinc-100"/>))}
         </div>
 
-        <div className="relative z-10 flex min-h-[100svh] flex-1 flex-col items-center justify-center px-6 py-16 text-center md:min-h-0">
+        <div className="relative z-10 flex min-h-[100svh] flex-1 flex-col items-center justify-center px-6 py-16 text-center md:h-full md:min-h-0">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-500">
             {t("portfolioKicker")}
           </p>

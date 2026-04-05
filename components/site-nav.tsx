@@ -13,7 +13,7 @@ import {
 import { NavAccountFooter } from "@/components/nav-account-footer";
 import { ProfileModal } from "@/components/profile-modal";
 import { SecurityModal } from "@/components/security-modal";
-import { BookHeart, BookOpen, BookMarked, BookText, Bot, CalendarClock, CalendarDays, ChevronLeft, ChevronRight, Clapperboard, Cloud, FileText, FolderOpen, GraduationCap, Headphones, Image as LucideImage, History, Home, Languages, LayoutDashboard, Layers, LayoutGrid, LibraryBig, LogIn, LogOut, Mail, Menu, Mic, Moon, Newspaper, NotebookText, PartyPopper, PenLine, PhoneCall, Search, Sparkles, Star, Sun, Table2, UserCircle, Video, X, type LucideIcon, } from "lucide-react";
+import { BookHeart, BookOpen, BookMarked, BookText, Bot, CalendarClock, CalendarDays, ChevronLeft, ChevronRight, Clapperboard, Cloud, FileText, FolderOpen, GraduationCap, Headphones, Image as LucideImage, History, Home, Languages, LayoutDashboard, Layers, LayoutGrid, LibraryBig, LogIn, LogOut, Mail, Menu, Mic, Moon, Music2, Newspaper, NotebookText, PartyPopper, PenLine, PhoneCall, Search, Sparkles, Star, Sun, Table2, UserCircle, Video, X, type LucideIcon, } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useMeetCallOptional } from "@/lib/meet-call-context";
 import { CLEAR_NAV_QUICK_SEARCH_EVENT } from "@/lib/nav-quick-search-events";
@@ -78,9 +78,11 @@ const entertainmentSectionLinks: {
     href: string;
     labelKey: TranslationKey;
     icon: LucideIcon;
+    preventNavigation?: boolean;
 }[] = [
     { href: "/watch", labelKey: "watchTogetherNav", icon: Clapperboard },
     { href: "/notes/diary", labelKey: "notesDiary", icon: BookHeart },
+    { href: "/spotify", labelKey: "spotifyNav", icon: Music2 },
 ];
 const scheduleSectionLinks: {
     href: string;
@@ -202,6 +204,8 @@ function isNewsPath(pathname: string) {
 }
 function isEntertainmentPath(pathname: string) {
     return (
+        pathname === "/spotify" ||
+        pathname.startsWith("/spotify/") ||
         pathname === "/watch" ||
         pathname.startsWith("/watch/") ||
         pathname === "/notes/diary" ||
@@ -492,11 +496,14 @@ function SiteNavInner() {
             navMatches("tin tuc", navQ);
         const watchSearchHit =
             match(navT("watchTogetherNav")) ||
+            match(navT("spotifyNav")) ||
+            navMatches("spotify", navQ) ||
             navMatches("watch together", navQ) ||
             navMatches("xem chung", navQ);
         const entertainmentSectionHit =
             match(navT("navEntertainmentSection")) ||
             match(navT("notesDiary")) ||
+            match(navT("spotifyNav")) ||
             navMatches("giai tri", navQ) ||
             navMatches("giải trí", navQ) ||
             navMatches("article", navQ) ||
@@ -881,9 +888,12 @@ function SiteNavInner() {
                     </Suspense>
                   </>) : null}
                   {navFilter.watchLinksFiltered.map((link) => {
-                    const active = isActive(pathname, link.href);
+                    const active =
+                        link.preventNavigation ? false : isActive(pathname, link.href);
                     const Icon = link.icon;
-                    return (<NavSidebarRow key={link.href} href={link.href} labelKey={link.labelKey} onLinkClick={clearQuickSearch} className={[
+                    return (<NavSidebarRow key={link.labelKey} href={link.href} labelKey={link.labelKey} preventNavigation={link.preventNavigation} onLinkClick={() => {
+                            clearQuickSearch();
+                        }} className={[
                             "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200",
                             active ? NAV_LINK_ROW_ACTIVE : NAV_LINK_ROW_IDLE,
                         ].join(" ")} active={active} icon={Icon}/>);
@@ -1091,9 +1101,12 @@ function SiteNavInner() {
                   </Suspense>
                 </>) : null}
                 {navFilter.watchLinksFiltered.map((link) => {
-                const active = isActive(pathname, link.href);
+                const active =
+                    link.preventNavigation ? false : isActive(pathname, link.href);
                 const Icon = link.icon;
-                return (<NavSidebarRow key={link.href} href={link.href} labelKey={link.labelKey} onLinkClick={clearQuickSearch} className={[
+                return (<NavSidebarRow key={link.labelKey} href={link.href} labelKey={link.labelKey} preventNavigation={link.preventNavigation} onLinkClick={() => {
+                        clearQuickSearch();
+                    }} className={[
                         "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200",
                         active ? NAV_LINK_ROW_ACTIVE : NAV_LINK_ROW_IDLE,
                     ].join(" ")} active={active} icon={Icon}/>);

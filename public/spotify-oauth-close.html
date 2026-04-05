@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Spotify</title>
+  </head>
+  <body>
+    <p style="font-family: system-ui, sans-serif; padding: 1rem; color: #71717a">
+      Closing…
+    </p>
+    <script>
+      (function () {
+        var q = new URLSearchParams(location.search);
+        var ok = q.get("ok") === "1";
+        var err = q.get("error");
+        var error = err && err.length > 0 ? err : null;
+        try {
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage(
+              { type: "ken-spotify-oauth", ok: ok, error: error },
+              location.origin
+            );
+          }
+        } catch (e) {}
+        window.close();
+        setTimeout(function () {
+          if (!window.closed) {
+            document.body.innerHTML =
+              '<p style="font-family:system-ui,sans-serif;padding:1.5rem;color:#52525b">You can close this tab and return to Ken Workspace.</p>';
+          }
+        }, 500);
+      })();
+    </script>
+  </body>
+</html>

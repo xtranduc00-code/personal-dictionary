@@ -10,9 +10,18 @@ import { sanitizeGuardianArticleHtml } from "@/lib/sanitize-html-app";
 
 export const runtime = "nodejs";
 export const maxDuration = 45;
+/** Avoid WAF / bot blocks on cloud IPs (custom “compatible; …” UAs often get 403 or empty bodies). */
+export const dynamic = "force-dynamic";
 
-const UA =
-  "Mozilla/5.0 (compatible; KenWorkspace/1.0; private in-app article reader)";
+const GUARDIAN_FETCH_HEADERS: Record<string, string> = {
+  "User-Agent":
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+  Accept:
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language": "en-GB,en-US;q=0.9,en;q=0.8",
+  Referer: "https://www.theguardian.com/",
+  "Cache-Control": "no-cache",
+};
 
 export async function GET(req: NextRequest) {
   try {
@@ -46,11 +55,7 @@ export async function GET(req: NextRequest) {
       const res = await fetch(articleUrl.toString(), {
         redirect: "follow",
         signal: controller.signal,
-        headers: {
-          "User-Agent": UA,
-          Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
-          "Accept-Language": "en-GB,en;q=0.9",
-        },
+        headers: GUARDIAN_FETCH_HEADERS,
       });
 
       if (!res.ok) {

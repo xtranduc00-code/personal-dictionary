@@ -65,6 +65,30 @@ export function MainScrollShell({ children }: PropsWithChildren) {
             </div>
         );
     }
+    /** Spotify hub: one-screen connect card; scroll only if player UI needs it (tall viewports). */
+    if (pathname === "/spotify") {
+        return (
+            <div
+                ref={containerRef}
+                data-main-scroll
+                className="flex min-h-0 w-full max-w-full flex-1 flex-col overflow-x-hidden overflow-y-auto md:h-full md:min-h-0 md:flex-1 md:overflow-y-auto md:overflow-x-hidden md:pr-2"
+            >
+                {children}
+            </div>
+        );
+    }
+    /** Portfolio home: fill viewport beside sidebar (flex-1 + min height on small screens). */
+    if (pathname === "/" || pathname === "/portfolio") {
+        return (
+            <div
+                ref={containerRef}
+                data-main-scroll
+                className="flex min-h-0 min-h-[100svh] w-full max-w-full flex-1 flex-col overflow-x-hidden overflow-y-auto md:h-full md:min-h-0 md:flex-1 md:overflow-y-auto md:overflow-x-hidden md:pr-2"
+            >
+                {children}
+            </div>
+        );
+    }
     return (
         <div
             ref={containerRef}

@@ -34,7 +34,7 @@ export function AuthGate({ children }: {
     const pathname = usePathname();
     const { user, isLoading, openAuthModal } = useAuth();
     if (isPublicPath(pathname)) {
-        return (<div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col md:min-h-0">
+        return (<div className="flex min-h-0 min-h-[100svh] min-w-0 w-full max-w-full flex-1 flex-col md:min-h-0">
         {children}
       </div>);
     }
