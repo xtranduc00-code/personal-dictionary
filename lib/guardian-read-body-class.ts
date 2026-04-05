@@ -29,4 +29,23 @@ export const GUARDIAN_READ_BODY_CLASS = [
   "[&_tr:nth-child(even)_td]:bg-zinc-50/50 dark:[&_tr:nth-child(even)_td]:bg-zinc-900/25",
   "[&_a]:font-medium [&_a]:text-sky-700 [&_a]:underline-offset-2 [&_a]:transition-colors hover:[&_a]:text-sky-800 hover:[&_a]:underline dark:[&_a]:text-sky-400 dark:hover:[&_a]:text-sky-300",
   "[&_hr]:my-10 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-zinc-200 dark:[&_hr]:border-zinc-700",
+  // <time> — live blog timestamps
+  "[&_time]:block [&_time]:mb-1 [&_time]:text-[12px] [&_time]:font-semibold [&_time]:uppercase [&_time]:tracking-widest [&_time]:text-zinc-400 dark:[&_time]:text-zinc-500",
+  // <aside> — related content / pullquote boxes Guardian adds
+  "[&_aside]:my-8 [&_aside]:rounded-xl [&_aside]:border [&_aside]:border-zinc-200/80 [&_aside]:bg-zinc-50/70 [&_aside]:px-5 [&_aside]:py-4 [&_aside]:text-[15px] [&_aside]:text-zinc-600 dark:[&_aside]:border-zinc-700/60 dark:[&_aside]:bg-zinc-900/40 dark:[&_aside]:text-zinc-300",
+  "[&_aside_h2]:mt-0 [&_aside_h2]:border-none [&_aside_h2]:pb-0 [&_aside_h2]:text-base",
+  "[&_aside_p]:mb-3 [&_aside_p:last-child]:mb-0",
+  // <details> / <summary> — spoilers / expandable sections
+  "[&_details]:my-6 [&_details]:rounded-lg [&_details]:border [&_details]:border-zinc-200/80 [&_details]:px-4 [&_details]:py-3 dark:[&_details]:border-zinc-700/60",
+  "[&_summary]:cursor-pointer [&_summary]:select-none [&_summary]:font-semibold [&_summary]:text-zinc-800 [&_summary]:outline-none dark:[&_summary]:text-zinc-100",
+  "[&_details[open]_summary]:mb-3",
+  // <mark> — highlighted text
+  "[&_mark]:rounded-sm [&_mark]:bg-yellow-100 [&_mark]:px-0.5 [&_mark]:text-zinc-900 dark:[&_mark]:bg-yellow-500/20 dark:[&_mark]:text-zinc-100",
+  // <code> / <pre> — inline code and code blocks
+  "[&_code]:rounded [&_code]:bg-zinc-100 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[13px] [&_code]:font-mono [&_code]:text-zinc-800 dark:[&_code]:bg-zinc-800 dark:[&_code]:text-zinc-200",
+  "[&_pre]:my-6 [&_pre]:overflow-x-auto [&_pre]:rounded-xl [&_pre]:bg-zinc-100 [&_pre]:p-4 [&_pre]:text-[13px] [&_pre]:leading-relaxed dark:[&_pre]:bg-zinc-800",
+  "[&_pre_code]:bg-transparent [&_pre_code]:p-0",
+  // Live blog update blocks — Guardian wraps each update in <article> inside the main <article>
+  "[&_article]:mt-10 [&_article]:border-t [&_article]:border-zinc-200/70 [&_article]:pt-8 dark:[&_article]:border-zinc-700/50",
+  "[&_article:first-child]:mt-0 [&_article:first-child]:border-none [&_article:first-child]:pt-0",
 ].join(" ");

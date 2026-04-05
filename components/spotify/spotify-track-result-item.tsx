@@ -1,17 +1,17 @@
 "use client";
 
+import { memo } from "react";
 import Image from "next/image";
 import { Music2, Play } from "lucide-react";
 import type { SpotifySearchTrackRow } from "@/components/spotify/spotify-search-types";
 
-export function SpotifyTrackResultItem({
+export const SpotifyTrackResultItem = memo(function SpotifyTrackResultItem({
   track,
   onPlay,
   playDisabled = false,
 }: {
   track: SpotifySearchTrackRow;
   onPlay: () => void;
-  /** When true, row is not clickable (e.g. playlist context not ready). */
   playDisabled?: boolean;
 }) {
   const artistLine =
@@ -66,4 +66,4 @@ export function SpotifyTrackResultItem({
       </button>
     </li>
   );
-}
+});

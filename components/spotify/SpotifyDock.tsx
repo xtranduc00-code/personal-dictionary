@@ -4,12 +4,13 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "react-toastify";
-import { GripHorizontal, Loader2, Music2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useI18n } from "@/components/i18n-provider";
 import { SpotifyConnectCard } from "@/components/spotify/spotify-connect-card";
 import { SpotifyPlayerCard } from "@/components/spotify/spotify-player-card";
@@ -19,7 +20,12 @@ import {
   humanizeSpotifyApiErrorText,
   humanizeSpotifyPlaybackHttpError,
 } from "@/lib/spotify/humanize-api-error";
-import { useSpotifyDockDrag } from "@/components/spotify/use-spotify-dock-drag";
+import {
+  destroyGlobalPlayer,
+  getGlobalPlayback,
+  hasLivePlayer,
+  updateGlobalPlayback,
+} from "@/components/spotify/spotify-global-player";
 
 async function ensureSpotifySdk(): Promise<void> {
   if (typeof window === "undefined") return;
@@ -45,7 +51,7 @@ type SessionState =
   | "connecting"
   | "connected_account"
   | "session_invalid"
-  /** Cookie present but Spotify token refresh failed transiently — retry, don’t force reconnect */
+  /** Cookie present but Spotify token refresh failed transiently — retry, don't force reconnect */
   | "session_transient";
 
 /** Web Playback SDK lifecycle */
@@ -98,24 +104,43 @@ function spotifySdkDevLog(tag: string, data: Record<string, unknown>) {
   console.warn(`[spotify:sdk] ${tag}`, data);
 }
 
-function SpotifyDockInner({ embedded = false }: { embedded?: boolean }) {
+function SpotifyDockInner({
+  embedded = false,
+  visuallyHidden = false,
+}: {
+  embedded?: boolean;
+  /** Hide on home/portfolio but keep Web Playback mounted so playback survives those routes. */
+  visuallyHidden?: boolean;
+}) {
   const { t } = useI18n();
   const tRef = useRef(t);
   tRef.current = t;
 
   const searchParams = useSearchParams();
-  const [configured, setConfigured] = useState(false);
-  const [sessionState, setSessionState] = useState<SessionState>("connecting");
+  const [configured, setConfigured] = useState(() => hasLivePlayer());
+  const [sessionState, setSessionState] = useState<SessionState>(
+    () => hasLivePlayer() ? "connected_account" : "connecting",
+  );
   /** Why /session_invalid — drives accurate copy (decrypt vs revoked vs legacy). */
   const [sessionFailKind, setSessionFailKind] = useState<
     "decrypt" | "revoked" | null
   >(null);
-  const [playerState, setPlayerState] = useState<PlayerState>("idle");
-  const [deviceId, setDeviceId] = useState<string | null>(null);
-  const [paused, setPaused] = useState(true);
-  const [trackName, setTrackName] = useState<string | null>(null);
-  const [artistName, setArtistName] = useState<string | null>(null);
-  const [artUrl, setArtUrl] = useState<string | null>(null);
+  const [playerState, setPlayerState] = useState<PlayerState>(() =>
+    hasLivePlayer() ? "ready" : "idle",
+  );
+  const [deviceId, setDeviceId] = useState<string | null>(
+    () => getGlobalPlayback().deviceId,
+  );
+  const [paused, setPaused] = useState(() => getGlobalPlayback().paused);
+  const [trackName, setTrackName] = useState<string | null>(
+    () => getGlobalPlayback().trackName,
+  );
+  const [artistName, setArtistName] = useState<string | null>(
+    () => getGlobalPlayback().artistName,
+  );
+  const [artUrl, setArtUrl] = useState<string | null>(
+    () => getGlobalPlayback().artUrl,
+  );
   const [expanded, setExpanded] = useState(embedded);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(
     null,
@@ -136,32 +161,36 @@ function SpotifyDockInner({ embedded = false }: { embedded?: boolean }) {
   const [playlists, setPlaylists] = useState<PlaylistRow[]>([]);
   const [playlistsLoading, setPlaylistsLoading] = useState(false);
   const [playlistsLoadFailed, setPlaylistsLoadFailed] = useState(false);
-  const [positionMs, setPositionMs] = useState(0);
-  const [durationMs, setDurationMs] = useState(0);
-  const [shuffleOn, setShuffleOn] = useState(false);
+  const [durationMs, setDurationMs] = useState(
+    () => getGlobalPlayback().durationMs,
+  );
+  const [shuffleOn, setShuffleOn] = useState(
+    () => getGlobalPlayback().shuffleOn,
+  );
   /** 0 off, 1 context, 2 track */
-  const [repeatMode, setRepeatMode] = useState(0);
-  const [scrubMs, setScrubMs] = useState<number | null>(null);
-  const [scrubbing, setScrubbing] = useState(false);
-  const playerRef = useRef<SpotifyWebPlayer | null>(null);
-  const scrubbingRef = useRef(false);
+  const [repeatMode, setRepeatMode] = useState(
+    () => getGlobalPlayback().repeatMode,
+  );
+  /** Initialized from global store so the player survives navigation. */
+  const playerRef = useRef<SpotifyWebPlayer | null>(getGlobalPlayback().player);
   const lastSpotifyAuthErrMs = useRef(0);
   const deviceIdRef = useRef<string | null>(null);
   const selectedPlaylistIdRef = useRef<string | null>(null);
   const selectedPlaylistUriRef = useRef<string | null>(null);
-  /** After SDK playback_error, avoid clearing now-playing row immediately (prevents “Nothing playing” flash). */
+  /** After SDK playback_error, avoid clearing now-playing row immediately (prevents "Nothing playing" flash). */
   const playbackErrCooldownUntilRef = useRef(0);
-  const shellRef = useRef<HTMLDivElement>(null);
   const spotifyPersonalMode =
     process.env.NEXT_PUBLIC_SPOTIFY_PERSONAL_MODE === "1";
-  const { pos: dockDragPos, onDragHandlePointerDown } = useSpotifyDockDrag(
-    shellRef,
-    !embedded,
-  );
 
-  /** Reset Web Playback + browse state so we don’t play with a stale playlist context. */
+  /**
+   * If the user clicks a track while the SDK player is still warming up (no deviceId yet),
+   * stash the intent here and fire it as soon as deviceId becomes available.
+   */
+  const pendingPlayRef = useRef<{ uri: string; context: string | null } | null>(null);
+
+  /** Reset Web Playback + browse state so we don't play with a stale playlist context. */
   const clearInvalidSpotifySession = useCallback(async () => {
-    playerRef.current?.disconnect();
+    destroyGlobalPlayer();
     playerRef.current = null;
     setPlayerState("idle");
     setDeviceId(null);
@@ -176,6 +205,7 @@ function SpotifyDockInner({ embedded = false }: { embedded?: boolean }) {
     setPlaylistTracksError(null);
     void refreshStatusRef.current();
   }, []);
+
 
   const refreshStatus = useCallback(async (): Promise<{
     sessionOk: boolean;
@@ -306,6 +336,10 @@ function SpotifyDockInner({ embedded = false }: { embedded?: boolean }) {
   }, [refreshStatus]);
 
   useEffect(() => {
+    if (visuallyHidden) setExpanded(false);
+  }, [visuallyHidden]);
+
+  useEffect(() => {
     deviceIdRef.current = deviceId;
   }, [deviceId]);
 
@@ -328,27 +362,72 @@ function SpotifyDockInner({ embedded = false }: { embedded?: boolean }) {
     };
   }, [sessionState]);
 
-  const openSpotifyLoginPopup = useCallback((opts?: { reconsent?: boolean }) => {
-    const qs = new URLSearchParams({ popup: "1" });
-    if (opts?.reconsent) qs.set("reconsent", "1");
-    const url = `/api/spotify/login?${qs}`;
-    const w = window.open(
-      url,
-      "ken_spotify_oauth",
-      "popup=yes,width=480,height=720,scrollbars=yes",
-    );
-    if (!w) {
-      toast.warning(tRef.current("spotifyPopupBlocked"));
-      const fallbackQs = new URLSearchParams();
-      if (opts?.reconsent) fallbackQs.set("reconsent", "1");
-      const q = fallbackQs.toString();
-      window.location.href = q
-        ? `/api/spotify/login?${q}`
-        : "/api/spotify/login";
-      return;
+  /**
+   * Clears refresh cookie + local player UI. Used by logout and before
+   * `reconsent` OAuth so Spotify never ends up with two overlapping refresh flows.
+   */
+  const applySpotifyLogoutLocal = useCallback(async (showDisconnectedToast: boolean) => {
+    destroyGlobalPlayer();
+    playerRef.current = null;
+    await fetch("/api/spotify/logout", {
+      method: "POST",
+      credentials: "same-origin",
+    });
+    setSessionState("disconnected");
+    setSessionFailKind(null);
+    setPlayerState("idle");
+    setDeviceId(null);
+    setExpanded(false);
+    setPlaylists([]);
+    setPlaylistsLoadFailed(false);
+    setSelectedPlaylistId(null);
+    setSelectedPlaylistName(null);
+    setSelectedPlaylistUri(null);
+    setPlaylistTracks([]);
+    setPlaylistTracksError(null);
+    setTrackName(null);
+    setArtistName(null);
+    setArtUrl(null);
+    setDurationMs(0);
+    setShuffleOn(false);
+    setRepeatMode(0);
+    if (showDisconnectedToast) {
+      toast.success(tRef.current("spotifyDisconnectedToast"));
     }
-    w.focus();
   }, []);
+
+  const openSpotifyLoginPopup = useCallback(
+    async (opts?: { reconsent?: boolean }) => {
+      if (opts?.reconsent) {
+        try {
+          await applySpotifyLogoutLocal(false);
+        } catch {
+          toast.error(tRef.current("spotifyErrGenericRequest"));
+          return;
+        }
+      }
+      const qs = new URLSearchParams({ popup: "1" });
+      if (opts?.reconsent) qs.set("reconsent", "1");
+      const url = `/api/spotify/login?${qs}`;
+      const w = window.open(
+        url,
+        "ken_spotify_oauth",
+        "popup=yes,width=480,height=720,scrollbars=yes",
+      );
+      if (!w) {
+        toast.warning(tRef.current("spotifyPopupBlocked"));
+        const fallbackQs = new URLSearchParams();
+        if (opts?.reconsent) fallbackQs.set("reconsent", "1");
+        const q = fallbackQs.toString();
+        window.location.href = q
+          ? `/api/spotify/login?${q}`
+          : "/api/spotify/login";
+        return;
+      }
+      w.focus();
+    },
+    [applySpotifyLogoutLocal],
+  );
 
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
@@ -407,7 +486,190 @@ function SpotifyDockInner({ embedded = false }: { embedded?: boolean }) {
   useEffect(() => {
     if (sessionState !== "connected_account" || !configured) return;
 
+    /* ── A single `cancelled` flag shared by fast-path and full init.
+       Both paths register their listeners as closures over this flag,
+       so the cleanup that fires on unmount silences ALL of them.        */
     let cancelled = false;
+    const sharedCleanup = () => {
+      cancelled = true;
+      updateGlobalPlayback({ player: playerRef.current, deviceId: deviceIdRef.current });
+      playerRef.current = null;
+      setPlayerState("idle");
+      setDeviceId(null);
+    };
+
+    /* ── Shared listener wiring ─────────────────────────────────────── */
+    const attachListeners = (p: SpotifyWebPlayer) => {
+      p.addListener("ready", ({ device_id }) => {
+        if (cancelled) return;
+        spotifySdkDevLog("ready", { device_id });
+        spotifyPlaybackLog("sdk_ready", { device_id });
+        setDeviceId(device_id);
+        deviceIdRef.current = device_id;
+        setPlayerState("ready");
+        void (async () => {
+          try {
+            const r = await fetch("/api/spotify/player", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "transfer", device_id }),
+            });
+            spotifyPlaybackLog("transfer_after_ready", { status: r.status, ok: r.ok });
+            const pending = pendingPlayRef.current;
+            if (pending) {
+              pendingPlayRef.current = null;
+              spotifyPlaybackLog("pending_play_flush", { uri: pending.uri });
+              await new Promise((res) => setTimeout(res, 600));
+              const body: Record<string, unknown> = pending.context
+                ? { action: "play", device_id, context_uri: pending.context, offset_uri: pending.uri }
+                : { action: "play", device_id, uris: [pending.uri] };
+              await fetch("/api/spotify/player", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "same-origin",
+                body: JSON.stringify(body),
+              });
+            }
+          } catch (err) {
+            spotifyPlaybackLog("transfer_after_ready_error", { err: String(err) });
+          }
+        })();
+      });
+
+      p.addListener("not_ready", (ev) => {
+        if (cancelled) return;
+        spotifySdkDevLog("not_ready", { device_id: ev?.device_id });
+        spotifyPlaybackLog("sdk_not_ready", { device_id: ev?.device_id });
+        setDeviceId(null);
+        setPlayerState("initializing");
+      });
+
+      p.addListener("authentication_error", (e) => {
+        if (cancelled) return;
+        spotifySdkDevLog("authentication_error", { message: e?.message, device_id: deviceIdRef.current });
+        console.warn("[spotify:player] authentication_error", e?.message);
+        const now = Date.now();
+        if (now - lastSpotifyAuthErrMs.current < 2800) return;
+        lastSpotifyAuthErrMs.current = now;
+        void (async () => {
+          const st = await refreshStatusRef.current();
+          if (st.sessionOk) {
+            toast.info(tRef.current("spotifySessionRecoveredToast"));
+            return;
+          }
+          await clearInvalidSpotifySession();
+          toast.warning(tRef.current("spotifySessionExpiredReconnect"));
+        })();
+      });
+
+      p.addListener("account_error", (e) => {
+        if (cancelled) return;
+        spotifySdkDevLog("account_error", { message: e?.message, device_id: deviceIdRef.current });
+        console.warn("[spotify:player] account_error", e?.message);
+        setPlayerState("playback_error");
+        toast.error(tRef.current("spotifyPlayerAccountError"), { toastId: "spotify-account-error" });
+      });
+
+      p.addListener("initialization_error", (e) => {
+        if (cancelled) return;
+        spotifySdkDevLog("initialization_error", { message: e?.message, device_id: deviceIdRef.current });
+        console.warn("[spotify:player] initialization_error", e?.message);
+        setPlayerState("playback_error");
+        toast.error(tRef.current("spotifyPlayerInitError"), { toastId: "spotify-init-error" });
+      });
+
+      p.addListener("playback_error", (e) => {
+        if (cancelled) return;
+        playbackErrCooldownUntilRef.current = Date.now() + 2500;
+        spotifyPlaybackLog("sdk_playback_error", {
+          message: e?.message,
+          device_id: deviceIdRef.current,
+          selected_playlist_id: selectedPlaylistIdRef.current,
+          selected_playlist_uri: selectedPlaylistUriRef.current,
+        });
+        spotifySdkDevLog("playback_error", { message: e?.message, device_id: deviceIdRef.current });
+        console.warn("[spotify:player] playback_error", e?.message);
+        setPlayerState("playback_error");
+        toast.warning(tRef.current("spotifyPlaybackErrorToast"), { toastId: "spotify-playback-error" });
+      });
+
+      p.addListener("player_state_changed", (state) => {
+        if (cancelled) return;
+        if (!state) return;
+        setPlayerState((prev) => prev === "playback_error" ? "ready" : prev);
+        setPaused(state.paused);
+        setDurationMs(state.duration);
+        if (typeof state.shuffle === "boolean") setShuffleOn(state.shuffle);
+        if (typeof state.repeat_mode === "number" && state.repeat_mode >= 0 && state.repeat_mode <= 2) {
+          setRepeatMode(state.repeat_mode);
+        }
+        const tr = state.track_window.current_track;
+        if (tr) {
+          const nextTrackName = tr.name;
+          const nextArtistName = tr.artists.map((a) => a.name).join(", ");
+          const nextArtUrl = tr.album.images[0]?.url ?? null;
+          setTrackName(nextTrackName);
+          setArtistName(nextArtistName);
+          setArtUrl(nextArtUrl);
+          updateGlobalPlayback({
+            paused: state.paused,
+            positionMs: state.position,
+            durationMs: state.duration,
+            trackName: nextTrackName,
+            artistName: nextArtistName,
+            artUrl: nextArtUrl,
+            shuffleOn: typeof state.shuffle === "boolean" ? state.shuffle : getGlobalPlayback().shuffleOn,
+            repeatMode:
+              typeof state.repeat_mode === "number" && state.repeat_mode >= 0 && state.repeat_mode <= 2
+                ? state.repeat_mode
+                : getGlobalPlayback().repeatMode,
+          });
+        } else {
+          if (Date.now() < playbackErrCooldownUntilRef.current) return;
+          setTrackName(null);
+          setArtistName(null);
+          setArtUrl(null);
+          setDurationMs(0);
+          updateGlobalPlayback({ trackName: null, artistName: null, artUrl: null, durationMs: 0, positionMs: 0, paused: state.paused });
+        }
+      });
+    };
+
+    /* ── Fast-path: reuse the player that survived navigation ─────── */
+    if (hasLivePlayer() && playerRef.current) {
+      const p = playerRef.current;
+      const existingDeviceId = getGlobalPlayback().deviceId;
+      setPlayerState("ready");
+      if (existingDeviceId) {
+        setDeviceId(existingDeviceId);
+        deviceIdRef.current = existingDeviceId;
+      }
+      /* Eagerly sync current player state. */
+      void (async () => {
+        try {
+          const s = await p.getCurrentState();
+          if (!s || cancelled) return;
+          setPaused(s.paused);
+          if (s.duration > 0) setDurationMs(s.duration);
+          if (typeof s.shuffle === "boolean") setShuffleOn(s.shuffle);
+          if (typeof s.repeat_mode === "number") setRepeatMode(s.repeat_mode);
+          const tr = s.track_window?.current_track;
+          if (tr) {
+            setTrackName(tr.name);
+            setArtistName(tr.artists.map((a: { name: string }) => a.name).join(", "));
+            setArtUrl(tr.album.images[0]?.url ?? null);
+          }
+        } catch { /* ignore */ }
+      })();
+      /* Re-attach event listeners — the previous component's listeners were
+         cancelled on unmount, so the reused player currently has no active
+         listeners. Without this, player_state_changed / playback_error etc.
+         fire into the void and the UI gets permanently stuck.               */
+      attachListeners(p);
+      return sharedCleanup;
+    }
+
+    /* ── Full initialization ──────────────────────────────────────── */
     setPlayerState("initializing");
 
     void (async () => {
@@ -427,22 +689,15 @@ function SpotifyDockInner({ embedded = false }: { embedded?: boolean }) {
                 let d: { access_token?: string; code?: string } = {};
                 try {
                   d = await r.json();
-                } catch {
-                  /* empty body */
-                }
-                if (
-                  r.ok &&
-                  typeof d.access_token === "string" &&
-                  d.access_token.length > 0
-                ) {
+                } catch { /* empty body */ }
+                if (r.ok && typeof d.access_token === "string" && d.access_token.length > 0) {
                   cb(d.access_token);
                   return;
                 }
                 if (process.env.NODE_ENV === "development") {
                   console.warn(
                     "[spotify:player] token request failed — calling cb(\"\") so SDK can surface authentication_error",
-                    r.status,
-                    d,
+                    r.status, d,
                   );
                 }
                 cb("");
@@ -456,173 +711,25 @@ function SpotifyDockInner({ embedded = false }: { embedded?: boolean }) {
         });
         playerRef.current = player;
 
-        player.addListener("ready", ({ device_id }) => {
-          if (cancelled) return;
-          spotifySdkDevLog("ready", { device_id });
-          spotifyPlaybackLog("sdk_ready", { device_id });
-          setDeviceId(device_id);
-          setPlayerState("ready");
-          void (async () => {
-            try {
-              const r = await fetch("/api/spotify/player", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "transfer", device_id }),
-              });
-              spotifyPlaybackLog("transfer_after_ready", {
-                status: r.status,
-                ok: r.ok,
-              });
-            } catch (err) {
-              spotifyPlaybackLog("transfer_after_ready_error", {
-                err: String(err),
-              });
-            }
-          })();
-        });
-
-        player.addListener("not_ready", (ev) => {
-          if (cancelled) return;
-          spotifySdkDevLog("not_ready", { device_id: ev?.device_id });
-          spotifyPlaybackLog("sdk_not_ready", { device_id: ev?.device_id });
-          setDeviceId(null);
-          setPlayerState("initializing");
-        });
-
-        player.addListener("authentication_error", (e) => {
-          if (cancelled) return;
-          spotifySdkDevLog("authentication_error", {
-            message: e?.message,
-            device_id: deviceIdRef.current,
-          });
-          console.warn("[spotify:player] authentication_error", e?.message);
-          const now = Date.now();
-          if (now - lastSpotifyAuthErrMs.current < 2800) return;
-          lastSpotifyAuthErrMs.current = now;
-          void (async () => {
-            const st = await refreshStatusRef.current();
-            if (st.sessionOk) {
-              toast.info(tRef.current("spotifySessionRecoveredToast"));
-              return;
-            }
-            await clearInvalidSpotifySession();
-            toast.warning(tRef.current("spotifySessionExpiredReconnect"));
-          })();
-        });
-
-        player.addListener("account_error", (e) => {
-          if (cancelled) return;
-          spotifySdkDevLog("account_error", {
-            message: e?.message,
-            device_id: deviceIdRef.current,
-          });
-          console.warn("[spotify:player] account_error", e?.message);
-          setPlayerState("playback_error");
-          toast.error(tRef.current("spotifyPlayerAccountError"));
-        });
-
-        player.addListener("initialization_error", (e) => {
-          if (cancelled) return;
-          spotifySdkDevLog("initialization_error", {
-            message: e?.message,
-            device_id: deviceIdRef.current,
-          });
-          console.warn("[spotify:player] initialization_error", e?.message);
-          setPlayerState("playback_error");
-          toast.error(tRef.current("spotifyPlayerInitError"));
-        });
-
-        player.addListener("playback_error", (e) => {
-          if (cancelled) return;
-          playbackErrCooldownUntilRef.current = Date.now() + 2500;
-          spotifyPlaybackLog("sdk_playback_error", {
-            message: e?.message,
-            device_id: deviceIdRef.current,
-            selected_playlist_id: selectedPlaylistIdRef.current,
-            selected_playlist_uri: selectedPlaylistUriRef.current,
-          });
-          spotifySdkDevLog("playback_error", {
-            message: e?.message,
-            device_id: deviceIdRef.current,
-          });
-          console.warn("[spotify:player] playback_error", e?.message);
-          setPlayerState("playback_error");
-          toast.warning(tRef.current("spotifyPlaybackErrorToast"));
-        });
-
-        player.addListener("player_state_changed", (state) => {
-          if (cancelled) return;
-          if (!state) return;
-          setPlayerState((prev) =>
-            prev === "playback_error" ? "ready" : prev,
-          );
-          setPaused(state.paused);
-          if (!scrubbingRef.current) {
-            setPositionMs(state.position);
-            setDurationMs(state.duration);
-          }
-          if (typeof state.shuffle === "boolean") {
-            setShuffleOn(state.shuffle);
-          }
-          if (
-            typeof state.repeat_mode === "number" &&
-            state.repeat_mode >= 0 &&
-            state.repeat_mode <= 2
-          ) {
-            setRepeatMode(state.repeat_mode);
-          }
-          const tr = state.track_window.current_track;
-          if (tr) {
-            setTrackName(tr.name);
-            setArtistName(tr.artists.map((a) => a.name).join(", "));
-            setArtUrl(tr.album.images[0]?.url ?? null);
-          } else {
-            if (Date.now() < playbackErrCooldownUntilRef.current) {
-              if (!scrubbingRef.current) {
-                setPositionMs(state.position);
-                if (state.duration > 0) setDurationMs(state.duration);
-              }
-              setPaused(state.paused);
-              return;
-            }
-            setTrackName(null);
-            setArtistName(null);
-            setArtUrl(null);
-            setDurationMs(0);
-            setPositionMs(0);
-          }
-        });
+        attachListeners(player);
 
         const ok = await player.connect();
         if (cancelled) return;
         if (!ok) {
           console.warn("[spotify:player] connect() returned false");
           setPlayerState("playback_error");
-          toast.error(tRef.current("spotifyPlayerInitError"));
+          toast.error(tRef.current("spotifyPlayerInitError"), { toastId: "spotify-init-error" });
         }
       } catch (e) {
         console.error("[spotify:player] setup failed", e);
         if (!cancelled) {
           setPlayerState("playback_error");
-          toast.error(tRef.current("spotifyPlayerInitError"));
+          toast.error(tRef.current("spotifyPlayerInitError"), { toastId: "spotify-init-error" });
         }
       }
     })();
 
-    return () => {
-      cancelled = true;
-      playerRef.current?.disconnect();
-      playerRef.current = null;
-      setPlayerState("idle");
-      setDeviceId(null);
-      setPositionMs(0);
-      setDurationMs(0);
-      setShuffleOn(false);
-      setRepeatMode(0);
-      setScrubMs(null);
-      scrubbingRef.current = false;
-      setScrubbing(false);
-    };
+    return sharedCleanup;
   }, [sessionState, configured, clearInvalidSpotifySession]);
 
   const loadPlaylists = useCallback(async () => {
@@ -860,13 +967,14 @@ function SpotifyDockInner({ embedded = false }: { embedded?: boolean }) {
             errBody,
           );
         if (retryable) {
+          // Retry 1: transfer ownership to this device, wait for Spotify to register it.
           spotifyPlaybackLog("play_retry_transfer", { device_id: devId });
           const tr = await postTransfer();
           spotifyPlaybackLog("transfer_during_retry", {
             status: tr.status,
             ok: tr.ok,
           });
-          await new Promise((res) => setTimeout(res, 450));
+          await new Promise((res) => setTimeout(res, 900));
           r = await postPlay();
           errBody = r.ok ? "" : await r.text();
 
@@ -878,6 +986,20 @@ function SpotifyDockInner({ embedded = false }: { embedded?: boolean }) {
             await clearInvalidSpotifySession();
             toast.warning(tRef.current("spotifyPlaybackAuthRequired"));
             return;
+          }
+
+          // Retry 2: if still device-not-found, wait a bit longer and try once more.
+          const stillNotFound =
+            !r.ok &&
+            (r.status === 404 ||
+              /device not found|no active device|not active|player command failed/i.test(
+                errBody,
+              ));
+          if (stillNotFound) {
+            spotifyPlaybackLog("play_retry2_long_wait", { device_id: devId });
+            await new Promise((res) => setTimeout(res, 1500));
+            r = await postPlay();
+            errBody = r.ok ? "" : await r.text();
           }
         }
       }
@@ -902,6 +1024,11 @@ function SpotifyDockInner({ embedded = false }: { embedded?: boolean }) {
     async (trackUri: string) => {
       const devId = deviceId;
       if (!devId) {
+        // Device not ready yet — queue the intent and auto-play once the SDK fires "ready".
+        pendingPlayRef.current = {
+          uri: trackUri,
+          context: selectedPlaylistUri,
+        };
         toast.info(tRef.current("spotifyWaitForDevice"));
         return;
       }
@@ -1009,9 +1136,8 @@ function SpotifyDockInner({ embedded = false }: { embedded?: boolean }) {
             return;
           }
         }
-        setPositionMs(clamped);
       } catch {
-        const r = await fetch("/api/spotify/player", {
+        await fetch("/api/spotify/player", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1020,7 +1146,6 @@ function SpotifyDockInner({ embedded = false }: { embedded?: boolean }) {
             position_ms: clamped,
           }),
         });
-        if (r.ok) setPositionMs(clamped);
       }
     },
     [deviceId, durationMs],
@@ -1069,66 +1194,36 @@ function SpotifyDockInner({ embedded = false }: { embedded?: boolean }) {
     }
   }, [deviceId, repeatMode]);
 
+  /* ── Lightweight 5-second poll: only sync shuffle/repeat state ──────
+     Position is now tracked entirely inside SpotifyProgressSlider via RAF.
+     player_state_changed handles real-time updates; this poll just catches
+     drift in shuffle/repeat that the event might miss in edge cases.       */
   useEffect(() => {
-    if (!deviceId || paused || scrubbing) return;
-    const tick = async () => {
-      const p = playerRef.current;
-      if (!p || scrubbingRef.current) return;
+    if (!deviceId || paused) return;
+    const id = setInterval(async () => {
       try {
-        const s = await p.getCurrentState();
-        if (s && !scrubbingRef.current) {
-          setPositionMs(s.position);
-          if (s.duration > 0) setDurationMs(s.duration);
-          if (typeof s.shuffle === "boolean") setShuffleOn(s.shuffle);
-          if (
-            typeof s.repeat_mode === "number" &&
-            s.repeat_mode >= 0 &&
-            s.repeat_mode <= 2
-          ) {
-            setRepeatMode(s.repeat_mode);
-          }
+        const s = await playerRef.current?.getCurrentState();
+        if (!s) return;
+        if (typeof s.shuffle === "boolean") setShuffleOn(s.shuffle);
+        if (
+          typeof s.repeat_mode === "number" &&
+          s.repeat_mode >= 0 &&
+          s.repeat_mode <= 2
+        ) {
+          setRepeatMode(s.repeat_mode);
         }
-      } catch {
-        /* ignore */
-      }
-    };
-    void tick();
-    const id = setInterval(() => void tick(), 500);
+      } catch { /* ignore */ }
+    }, 5000);
     return () => clearInterval(id);
-  }, [deviceId, paused, scrubbing]);
+  }, [deviceId, paused]);
 
   const onLogout = useCallback(async () => {
-    playerRef.current?.disconnect();
-    playerRef.current = null;
-    await fetch("/api/spotify/logout", { method: "POST" });
-    setSessionState("disconnected");
-    setSessionFailKind(null);
-    setPlayerState("idle");
-    setDeviceId(null);
-    setExpanded(false);
-    setPlaylists([]);
-    setPlaylistsLoadFailed(false);
-    setSelectedPlaylistId(null);
-    setSelectedPlaylistName(null);
-    setSelectedPlaylistUri(null);
-    setPlaylistTracks([]);
-    setPlaylistTracksError(null);
-    setTrackName(null);
-    setArtistName(null);
-    setArtUrl(null);
-    setPositionMs(0);
-    setDurationMs(0);
-    setShuffleOn(false);
-    setRepeatMode(0);
-    setScrubMs(null);
-    scrubbingRef.current = false;
-    setScrubbing(false);
-    toast.success(tRef.current("spotifyDisconnectedToast"));
-  }, []);
+    await applySpotifyLogoutLocal(true);
+  }, [applySpotifyLogoutLocal]);
 
   const uiPhase = deriveUiPhase(sessionState, playerState);
 
-  const subtitleLine = (() => {
+  const subtitleLine = useMemo(() => {
     switch (uiPhase) {
       case "connecting":
         return t("spotifyCheckingSession");
@@ -1143,7 +1238,34 @@ function SpotifyDockInner({ embedded = false }: { embedded?: boolean }) {
       default:
         return "—";
     }
-  })();
+  }, [uiPhase, t, trackName, artistName]);
+
+  /* ── Stable callbacks for memoized child components ─────────────── */
+  const onToggleExpand = useCallback(() => setExpanded((e) => !e), []);
+  const onTogglePlayCb = useCallback(() => void onTogglePlay(), [onTogglePlay]);
+  const onPrevCb = useCallback(() => void onPrev(), [onPrev]);
+  const onNextCb = useCallback(() => void onNext(), [onNext]);
+  const onToggleShuffleCb = useCallback(() => void toggleShuffle(), [toggleShuffle]);
+  const onCycleRepeatCb = useCallback(() => void cycleRepeat(), [cycleRepeat]);
+  const onLogoutCb = useCallback(() => void onLogout(), [onLogout]);
+  const onSeekCommitCb = useCallback((v: number) => void performSeek(v), [performSeek]);
+  const onSelectPlaylist = useCallback(
+    (pl: PlaylistRow) => {
+      setSelectedPlaylistId(pl.id);
+      setSelectedPlaylistName(pl.name);
+      setSelectedPlaylistUri(pl.uri);
+      void loadPlaylistTracks(pl.id);
+    },
+    [loadPlaylistTracks],
+  );
+  const onPlayTrackCb = useCallback(
+    (uri: string) => void playFromLibraryPanel(uri),
+    [playFromLibraryPanel],
+  );
+  const onReconnectForTracks = useCallback(
+    () => void openSpotifyLoginPopup({ reconsent: true }),
+    [openSpotifyLoginPopup],
+  );
 
   if (!configured) {
     if (!embedded) return null;
@@ -1186,7 +1308,7 @@ function SpotifyDockInner({ embedded = false }: { embedded?: boolean }) {
           </button>
           <button
             type="button"
-            onClick={() => openSpotifyLoginPopup()}
+            onClick={() => void openSpotifyLoginPopup()}
             className="inline-flex items-center justify-center rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
           >
             {t("spotifyReconnect")}
@@ -1201,11 +1323,7 @@ function SpotifyDockInner({ embedded = false }: { embedded?: boolean }) {
         </div>
       );
     }
-    return (
-      <div className="pointer-events-auto fixed bottom-4 right-4 z-[95] md:bottom-8 md:right-8">
-        <div className="max-w-[min(100vw-2rem,22rem)]">{transientCard}</div>
-      </div>
-    );
+    return null;
   }
 
   if (sessionState === "session_invalid") {
@@ -1220,7 +1338,7 @@ function SpotifyDockInner({ embedded = false }: { embedded?: boolean }) {
         </p>
         <button
           type="button"
-          onClick={() => openSpotifyLoginPopup()}
+          onClick={() => void openSpotifyLoginPopup({ reconsent: true })}
           className="mt-5 inline-flex items-center justify-center rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
         >
           {t("spotifyReconnect")}
@@ -1230,11 +1348,7 @@ function SpotifyDockInner({ embedded = false }: { embedded?: boolean }) {
     if (embedded) {
       return <div className="mx-auto flex w-full justify-center px-4">{invalidCard}</div>;
     }
-    return (
-      <div className="pointer-events-auto fixed bottom-4 right-4 z-[95] md:bottom-8 md:right-8">
-        <div className="max-w-[min(100vw-2rem,22rem)]">{invalidCard}</div>
-      </div>
-    );
+    return null;
   }
 
   if (sessionState === "disconnected") {
@@ -1242,78 +1356,24 @@ function SpotifyDockInner({ embedded = false }: { embedded?: boolean }) {
       return (
         <div className="mx-auto flex w-full justify-center px-4">
           <SpotifyConnectCard
-            onConnect={() => openSpotifyLoginPopup()}
+            onConnect={() => void openSpotifyLoginPopup()}
             t={t}
           />
         </div>
       );
     }
-    return (
-      <div className="pointer-events-auto fixed bottom-4 right-4 z-[95] md:bottom-8 md:right-8">
-        <button
-          type="button"
-          onClick={() => openSpotifyLoginPopup()}
-          className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-900 shadow-lg ring-1 ring-zinc-900/5 transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-white/10 dark:hover:bg-zinc-800"
-        >
-          <Music2 className="h-4 w-4 text-zinc-900 dark:text-zinc-100" aria-hidden />
-          {t("spotifyConnect")}
-        </button>
-      </div>
-    );
+    return null;
   }
 
-  const dockOuterEmbedded =
-    "relative z-[95] mx-auto flex w-full max-w-4xl flex-col gap-4 rounded-3xl bg-gradient-to-b from-zinc-100/80 via-white/50 to-transparent px-4 py-6 dark:from-zinc-950/90 dark:via-zinc-950/40 dark:to-transparent";
-  const dockFloatWidth = expanded
-    ? "w-full max-w-[min(100vw-1rem,42rem)]"
-    : "w-full max-w-[min(100vw-2rem,22rem)]";
-  const dockFloatCorner =
-    !embedded && dockDragPos == null
-      ? "bottom-4 right-4 md:bottom-8 md:right-8"
-      : "";
-  const dockOuterFloating = `pointer-events-auto fixed z-[95] flex flex-col items-stretch gap-3 ${dockFloatWidth} ${dockFloatCorner}`;
-  const playlistPanelMaxHeightClass = embedded
-    ? "max-h-[min(72vh,560px)]"
-    : "max-h-[min(58vh,480px)]";
+  /* ── Embedded (Spotify page) keeps the original card layout ─────── */
+  if (embedded) {
+    const embeddedOuter =
+      "relative z-[95] mx-auto flex w-full max-w-4xl flex-col gap-2 rounded-3xl bg-gradient-to-b from-zinc-100/80 via-white/50 to-transparent px-3 py-3 dark:from-zinc-950/90 dark:via-zinc-950/40 dark:to-transparent";
 
-  return (
-    <>
-      {expanded && !embedded ? (
-        <div
-          className="fixed inset-0 z-[94] bg-black/30 md:bg-black/20"
-          role="presentation"
-          onClick={() => setExpanded(false)}
-        />
-      ) : null}
-
-      <div
-        className={embedded ? dockOuterEmbedded : dockOuterFloating}
-        ref={embedded ? undefined : shellRef}
-        style={
-          !embedded && dockDragPos
-            ? {
-                left: dockDragPos.left,
-                top: dockDragPos.top,
-                right: "auto",
-                bottom: "auto",
-              }
-            : undefined
-        }
-      >
-        {!embedded ? (
-          <div
-            className="flex w-full shrink-0 cursor-grab touch-none items-center justify-center rounded-xl border border-zinc-200/80 bg-zinc-100/95 py-1.5 active:cursor-grabbing dark:border-zinc-700/80 dark:bg-zinc-900/90"
-            onPointerDown={onDragHandlePointerDown}
-            title={t("spotifyDockDragHint")}
-          >
-            <GripHorizontal className="h-4 w-4 text-zinc-400" aria-hidden />
-          </div>
-        ) : null}
+    return (
+      <div className={embeddedOuter}>
         {expanded ? (
-          <div
-            className="w-full overflow-hidden rounded-3xl border border-zinc-200/90 bg-white shadow-[0_20px_50px_-20px_rgba(0,0,0,0.25)] ring-1 ring-zinc-900/[0.05] dark:border-zinc-700/90 dark:bg-zinc-900 dark:ring-white/[0.06]"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-3xl border border-zinc-200/90 bg-white shadow-[0_20px_50px_-20px_rgba(0,0,0,0.25)] ring-1 ring-zinc-900/[0.05] dark:border-zinc-700/90 dark:bg-zinc-900 dark:ring-white/[0.06]">
             <SpotifyPlaylistPanel
               t={t}
               playlists={playlists}
@@ -1321,75 +1381,101 @@ function SpotifyDockInner({ embedded = false }: { embedded?: boolean }) {
               playlistsLoadFailed={playlistsLoadFailed}
               selectedPlaylistId={selectedPlaylistId}
               selectedPlaylistName={selectedPlaylistName}
-              onSelectPlaylist={(pl) => {
-                setSelectedPlaylistId(pl.id);
-                setSelectedPlaylistName(pl.name);
-                setSelectedPlaylistUri(pl.uri);
-                void loadPlaylistTracks(pl.id);
-              }}
+              onSelectPlaylist={onSelectPlaylist}
               playlistTracks={playlistTracks}
               playlistTracksLoading={playlistTracksLoading}
               playlistTracksError={playlistTracksError}
               tracksPlayDisabled={
                 playlistTracksLoading || Boolean(playlistTracksError)
               }
-              onPlayTrack={(uri) => void playFromLibraryPanel(uri)}
-              onReconnectForPlaylistTracks={() =>
-                openSpotifyLoginPopup({ reconsent: true })
-              }
-              maxHeightClass={playlistPanelMaxHeightClass}
+              onPlayTrack={onPlayTrackCb}
+              onReconnectForPlaylistTracks={onReconnectForTracks}
+              maxHeightClass="max-h-[min(55vh,400px)]"
             />
           </div>
         ) : null}
-
         <SpotifyPlayerCard
-          className={
-            embedded ? "w-full" : expanded ? "w-full" : "min-w-[17rem]"
-          }
+          className="w-full shrink-0"
           t={t}
           formatMs={formatPlaybackMs}
+          playerRef={playerRef}
           artUrl={artUrl}
           trackName={trackName}
           subtitleLine={subtitleLine}
           expanded={expanded}
-          onToggleExpand={() => setExpanded((e) => !e)}
+          onToggleExpand={onToggleExpand}
           deviceId={deviceId}
           durationMs={durationMs}
-          positionMs={positionMs}
-          scrubMs={scrubMs}
-          scrubbingRef={scrubbingRef}
-          setScrubbing={setScrubbing}
-          setScrubMs={setScrubMs}
-          onScrubPointerDown={() => setScrubMs(positionMs)}
-          onSeekCommit={(v) => void performSeek(v)}
-          onScrubCancel={() => {
-            scrubbingRef.current = false;
-            setScrubbing(false);
-            setScrubMs(null);
-          }}
+          onSeekCommit={onSeekCommitCb}
           paused={paused}
-          onTogglePlay={() => void onTogglePlay()}
-          onPrev={() => void onPrev()}
-          onNext={() => void onNext()}
+          onTogglePlay={onTogglePlayCb}
+          onPrev={onPrevCb}
+          onNext={onNextCb}
           shuffleOn={shuffleOn}
-          onToggleShuffle={() => void toggleShuffle()}
+          onToggleShuffle={onToggleShuffleCb}
           repeatMode={repeatMode}
-          onCycleRepeat={() => void cycleRepeat()}
-          onLogout={() => void onLogout()}
+          onCycleRepeat={onCycleRepeatCb}
+          onLogout={onLogoutCb}
           showInitializingHint={
             uiPhase === "player_initializing" && !deviceId
           }
           showDisconnect={!spotifyPersonalMode}
         />
       </div>
-    </>
+    );
+  }
+
+  /* ── Non-embedded: hover-expand floating corner widget at bottom-right */
+  const barInvisibleClass = visuallyHidden
+    ? "invisible pointer-events-none select-none"
+    : "";
+
+  return (
+    <div
+      className={`fixed bottom-4 right-4 z-[95] ${barInvisibleClass}`}
+      style={{ maxWidth: "calc(100vw - 2rem)" }}
+      aria-hidden={visuallyHidden ? true : undefined}
+    >
+      <SpotifyPlayerCard
+        layout="floating"
+        t={t}
+        formatMs={formatPlaybackMs}
+        playerRef={playerRef}
+        artUrl={artUrl}
+        trackName={trackName}
+        subtitleLine={subtitleLine}
+        expanded={false}
+        deviceId={deviceId}
+        durationMs={durationMs}
+        onSeekCommit={onSeekCommitCb}
+        paused={paused}
+        onTogglePlay={onTogglePlayCb}
+        onPrev={onPrevCb}
+        onNext={onNextCb}
+        shuffleOn={shuffleOn}
+        onToggleShuffle={onToggleShuffleCb}
+        repeatMode={repeatMode}
+        onCycleRepeat={onCycleRepeatCb}
+        onLogout={onLogoutCb}
+        showInitializingHint={uiPhase === "player_initializing" && !deviceId}
+        showDisconnect={false}
+      />
+    </div>
   );
 }
 
-export function SpotifyDock({ embedded = false }: { embedded?: boolean }) {
+
+
+export function SpotifyDock({
+  embedded = false,
+  visuallyHidden = false,
+}: {
+  embedded?: boolean;
+  visuallyHidden?: boolean;
+}) {
   return (
     <Suspense fallback={null}>
-      <SpotifyDockInner embedded={embedded} />
+      <SpotifyDockInner embedded={embedded} visuallyHidden={visuallyHidden} />
     </Suspense>
   );
 }

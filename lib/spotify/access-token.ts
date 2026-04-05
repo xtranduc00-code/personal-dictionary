@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import {
+  SPOTIFY_AT_COOKIE,
   SPOTIFY_RT_COOKIE,
   SPOTIFY_TOKEN_URL,
 } from "@/lib/spotify/constants";
@@ -36,6 +37,65 @@ export type RefreshResult =
  * and yield 401 (spotifyAuthHeader null) on some requests.
  */
 let refreshSingleFlight: Promise<RefreshResult> | null = null;
+
+/**
+ * In-memory fallback cache (cleared on HMR/restart — cookie cache is primary).
+ * Avoids hitting Spotify's token endpoint on every API request during a single
+ * server process lifetime.
+ */
+let cachedAccessToken: string | null = null;
+let cachedAccessTokenExpiresAt = 0;
+/** Cache for 55 min — access tokens live 60 min, give 5 min buffer for clock skew. */
+const ACCESS_TOKEN_CACHE_MS = 55 * 60 * 1000;
+/** Cookie stores token + expiry as "token|expiresAtMs" — survives HMR and server restarts. */
+const AT_COOKIE_MAX_AGE = 55 * 60; // seconds
+
+function atCookieOptions() {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: AT_COOKIE_MAX_AGE,
+  };
+}
+
+async function getCachedAccessToken(): Promise<string | null> {
+  // 1. Check in-memory cache first (fastest).
+  if (cachedAccessToken && Date.now() < cachedAccessTokenExpiresAt) {
+    return cachedAccessToken;
+  }
+  // 2. Fall back to cookie cache (survives HMR/restart).
+  try {
+    const store = await cookies();
+    const raw = store.get(SPOTIFY_AT_COOKIE)?.value;
+    if (raw) {
+      const [token, expiresStr] = raw.split("|");
+      const expiresAt = Number(expiresStr);
+      if (token && expiresAt && Date.now() < expiresAt) {
+        // Warm the in-memory cache from the cookie.
+        cachedAccessToken = token;
+        cachedAccessTokenExpiresAt = expiresAt;
+        return token;
+      }
+    }
+  } catch {
+    /* cookie read failed — proceed to refresh */
+  }
+  return null;
+}
+
+async function setCachedAccessToken(token: string): Promise<void> {
+  const expiresAt = Date.now() + ACCESS_TOKEN_CACHE_MS;
+  cachedAccessToken = token;
+  cachedAccessTokenExpiresAt = expiresAt;
+  try {
+    const store = await cookies();
+    store.set(SPOTIFY_AT_COOKIE, `${token}|${expiresAt}`, atCookieOptions());
+  } catch {
+    /* cookie write failed — in-memory cache still works for this process */
+  }
+}
 
 async function persistRotatedRefreshToken(refreshToken: string): Promise<boolean> {
   for (let i = 0; i < 5; i++) {
@@ -168,7 +228,7 @@ async function performRefreshSpotifyAccessToken(): Promise<RefreshResult> {
       /**
        * Spotify typically invalidates the previous refresh_token when issuing a new one.
        * If we cannot store the new token, the next refresh will fail — treat as revoked
-       * so the user reconnects once instead of flaky “random expiry”.
+       * so the user reconnects once instead of flaky "random expiry".
        */
       console.error(
         LOG_PREFIX,
@@ -178,10 +238,17 @@ async function performRefreshSpotifyAccessToken(): Promise<RefreshResult> {
     }
   }
 
+  // Cache access token in both memory and cookie — survives HMR and server restarts.
+  await setCachedAccessToken(accessToken);
+
   return { ok: true, accessToken };
 }
 
 export async function refreshSpotifyAccessToken(): Promise<RefreshResult> {
+  // Return cached token if still valid (checks memory then cookie).
+  const cached = await getCachedAccessToken();
+  if (cached) return { ok: true, accessToken: cached };
+
   if (refreshSingleFlight) {
     if (process.env.NODE_ENV === "development") {
       console.info(LOG_PREFIX, "awaiting in-flight refresh");
@@ -193,6 +260,18 @@ export async function refreshSpotifyAccessToken(): Promise<RefreshResult> {
     return await refreshSingleFlight;
   } finally {
     refreshSingleFlight = null;
+  }
+}
+
+/** Call this after logout or reconnect to force a fresh token on next request. */
+export async function clearCachedSpotifyAccessToken(): Promise<void> {
+  cachedAccessToken = null;
+  cachedAccessTokenExpiresAt = 0;
+  try {
+    const store = await cookies();
+    store.delete(SPOTIFY_AT_COOKIE);
+  } catch {
+    /* ignore */
   }
 }
 

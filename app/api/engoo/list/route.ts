@@ -44,10 +44,14 @@ export async function GET(req: NextRequest) {
   const cursor = sp.get("cursor")?.trim() || null;
 
   const cacheKey = `list:${apiCategoryId}:t:${topicSlug ?? "all"}:${cursor ?? "first"}:${pageSize}:${lo}:${hi}`;
+  const CACHE_HEADERS = {
+    "Cache-Control": "public, s-maxage=1800, stale-while-revalidate=3600",
+  };
+
   const hit = getCachedEngooList<EngooListApiResponse>(cacheKey);
   if (hit) {
     return NextResponse.json(hit, {
-      headers: { "x-engoo-cache": "hit" },
+      headers: { "x-engoo-cache": "hit", ...CACHE_HEADERS },
     });
   }
 
@@ -125,7 +129,7 @@ export async function GET(req: NextRequest) {
 
     setCachedEngooList(cacheKey, body);
     return NextResponse.json(body, {
-      headers: { "x-engoo-cache": "miss" },
+      headers: { "x-engoo-cache": "miss", ...CACHE_HEADERS },
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Engoo list fetch failed";

@@ -7,6 +7,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
 } from "react";
@@ -359,7 +360,12 @@ function listQuery(
   return base;
 }
 
-export function EngooDailyNewsHomeInner() {
+export function EngooDailyNewsHomeInner({
+  initialData,
+}: {
+  /** Server-pre-fetched "all" category items — skips the initial client fetch when provided. */
+  initialData?: EngooListApiResponse | null;
+}) {
   const { t } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
@@ -371,9 +377,16 @@ export function EngooDailyNewsHomeInner() {
   );
   const isAllTab = activeCategory.slug === "all";
 
-  const [items, setItems] = useState<EngooListCard[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [listLoading, setListLoading] = useState(true);
+  // Server pre-fetched data is only valid for the "all" tab (default).
+  const hasServerData = isAllTab && Array.isArray(initialData?.items) && (initialData!.items.length > 0);
+
+  const [items, setItems] = useState<EngooListCard[]>(
+    hasServerData ? initialData!.items : [],
+  );
+  const [nextCursor, setNextCursor] = useState<string | null>(
+    hasServerData ? (initialData!.nextCursor ?? null) : null,
+  );
+  const [listLoading, setListLoading] = useState(!hasServerData);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -412,7 +425,14 @@ export function EngooDailyNewsHomeInner() {
     }
   }, [activeCategory.slug]);
 
+  // Skip the initial "all" category fetch when the server already pre-fetched the data.
+  const skipInitialRef = useRef(hasServerData);
+
   useEffect(() => {
+    if (skipInitialRef.current) {
+      skipInitialRef.current = false;
+      return;
+    }
     void resetAndLoad();
   }, [resetAndLoad]);
 

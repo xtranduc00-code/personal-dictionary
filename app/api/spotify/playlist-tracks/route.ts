@@ -29,8 +29,9 @@ export async function GET(req: Request) {
   let offset = 0;
 
   while (rawTracks.length < MAX_TRACKS) {
+    /** /tracks is deprecated — use /items (supported both track + episode types). */
     const url = new URL(
-      `${SPOTIFY_API}/playlists/${playlistId}/tracks`,
+      `${SPOTIFY_API}/playlists/${playlistId}/items`,
     );
     url.searchParams.set("limit", String(PAGE));
     url.searchParams.set("offset", String(offset));
@@ -52,7 +53,8 @@ export async function GET(req: Request) {
     }
 
     const data = (await res.json()) as {
-      items?: { track?: unknown }[];
+      /** /items uses `item` field; /tracks (deprecated) used `track`. */
+      items?: { item?: unknown; track?: unknown }[];
       next?: string | null;
     };
 
@@ -60,7 +62,7 @@ export async function GET(req: Request) {
     if (items.length === 0) break;
 
     for (const row of items) {
-      const tr = row.track;
+      const tr = row.item ?? row.track;
       if (tr == null || typeof tr !== "object") continue;
       const t = tr as { type?: string };
       if (t.type === "episode") continue;

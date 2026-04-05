@@ -818,6 +818,8 @@ export const translations = {
     guardianReadHostHtmlError:
       "The reader API returned an HTML error page (HTTP {status}) — usually a hosting timeout or crash before our JSON ran. Try again, set GUARDIAN_READ_TOTAL_MS / raise your serverless function timeout for /api/guardian-read, or open the article on the Guardian site.",
     guardianReadErrorWithCode: "{message} (code: {code})",
+    guardianReadLiveBlogUnsupported:
+      "Live blog pages are too large for the in-app reader. Open the article on the Guardian site instead.",
     articleHomeTitle: "Read, then talk about it",
     articleHomeSubtitle:
       "Paste a lesson or news URL, or paste article text. Open a saved piece, read it, then start an AI call with full context.",
@@ -2270,6 +2272,8 @@ export const translations = {
     guardianReadHostHtmlError:
       "API đọc bài trả về trang lỗi HTML (HTTP {status}) — thường do hosting timeout hoặc crash trước khi JSON chạy xong. Thử lại, đặt GUARDIAN_READ_TOTAL_MS / tăng timeout function cho /api/guardian-read, hoặc mở bài trên Guardian.",
     guardianReadErrorWithCode: "{message} (mã: {code})",
+    guardianReadLiveBlogUnsupported:
+      "Trang live blog quá lớn cho trình đọc trong ứng dụng. Mở bài trên trang Guardian thay thế.",
     articleHomeTitle: "Đọc rồi nói chuyện về bài",
     articleHomeSubtitle:
       "Dán URL bài học/tin, hoặc dán nội dung. Mở bài đã lưu, đọc, rồi gọi AI với đầy đủ ngữ cảnh.",

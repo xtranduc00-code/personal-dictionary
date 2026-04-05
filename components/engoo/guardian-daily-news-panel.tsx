@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { BookDown, LayoutGrid, Loader2, Newspaper, Search } from "lucide-react";
 import type { GuardianListItem } from "@/lib/guardian-content-types";
@@ -107,7 +107,12 @@ function GuardianListSkeleton() {
   );
 }
 
-export function GuardianDailyNewsPanel() {
+export function GuardianDailyNewsPanel({
+  initialNewsItems,
+}: {
+  /** Server-pre-fetched world/news items — skips the initial client fetch when provided. */
+  initialNewsItems?: GuardianListItem[] | null;
+}) {
   const { t } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
@@ -128,9 +133,13 @@ export function GuardianDailyNewsPanel() {
     [pathname, router, searchParams],
   );
 
-  const [newsItems, setNewsItems] = useState<GuardianListItem[]>([]);
+  const hasServerNews = Array.isArray(initialNewsItems) && initialNewsItems.length > 0;
+
+  const [newsItems, setNewsItems] = useState<GuardianListItem[]>(
+    hasServerNews ? initialNewsItems! : [],
+  );
   const [sportItems, setSportItems] = useState<GuardianListItem[]>([]);
-  const [loadingNews, setLoadingNews] = useState(tab === "news");
+  const [loadingNews, setLoadingNews] = useState(tab === "news" && !hasServerNews);
   const [loadingSport, setLoadingSport] = useState(tab === "sport");
   const [newsError, setNewsError] = useState<string | null>(null);
   const [sportError, setSportError] = useState<string | null>(null);
@@ -151,7 +160,7 @@ export function GuardianDailyNewsPanel() {
       try {
         const res = await fetch(
           `/api/guardian/list?section=${section}&pageSize=30`,
-          { credentials: "same-origin", cache: "no-store" },
+          { credentials: "same-origin" },
         );
         const text = await res.text();
         let json: {
@@ -200,8 +209,15 @@ export function GuardianDailyNewsPanel() {
     [t],
   );
 
+  // Skip the first world/news fetch when the server already pre-fetched the data.
+  const skipNewsRef = useRef(hasServerNews);
+
   useEffect(() => {
     if (tab !== "news") return;
+    if (skipNewsRef.current) {
+      skipNewsRef.current = false;
+      return;
+    }
     void loadList("world");
   }, [tab, loadList]);
 

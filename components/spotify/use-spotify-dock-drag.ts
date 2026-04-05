@@ -2,7 +2,7 @@
 
 import {
   useCallback,
-  useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
@@ -10,6 +10,28 @@ import {
 } from "react";
 
 const STORAGE_KEY = "ken.workspace.spotifyDockPos";
+/** md: sidebar is `w-80` (320px); keep the dock out of that band. */
+const MD_BREAKPOINT = 768;
+const SIDEBAR_WIDTH = 320;
+
+function minDockLeftPx(): number {
+  if (typeof window === "undefined") return 8;
+  if (window.innerWidth < MD_BREAKPOINT) return 8;
+  try {
+    if (window.localStorage.getItem("sidebarOpen") === "false") return 16;
+  } catch {
+    /* ignore */
+  }
+  return SIDEBAR_WIDTH + 8;
+}
+
+function shellSizePx(shell: HTMLElement) {
+  const r = shell.getBoundingClientRect();
+  return {
+    w: Math.max(1, Math.round(r.width)) || 320,
+    h: Math.max(1, Math.round(r.height)) || 200,
+  };
+}
 
 function clampToViewport(
   left: number,
@@ -17,22 +39,51 @@ function clampToViewport(
   shell: HTMLElement,
   margin: number,
 ) {
-  const w = shell.offsetWidth || 320;
-  const h = shell.offsetHeight || 200;
-  const maxL = Math.max(margin, window.innerWidth - w - margin);
-  const maxT = Math.max(margin, window.innerHeight - h - margin);
+  const { w, h } = shellSizePx(shell);
+  const minL = Math.max(margin, minDockLeftPx());
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const maxL = Math.max(minL, vw - w - margin);
+  const maxT = Math.max(margin, vh - h - margin);
   return {
-    left: Math.min(Math.max(margin, left), maxL),
+    left: Math.min(Math.max(minL, left), maxL),
     top: Math.min(Math.max(margin, top), maxT),
   };
 }
 
+function readStoragePos(): { left: number; top: number } | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as unknown;
+    if (
+      p &&
+      typeof p === "object" &&
+      "left" in p &&
+      "top" in p &&
+      typeof (p as { left: unknown }).left === "number" &&
+      typeof (p as { top: unknown }).top === "number"
+    ) {
+      return {
+        left: (p as { left: number }).left,
+        top: (p as { top: number }).top,
+      };
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
 /**
  * Floating Spotify dock: fixed position, kéo như Meet mini shell (lưu localStorage).
+ * `expanded` must be passed so we reclamp `top` when the playlist opens — otherwise
+ * `clamp` used the collapsed height and the tall panel slides below the viewport.
  */
 export function useSpotifyDockDrag(
   shellRef: RefObject<HTMLElement | null>,
   enabled: boolean,
+  expanded: boolean,
 ) {
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const dragRef = useRef<{
@@ -42,29 +93,50 @@ export function useSpotifyDockDrag(
     origTop: number;
   } | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!enabled) return;
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const p = JSON.parse(raw) as unknown;
-      if (
-        p &&
-        typeof p === "object" &&
-        "left" in p &&
-        "top" in p &&
-        typeof (p as { left: unknown }).left === "number" &&
-        typeof (p as { top: unknown }).top === "number"
-      ) {
-        setPos({
-          left: (p as { left: number }).left,
-          top: (p as { top: number }).top,
-        });
-      }
-    } catch {
-      /* ignore */
-    }
-  }, [enabled]);
+    const shell = shellRef.current;
+    if (!shell) return;
+
+    let rafChain = 0;
+    const tick = () => {
+      const sh = shellRef.current;
+      if (!sh) return;
+      setPos((prev) => {
+        let base = prev;
+        if (base === null) {
+          base = readStoragePos();
+        }
+        if (base === null) return null;
+        return clampToViewport(base.left, base.top, sh, 8);
+      });
+    };
+
+    const scheduleTick = () => {
+      cancelAnimationFrame(rafChain);
+      rafChain = requestAnimationFrame(tick);
+    };
+
+    tick();
+    rafChain = requestAnimationFrame(() => {
+      tick();
+      requestAnimationFrame(tick);
+    });
+
+    const onResize = () => scheduleTick();
+    window.addEventListener("resize", onResize);
+    window.visualViewport?.addEventListener("resize", onResize);
+
+    const ro = new ResizeObserver(() => scheduleTick());
+    ro.observe(shell);
+
+    return () => {
+      cancelAnimationFrame(rafChain);
+      window.removeEventListener("resize", onResize);
+      window.visualViewport?.removeEventListener("resize", onResize);
+      ro.disconnect();
+    };
+  }, [enabled, shellRef, expanded]);
 
   const onDragHandlePointerDown = useCallback(
     (e: ReactPointerEvent<HTMLDivElement>) => {

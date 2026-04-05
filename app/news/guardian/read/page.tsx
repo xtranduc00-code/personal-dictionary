@@ -113,11 +113,16 @@ function GuardianReadInner() {
         }
         if (cancelled) return;
         if (!res.ok) {
-          const msg = data.error ?? "Could not load article.";
           const code =
             typeof data.code === "string" && data.code.length > 0
               ? data.code
               : "";
+          // Live blog: show a clean, friendly message without the code suffix.
+          if (code === "live_blog_unsupported") {
+            setError(t("guardianReadLiveBlogUnsupported"));
+            return;
+          }
+          const msg = data.error ?? "Could not load article.";
           setError(
             code
               ? t("guardianReadErrorWithCode")

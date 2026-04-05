@@ -13,6 +13,8 @@ export const SPOTIFY_SCOPES = [
 ].join(" ");
 
 export const SPOTIFY_RT_COOKIE = "spotify_rt";
+/** Short-lived access token cache cookie — avoids redundant token refreshes across HMR/restarts. */
+export const SPOTIFY_AT_COOKIE = "spotify_at";
 export const SPOTIFY_PKCE_COOKIE = "spotify_pkce";
 export const SPOTIFY_STATE_COOKIE = "spotify_oauth_state";
 /** Set when starting OAuth via `?popup=1` so callback can close a window instead of full redirect. */

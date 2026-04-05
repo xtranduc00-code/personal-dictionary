@@ -4,8 +4,15 @@ import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { EngooDailyNewsHomeInner, HomeSkeleton } from "@/components/engoo/engoo-daily-news-home";
 import { GuardianDailyNewsPanel } from "@/components/engoo/guardian-daily-news-panel";
+import type { GuardianListItem } from "@/lib/guardian-content-types";
+import type { EngooListApiResponse } from "@/lib/engoo-types";
 
-function DailyNewsHubInner() {
+type DailyNewsHubProps = {
+  guardianInitial?: GuardianListItem[] | null;
+  engooInitial?: EngooListApiResponse | null;
+};
+
+function DailyNewsHubInner({ guardianInitial, engooInitial }: DailyNewsHubProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const source: "engoo" | "guardian" =
@@ -19,18 +26,18 @@ function DailyNewsHubInner() {
   return (
     <div className="w-full">
       {source === "engoo" ? (
-        <EngooDailyNewsHomeInner />
+        <EngooDailyNewsHomeInner initialData={engooInitial} />
       ) : (
-        <GuardianDailyNewsPanel />
+        <GuardianDailyNewsPanel initialNewsItems={guardianInitial} />
       )}
     </div>
   );
 }
 
-export function DailyNewsHub() {
+export function DailyNewsHub({ guardianInitial, engooInitial }: DailyNewsHubProps) {
   return (
     <Suspense fallback={<HomeSkeleton layout="featured" />}>
-      <DailyNewsHubInner />
+      <DailyNewsHubInner guardianInitial={guardianInitial} engooInitial={engooInitial} />
     </Suspense>
   );
 }

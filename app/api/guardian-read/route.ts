@@ -1,6 +1,6 @@
 import { Readability } from "@mozilla/readability";
 import { NextRequest, NextResponse } from "next/server";
-import { JSDOM } from "jsdom";
+import { parseHTML } from "linkedom";
 import { absolutizeArticleHtml } from "@/lib/bbc-article-media";
 import {
   isAllowedGuardianArticleUrl,
@@ -223,13 +223,21 @@ export async function GET(req: NextRequest) {
       const htmlForDom = stripHeavyHtmlNoiseForParse(html);
       const tParse = Date.now();
 
-      let dom: JSDOM;
+      // linkedom is used instead of JSDOM — much lower memory + CPU for large pages.
+      let document: Document;
       try {
-        dom = new JSDOM(htmlForDom, { url: articleUrl.toString() });
+        const parsed = parseHTML(htmlForDom);
+        document = parsed.document as unknown as Document;
+        // linkedom doesn't set baseURI from the parse call — patch location so
+        // Readability's relative-URL resolution works the same as with JSDOM.
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (parsed.window as any).location.href = articleUrl.toString();
+        } catch { /* non-critical */ }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         logGuardianReadFailure({
-          phase: "jsdom_construct",
+          phase: "linkedom_construct",
           message: msg,
           stack: e instanceof Error ? e.stack : undefined,
         });
@@ -241,7 +249,7 @@ export async function GET(req: NextRequest) {
 
       if (Date.now() - t0 > budgetMs) {
         logGuardianReadFailure({
-          phase: "wallclock_after_jsdom",
+          phase: "wallclock_after_parse",
           message: `elapsed ${Date.now() - t0}ms > budget ${budgetMs}ms`,
         });
         return jsonResponse(408, {
@@ -253,7 +261,7 @@ export async function GET(req: NextRequest) {
 
       let parsed: ReturnType<Readability["parse"]>;
       try {
-        const reader = new Readability(dom.window.document);
+        const reader = new Readability(document);
         parsed = reader.parse();
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -280,7 +288,7 @@ export async function GET(req: NextRequest) {
 
       const title =
         parsed.title?.trim() ||
-        dom.window.document.querySelector("title")?.textContent?.trim() ||
+        document.querySelector("title")?.textContent?.trim() ||
         "Article";
 
       let absolutized: string;

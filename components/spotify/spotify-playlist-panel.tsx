@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { ListMusic, Loader2 } from "lucide-react";
 import type { TranslationKey } from "@/lib/i18n";
 import { SpotifyErrorAlert } from "@/components/spotify/spotify-error-alert";
@@ -10,7 +11,7 @@ type Translate = (key: TranslationKey) => string;
 
 export type SpotifyPlaylistRowLite = { id: string; name: string; uri: string };
 
-export function SpotifyPlaylistPanel({
+export const SpotifyPlaylistPanel = memo(function SpotifyPlaylistPanel({
   t,
   playlists,
   playlistsLoading,
@@ -45,16 +46,16 @@ export function SpotifyPlaylistPanel({
 }) {
   return (
     <div
-      className={`flex flex-col ${maxHeightClass} overflow-hidden bg-gradient-to-b from-white via-white to-zinc-50/80 dark:from-zinc-900 dark:via-zinc-900 dark:to-zinc-950/80`}
+      className={`flex min-h-0 w-full flex-1 flex-col ${maxHeightClass} overflow-hidden bg-gradient-to-b from-white via-white to-zinc-50/80 dark:from-zinc-900 dark:via-zinc-900 dark:to-zinc-950/80`}
     >
-      <div className="grid min-h-[280px] flex-1 grid-cols-1 divide-y divide-zinc-200/90 md:min-h-0 md:grid-cols-2 md:divide-x md:divide-y-0 dark:divide-zinc-700/90">
-        <div className="flex max-h-[42vh] min-h-0 flex-col md:max-h-none">
-          <div className="shrink-0 border-b border-zinc-100/90 px-4 py-3 dark:border-zinc-800/90">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+      <div className="grid min-h-[160px] flex-1 grid-cols-1 divide-y divide-zinc-200/90 md:min-h-0 md:grid-cols-2 md:divide-x md:divide-y-0 dark:divide-zinc-700/90">
+        <div className="flex max-h-[35vh] min-h-0 flex-col md:max-h-none">
+          <div className="shrink-0 border-b border-zinc-100/90 px-4 py-2 dark:border-zinc-800/90">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
               {t("spotifyPlaylistLibraryHeading")}
             </p>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4 pt-2">
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3 pt-1.5">
             {playlistsLoading ? (
               <div className="flex justify-center py-14 text-zinc-400">
                 <Loader2 className="h-8 w-8 animate-spin text-zinc-500 dark:text-zinc-400" />
@@ -80,23 +81,23 @@ export function SpotifyPlaylistPanel({
                       <button
                         type="button"
                         onClick={() => onSelectPlaylist(pl)}
-                        className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition duration-200 ${
+                        className={`flex w-full items-center gap-2.5 rounded-xl border px-3 py-2 text-left transition duration-200 ${
                           sel
                             ? "border-zinc-300/90 bg-white shadow-sm ring-1 ring-zinc-900/5 dark:border-zinc-600 dark:bg-zinc-800/90 dark:ring-white/10"
                             : "border-transparent hover:border-zinc-200/80 hover:bg-white/80 hover:shadow-sm dark:hover:border-zinc-700 dark:hover:bg-zinc-800/60"
                         }`}
                       >
                         <span
-                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-zinc-200/90 to-zinc-100 dark:from-zinc-700 dark:to-zinc-800 ${
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-zinc-200/90 to-zinc-100 dark:from-zinc-700 dark:to-zinc-800 ${
                             sel ? "ring-1 ring-zinc-400/30 dark:ring-zinc-500/40" : ""
                           }`}
                         >
                           <ListMusic
-                            className="h-5 w-5 text-zinc-700 dark:text-zinc-200"
+                            className="h-4 w-4 text-zinc-700 dark:text-zinc-200"
                             aria-hidden
                           />
                         </span>
-                        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-zinc-900 dark:text-zinc-100">
                           {pl.name}
                         </span>
                       </button>
@@ -109,12 +110,12 @@ export function SpotifyPlaylistPanel({
         </div>
 
         <div className="flex min-h-[min(40vh,320px)] min-h-0 flex-col md:min-h-0">
-          <div className="shrink-0 border-b border-zinc-100/90 px-4 py-3 dark:border-zinc-800/90">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+          <div className="shrink-0 border-b border-zinc-100/90 px-4 py-2 dark:border-zinc-800/90">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
               {t("spotifyPlaylistTracksHeading")}
             </p>
             {selectedPlaylistName ? (
-              <p className="mt-1 truncate text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+              <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-50">
                 {selectedPlaylistName}
               </p>
             ) : null}
@@ -168,4 +169,4 @@ export function SpotifyPlaylistPanel({
       </div>
     </div>
   );
-}
+});

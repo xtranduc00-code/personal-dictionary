@@ -30,8 +30,13 @@ export function AppShell({ children }: {
     /** Portfolio landing — full-bleed hero in main; Spotify via sidebar elsewhere. */
     const isPortfolioLanding =
         pathname === "/" || pathname === "/portfolio";
-    /** Dedicated `/spotify` page embeds the player; hide floating dock there and on portfolio home. */
-    const hideSpotifyDock = isPortfolioLanding || pathname === "/spotify";
+    /** `/spotify` uses an embedded player — don’t mount a second Web Playback instance. */
+    const spotifyDockUnmount = pathname === "/spotify";
+    /**
+     * Home / portfolio: keep the floating dock mounted but invisible so leaving Spotify playing
+     * and opening “/” or “/portfolio” doesn’t disconnect the SDK (unmount used to kill playback).
+     */
+    const spotifyDockVisuallyHidden = isPortfolioLanding;
     const noOuterMainPadding =
         !isStandaloneAuth && (fullMeet || isWatchPartyRoom);
 
@@ -62,12 +67,18 @@ export function AppShell({ children }: {
       {!isStandaloneAuth ? <SiteNav/> : null}
       <main className={mainClass}>
         {!isStandaloneAuth ? <MeetPersistentLayer/> : null}
-        {!isStandaloneAuth && !hideSpotifyDock ? <SpotifyDock/> : null}
+        {!isStandaloneAuth && !spotifyDockUnmount ? (
+          <SpotifyDock visuallyHidden={spotifyDockVisuallyHidden} />
+        ) : null}
         <AuthGate>
           <div className={fullMeet ? "hidden" : "contents"}>
             {isStandaloneAuth ? (<div className="fixed inset-0 z-[1] box-border flex items-center justify-center overflow-x-hidden overflow-y-auto bg-zinc-50 p-4 dark:bg-zinc-950">
               {children}
-            </div>) : (<MainScrollShell>{children}</MainScrollShell>)}
+            </div>) : (
+              <MainScrollShell>
+                {children}
+              </MainScrollShell>
+            )}
           </div>
         </AuthGate>
       </main>
