@@ -55,8 +55,10 @@ export default function FlashcardsPage() {
             const loaded = await getFlashcardSets();
             setSets(loaded);
             setSelectedSetId(newSet.id);
+            toast.success(t("toastSetCreated"));
         }
         catch {
+            toast.error(t("toastVocabNotesError"));
         }
         finally {
             setIsAddingSet(false);
@@ -70,25 +72,36 @@ export default function FlashcardsPage() {
     async function handleSaveEditSet() {
         if (!editingSetId)
             return;
+        const trimmed = editingName.trim();
+        const prevName = sets.find((s) => s.id === editingSetId)?.name ?? "";
+        if (!trimmed || trimmed === prevName) {
+            setEditingSetId(null);
+            return;
+        }
         try {
-            await updateFlashcardSet(editingSetId, editingName);
+            await updateFlashcardSet(editingSetId, trimmed);
             const loaded = await getFlashcardSets();
             setSets(loaded);
             setEditingSetId(null);
+            toast.success(t("toastSetRenamed"));
         }
         catch {
+            toast.error(t("toastVocabNotesError"));
         }
     }
     async function handleTogglePin(set: FlashcardSet) {
+        const willPin = !set.pinned;
         try {
-            const updated = await setFlashcardPinned(set.id, !set.pinned);
+            const updated = await setFlashcardPinned(set.id, willPin);
             if (!updated)
                 return;
             const loaded = await getFlashcardSets();
             setSets(loaded);
             setSelectedSetId((prev) => prev ?? updated.id);
+            toast.success(t(willPin ? "toastSetPinned" : "toastSetUnpinned"));
         }
         catch {
+            toast.error(t("toastVocabNotesError"));
         }
     }
     async function handleDeleteSet(setId: string) {
@@ -102,6 +115,7 @@ export default function FlashcardsPage() {
             toast.success(t("toastSetDeleted"));
         }
         catch {
+            toast.error(t("toastVocabNotesError"));
         }
     }
     async function handleDeleteCard(id: string) {
@@ -114,6 +128,7 @@ export default function FlashcardsPage() {
             toast.success(t("toastCardDeleted"));
         }
         catch {
+            toast.error(t("toastVocabNotesError"));
         }
     }
     async function handleSaveCard() {
@@ -130,6 +145,7 @@ export default function FlashcardsPage() {
             toast.success(t("toastCardUpdated"));
         }
         catch {
+            toast.error(t("toastVocabNotesError"));
         }
         finally {
             setSavingCard(false);
@@ -345,6 +361,7 @@ export default function FlashcardsPage() {
                     const next = await getFlashcardsBySet(selectedSetId);
                     setCards(next);
                 }
+                toast.success(t("toastCardAdded"));
             }}/>)}
     </div>);
 }

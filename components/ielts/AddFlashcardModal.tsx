@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { toast } from "react-toastify";
 import { X } from "lucide-react";
 import { addFlashcard, createFlashcardSet, getFlashcardSets, type FlashcardSet, } from "@/lib/flashcard-storage";
 import { useI18n } from "@/components/i18n-provider";
@@ -35,8 +36,10 @@ export function AddFlashcardModal({ initialWord, onClose, onSaved, }: Props) {
             setSelectedSetId(newSet.id);
             setShowCreateSet(false);
             setNewSetName("");
+            toast.success(t("toastSetCreated"));
         }
         catch {
+            toast.error(t("toastVocabNotesError"));
         }
     };
     const handleSave = async () => {
@@ -49,6 +52,7 @@ export function AddFlashcardModal({ initialWord, onClose, onSaved, }: Props) {
                 setId = defaultSet.id;
             }
             catch {
+                toast.error(t("toastVocabNotesError"));
                 return;
             }
         }
@@ -57,6 +61,9 @@ export function AddFlashcardModal({ initialWord, onClose, onSaved, }: Props) {
             await addFlashcard(setId, word, definition);
             onSaved?.();
             onClose();
+        }
+        catch {
+            toast.error(t("toastVocabNotesError"));
         }
         finally {
             setSaving(false);

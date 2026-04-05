@@ -12,11 +12,13 @@ type Props = {
     onUnhighlight: () => void;
     onFlashcard: (word: string) => void;
     showHighlightButtons?: boolean;
+    /** Keeps editor text selected so document mouseup does not clear the toolbar before click. */
+    preserveEditorSelectionOnToolbarMouseDown?: boolean;
 };
-export function HighlightToolbar({ x, y, hasHighlightId, selectedText, flashcardText, onHighlight, onUnhighlight, onFlashcard, showHighlightButtons = true, }: Props) {
+export function HighlightToolbar({ x, y, hasHighlightId, selectedText, flashcardText, onHighlight, onUnhighlight, onFlashcard, showHighlightButtons = true, preserveEditorSelectionOnToolbarMouseDown = false, }: Props) {
     const { t } = useI18n();
     const word = (flashcardText ?? selectedText).trim();
-    return (<div className="fixed z-50 flex -translate-x-1/2 -translate-y-full gap-1 rounded-lg border border-zinc-200 bg-white py-1 pl-1 pr-2 shadow-lg dark:border-zinc-700 dark:bg-zinc-800" style={{ left: x, top: y }}>
+    return (<div className="fixed z-50 flex -translate-x-1/2 -translate-y-full gap-1 rounded-lg border border-zinc-200 bg-white py-1 pl-1 pr-2 shadow-lg dark:border-zinc-700 dark:bg-zinc-800" style={{ left: x, top: y }} onMouseDown={preserveEditorSelectionOnToolbarMouseDown ? (e) => e.preventDefault() : undefined}>
       {showHighlightButtons && (<>
           <Tooltip content={t("highlightButton")}>
             <button type="button" onClick={onHighlight} className="flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-amber-100 dark:text-zinc-200 dark:hover:bg-amber-500/30">

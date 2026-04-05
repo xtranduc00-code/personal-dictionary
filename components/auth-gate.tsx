@@ -6,12 +6,24 @@ import { useI18n } from "@/components/i18n-provider";
 const PORTFOLIO_PUBLIC = new Set(["/", "/profile", "/contact", "/about", "/resume"]);
 /** Must render children while logged out (e.g. password reset link). */
 const AUTH_FLOW_PUBLIC = new Set(["/reset-password"]);
+
+/** Engoo Daily News hub, lessons, Guardian/Football readers — readable without login. */
+function isDailyNewsPublicPath(pathname: string) {
+    if (pathname === "/news")
+        return true;
+    if (pathname.startsWith("/news/"))
+        return true;
+    return false;
+}
+
 function isPublicPath(pathname: string | null) {
     if (!pathname)
         return false;
     if (PORTFOLIO_PUBLIC.has(pathname))
         return true;
     if (AUTH_FLOW_PUBLIC.has(pathname))
+        return true;
+    if (isDailyNewsPublicPath(pathname))
         return true;
     return false;
 }

@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import {
+    isMissingNotesDiaryColumnsError,
     isMissingNotesFolderIdColumnError,
     NOTE_ROW_SELECT_BASE,
     NOTE_ROW_SELECT_EXT,
+    NOTE_ROW_SELECT_EXT_NO_DIARY,
     NOTE_ROW_SHARED_BASE,
     NOTE_ROW_SHARED_EXT,
+    NOTE_ROW_SHARED_EXT_NO_DIARY,
 } from "@/lib/notes-db-compat";
 import { enrichNotesWithFoldersAndLabels } from "@/lib/notes-enrich";
 import { getAuthUser } from "@/lib/get-auth-user";
@@ -12,6 +15,34 @@ import { getNoteAccess } from "@/lib/notes-access";
 import { supabaseForUserData } from "@/lib/supabase-server";
 
 type Ctx = { params: Promise<{ noteId: string }> };
+
+async function selectNoteRow(
+    db: ReturnType<typeof supabaseForUserData>,
+    opts: { kind: "owner" | "shared"; userId: string; noteId: string },
+) {
+    const run = (select: string) => {
+        let q = db.from("notes").select(select).eq("id", opts.noteId);
+        if (opts.kind === "owner") {
+            q = q.eq("user_id", opts.userId);
+        }
+        return q.maybeSingle();
+    };
+
+    let rowRes = await run(NOTE_ROW_SELECT_EXT);
+
+    if (rowRes.error && isMissingNotesDiaryColumnsError(rowRes.error)) {
+        const sel =
+            opts.kind === "owner" ? NOTE_ROW_SELECT_EXT_NO_DIARY : NOTE_ROW_SHARED_EXT_NO_DIARY;
+        rowRes = await run(sel);
+    }
+
+    if (rowRes.error && isMissingNotesFolderIdColumnError(rowRes.error)) {
+        const sel = opts.kind === "owner" ? NOTE_ROW_SELECT_BASE : NOTE_ROW_SHARED_BASE;
+        rowRes = await run(sel);
+    }
+
+    return rowRes;
+}
 
 /** Single-note fetch for refresh (e.g. shared note) without reloading the full list. */
 export async function GET(req: Request, ctx: Ctx) {
@@ -27,26 +58,11 @@ export async function GET(req: Request, ctx: Ctx) {
     }
 
     try {
-        const rowQ =
-            access.kind === "owner"
-                ? db
-                      .from("notes")
-                      .select(NOTE_ROW_SELECT_EXT)
-                      .eq("id", noteId)
-                      .eq("user_id", user.id)
-                : db.from("notes").select(NOTE_ROW_SHARED_EXT).eq("id", noteId);
-        let rowRes = await rowQ.maybeSingle();
-        if (rowRes.error && isMissingNotesFolderIdColumnError(rowRes.error)) {
-            const q2 =
-                access.kind === "owner"
-                    ? db
-                          .from("notes")
-                          .select(NOTE_ROW_SELECT_BASE)
-                          .eq("id", noteId)
-                          .eq("user_id", user.id)
-                    : db.from("notes").select(NOTE_ROW_SHARED_BASE).eq("id", noteId);
-            rowRes = await q2.maybeSingle();
-        }
+        const rowRes = await selectNoteRow(db, {
+            kind: access.kind,
+            userId: user.id,
+            noteId,
+        });
         if (rowRes.error) {
             throw rowRes.error;
         }
@@ -55,7 +71,7 @@ export async function GET(req: Request, ctx: Ctx) {
             return NextResponse.json({ error: "Not found" }, { status: 404 });
         }
 
-        const row = data as {
+        const row = data as unknown as {
             id: string;
             title: string | null;
             body: string | null;
@@ -64,7 +80,11 @@ export async function GET(req: Request, ctx: Ctx) {
             updated_at: string;
             folder_id?: string | null;
             user_id?: string;
+            note_type?: string | null;
+            diary_date?: string | null;
         };
+        const noteType = row.note_type === "diary" ? "diary" : "note";
+        const diaryDate = row.diary_date ?? null;
         const { folderNameById, labelsByNoteId } = await enrichNotesWithFoldersAndLabels(db, [
             { id: String(row.id), folder_id: row.folder_id ?? null },
         ]);
@@ -83,6 +103,8 @@ export async function GET(req: Request, ctx: Ctx) {
                 folderId: fid,
                 folderName,
                 labels,
+                noteType,
+                diaryDate,
                 access: "owner",
             });
         }
@@ -107,6 +129,8 @@ export async function GET(req: Request, ctx: Ctx) {
             folderId: fid,
             folderName,
             labels,
+            noteType,
+            diaryDate,
             access: "shared",
             role: access.role,
             ownerUsername,
@@ -151,6 +175,18 @@ export async function PATCH(req: Request, ctx: Ctx) {
                 ? (labelIdsRaw as string[])
                 : undefined;
 
+        let isDiary = false;
+        {
+            let mq = db.from("notes").select("note_type").eq("id", noteId);
+            if (access.kind === "owner") {
+                mq = mq.eq("user_id", user.id);
+            }
+            const mr = await mq.maybeSingle();
+            if (!mr.error && mr.data?.note_type === "diary") {
+                isDiary = true;
+            }
+        }
+
         if (access.kind === "shared" && pinned !== undefined) {
             return NextResponse.json({ error: "Cannot change pin on a shared note" }, { status: 403 });
         }
@@ -160,6 +196,21 @@ export async function PATCH(req: Request, ctx: Ctx) {
                 { error: "Only the owner can change folder or labels" },
                 { status: 403 },
             );
+        }
+
+        if (isDiary && access.kind === "owner") {
+            if (folderId !== undefined) {
+                return NextResponse.json(
+                    { error: "Diary entries stay outside folders." },
+                    { status: 400 },
+                );
+            }
+            if (labelIds !== undefined) {
+                return NextResponse.json(
+                    { error: "Diary entries do not use labels." },
+                    { status: 400 },
+                );
+            }
         }
 
         if (
@@ -236,18 +287,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
             throw uErr;
         }
 
-        let rowQ = db.from("notes").select(NOTE_ROW_SELECT_EXT).eq("id", noteId);
-        if (access.kind === "owner") {
-            rowQ = rowQ.eq("user_id", user.id);
-        }
-        let rowRes = await rowQ.maybeSingle();
-        if (rowRes.error && isMissingNotesFolderIdColumnError(rowRes.error)) {
-            let q2 = db.from("notes").select(NOTE_ROW_SELECT_BASE).eq("id", noteId);
-            if (access.kind === "owner") {
-                q2 = q2.eq("user_id", user.id);
-            }
-            rowRes = await q2.maybeSingle();
-        }
+        const rowRes = await selectNoteRow(db, {
+            kind: access.kind,
+            userId: user.id,
+            noteId,
+        });
         if (rowRes.error) {
             throw rowRes.error;
         }
@@ -293,20 +337,35 @@ export async function PATCH(req: Request, ctx: Ctx) {
             }
         }
 
+        const typed = data as unknown as {
+            id: string;
+            title: string | null;
+            body: string | null;
+            pinned: boolean | null;
+            created_at: string;
+            updated_at: string;
+            folder_id?: string | null;
+            note_type?: string | null;
+            diary_date?: string | null;
+        };
         const { folderNameById, labelsByNoteId } = await enrichNotesWithFoldersAndLabels(db, [
-            { id: data.id, folder_id: data.folder_id ?? null },
+            { id: typed.id, folder_id: typed.folder_id ?? null },
         ]);
-        const fid = data.folder_id != null ? String(data.folder_id) : null;
+        const fid = typed.folder_id != null ? String(typed.folder_id) : null;
+        const noteType = typed.note_type === "diary" ? "diary" : "note";
+        const diaryDate = typed.diary_date ?? null;
         return NextResponse.json({
-            id: data.id,
-            title: data.title ?? "",
-            body: data.body ?? "",
-            pinned: Boolean(data.pinned),
-            createdAt: data.created_at,
-            updatedAt: data.updated_at,
+            id: typed.id,
+            title: typed.title ?? "",
+            body: typed.body ?? "",
+            pinned: Boolean(typed.pinned),
+            createdAt: typed.created_at,
+            updatedAt: typed.updated_at,
             folderId: fid,
             folderName: fid ? (folderNameById.get(fid) ?? null) : null,
-            labels: labelsByNoteId.get(String(data.id)) ?? [],
+            labels: labelsByNoteId.get(String(typed.id)) ?? [],
+            noteType,
+            diaryDate,
         });
     }
     catch (e) {

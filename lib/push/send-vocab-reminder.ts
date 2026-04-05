@@ -19,6 +19,8 @@ type VocabItem = {
   examples?: string[];
   /** Preferred: fully-formed sentences generated and stored ahead of time. */
   sentences?: string[];
+  /** From vocabulary notes (`flashcard_cards`); notification opens `/flashcards`. */
+  pushOpenFlashcards?: boolean;
 };
 
 function normalizeWordKey(word: string): string {
@@ -184,6 +186,108 @@ function hasSentenceForPush(item: VocabItem): boolean {
   });
 }
 
+/** Strip HTML from flashcard definitions for push body (server-safe, no DOM). */
+function htmlToPlainPushText(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function flashcardRowToVocabItem(word: string, definition: string): VocabItem | null {
+  const w = typeof word === "string" ? word.trim() : "";
+  if (!w) return null;
+  const plain = htmlToPlainPushText(typeof definition === "string" ? definition : "");
+  const item: VocabItem = {
+    word: w,
+    pushOpenFlashcards: true,
+  };
+  if (plain.length >= 12 && /\s/.test(plain) && /[.?!]/.test(plain)) {
+    item.sentences = [plain.length > 800 ? `${plain.slice(0, 797)}…` : plain];
+  } else if (plain.length > 0) {
+    item.example = plain.length > 500 ? `${plain.slice(0, 497)}…` : plain;
+  }
+  return item;
+}
+
+const FLASHCARD_USER_CHUNK = 120;
+
+async function loadUserFlashcardVocabByUserId(
+  db: SupabaseClient,
+  userIds: string[],
+): Promise<Map<string, VocabItem[]>> {
+  const byUser = new Map<string, VocabItem[]>();
+  for (const id of userIds) byUser.set(id, []);
+
+  if (userIds.length === 0) return byUser;
+
+  for (let i = 0; i < userIds.length; i += FLASHCARD_USER_CHUNK) {
+    const chunk = userIds.slice(i, i + FLASHCARD_USER_CHUNK);
+    const { data, error } = await db
+      .from("flashcard_cards")
+      .select("user_id,word,definition")
+      .in("user_id", chunk);
+    if (error) throw error;
+    for (const row of data ?? []) {
+      const uid = row.user_id as string;
+      const item = flashcardRowToVocabItem(
+        row.word as string,
+        (row.definition as string) ?? "",
+      );
+      if (!item) continue;
+      const list = byUser.get(uid);
+      if (list) list.push(item);
+    }
+  }
+
+  for (const [uid, raw] of byUser) {
+    byUser.set(uid, dedupeVocabItems(raw));
+  }
+  return byUser;
+}
+
+function pickVocabPayloadsForUser(
+  ieltsWords: VocabItem[],
+  userWords: VocabItem[],
+  bucket: string,
+  siteUrl: string,
+): string[] {
+  // User cards first so dedupe keeps personal copy (and `/flashcards` link) when word matches IELTS.
+  const combined = dedupeVocabItems([...userWords, ...ieltsWords]);
+  if (combined.length === 0) return [];
+
+  const dayKey = bucketDayKey(bucket);
+  const sentencePool = combined.filter((w) => hasSentenceForPush(w));
+  const nonTrivial = combined.filter((w) => !isTrivialForPush(w));
+  const pool =
+    sentencePool.length >= 8
+      ? sentencePool
+      : nonTrivial.length >= 8
+        ? nonTrivial
+        : combined;
+  const ordered = stableDailyWordOrder(pool, dayKey);
+  const slotIdx = bucketSlotIndex(bucket);
+  const start = (slotIdx * 2) % ordered.length;
+  const words =
+    ordered.length >= 2
+      ? [ordered[start]!, ordered[(start + 1) % ordered.length]!]
+      : [ordered[start]!];
+
+  const base = siteUrl.replace(/\/$/, "");
+  return words.map((w, i) => {
+    const ex = pickExampleForPushBody(w, bucket);
+    const path = w.pushOpenFlashcards ? "/flashcards" : "/ielts-speaking";
+    return JSON.stringify({
+      title: w.word,
+      body: ex || " ",
+      url: `${base}${path}`,
+      tag: `vocab-${bucket}-${i}`,
+    });
+  });
+}
+
 export async function runVocabReminderSweep(
   db: SupabaseClient,
   siteUrl: string,
@@ -247,46 +351,24 @@ async function runVocabReminderSweepImpl(
     if (batch.length < VOCAB_PAGE) break;
   }
 
-  const allWords = dedupeVocabItems(allWordsRaw);
-  if (allWords.length === 0) {
+  const ieltsWords = dedupeVocabItems(allWordsRaw);
+  const subscribedUserIds = [...subsByUser.keys()];
+  const flashByUser = await loadUserFlashcardVocabByUserId(db, subscribedUserIds);
+  const anyUserCards = [...flashByUser.values()].some((a) => a.length > 0);
+  if (ieltsWords.length === 0 && !anyUserCards) {
     return { sent: 0, errors: 0, skipped: "no vocab items" };
   }
 
   const bucket = tenMinuteBucket();
 
-  // Two vocabulary pushes per 10-minute window per device; one DB dedupe row per user per window.
-  const dayKey = bucketDayKey(bucket);
-  const sentencePool = allWords.filter((w) => hasSentenceForPush(w));
-  const nonTrivial = allWords.filter((w) => !isTrivialForPush(w));
-  const pool =
-    sentencePool.length >= 8
-      ? sentencePool
-      : nonTrivial.length >= 8
-        ? nonTrivial
-        : allWords;
-  const ordered = stableDailyWordOrder(pool, dayKey);
-  const slotIdx = bucketSlotIndex(bucket);
-  const start = (slotIdx * 2) % ordered.length;
-  const words =
-    ordered.length >= 2
-      ? [ordered[start]!, ordered[(start + 1) % ordered.length]!]
-      : [ordered[start]!];
-
-  // Two separate pushes per 10-minute window (same dedupe bucket = one tryLogVocabSent per user).
-  const payloads = words.map((w, i) => {
-    const ex = pickExampleForPushBody(w, bucket);
-    return JSON.stringify({
-      title: w.word,
-      body: ex || " ",
-      url: `${siteUrl.replace(/\/$/, "")}/ielts-speaking`,
-      tag: `vocab-${bucket}-${i}`,
-    });
-  });
-
   let sent = 0;
   let errors = 0;
 
   for (const [userId, userSubs] of subsByUser) {
+    const userWords = flashByUser.get(userId) ?? [];
+    const payloads = pickVocabPayloadsForUser(ieltsWords, userWords, bucket, siteUrl);
+    if (payloads.length === 0) continue;
+
     const shouldSend = await tryLogVocabSent(db, userId, bucket);
     if (!shouldSend) continue;
 

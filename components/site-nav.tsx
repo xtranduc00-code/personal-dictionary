@@ -13,7 +13,7 @@ import {
 import { NavAccountFooter } from "@/components/nav-account-footer";
 import { ProfileModal } from "@/components/profile-modal";
 import { SecurityModal } from "@/components/security-modal";
-import { BookOpen, BookMarked, BookText, Bot, CalendarClock, CalendarDays, ChevronLeft, ChevronRight, Clapperboard, Cloud, FileText, FolderOpen, GraduationCap, Headphones, Image as LucideImage, History, Home, Languages, LayoutDashboard, Layers, LayoutGrid, LibraryBig, LogIn, LogOut, Mail, Menu, Mic, Moon, Newspaper, NotebookText, PartyPopper, PenLine, PhoneCall, Search, Sparkles, Star, Sun, Table2, UserCircle, Video, X, type LucideIcon, } from "lucide-react";
+import { BookHeart, BookOpen, BookMarked, BookText, Bot, CalendarClock, CalendarDays, ChevronLeft, ChevronRight, Clapperboard, Cloud, FileText, FolderOpen, GraduationCap, Headphones, Image as LucideImage, History, Home, Languages, LayoutDashboard, Layers, LayoutGrid, LibraryBig, LogIn, LogOut, Mail, Menu, Mic, Moon, Newspaper, NotebookText, PartyPopper, PenLine, PhoneCall, Search, Sparkles, Star, Sun, Table2, UserCircle, Video, X, type LucideIcon, } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useMeetCallOptional } from "@/lib/meet-call-context";
 import { CLEAR_NAV_QUICK_SEARCH_EVENT } from "@/lib/nav-quick-search-events";
@@ -80,6 +80,7 @@ const entertainmentSectionLinks: {
     icon: LucideIcon;
 }[] = [
     { href: "/watch", labelKey: "watchTogetherNav", icon: Clapperboard },
+    { href: "/notes/diary", labelKey: "notesDiary", icon: BookHeart },
 ];
 const scheduleSectionLinks: {
     href: string;
@@ -161,6 +162,9 @@ function isActive(pathname: string, href: string) {
     /** `/study-kit` is not active on `/study-kit/saved` or `/study-kit/result`. */
     if (href === "/study-kit")
         return pathname === "/study-kit" || pathname === "/study-kit/";
+    /** Diary is a separate route; `/notes` should not stay highlighted there. */
+    if (href === "/notes")
+        return pathname === "/notes";
     return pathname.startsWith(href);
 }
 function isPortfolioPath(pathname: string) {
@@ -202,7 +206,12 @@ function isNewsPath(pathname: string) {
     return false;
 }
 function isEntertainmentPath(pathname: string) {
-    return pathname === "/watch" || pathname.startsWith("/watch/");
+    return (
+        pathname === "/watch" ||
+        pathname.startsWith("/watch/") ||
+        pathname === "/notes/diary" ||
+        pathname.startsWith("/notes/diary/")
+    );
 }
 /** Entertainment section active when on Daily News routes or Watch together. */
 function isEntertainmentSidebarActive(pathname: string) {
@@ -228,7 +237,12 @@ function isGuardianDailyNewsNavActive(pathname: string, src: string | null): boo
     return false;
 }
 function isSchedulePath(pathname: string) {
-    return scheduleSectionLinks.some((link) => pathname.startsWith(link.href));
+    return scheduleSectionLinks.some((link) => {
+        if (link.href === "/notes") {
+            return pathname === "/notes";
+        }
+        return pathname === link.href || pathname.startsWith(`${link.href}/`);
+    });
 }
 function isDictionaryPath(pathname: string) {
     return dictionarySectionLinks.some((link) => {
@@ -487,6 +501,7 @@ function SiteNavInner() {
             navMatches("xem chung", navQ);
         const entertainmentSectionHit =
             match(navT("navEntertainmentSection")) ||
+            match(navT("notesDiary")) ||
             navMatches("giai tri", navQ) ||
             navMatches("giải trí", navQ) ||
             navMatches("article", navQ) ||
@@ -509,8 +524,8 @@ function SiteNavInner() {
         const scheduleLinks = !fq
             ? scheduleSectionLinks
             : match(navT("navScheduleSection")) || match(navT("notes"))
-                ? scheduleSectionLinks
-                : scheduleSectionLinks.filter((l) => match(navT(l.labelKey)));
+              ? scheduleSectionLinks
+              : scheduleSectionLinks.filter((l) => match(navT(l.labelKey)));
         const showSchedule =
             !fq ||
             match(navT("navScheduleSection")) ||

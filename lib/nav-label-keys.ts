@@ -30,6 +30,7 @@ export const NAV_LABEL_KEYS = [
     "calendar",
     "meets",
     "notes",
+    "notesDiary",
     "articleHomeNav",
     "dailyNewsSourceEngoo",
     "dailyNewsSourceGuardian",
