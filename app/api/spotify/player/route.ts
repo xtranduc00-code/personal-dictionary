@@ -18,7 +18,10 @@ function playerQuery(
 export async function GET() {
   const auth = await spotifyAuthHeader();
   if (!auth) {
-    return NextResponse.json({ error: "Not connected" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Not connected", code: "auth_required" },
+      { status: 401 },
+    );
   }
 
   const res = await fetch(`${SPOTIFY_API}/me/player`, {
@@ -40,7 +43,10 @@ export async function GET() {
 export async function POST(req: Request) {
   const auth = await spotifyAuthHeader();
   if (!auth) {
-    return NextResponse.json({ error: "Not connected" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Not connected", code: "auth_required" },
+      { status: 401 },
+    );
   }
 
   const body = (await req.json()) as {
@@ -56,6 +62,8 @@ export async function POST(req: Request) {
     device_id?: string;
     uris?: string[];
     context_uri?: string;
+    /** Start this track inside `context_uri` (playlist/album). */
+    offset_uri?: string;
     position?: number;
     position_ms?: number;
     shuffle_state?: boolean;
@@ -74,8 +82,15 @@ export async function POST(req: Request) {
         payload.uris = body.uris;
       } else if (body.context_uri) {
         payload.context_uri = body.context_uri;
-        if (typeof body.position === "number") {
-          payload.offset = { position: body.position };
+        const ou = body.offset_uri?.trim() ?? "";
+        if (ou.startsWith("spotify:track:")) {
+          payload.offset = { uri: ou };
+        } else if (
+          typeof body.position === "number" &&
+          Number.isFinite(body.position) &&
+          body.position >= 0
+        ) {
+          payload.offset = { position: Math.floor(body.position) };
         }
       }
       /* Empty body = resume current playback (Spotify Web API). */
@@ -92,7 +107,9 @@ export async function POST(req: Request) {
             device_id: body.device_id,
             has_uris: Boolean(body.uris?.length),
             has_context: Boolean(body.context_uri),
-            body_preview: errText.slice(0, 400),
+            offset_uri: body.offset_uri ?? null,
+            position: body.position ?? null,
+            spotify_body_preview: errText.slice(0, 400),
           });
         }
         return NextResponse.json({ error: errText }, { status: r.status });

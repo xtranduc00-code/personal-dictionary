@@ -32,6 +32,7 @@ export function CalendarPushSettings() {
   const [subscriptionCount, setSubscriptionCount] = useState(0);
   const [busy, setBusy] = useState(false);
   const [testBusy, setTestBusy] = useState(false);
+  const [testVocabBusy, setTestVocabBusy] = useState(false);
   const isDev = process.env.NODE_ENV === "development";
   const [browserSubscribed, setBrowserSubscribed] = useState(false);
   const enableInFlight = useRef(false);
@@ -183,6 +184,49 @@ export function CalendarPushSettings() {
     }
   };
 
+  const testVocabPush = async () => {
+    setTestVocabBusy(true);
+    try {
+      const res = await authFetch("/api/push/test-vocab", { method: "POST" });
+      const data = (await res.json().catch(() => ({}))) as {
+        sent?: number;
+        failed?: number;
+        usedSample?: boolean;
+        error?: string;
+      };
+      if (res.status === 400 && data.error === "No subscription") {
+        toast.info(t("calendarPushTestNoSub"), { containerId: "cal" });
+        return;
+      }
+      if (!res.ok) {
+        toast.error(t("calendarPushTestFailed"), { containerId: "cal" });
+        return;
+      }
+      const sent = data.sent ?? 0;
+      const failed = data.failed ?? 0;
+      if (failed > 0) {
+        toast.warning(
+          t("calendarPushTestPartial")
+            .replace("{sent}", String(sent))
+            .replace("{failed}", String(failed)),
+          { containerId: "cal", autoClose: 10000 },
+        );
+      } else if (data.usedSample) {
+        toast.success(t("calendarPushTestVocabSample"), { containerId: "cal" });
+      } else {
+        toast.success(
+          t("calendarPushTestVocabOk").replace("{n}", String(sent)),
+          { containerId: "cal" },
+        );
+      }
+    } catch {
+      toast.error(t("calendarPushTestFailed"), { containerId: "cal" });
+    } finally {
+      setTestVocabBusy(false);
+      void refreshStatus().then(() => syncBrowserSubscription());
+    }
+  };
+
   const testPush = async () => {
     setTestBusy(true);
     try {
@@ -256,12 +300,15 @@ export function CalendarPushSettings() {
           <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             {t("calendarPushTitle")}
           </h3>
+          <p className="mt-2 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+            {t("calendarPushVocabHint")}
+          </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {active ? (
               <>
                 <button
                   type="button"
-                  disabled={busy || testBusy}
+                  disabled={busy || testBusy || testVocabBusy}
                   onClick={() => void testPush()}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
                 >
@@ -274,7 +321,20 @@ export function CalendarPushSettings() {
                 </button>
                 <button
                   type="button"
-                  disabled={busy || testBusy}
+                  disabled={busy || testBusy || testVocabBusy}
+                  onClick={() => void testVocabPush()}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-violet-300/90 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-900 hover:bg-violet-100 disabled:opacity-50 dark:border-violet-700 dark:bg-violet-950/50 dark:text-violet-100 dark:hover:bg-violet-900/40"
+                >
+                  {testVocabBusy ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Send className="h-3.5 w-3.5" />
+                  )}
+                  {t("calendarPushTestVocab")}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy || testBusy || testVocabBusy}
                   onClick={() => void disablePush()}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-800 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
                 >

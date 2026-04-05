@@ -7,9 +7,12 @@ import type { SpotifySearchTrackRow } from "@/components/spotify/spotify-search-
 export function SpotifyTrackResultItem({
   track,
   onPlay,
+  playDisabled = false,
 }: {
   track: SpotifySearchTrackRow;
   onPlay: () => void;
+  /** When true, row is not clickable (e.g. playlist context not ready). */
+  playDisabled?: boolean;
 }) {
   const artistLine =
     track.artists.length > 0
@@ -20,8 +23,14 @@ export function SpotifyTrackResultItem({
     <li>
       <button
         type="button"
-        onClick={onPlay}
-        className="group flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition duration-200 hover:bg-zinc-100/90 dark:hover:bg-zinc-800/80"
+        disabled={playDisabled}
+        aria-disabled={playDisabled}
+        onClick={playDisabled ? undefined : onPlay}
+        className={`group flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition duration-200 ${
+          playDisabled
+            ? "cursor-not-allowed opacity-50"
+            : "hover:bg-zinc-100/90 dark:hover:bg-zinc-800/80"
+        }`}
       >
         <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-zinc-200 shadow-sm ring-1 ring-zinc-900/5 dark:bg-zinc-700 dark:ring-white/10">
           {track.albumArtUrl ? (

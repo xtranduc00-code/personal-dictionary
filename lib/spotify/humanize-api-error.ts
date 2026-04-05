@@ -110,6 +110,16 @@ export function humanizeSpotifyApiErrorText(raw: string, t: Translate): string {
   return t("spotifyErrGenericRequest");
 }
 
+/** Playback fetch failed — use HTTP status first (401 ≠ 403). */
+export function humanizeSpotifyPlaybackHttpError(
+  status: number,
+  raw: string,
+  t: Translate,
+): string {
+  if (status === 401) return t("spotifyPlaybackAuthRequired");
+  return humanizeSpotifyPlaybackApiError(raw, t);
+}
+
 /**
  * PUT /me/player/play and related playback commands.
  * Spotify often returns 403 + message "Forbidden" for device/context issues — NOT account/region.

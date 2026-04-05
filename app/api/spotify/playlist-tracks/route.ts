@@ -10,7 +10,10 @@ const MAX_TRACKS = 2000;
 export async function GET(req: Request) {
   const auth = await spotifyAuthHeader();
   if (!auth) {
-    return NextResponse.json({ error: "Not connected" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Not connected", code: "auth_required" },
+      { status: 401 },
+    );
   }
 
   const { searchParams } = new URL(req.url);

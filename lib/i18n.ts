@@ -720,7 +720,11 @@ export const translations = {
     spotifyPlaylistTracksEmpty:
       "No playable tracks in this playlist.",
     spotifySessionExpiredReconnect:
-      "Spotify session is invalid or expired. Please connect again (e.g. after changing SPOTIFY_TOKEN_ENCRYPTION_KEY).",
+      "Spotify couldn’t restore this login. Use Reconnect if this keeps happening.",
+    spotifySessionDecryptHint:
+      "The saved Spotify login can’t be read. Use the same SPOTIFY_TOKEN_ENCRYPTION_KEY as when you connected, restart the server after changing .env, and always use one site URL in the browser (127.0.0.1 and localhost are different cookies). Then connect again.",
+    spotifySessionRefreshRevokedHint:
+      "Spotify ended this login (password change, app revoked in Spotify settings, or the session was replaced elsewhere). Connect again.",
     spotifyReconnect: "Reconnect Spotify",
     spotifyConnectedPendingVerification:
       "Sign-in finished, but the server could not verify your Spotify session. Try connecting again.",
@@ -728,6 +732,11 @@ export const translations = {
       "Spotify Premium is required for in-browser playback.",
     spotifyPlaybackErrorToast: "Spotify reported a playback error.",
     spotifyPlaybackErrorHint: "Playback issue — try another track or reconnect.",
+    spotifyPlaybackAuthRequired:
+      "Spotify didn’t authorize that request (session expired or logged out elsewhere). Reconnect if it keeps happening.",
+    spotifyPlaylistStillLoading: "Still loading this playlist’s tracks — try again in a moment.",
+    spotifyPlaybackPlaylistNotLoaded:
+      "This playlist didn’t load (see the message above). Fix that before playing a track.",
     spotifyCheckingSession: "Checking Spotify session…",
     spotifySessionTransientHint:
       "Spotify didn’t respond in time (network or a brief outage). We’ll keep retrying — you usually don’t need to log in again. Use Reconnect only if this persists.",
@@ -755,6 +764,12 @@ export const translations = {
     calendarPushTestStaleSub:
       "That device subscription was tied to old VAPID keys and was cleared. Click Turn on notifications again (after restarting dev server if you changed .env).",
     calendarPushTestNoSub: "Turn on notifications first.",
+    calendarPushVocabHint:
+      "Vocabulary is included: with notifications on, the same server job sends up to two word reminders about every 10 minutes — from IELTS Speaking topic lists and from your Vocabulary notes (flashcards). Use “Test vocabulary” to verify.",
+    calendarPushTestVocab: "Test vocabulary",
+    calendarPushTestVocabOk: "Vocabulary test sent ({n}).",
+    calendarPushTestVocabSample:
+      "Sample vocabulary push sent. Add topic words or save flashcards for real words.",
     calendarPushTestFailed: "Test request failed.",
     calendarPushUnavailableLoopback:
       "Push failed: you’re using a numeric address (e.g. 127.0.0.1). Open the same app as http://localhost:3000 instead — Chrome often breaks Web Push on IP hosts.",
@@ -782,6 +797,8 @@ export const translations = {
     dailyNewsGuardianNoKey:
       "Add GUARDIAN_API_KEY to your server environment to load Guardian news.",
     dailyNewsGuardianLoadError: "Could not load Guardian articles. Try again.",
+    guardianListUnexpectedResponse:
+      "The Guardian list API returned a non-JSON response (HTTP {status}). This often indicates a hosting timeout or gateway error. Check Netlify function logs and try again.",
     dailyNewsGuardianEmpty: "No articles to show.",
     dailyNewsSportEmpty: "No Guardian sport articles to show.",
     dailyNewsSportKindleDownload: "Download for Kindle (EPUB)",
@@ -792,6 +809,9 @@ export const translations = {
     guardianReadLoading: "Loading article…",
     guardianReadKicker: "Reader view · The Guardian",
     guardianReadOpenInstead: "Open on the Guardian instead",
+    guardianReadUnexpectedResponse:
+      "The reader service returned a non-JSON response (HTTP {status}). Your host may have timed out, blocked outbound requests to the Guardian, or returned an HTML error page. Try again, increase the serverless function timeout, or open the article on the Guardian site.",
+    guardianReadErrorWithCode: "{message} (code: {code})",
     articleHomeTitle: "Read, then talk about it",
     articleHomeSubtitle:
       "Paste a lesson or news URL, or paste article text. Open a saved piece, read it, then start an AI call with full context.",
@@ -2146,7 +2166,11 @@ export const translations = {
     spotifyPlaylistTracksEmpty:
       "Không có bài phát được trong playlist này.",
     spotifySessionExpiredReconnect:
-      "Phiên Spotify không còn hợp lệ hoặc đã hết hạn. Hãy kết nối lại (ví dụ sau khi đổi SPOTIFY_TOKEN_ENCRYPTION_KEY).",
+      "Không khôi phục được đăng nhập Spotify. Hãy Kết nối lại nếu lỗi lặp lại.",
+    spotifySessionDecryptHint:
+      "Không đọc được đăng nhập Spotify đã lưu. Dùng cùng SPOTIFY_TOKEN_ENCRYPTION_KEY như lúc kết nối, restart server sau khi đổi .env, và chỉ mở một địa chỉ (127.0.0.1 và localhost là cookie khác nhau). Sau đó kết nối lại.",
+    spotifySessionRefreshRevokedHint:
+      "Spotify đã hủy phiên này (đổi mật khẩu, gỡ quyền app trong cài đặt Spotify, hoặc đăng nhập thay thế ở nơi khác). Hãy kết nối lại.",
     spotifyReconnect: "Kết nối lại Spotify",
     spotifyConnectedPendingVerification:
       "Đăng nhập xong nhưng server không xác minh được phiên Spotify. Hãy thử kết nối lại.",
@@ -2154,6 +2178,11 @@ export const translations = {
       "Cần Spotify Premium để phát nhạc trong trình duyệt.",
     spotifyPlaybackErrorToast: "Spotify báo lỗi phát.",
     spotifyPlaybackErrorHint: "Lỗi phát — thử bài khác hoặc kết nối lại.",
+    spotifyPlaybackAuthRequired:
+      "Spotify không cấp quyền cho yêu cầu đó (phiên hết hạn hoặc đã đăng xuất nơi khác). Hãy kết nối lại nếu lặp lại.",
+    spotifyPlaylistStillLoading: "Đang tải danh sách bài trong playlist — thử lại sau giây lát.",
+    spotifyPlaybackPlaylistNotLoaded:
+      "Playlist chưa tải được (xem thông báo phía trên). Sửa lỗi đó trước khi phát.",
     spotifyCheckingSession: "Đang kiểm tra phiên Spotify…",
     spotifySessionTransientHint:
       "Spotify tạm không phản hồi (mạng hoặc lỗi ngắn). Ứng dụng sẽ tự thử lại — thường không cần đăng nhập lại. Chỉ dùng Kết nối lại nếu tình trạng kéo dài.",
@@ -2181,6 +2210,12 @@ export const translations = {
     calendarPushTestStaleSub:
       "Subscription thiết bị gắn với VAPID cũ đã bị xóa. Bấm Bật thông báo lại (sau khi restart dev server nếu vừa đổi .env).",
     calendarPushTestNoSub: "Bật thông báo trước.",
+    calendarPushVocabHint:
+      "Từ vựng được gộp chung: khi bật thông báo, server gửi tối đa hai từ khoảng mỗi 10 phút — lấy từ chủ đề IELTS Speaking và từ Ghi chú từ vựng (flashcard). Bấm «Thử từ vựng» để kiểm tra.",
+    calendarPushTestVocab: "Thử từ vựng",
+    calendarPushTestVocabOk: "Đã gửi thử từ vựng ({n}).",
+    calendarPushTestVocabSample:
+      "Đã gửi thử mẫu. Thêm từ chủ đề hoặc lưu flashcard để nhận từ thật.",
     calendarPushTestFailed: "Gửi thử thất bại.",
     calendarPushUnavailableLoopback:
       "Push lỗi: bạn đang mở bằng địa chỉ số (vd. 127.0.0.1). Hãy mở http://localhost:3000 — Chrome thường hỏng Web Push khi host là IP.",
@@ -2208,6 +2243,8 @@ export const translations = {
     dailyNewsGuardianNoKey:
       "Thêm GUARDIAN_API_KEY vào môi trường server để tải tin Guardian.",
     dailyNewsGuardianLoadError: "Không tải được bài Guardian. Thử lại.",
+    guardianListUnexpectedResponse:
+      "API danh sách Guardian trả về không phải JSON (HTTP {status}). Thường do timeout hoặc lỗi gateway trên host. Xem log function Netlify và thử lại.",
     dailyNewsGuardianEmpty: "Không có bài để hiển thị.",
     dailyNewsSportEmpty: "Chưa có bài thể thao Guardian.",
     dailyNewsSportKindleDownload: "Tải cho Kindle (EPUB)",
@@ -2218,6 +2255,9 @@ export const translations = {
     guardianReadLoading: "Đang tải bài…",
     guardianReadKicker: "Chế độ đọc · The Guardian",
     guardianReadOpenInstead: "Mở trên The Guardian",
+    guardianReadUnexpectedResponse:
+      "Dịch vụ đọc bài trả về phản hồi không phải JSON (HTTP {status}). Máy chủ có thể hết thời gian, chặn kết nối ra trang Guardian, hoặc trả về trang lỗi HTML. Thử lại, tăng timeout cho function serverless, hoặc mở bài trực tiếp trên Guardian.",
+    guardianReadErrorWithCode: "{message} (mã: {code})",
     articleHomeTitle: "Đọc rồi nói chuyện về bài",
     articleHomeSubtitle:
       "Dán URL bài học/tin, hoặc dán nội dung. Mở bài đã lưu, đọc, rồi gọi AI với đầy đủ ngữ cảnh.",

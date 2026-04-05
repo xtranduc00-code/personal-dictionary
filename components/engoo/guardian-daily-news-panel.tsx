@@ -151,18 +151,41 @@ export function GuardianDailyNewsPanel() {
       try {
         const res = await fetch(
           `/api/guardian/list?section=${section}&pageSize=30`,
+          { credentials: "same-origin", cache: "no-store" },
         );
-        const json = (await res.json().catch(() => ({}))) as {
+        const text = await res.text();
+        let json: {
           items?: GuardianListItem[];
           error?: string;
+          code?: string;
         };
+        try {
+          json = JSON.parse(text) as typeof json;
+        } catch {
+          if (process.env.NODE_ENV === "development") {
+            console.warn("[guardian/list:client] non-JSON body", {
+              status: res.status,
+              preview: text.replace(/\s+/g, " ").trim().slice(0, 200),
+            });
+          }
+          setErr(
+            t("guardianListUnexpectedResponse").replace(
+              "{status}",
+              String(res.status),
+            ),
+          );
+          setData([]);
+          return;
+        }
         if (res.status === 503) {
           setNoKey(true);
           setData([]);
           return;
         }
         if (!res.ok) {
-          setErr(json.error ?? t("dailyNewsGuardianLoadError"));
+          const msg = json.error ?? t("dailyNewsGuardianLoadError");
+          const code = json.code?.trim();
+          setErr(code ? `${msg} (code: ${code})` : msg);
           setData([]);
           return;
         }

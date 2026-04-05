@@ -77,6 +77,7 @@ function GuardianReadInner() {
         const text = await res.text();
         let data: {
           error?: string;
+          code?: string;
           title?: string;
           html?: string;
           url?: string;
@@ -85,17 +86,36 @@ function GuardianReadInner() {
           data = JSON.parse(text) as typeof data;
         } catch {
           if (!cancelled) {
+            if (process.env.NODE_ENV === "development") {
+              console.warn("[guardian-read:client] non-JSON body", {
+                status: res.status,
+                contentType: res.headers.get("content-type"),
+                preview: text.replace(/\s+/g, " ").trim().slice(0, 200),
+              });
+            }
             setError(
-              text.trim().startsWith("<")
-                ? `Server returned HTML (${res.status}). Try again or open the article on the Guardian site.`
-                : `Could not read response (${res.status}).`,
+              t("guardianReadUnexpectedResponse").replace(
+                "{status}",
+                String(res.status),
+              ),
             );
           }
           return;
         }
         if (cancelled) return;
         if (!res.ok) {
-          setError(data.error ?? "Could not load article.");
+          const msg = data.error ?? "Could not load article.";
+          const code =
+            typeof data.code === "string" && data.code.length > 0
+              ? data.code
+              : "";
+          setError(
+            code
+              ? t("guardianReadErrorWithCode")
+                  .replace("{message}", msg)
+                  .replace("{code}", code)
+              : msg,
+          );
           return;
         }
         setTitle(data.title ?? "Article");

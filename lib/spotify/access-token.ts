@@ -30,31 +30,41 @@ export type RefreshResult =
   | { ok: true; accessToken: string }
   | { ok: false; reason: RefreshFailReason };
 
+/**
+ * Serialize refresh across concurrent Route Handlers. Spotify may rotate
+ * refresh_token on each refresh; parallel refreshes can invalidate each other
+ * and yield 401 (spotifyAuthHeader null) on some requests.
+ */
+let refreshSingleFlight: Promise<RefreshResult> | null = null;
+
 async function persistRotatedRefreshToken(refreshToken: string): Promise<boolean> {
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 5; i++) {
     try {
       const enc = encryptRefreshTokenForCookie(refreshToken);
       const store = await cookies();
       store.set(SPOTIFY_RT_COOKIE, enc, spotifyRtCookieBase());
+      if (process.env.NODE_ENV === "development") {
+        console.info(LOG_PREFIX, "rotated refresh_token persisted to cookie");
+      }
       return true;
     } catch (e) {
-      if (i === 2) {
+      if (i === 4) {
         console.error(
           LOG_PREFIX,
           "failed to persist rotated refresh_token after retries",
           e,
         );
       }
-      await sleep(40 * (i + 1));
+      await sleep(80 * (i + 1));
     }
   }
   return false;
 }
 
-export async function refreshSpotifyAccessToken(): Promise<RefreshResult> {
+async function performRefreshSpotifyAccessToken(): Promise<RefreshResult> {
   const clientId = process.env.SPOTIFY_CLIENT_ID?.trim();
   if (!clientId) {
-    console.warn(LOG_PREFIX, "SPOTIFY_CLIENT_ID missing");
+    console.warn(LOG_PREFIX, "SPOTIFY_CLIENT_ID missing — cannot refresh");
     return { ok: false, reason: "no_client_id" };
   }
 
@@ -62,10 +72,19 @@ export async function refreshSpotifyAccessToken(): Promise<RefreshResult> {
   try {
     const store = await cookies();
     const enc = store.get(SPOTIFY_RT_COOKIE)?.value;
-    if (!enc) return { ok: false, reason: "no_cookie" };
+    if (!enc) {
+      if (process.env.NODE_ENV === "development") {
+        console.info(LOG_PREFIX, "no spotify_rt cookie — user not connected");
+      }
+      return { ok: false, reason: "no_cookie" };
+    }
     refreshToken = decryptRefreshTokenFromCookie(enc);
   } catch (e) {
-    console.warn(LOG_PREFIX, "cookie decrypt failed", e);
+    console.warn(
+      LOG_PREFIX,
+      "cookie decrypt failed (wrong SPOTIFY_TOKEN_ENCRYPTION_KEY, truncated cookie, or corrupt value)",
+      e,
+    );
     return { ok: false, reason: "decrypt" };
   }
 
@@ -119,10 +138,15 @@ export async function refreshSpotifyAccessToken(): Promise<RefreshResult> {
     console.warn(
       LOG_PREFIX,
       "token endpoint HTTP",
-      res.status,
-      rawText.slice(0, 400),
+      { status: res.status, error: json.error, body_preview: rawText.slice(0, 400) },
     );
     if (json.error === "invalid_grant") {
+      if (process.env.NODE_ENV === "development") {
+        console.warn(
+          LOG_PREFIX,
+          "refresh token rejected by Spotify (revoked, expired, or rotated elsewhere)",
+        );
+      }
       return { ok: false, reason: "refresh_revoked" };
     }
     return { ok: false, reason: "refresh_failed" };
@@ -130,8 +154,12 @@ export async function refreshSpotifyAccessToken(): Promise<RefreshResult> {
 
   const accessToken = json.access_token;
   if (!accessToken) {
-    console.warn(LOG_PREFIX, "missing access_token in response");
+    console.warn(LOG_PREFIX, "missing access_token in token response");
     return { ok: false, reason: "refresh_failed" };
+  }
+
+  if (process.env.NODE_ENV === "development") {
+    console.info(LOG_PREFIX, "access token refreshed OK");
   }
 
   if (json.refresh_token && json.refresh_token !== refreshToken) {
@@ -151,6 +179,21 @@ export async function refreshSpotifyAccessToken(): Promise<RefreshResult> {
   }
 
   return { ok: true, accessToken };
+}
+
+export async function refreshSpotifyAccessToken(): Promise<RefreshResult> {
+  if (refreshSingleFlight) {
+    if (process.env.NODE_ENV === "development") {
+      console.info(LOG_PREFIX, "awaiting in-flight refresh");
+    }
+    return refreshSingleFlight;
+  }
+  refreshSingleFlight = performRefreshSpotifyAccessToken();
+  try {
+    return await refreshSingleFlight;
+  } finally {
+    refreshSingleFlight = null;
+  }
 }
 
 export async function spotifyAuthHeader(): Promise<string | null> {

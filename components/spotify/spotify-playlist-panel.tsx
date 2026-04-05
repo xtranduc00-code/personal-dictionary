@@ -21,6 +21,8 @@ export function SpotifyPlaylistPanel({
   playlistTracks,
   playlistTracksLoading,
   playlistTracksError,
+  /** True while tracks are loading or the track list failed — play buttons stay off. */
+  tracksPlayDisabled,
   onPlayTrack,
   maxHeightClass,
 }: {
@@ -34,6 +36,7 @@ export function SpotifyPlaylistPanel({
   playlistTracks: SpotifySearchTrackRow[];
   playlistTracksLoading: boolean;
   playlistTracksError: string | null;
+  tracksPlayDisabled: boolean;
   onPlayTrack: (uri: string) => void;
   maxHeightClass: string;
 }) {
@@ -142,6 +145,7 @@ export function SpotifyPlaylistPanel({
                   <SpotifyTrackResultItem
                     key={tr.uri}
                     track={tr}
+                    playDisabled={tracksPlayDisabled}
                     onPlay={() => onPlayTrack(tr.uri)}
                   />
                 ))}

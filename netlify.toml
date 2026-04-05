@@ -9,6 +9,9 @@
 # Long OCR+AI: optional Background Function `study-kit-summarize-background` (15m) + job table (see scripts/sql + .env.example).
 
 # Next.js App Router on Netlify (install: npm i -D @netlify/plugin-nextjs)
+# Guardian in-app reader (`/api/guardian-read`) fetches www.theguardian.com HTML + runs JSDOM/Readability.
+# If the reader returns HTTP 500 with an HTML body in the browser, raise Functions timeout in the Netlify UI
+# and ensure outbound HTTPS to the Guardian is not blocked.
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 

@@ -8,7 +8,7 @@ import {
 import { shouldDropPushSubscription } from "@/lib/push/should-drop-push-subscription";
 import { getCalendarEventStorageTimeZone } from "@/lib/calendar/event-start-utc";
 
-type VocabItem = {
+export type VocabItem = {
   word: string;
   explanation?: string;
   example?: string;
@@ -66,6 +66,10 @@ function examplePoolForItem(item: VocabItem): string[] {
   if (Array.isArray(item.examples)) {
     for (const ex of item.examples) add(ex);
   }
+  if (typeof item.explanation === "string") {
+    const plain = htmlToPlainPushText(item.explanation);
+    if (plain) add(plain);
+  }
   return pool;
 }
 
@@ -76,6 +80,31 @@ function pickExampleForPushBody(item: VocabItem, bucket: string): string {
   if (pool.length === 1) return pool[0]!;
   const seed = hashBucketToSeed(`${bucket}:${normalizeWordKey(item.word)}`);
   return pool[seed % pool.length]!;
+}
+
+const PUSH_BODY_MAX = 240;
+
+function clampPushBody(s: string): string {
+  const t = s.replace(/\s+/g, " ").trim();
+  if (t.length <= PUSH_BODY_MAX) return t;
+  return `${t.slice(0, Math.max(0, PUSH_BODY_MAX - 1))}…`;
+}
+
+/**
+ * Visible notification body — many clients hide or collapse empty/whitespace-only bodies.
+ * Prefer example/sentences, then explanation, then a short default.
+ */
+function pickBodyForPush(item: VocabItem, bucket: string): string {
+  const fromPool = pickExampleForPushBody(item, bucket).trim();
+  if (fromPool) return clampPushBody(fromPool);
+  const expl =
+    typeof item.explanation === "string"
+      ? htmlToPlainPushText(item.explanation)
+      : "";
+  if (expl.length > 0) return clampPushBody(expl);
+  return item.pushOpenFlashcards
+    ? "Open your vocabulary notes to review this card."
+    : "IELTS vocabulary — open the app to review.";
 }
 
 /**
@@ -132,6 +161,31 @@ async function removeDeadSubscription(db: SupabaseClient, endpoint: string) {
 
 const VOCAB_PAGE = 1000;
 
+async function loadAllIeltsTopicVocab(
+  db: SupabaseClient,
+): Promise<VocabItem[]> {
+  const allWordsRaw: VocabItem[] = [];
+  for (let offset = 0; ; offset += VOCAB_PAGE) {
+    const { data: vocabRows, error: vocabErr } = await db
+      .from("ielts_topic_vocab")
+      .select("items")
+      .range(offset, offset + VOCAB_PAGE - 1);
+    if (vocabErr) throw vocabErr;
+    const batch = vocabRows ?? [];
+    for (const row of batch) {
+      if (Array.isArray(row.items)) {
+        for (const item of row.items as VocabItem[]) {
+          if (typeof item?.word === "string" && item.word.trim()) {
+            allWordsRaw.push(item);
+          }
+        }
+      }
+    }
+    if (batch.length < VOCAB_PAGE) break;
+  }
+  return dedupeVocabItems(allWordsRaw);
+}
+
 /** 32-bit FNV-1a — spreads bucket strings better than summing char codes. */
 function hashBucketToSeed(bucket: string): number {
   let h = 2166136261;
@@ -166,6 +220,8 @@ function stableDailyWordOrder(words: VocabItem[], dayKey: string): VocabItem[] {
 }
 
 function isTrivialForPush(item: VocabItem): boolean {
+  /** User-saved vocabulary notes should always be eligible for push. */
+  if (item.pushOpenFlashcards) return false;
   const raw = normalizeWordKey(item.word);
   if (!raw) return true;
   // If the "word" is a phrase, keep it (phrases are higher signal).
@@ -277,11 +333,11 @@ function pickVocabPayloadsForUser(
 
   const base = siteUrl.replace(/\/$/, "");
   return words.map((w, i) => {
-    const ex = pickExampleForPushBody(w, bucket);
+    const body = pickBodyForPush(w, bucket);
     const path = w.pushOpenFlashcards ? "/flashcards" : "/ielts-speaking";
     return JSON.stringify({
       title: w.word,
-      body: ex || " ",
+      body,
       url: `${base}${path}`,
       tag: `vocab-${bucket}-${i}`,
     });
@@ -330,28 +386,7 @@ async function runVocabReminderSweepImpl(
     });
   }
 
-  // Gather all vocab items across all topics (paginate — PostgREST default cap per request).
-  const allWordsRaw: VocabItem[] = [];
-  for (let offset = 0; ; offset += VOCAB_PAGE) {
-    const { data: vocabRows, error: vocabErr } = await db
-      .from("ielts_topic_vocab")
-      .select("items")
-      .range(offset, offset + VOCAB_PAGE - 1);
-    if (vocabErr) throw vocabErr;
-    const batch = vocabRows ?? [];
-    for (const row of batch) {
-      if (Array.isArray(row.items)) {
-        for (const item of row.items as VocabItem[]) {
-          if (typeof item?.word === "string" && item.word.trim()) {
-            allWordsRaw.push(item);
-          }
-        }
-      }
-    }
-    if (batch.length < VOCAB_PAGE) break;
-  }
-
-  const ieltsWords = dedupeVocabItems(allWordsRaw);
+  const ieltsWords = await loadAllIeltsTopicVocab(db);
   const subscribedUserIds = [...subsByUser.keys()];
   const flashByUser = await loadUserFlashcardVocabByUserId(db, subscribedUserIds);
   const anyUserCards = [...flashByUser.values()].some((a) => a.length > 0);
@@ -394,5 +429,104 @@ async function runVocabReminderSweepImpl(
   }
 
   return { sent, errors, skipped: "" };
+}
+
+export type VocabTestPushResult = {
+  sent: number;
+  failed: number;
+  skipped: string;
+  /** True when no IELTS/flashcard vocab existed — a help payload was sent instead. */
+  usedSample: boolean;
+};
+
+/**
+ * Immediate push for debugging — does not write `calendar_reminder_sent` (no dedupe).
+ */
+export async function sendVocabTestPushToUser(
+  db: SupabaseClient,
+  userId: string,
+  siteUrl: string,
+): Promise<VocabTestPushResult> {
+  if (!isWebPushConfigured()) {
+    return {
+      sent: 0,
+      failed: 0,
+      skipped: "web-push not configured",
+      usedSample: false,
+    };
+  }
+  ensureWebPushConfigured();
+
+  const { data: subs, error: subErr } = await db
+    .from("push_subscriptions")
+    .select("endpoint,p256dh,auth")
+    .eq("user_id", userId);
+  if (subErr) throw subErr;
+  if (!subs?.length) {
+    return {
+      sent: 0,
+      failed: 0,
+      skipped: "no push subscriptions",
+      usedSample: false,
+    };
+  }
+
+  const ieltsWords = await loadAllIeltsTopicVocab(db);
+  const flashByUser = await loadUserFlashcardVocabByUserId(db, [userId]);
+  const userWords = flashByUser.get(userId) ?? [];
+  const bucket = tenMinuteBucket();
+  const payloads = pickVocabPayloadsForUser(
+    ieltsWords,
+    userWords,
+    bucket,
+    siteUrl,
+  );
+
+  let usedSample = false;
+  const toSend: string[] =
+    payloads.length > 0
+      ? [payloads[0]!]
+      : (() => {
+          usedSample = true;
+          const base = siteUrl.replace(/\/$/, "");
+          return [
+            JSON.stringify({
+              title: "Vocabulary reminder (test)",
+              body: "Add IELTS topic words or save cards in Vocabulary notes — reminders use the same schedule as calendar push.",
+              url: `${base}/flashcards`,
+              tag: `vocab-test-${Date.now()}`,
+            }),
+          ];
+        })();
+
+  let sent = 0;
+  let failed = 0;
+  for (const sub of subs) {
+    for (const payload of toSend) {
+      try {
+        await webpush.sendNotification(
+          {
+            endpoint: sub.endpoint as string,
+            keys: {
+              p256dh: sub.p256dh as string,
+              auth: sub.auth as string,
+            },
+          },
+          payload,
+          { TTL: 120, urgency: "normal" },
+        );
+        sent += 1;
+      } catch (e: unknown) {
+        failed += 1;
+        const wpe = e as { statusCode?: number; body?: string };
+        const errBody = typeof wpe.body === "string" ? wpe.body : undefined;
+        if (shouldDropPushSubscription(wpe.statusCode, errBody)) {
+          await removeDeadSubscription(db, sub.endpoint as string);
+        }
+      }
+    }
+  }
+
+  return { sent, failed, skipped: "", usedSample };
 }
 

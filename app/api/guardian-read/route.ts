@@ -6,12 +6,21 @@ import {
   isAllowedGuardianArticleUrl,
   normalizeGuardianArticleUrl,
 } from "@/lib/guardian-article-url";
+import {
+  guardianReadEnvSnapshot,
+  logGuardianReadFailure,
+  logGuardianReadRequest,
+  logGuardianReadUpstream,
+} from "@/lib/guardian-read-server-log";
 import { sanitizeGuardianArticleHtml } from "@/lib/sanitize-html-app";
 
 export const runtime = "nodejs";
 export const maxDuration = 45;
 /** Avoid WAF / bot blocks on cloud IPs (custom “compatible; …” UAs often get 403 or empty bodies). */
 export const dynamic = "force-dynamic";
+
+/** Stay under typical serverless response limits (~6MB) with UTF-8 overhead. */
+const MAX_JSON_RESPONSE_CHARS = 4_500_000;
 
 const GUARDIAN_FETCH_HEADERS: Record<string, string> = {
   "User-Agent":
@@ -23,12 +32,29 @@ const GUARDIAN_FETCH_HEADERS: Record<string, string> = {
   "Cache-Control": "no-cache",
 };
 
+function jsonResponse(
+  status: number,
+  body: Record<string, unknown>,
+) {
+  return NextResponse.json(body, {
+    status,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "X-Guardian-Read-Error":
+        typeof body.code === "string" ? body.code : `http_${status}`,
+    },
+  });
+}
+
 export async function GET(req: NextRequest) {
+  const env = guardianReadEnvSnapshot();
+
   try {
     const raw = req.nextUrl.searchParams.get("url")?.trim() ?? "";
     if (!raw) {
-      return NextResponse.json({ error: "Missing url parameter." }, {
-        status: 400,
+      return jsonResponse(400, {
+        error: "Missing url parameter.",
+        code: "missing_url",
       });
     }
 
@@ -36,17 +62,23 @@ export async function GET(req: NextRequest) {
     try {
       articleUrl = new URL(raw);
     } catch {
-      return NextResponse.json({ error: "Invalid URL." }, { status: 400 });
+      return jsonResponse(400, { error: "Invalid URL.", code: "invalid_url" });
     }
 
     if (!isAllowedGuardianArticleUrl(articleUrl)) {
-      return NextResponse.json(
-        { error: "Only theguardian.com article URLs are allowed." },
-        { status: 403 },
-      );
+      return jsonResponse(403, {
+        error: "Only theguardian.com article URLs are allowed.",
+        code: "url_not_allowed",
+      });
     }
 
     articleUrl = normalizeGuardianArticleUrl(articleUrl);
+
+    logGuardianReadRequest({
+      host: articleUrl.hostname,
+      pathPreview: articleUrl.pathname.slice(0, 120),
+      env,
+    });
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 25_000);
@@ -58,54 +90,100 @@ export async function GET(req: NextRequest) {
         headers: GUARDIAN_FETCH_HEADERS,
       });
 
+      const ct = res.headers.get("content-type");
+      let html: string;
+      try {
+        html = await res.text();
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        logGuardianReadFailure({
+          phase: "read_upstream_body",
+          message: msg,
+          stack: e instanceof Error ? e.stack : undefined,
+        });
+        return jsonResponse(422, {
+          error: "Could not read the Guardian page response.",
+          code: "upstream_body_read_failed",
+        });
+      }
+
+      logGuardianReadUpstream({
+        status: res.status,
+        contentType: ct,
+        ok: res.ok,
+        bodyChars: html.length,
+      });
+
       if (!res.ok) {
-        return NextResponse.json(
-          {
-            error:
-              res.status === 404
-                ? "Page not found (404)."
-                : `Could not load page (HTTP ${res.status}).`,
-          },
-          { status: 422 },
-        );
+        const preview = html.replace(/\s+/g, " ").trim().slice(0, 240);
+        logGuardianReadFailure({
+          phase: "upstream_http_error",
+          message: `HTTP ${res.status}`,
+          bodyPreview: preview,
+        });
+        return jsonResponse(422, {
+          error:
+            res.status === 404
+              ? "Page not found (404)."
+              : `Could not load page (HTTP ${res.status}).`,
+          code: "upstream_http_error",
+          upstreamStatus: res.status,
+        });
       }
 
-      const ct = res.headers.get("content-type") ?? "";
-      if (!ct.includes("text/html") && !ct.includes("application/xhtml")) {
-        return NextResponse.json(
-          { error: "URL is not an HTML article." },
-          { status: 422 },
-        );
+      if (!ct?.includes("text/html") && !ct?.includes("application/xhtml")) {
+        return jsonResponse(422, {
+          error: "URL is not an HTML article.",
+          code: "not_html",
+        });
       }
 
-      const html = await res.text();
       if (html.length > 2_500_000) {
-        return NextResponse.json(
-          { error: "Page too large to process." },
-          { status: 422 },
-        );
+        return jsonResponse(422, {
+          error: "Page too large to process.",
+          code: "html_too_large",
+        });
       }
 
-      const dom = new JSDOM(html, { url: articleUrl.toString() });
+      let dom: JSDOM;
+      try {
+        dom = new JSDOM(html, { url: articleUrl.toString() });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        logGuardianReadFailure({
+          phase: "jsdom_construct",
+          message: msg,
+          stack: e instanceof Error ? e.stack : undefined,
+        });
+        return jsonResponse(422, {
+          error: "Could not parse the Guardian page structure.",
+          code: "jsdom_failed",
+        });
+      }
+
       let parsed: ReturnType<Readability["parse"]>;
       try {
         const reader = new Readability(dom.window.document);
         parsed = reader.parse();
-      } catch {
-        return NextResponse.json(
-          { error: "Could not parse article structure." },
-          { status: 422 },
-        );
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        logGuardianReadFailure({
+          phase: "readability",
+          message: msg,
+          stack: e instanceof Error ? e.stack : undefined,
+        });
+        return jsonResponse(422, {
+          error: "Could not parse article structure.",
+          code: "readability_failed",
+        });
       }
 
       if (!parsed?.content) {
-        return NextResponse.json(
-          {
-            error:
-              "Could not extract article body. Try opening the story on the Guardian site.",
-          },
-          { status: 422 },
-        );
+        return jsonResponse(422, {
+          error:
+            "Could not extract article body. Try opening the story on the Guardian site.",
+          code: "no_article_content",
+        });
       }
 
       const title =
@@ -113,55 +191,105 @@ export async function GET(req: NextRequest) {
         dom.window.document.querySelector("title")?.textContent?.trim() ||
         "Article";
 
-      const absolutized = absolutizeArticleHtml(
-        parsed.content,
-        articleUrl.toString(),
-      );
+      let absolutized: string;
+      try {
+        absolutized = absolutizeArticleHtml(
+          parsed.content,
+          articleUrl.toString(),
+        );
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        logGuardianReadFailure({
+          phase: "absolutize",
+          message: msg,
+          stack: e instanceof Error ? e.stack : undefined,
+        });
+        absolutized = parsed.content;
+      }
+
       const htmlSanitized = sanitizeGuardianArticleHtml(absolutized);
 
       if (!htmlSanitized.trim() || htmlSanitized.length < 40) {
-        return NextResponse.json(
-          { error: "Extracted content was empty." },
-          { status: 422 },
-        );
+        return jsonResponse(422, {
+          error: "Extracted content was empty.",
+          code: "sanitized_empty",
+        });
       }
 
-      return NextResponse.json(
-        {
-          title,
-          html: htmlSanitized,
-          url: articleUrl.toString(),
-          byline: parsed.byline?.trim() ?? null,
+      const payload = {
+        title,
+        html: htmlSanitized,
+        url: articleUrl.toString(),
+        byline: parsed.byline?.trim() ?? null,
+      };
+
+      let bodyStr: string;
+      try {
+        bodyStr = JSON.stringify(payload);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        logGuardianReadFailure({
+          phase: "json_stringify",
+          message: msg,
+          stack: e instanceof Error ? e.stack : undefined,
+        });
+        return jsonResponse(422, {
+          error: "Could not serialize article for the reader.",
+          code: "stringify_failed",
+        });
+      }
+
+      if (bodyStr.length > MAX_JSON_RESPONSE_CHARS) {
+        logGuardianReadFailure({
+          phase: "payload_size",
+          message: `response chars ${bodyStr.length}`,
+        });
+        return jsonResponse(422, {
+          error:
+            "This article is too large to display in the in-app reader. Open it on the Guardian website instead.",
+          code: "payload_too_large",
+        });
+      }
+
+      return new NextResponse(bodyStr, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Cache-Control": "private, max-age=300, stale-while-revalidate=600",
         },
-        {
-          headers: {
-            "Cache-Control":
-              "private, max-age=300, stale-while-revalidate=600",
-          },
-        },
-      );
+      });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes("abort") || msg === "AbortError") {
-        return NextResponse.json({ error: "Request timed out." }, {
-          status: 408,
+        logGuardianReadFailure({ phase: "timeout", message: msg });
+        return jsonResponse(408, {
+          error: "Request timed out.",
+          code: "timeout",
         });
       }
-      return NextResponse.json(
-        { error: "Could not load or parse this Guardian page." },
-        { status: 422 },
-      );
+      logGuardianReadFailure({
+        phase: "fetch_or_process",
+        message: msg,
+        stack: e instanceof Error ? e.stack : undefined,
+      });
+      return jsonResponse(422, {
+        error: "Could not load or parse this Guardian page.",
+        code: "process_failed",
+      });
     } finally {
       clearTimeout(timeout);
     }
   } catch (e) {
-    console.error("[guardian-read] unexpected", e);
-    return NextResponse.json(
-      {
-        error:
-          "Server error while preparing the article. Try again or open the Guardian in a new tab.",
-      },
-      { status: 500 },
-    );
+    const msg = e instanceof Error ? e.message : String(e);
+    logGuardianReadFailure({
+      phase: "fatal",
+      message: msg,
+      stack: e instanceof Error ? e.stack : undefined,
+    });
+    return jsonResponse(500, {
+      error:
+        "Server error while preparing the article. Try again or open the Guardian in a new tab.",
+      code: "internal_error",
+    });
   }
 }
