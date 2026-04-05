@@ -121,6 +121,27 @@ export function sanitizeBbcArticleHtml(raw: string): string {
   }
 }
 
+const GUARDIAN_IFRAME_HOSTS = [
+  ...BBC_IFRAME_HOSTS,
+  "www.theguardian.com",
+  "theguardian.com",
+  "interactive.guim.co.uk",
+  "uploads.guim.co.uk",
+];
+
+const guardianArticleSanitizeOptions: IOptions = {
+  ...bbcSanitizeOptions,
+  allowedIframeHostnames: GUARDIAN_IFRAME_HOSTS,
+};
+
+export function sanitizeGuardianArticleHtml(raw: string): string {
+  try {
+    return sanitizeHtml(raw, guardianArticleSanitizeOptions);
+  } catch {
+    return stripHtmlFallback(raw);
+  }
+}
+
 /** TipTap / RichTextEditor output (notes PDF, flashcard definitions): tables, images, task lists, highlight. */
 const TIPTAP_TAGS = [
   "h1",

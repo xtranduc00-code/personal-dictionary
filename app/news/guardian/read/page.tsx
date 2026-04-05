@@ -2,18 +2,23 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
-import { FOOTBALL_READ_BODY_CLASS } from "@/lib/football-read-body-class";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { EngooReadingTutorPanel } from "@/components/engoo/engoo-reading-tutor-panel";
+import { useI18n } from "@/components/i18n-provider";
+import { storeEngooCallContext } from "@/lib/engoo-call-context";
+import { buildGuardianEngooTutorPayload } from "@/lib/guardian-engoo-tutor-payload";
+import { GUARDIAN_READ_BODY_CLASS } from "@/lib/guardian-read-body-class";
 
 function safeReturnTo(raw: string | null): string {
   if (!raw || !raw.startsWith("/") || raw.startsWith("//")) {
-    return "/?src=guardian&gtab=sport";
+    return "/?src=guardian";
   }
   return raw;
 }
 
-function FootballReadInner() {
+function GuardianReadInner() {
+  const { t } = useI18n();
   const searchParams = useSearchParams();
   const urlParam = searchParams.get("url")?.trim() ?? "";
   const returnTo = safeReturnTo(searchParams.get("returnTo"));
@@ -23,6 +28,26 @@ function FootballReadInner() {
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tutorOpen, setTutorOpen] = useState(false);
+
+  useEffect(() => {
+    setTutorOpen(false);
+  }, [urlParam]);
+
+  const tutorPayload = useMemo(() => {
+    if (loading || error || !title || !sourceUrl) return null;
+    return buildGuardianEngooTutorPayload({
+      title,
+      html: html ?? "",
+      sourceUrl,
+    });
+  }, [loading, error, title, html, sourceUrl]);
+
+  const openReadingTutor = useCallback(() => {
+    if (!tutorPayload) return;
+    storeEngooCallContext(tutorPayload.masterId, tutorPayload);
+    setTutorOpen(true);
+  }, [tutorPayload]);
 
   useEffect(() => {
     if (!urlParam) {
@@ -41,7 +66,7 @@ function FootballReadInner() {
     void (async () => {
       try {
         const res = await fetch(
-          `/api/bbc-read?url=${encodeURIComponent(urlParam)}`,
+          `/api/guardian-read?url=${encodeURIComponent(urlParam)}`,
         );
         const data = (await res.json()) as {
           error?: string;
@@ -75,24 +100,30 @@ function FootballReadInner() {
         <p className="text-zinc-600 dark:text-zinc-400">Missing article link.</p>
         <Link
           href={returnTo}
-          className="mt-4 inline-block text-sm font-medium text-rose-700 underline-offset-2 hover:underline dark:text-rose-300"
+          className="mt-4 inline-block text-sm font-medium text-sky-700 underline-offset-2 hover:underline dark:text-sky-300"
         >
-          ← Back
+          {t("guardianReadBack")}
         </Link>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen w-full bg-zinc-100/90 font-sans text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
-      <div className="mx-auto max-w-6xl px-3 pb-20 pt-6 sm:px-4 sm:pt-8">
+    <div
+      className={`relative min-h-screen w-full bg-zinc-100/90 font-sans text-zinc-900 transition-[padding] duration-200 dark:bg-zinc-950 dark:text-zinc-100 ${
+        tutorOpen
+          ? "pb-[58vh] md:pb-6 md:pr-[440px]"
+          : "pb-20"
+      }`}
+    >
+      <div className="mx-auto max-w-6xl px-3 pt-6 sm:px-4 sm:pt-8">
         <header className="mb-4 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/95 shadow-[0_2px_12px_-4px_rgba(15,23,42,0.06)] dark:border-zinc-800 dark:bg-zinc-900/95">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:px-5">
             <Link
               href={returnTo}
-              className="text-sm font-semibold tracking-tight text-rose-800 underline-offset-2 hover:underline dark:text-rose-300"
+              className="text-sm font-semibold tracking-tight text-sky-800 underline-offset-2 hover:underline dark:text-sky-300"
             >
-              ← Football headlines
+              {t("guardianReadBack")}
             </Link>
             {sourceUrl ? (
               <>
@@ -108,7 +139,7 @@ function FootballReadInner() {
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-sm text-zinc-600 underline-offset-2 hover:text-zinc-900 hover:underline dark:text-zinc-400 dark:hover:text-zinc-200"
                 >
-                  Original on BBC
+                  {t("guardianReadOriginal")}
                   <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
                 </a>
               </>
@@ -119,7 +150,7 @@ function FootballReadInner() {
         <main className="w-full min-w-0">
           {loading ? (
             <div className="py-24 text-center text-sm text-zinc-500 dark:text-zinc-400">
-              Loading article…
+              {t("guardianReadLoading")}
             </div>
           ) : error ? (
             <div className="rounded-2xl border border-red-200 bg-red-50/80 px-5 py-8 text-center text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
@@ -131,7 +162,7 @@ function FootballReadInner() {
                   rel="noopener noreferrer"
                   className="mt-4 inline-block font-medium underline"
                 >
-                  Open on BBC instead
+                  {t("guardianReadOpenInstead")}
                 </a>
               ) : null}
             </div>
@@ -142,11 +173,11 @@ function FootballReadInner() {
                   {title}
                 </h1>
                 <p className="mt-3 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
-                  Reader view · BBC Sport
+                  {t("guardianReadKicker")}
                 </p>
                 <hr className="my-8 border-0 border-t border-zinc-200/80 dark:border-zinc-700/80 sm:my-10" />
                 <div
-                  className={FOOTBALL_READ_BODY_CLASS}
+                  className={GUARDIAN_READ_BODY_CLASS}
                   dangerouslySetInnerHTML={{ __html: html ?? "" }}
                 />
               </article>
@@ -154,20 +185,48 @@ function FootballReadInner() {
           )}
         </main>
       </div>
+
+      {!tutorOpen && tutorPayload ? (
+        <button
+          type="button"
+          onClick={openReadingTutor}
+          className="fixed bottom-6 right-5 z-[80] flex items-center gap-2 rounded-full bg-black px-6 py-3.5 text-sm font-semibold text-white shadow-lg transition hover:scale-[1.02] hover:shadow-xl active:scale-[0.98] md:bottom-8 md:right-8"
+        >
+          <span className="inline-flex h-5 w-5 items-center justify-center">
+            <svg
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              className="h-5 w-5"
+              aria-hidden
+            >
+              <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
+            </svg>
+          </span>
+          Start Call
+        </button>
+      ) : null}
+
+      <EngooReadingTutorPanel
+        open={tutorOpen}
+        onClose={() => setTutorOpen(false)}
+        masterId={tutorPayload?.masterId ?? ""}
+        payload={tutorPayload}
+      />
     </div>
   );
 }
 
-export default function FootballReadPage() {
+export default function GuardianReadPage() {
+  const { t } = useI18n();
   return (
     <Suspense
       fallback={
         <div className="flex min-h-screen items-center justify-center bg-zinc-100/90 text-zinc-500 dark:bg-zinc-950 dark:text-zinc-400">
-          Loading…
+          {t("guardianReadLoading")}
         </div>
       }
     >
-      <FootballReadInner />
+      <GuardianReadInner />
     </Suspense>
   );
 }

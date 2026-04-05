@@ -18,7 +18,6 @@ export const ENGOO_DAILY_NEWS_CATEGORIES = [
   { slug: "health-lifestyle", label: "Health & Lifestyle" },
   { slug: "culture-society", label: "Culture & Society" },
   { slug: "travel-experiences", label: "Travel & Experiences" },
-  { slug: "football", label: "Football" },
 ] as const;
 
 export type EngooDailyNewsCategoryDef = (typeof ENGOO_DAILY_NEWS_CATEGORIES)[number];
@@ -33,7 +32,6 @@ export const ENGOO_DAILY_NEWS_TOPIC_SLUG_TO_LABEL: Record<
   "health-lifestyle": "Health & Lifestyle",
   "culture-society": "Culture & Society",
   "travel-experiences": "Travel & Experiences",
-  football: "Football",
 };
 
 export function getEngooDailyNewsCategoryBySlug(

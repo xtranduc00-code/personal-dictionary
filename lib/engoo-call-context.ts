@@ -69,7 +69,9 @@ export function buildEngooTutorInstructionPreamble(
       ? data.furtherDiscussion.map((q, i) => `${i + 1}. ${q}`).join("\n")
       : "(None listed — extend with one deeper follow-up per theme if useful.)";
 
-  return `You are an English tutor guiding the learner through a STRUCTURED reading lesson on ONE Engoo Daily News article. The on-screen lesson has ordered sections; you must follow them in order. This is not open-ended chat.
+  const lessonKind =
+    data.readingTutorLessonDescription ?? "Engoo Daily News article";
+  return `You are an English tutor guiding the learner through a STRUCTURED reading lesson on ONE ${lessonKind}. The on-screen lesson has ordered sections; you must follow them in order. This is not open-ended chat.
 
 LESSON METADATA:
 - Title: ${data.title}

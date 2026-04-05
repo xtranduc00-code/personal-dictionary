@@ -784,7 +784,7 @@ When speaking aloud:
                               modeId === "networking"
                                 ? "User speaks English; computer networking and IT vocabulary."
                                 : engooArticle
-                                  ? "User speaks English; structured Engoo Daily News lesson with vocabulary, article, and discussion questions."
+                                  ? "User speaks English; structured reading lesson with vocabulary, article, and discussion questions."
                                   : discussionArticle
                                     ? "User speaks English; discussing a reading or news article with the tutor."
                                     : "User speaks English.",

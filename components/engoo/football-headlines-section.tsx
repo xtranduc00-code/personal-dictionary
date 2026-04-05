@@ -145,8 +145,6 @@ function FootballHeadlinesGrid({
   showWomensFilterToggle: boolean;
   searchActive: boolean;
 }) {
-  const [lead, second, ...rest] = items;
-
   return (
     <section className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
@@ -180,43 +178,18 @@ function FootballHeadlinesGrid({
         </p>
       ) : null}
 
-      {items.length === 0 ? null : items.length === 1 ? (
-        <div className="grid grid-cols-1 gap-6">
-          <FootballRssFeedCard
-            item={lead}
-            readHref={footballReadHref(lead, listReturnHref)}
-            staggerIndex={0}
-            variant="featured"
-          />
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-            <FootballRssFeedCard
-              item={lead}
-              readHref={footballReadHref(lead, listReturnHref)}
-              staggerIndex={0}
-              variant="featured"
-            />
-            <FootballRssFeedCard
-              item={second}
-              readHref={footballReadHref(second, listReturnHref)}
-              staggerIndex={1}
-            />
-          </div>
-          {rest.length > 0 ? (
-            <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {rest.map((item, i) => (
-                <FootballRssFeedCard
-                  key={`${item.link}::${i + 2}`}
-                  item={item}
-                  readHref={footballReadHref(item, listReturnHref)}
-                  staggerIndex={i + 2}
-                />
-              ))}
+      {items.length === 0 ? null : (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((item, i) => (
+            <div key={`${item.link}::${i}`} className="min-w-0">
+              <FootballRssFeedCard
+                item={item}
+                readHref={footballReadHref(item, listReturnHref)}
+                staggerIndex={i}
+              />
             </div>
-          ) : null}
-        </>
+          ))}
+        </div>
       )}
     </section>
   );

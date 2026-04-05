@@ -1,6 +1,5 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -12,11 +11,7 @@ import {
   type CSSProperties,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Flame, LayoutGrid, Search, Sparkles, Tag } from "lucide-react";
-import {
-  filterWomensFootballHeadlines,
-  type FootballRssHeadline,
-} from "@/lib/bbc-football-rss-shared";
+import { Flame, LayoutGrid, Search, Tag } from "lucide-react";
 import type { EngooListApiResponse, EngooListCard } from "@/lib/engoo-types";
 import { engooLevelBadgeBackground } from "@/lib/engoo-level-style";
 import {
@@ -24,8 +19,8 @@ import {
   getEngooDailyNewsCategoryBySlug,
 } from "@/lib/engoo-daily-news-categories";
 import { formatRelativeDaysAgo } from "@/lib/format-relative-days-ago";
-import { FOOTBALL_HIDE_WOMENS_STORAGE_KEY } from "@/lib/football-ui-constants";
 import { parseResponseJson } from "@/lib/read-response-json";
+import { useI18n } from "@/components/i18n-provider";
 
 const NEW_BADGE_MAX_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -274,7 +269,7 @@ function EngooCard({
           </span>
         ) : null}
       </div>
-      <div className="relative flex h-full min-h-[140px] flex-col justify-end p-5 md:min-h-0 md:p-6">
+      <div className="absolute inset-0 z-[5] flex min-h-[140px] flex-col justify-end p-5 md:p-6">
         <h3
           className={
             variant === "hero"
@@ -289,7 +284,7 @@ function EngooCard({
             {formatRelativeDaysAgo(card.firstPublishedAt)}
           </p>
         ) : null}
-        <div className="mt-4 flex flex-wrap items-end justify-start gap-2">
+        <div className="mt-3 flex flex-wrap items-end justify-start gap-2 md:mt-4">
           <span
             className={`max-w-full truncate rounded-r-full rounded-tl-full px-3 py-1 text-xs font-semibold ${cat.overlayPill}`}
           >
@@ -301,7 +296,7 @@ function EngooCard({
   );
 }
 
-function HomeSkeleton({
+export function HomeSkeleton({
   layout = "category",
 }: {
   layout?: "category" | "featured";
@@ -327,7 +322,7 @@ function HomeSkeleton({
     return (
       <div className="animate-pulse space-y-8">
         <div>
-          <div className="mb-3 h-3 w-28 rounded bg-zinc-200 dark:bg-zinc-700" />
+          <div className="mb-3 h-3 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
           <div className="min-h-[300px] rounded-2xl bg-zinc-200/90 dark:bg-zinc-800/80 md:min-h-[340px]" />
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -352,38 +347,6 @@ function HomeSkeleton({
   );
 }
 
-function FootballHeadlinesLoading() {
-  return (
-    <div className="animate-pulse space-y-6" aria-hidden>
-      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
-        <div className="h-8 w-44 rounded-lg bg-zinc-200 dark:bg-zinc-800" />
-        <div className="h-10 w-52 rounded-xl bg-zinc-200 dark:bg-zinc-800" />
-      </div>
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <div className="overflow-hidden rounded-2xl border border-zinc-200/90 bg-white dark:border-zinc-700 dark:bg-zinc-900">
-          <div className="aspect-[16/10] bg-zinc-200 dark:bg-zinc-800" />
-          <div className="space-y-2 p-4">
-            <div className="h-5 w-[85%] rounded bg-zinc-200 dark:bg-zinc-800" />
-            <div className="h-3 w-24 rounded bg-zinc-100 dark:bg-zinc-800/80" />
-          </div>
-        </div>
-        <div className="overflow-hidden rounded-2xl border border-zinc-200/90 bg-white dark:border-zinc-700 dark:bg-zinc-900">
-          <div className="aspect-[16/10] bg-zinc-200 dark:bg-zinc-800" />
-          <div className="space-y-2 p-4">
-            <div className="h-5 w-full rounded bg-zinc-200 dark:bg-zinc-800" />
-            <div className="h-3 w-20 rounded bg-zinc-100 dark:bg-zinc-800/80" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const FootballHeadlinesGrid = dynamic(
-  () => import("@/components/engoo/football-headlines-section"),
-  { loading: () => <FootballHeadlinesLoading />, ssr: true },
-);
-
 function listQuery(
   categorySlug: string,
   opts: { cursor?: string | null; pageSize?: number } = {},
@@ -396,7 +359,8 @@ function listQuery(
   return base;
 }
 
-function EngooDailyNewsHomeInner() {
+export function EngooDailyNewsHomeInner() {
+  const { t } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -406,41 +370,19 @@ function EngooDailyNewsHomeInner() {
     [searchParams],
   );
   const isAllTab = activeCategory.slug === "all";
-  const isFootballTab = activeCategory.slug === "football";
 
   const [items, setItems] = useState<EngooListCard[]>([]);
-  const [footballItems, setFootballItems] = useState<FootballRssHeadline[]>([]);
-  const [hideWomensFootball, setHideWomensFootball] = useState(true);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [listLoading, setListLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  useEffect(() => {
-    try {
-      const v = localStorage.getItem(FOOTBALL_HIDE_WOMENS_STORAGE_KEY);
-      if (v === "false") setHideWomensFootball(false);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  const setHideWomensFootballPersist = useCallback((hide: boolean) => {
-    setHideWomensFootball(hide);
-    try {
-      localStorage.setItem(
-        FOOTBALL_HIDE_WOMENS_STORAGE_KEY,
-        hide ? "true" : "false",
-      );
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
   const setCategorySlug = useCallback(
     (slug: string) => {
       const params = new URLSearchParams(searchParams.toString());
+      params.delete("src");
+      params.delete("gtab");
       if (slug === "all") params.delete("category");
       else params.set("category", slug);
       const q = params.toString();
@@ -453,21 +395,8 @@ function EngooDailyNewsHomeInner() {
     setError(null);
     setListLoading(true);
     setItems([]);
-    setFootballItems([]);
     setNextCursor(null);
     try {
-      if (activeCategory.slug === "football") {
-        const res = await fetch("/api/football-rss");
-        const parsed = await parseResponseJson<{
-          items?: FootballRssHeadline[];
-        }>(res);
-        if (!parsed.ok) {
-          setError(parsed.message);
-          return;
-        }
-        setFootballItems(parsed.data.items ?? []);
-        return;
-      }
       const res = await fetch(listQuery(activeCategory.slug));
       const parsed = await parseResponseJson<EngooListApiResponse>(res);
       if (!parsed.ok) {
@@ -488,7 +417,7 @@ function EngooDailyNewsHomeInner() {
   }, [resetAndLoad]);
 
   const loadMore = useCallback(async () => {
-    if (isFootballTab || !nextCursor || loadingMore || listLoading) return;
+    if (!nextCursor || loadingMore || listLoading) return;
     setLoadingMore(true);
     setError(null);
     try {
@@ -527,30 +456,17 @@ function EngooDailyNewsHomeInner() {
     nextCursor,
     loadingMore,
     listLoading,
-    isFootballTab,
   ]);
-
-  const visibleFootballItems = useMemo(
-    () => filterWomensFootballHeadlines(footballItems, hideWomensFootball),
-    [footballItems, hideWomensFootball],
-  );
 
   const filteredForSearch = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (isFootballTab) {
-      if (!q) return visibleFootballItems;
-      return visibleFootballItems.filter((c) =>
-        c.title.toLowerCase().includes(q),
-      );
-    }
     if (!q) return items;
     return items.filter((c) => c.title.toLowerCase().includes(q));
-  }, [items, visibleFootballItems, searchQuery, isFootballTab]);
+  }, [items, searchQuery]);
 
   const { featured, spotlights, gridItems } = useMemo(() => {
     const list = filteredForSearch as EngooListCard[];
-    const useFeatured =
-      !isFootballTab && isAllTab && !searchQuery.trim() && list.length > 0;
+    const useFeatured = isAllTab && !searchQuery.trim() && list.length > 0;
     if (!useFeatured) {
       return {
         featured: null as EngooListCard | null,
@@ -563,16 +479,19 @@ function EngooDailyNewsHomeInner() {
       spotlights: list.slice(1, 3),
       gridItems: list.length > 3 ? list.slice(3) : [],
     };
-  }, [filteredForSearch, isAllTab, searchQuery, isFootballTab]);
+  }, [filteredForSearch, isAllTab, searchQuery]);
 
-  const emptyAfterLoad = !listLoading &&
-    !error &&
-    (isFootballTab ? footballItems.length === 0 : items.length === 0);
+  const emptyAfterLoad = !listLoading && !error && items.length === 0;
   const listHadDataButNoneVisible =
-    !listLoading &&
-    filteredForSearch.length === 0 &&
-    (isFootballTab ? footballItems.length > 0 : items.length > 0);
-  const emptySearch = !isFootballTab && listHadDataButNoneVisible;
+    !listLoading && filteredForSearch.length === 0 && items.length > 0;
+  const emptySearch = listHadDataButNoneVisible;
+
+  const showMoreStoriesBand =
+    isAllTab &&
+    !searchQuery.trim() &&
+    (featured !== null || spotlights.length > 0);
+  const storyStagger = (idx: number) =>
+    featured !== null || spotlights.length > 0 ? 3 + idx : idx;
 
   return (
     <div className="min-h-screen w-full bg-[#F6F7F9] pb-12 font-sans text-[#111827] dark:bg-zinc-950 dark:text-zinc-100">
@@ -580,17 +499,17 @@ function EngooDailyNewsHomeInner() {
         <div className="flex flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:pb-5">
           <div className="border-l-4 border-l-rose-600 pl-3 dark:border-l-rose-500">
             <h1 className="text-2xl font-extrabold tracking-tight text-zinc-900 sm:text-3xl dark:text-zinc-50">
-              Daily News
+              {t("dailyNewsPageTitle")}
             </h1>
           </div>
           <label className="flex w-full max-w-md items-center gap-2 rounded-xl border border-zinc-200/90 bg-zinc-50/90 px-3 py-2.5 shadow-inner shadow-zinc-200/20 sm:w-auto dark:border-zinc-600 dark:bg-zinc-950/50 dark:shadow-none">
             <Search
-              className="h-4 w-4 shrink-0 text-rose-500/80 dark:text-rose-400/70"
+              className="h-4 w-4 shrink-0 text-zinc-400 dark:text-zinc-500"
               aria-hidden
             />
             <input
               type="search"
-              placeholder="Search titles…"
+              placeholder={t("dailyNewsSearchPlaceholder")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="min-w-0 flex-1 bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus-visible:ring-0 dark:text-zinc-100 dark:placeholder:text-zinc-500"
@@ -640,9 +559,7 @@ function EngooDailyNewsHomeInner() {
         ) : null}
 
         {listLoading ? (
-          <HomeSkeleton
-            layout={isAllTab && !isFootballTab ? "featured" : "category"}
-          />
+          <HomeSkeleton layout={isAllTab ? "featured" : "category"} />
         ) : emptyAfterLoad ? (
           <p className="py-20 text-center text-zinc-500 dark:text-zinc-400">
             No articles in this category.
@@ -651,49 +568,9 @@ function EngooDailyNewsHomeInner() {
           <p className="py-20 text-center text-zinc-500 dark:text-zinc-400">
             No articles match your search.
           </p>
-        ) : isFootballTab ? (
-          <FootballHeadlinesGrid
-            items={filteredForSearch as FootballRssHeadline[]}
-            sectionTitle={activeCategory.label}
-            hideWomensFootball={hideWomensFootball}
-            onHideWomensFootballChange={setHideWomensFootballPersist}
-            showWomensFilterToggle={footballItems.length > 0}
-            searchActive={searchQuery.trim().length > 0}
-            listReturnHref={
-              pathname === "/"
-                ? "/?category=football"
-                : `${pathname}?category=football`
-            }
-          />
         ) : (
           <>
-            {featured ? (
-              <section className="mb-10 space-y-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Sparkles
-                    className="h-4 w-4 text-rose-600 dark:text-rose-400"
-                    aria-hidden
-                  />
-                  <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-rose-800 dark:text-rose-300">
-                    Editor&apos;s pick
-                  </span>
-                  <span className="rounded-full bg-rose-100/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-800 dark:bg-rose-950/60 dark:text-rose-200">
-                    Hero
-                  </span>
-                </div>
-                <div className="rounded-[1.35rem] bg-gradient-to-br from-rose-100/50 via-white to-amber-50/40 p-[3px] shadow-[0_20px_60px_-20px_rgba(225,29,72,0.25)] dark:from-rose-950/40 dark:via-zinc-900 dark:to-zinc-950 dark:shadow-none">
-                  <EngooCard
-                    card={featured}
-                    variant="hero"
-                    layout="overlay"
-                    staggerIndex={0}
-                    className="min-h-[320px] w-full rounded-[1.2rem] ring-2 ring-white/80 dark:ring-zinc-800 md:min-h-[400px]"
-                  />
-                </div>
-              </section>
-            ) : null}
-
-            {spotlights.length > 0 ? (
+            {featured || spotlights.length > 0 ? (
               <section className="mb-12 space-y-4">
                 <div className="flex items-center gap-2">
                   <Flame
@@ -704,17 +581,30 @@ function EngooDailyNewsHomeInner() {
                     Trending now
                   </span>
                 </div>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5">
-                  {spotlights.map((c, i) => (
+                {featured ? (
+                  <div className="rounded-[1.35rem] bg-gradient-to-br from-rose-100/50 via-white to-amber-50/40 p-[3px] shadow-[0_20px_60px_-20px_rgba(225,29,72,0.25)] dark:from-rose-950/40 dark:via-zinc-900 dark:to-zinc-950 dark:shadow-none">
                     <EngooCard
-                      key={c.masterId}
-                      card={c}
+                      card={featured}
+                      variant="hero"
                       layout="overlay"
-                      staggerIndex={1 + i}
-                      className="min-h-[220px] md:min-h-[260px]"
+                      staggerIndex={0}
+                      className="min-h-[320px] w-full rounded-[1.2rem] ring-2 ring-white/80 dark:ring-zinc-800 md:min-h-[400px]"
                     />
-                  ))}
-                </div>
+                  </div>
+                ) : null}
+                {spotlights.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5">
+                    {spotlights.map((c, i) => (
+                      <EngooCard
+                        key={c.masterId}
+                        card={c}
+                        layout="overlay"
+                        staggerIndex={1 + i}
+                        className="min-h-[220px] md:min-h-[260px]"
+                      />
+                    ))}
+                  </div>
+                ) : null}
               </section>
             ) : null}
 
@@ -729,9 +619,7 @@ function EngooDailyNewsHomeInner() {
                     {activeCategory.label}
                   </h2>
                 ) : null}
-                {isAllTab &&
-                !searchQuery.trim() &&
-                (featured || spotlights.length > 0) ? (
+                {showMoreStoriesBand ? (
                   <div className="flex items-center gap-4 pt-1">
                     <span className="shrink-0 text-sm font-bold tracking-tight text-zinc-800 dark:text-zinc-100">
                       More stories
@@ -744,22 +632,11 @@ function EngooDailyNewsHomeInner() {
                 ) : null}
                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                   {gridItems.map((c, i) => (
-                    <div
-                      key={c.masterId}
-                      className={
-                        i === 0
-                          ? "sm:col-span-2 lg:col-span-2"
-                          : undefined
-                      }
-                    >
+                    <div key={c.masterId} className="min-w-0">
                       <EngooCard
                         card={c}
                         layout="feed"
-                        staggerIndex={
-                          featured || spotlights.length > 0
-                            ? 3 + i
-                            : i
-                        }
+                        staggerIndex={storyStagger(i)}
                       />
                     </div>
                   ))}

@@ -1,6 +1,6 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { toast } from "react-toastify";
 import { DriveIntegrationNavBlock } from "@/components/drive-integration-nav";
 import {
@@ -54,12 +54,31 @@ const studyNavEntries: {
     { href: "/study-kit/history", labelKey: "studyKitSessionHistory", icon: History, sub: true },
     { href: "/study-kit/saved", labelKey: "studyKitSavedFolder", icon: FolderOpen, sub: false },
 ];
+type NewsSourceLink = {
+    href: string;
+    labelKey: TranslationKey;
+    icon: LucideIcon;
+    dailyNewsSource: "engoo" | "guardian";
+};
+const newsSectionLinks: NewsSourceLink[] = [
+    {
+        href: "/",
+        labelKey: "dailyNewsSourceEngoo",
+        icon: Newspaper,
+        dailyNewsSource: "engoo",
+    },
+    {
+        href: "/?src=guardian",
+        labelKey: "dailyNewsSourceGuardian",
+        icon: Newspaper,
+        dailyNewsSource: "guardian",
+    },
+];
 const entertainmentSectionLinks: {
     href: string;
     labelKey: TranslationKey;
     icon: LucideIcon;
 }[] = [
-    { href: "/", labelKey: "articleHomeNav", icon: Newspaper },
     { href: "/watch", labelKey: "watchTogetherNav", icon: Clapperboard },
 ];
 const scheduleSectionLinks: {
@@ -122,6 +141,14 @@ const NAV_LINK_DRIVE_IDLE =
 const NAV_LINK_ROW_MEETS_LIVE =
     "border-l-2 border-red-500 bg-gradient-to-r from-red-50 via-orange-50/40 to-transparent pl-[30px] font-semibold text-red-950 shadow-sm ring-1 ring-red-200/60 dark:border-red-400 dark:from-red-950/55 dark:via-red-950/25 dark:to-transparent dark:text-red-50 dark:ring-red-500/25";
 
+/** Same row geometry as top-level nav links (e.g. Watch together); keeps “News” label from looking like a tiny sub-caption. */
+function EntertainmentNewsGroupTitle({ label }: { label: string }) {
+    return (<div className="flex items-center gap-3 rounded-r-xl border-l-2 border-transparent py-2.5 pl-8 pr-4 text-base font-medium text-zinc-700 dark:text-zinc-300" role="presentation">
+      <Newspaper className="h-4 w-4 shrink-0 opacity-70" aria-hidden/>
+      <span>{label}</span>
+    </div>);
+}
+
 function isActive(pathname: string, href: string) {
     if (href === "/")
         return (pathname === "/" ||
@@ -165,14 +192,40 @@ function isIeltsPath(pathname: string) {
 function isStudyPath(pathname: string) {
     return pathname.startsWith("/study-kit");
 }
-function isEntertainmentPath(pathname: string) {
+function isNewsPath(pathname: string) {
     if (pathname === "/" ||
         pathname === "/news" ||
         pathname.startsWith("/news/") ||
         pathname.startsWith("/articles/") ||
         pathname.startsWith("/reading/"))
         return true;
+    return false;
+}
+function isEntertainmentPath(pathname: string) {
     return pathname === "/watch" || pathname.startsWith("/watch/");
+}
+/** Entertainment section active when on Daily News routes or Watch together. */
+function isEntertainmentSidebarActive(pathname: string) {
+    return isNewsPath(pathname) || isEntertainmentPath(pathname);
+}
+/** Sidebar: Engoo daily hub + lesson/article paths (not Guardian hub / in-app readers). */
+function isEngooDailyNewsNavActive(pathname: string, src: string | null): boolean {
+    if (pathname.startsWith("/reading/") || pathname.startsWith("/articles/"))
+        return true;
+    if (pathname.startsWith("/news/football") || pathname.startsWith("/news/guardian"))
+        return false;
+    if (pathname.startsWith("/news/"))
+        return true;
+    if (pathname === "/" || pathname === "/news")
+        return src !== "guardian";
+    return false;
+}
+function isGuardianDailyNewsNavActive(pathname: string, src: string | null): boolean {
+    if (pathname.startsWith("/news/football") || pathname.startsWith("/news/guardian"))
+        return true;
+    if (pathname === "/" || pathname === "/news")
+        return src === "guardian";
+    return false;
 }
 function isSchedulePath(pathname: string) {
     return scheduleSectionLinks.some((link) => pathname.startsWith(link.href));
@@ -251,27 +304,43 @@ function IeltsExpandedNavLinks({ pathname, t, filterQuery = "", onLinkClick, }: 
         })() : null}
     </>);
 }
-function EntertainmentExpandedNavLinks({ pathname, t, filterQuery = "", onLinkClick, links, }: {
+function NewsSourceExpandedNavLinks({ pathname, t, filterQuery = "", onLinkClick, links, dailyNewsSrc, }: {
     pathname: string;
     t: (key: TranslationKey) => string;
     filterQuery?: string;
     onLinkClick?: () => void;
-    links: typeof entertainmentSectionLinks;
+    links: NewsSourceLink[];
+    /** `null` during Suspense fallback — treat hub as Engoo for highlight. */
+    dailyNewsSrc: string | null;
 }) {
-    const rowBase = "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200";
-    const rowActive = NAV_LINK_ROW_ACTIVE;
-    const rowIdle = NAV_LINK_ROW_IDLE;
+    const subBase = "group flex items-center gap-3 rounded-r-xl py-2 pr-4 text-sm transition-all duration-200";
+    const subActive = NAV_LINK_SUB_ACTIVE;
+    const subIdle = NAV_LINK_SUB_IDLE;
     const fq = filterQuery.trim();
     const entHit = !fq || navMatches(t("navEntertainmentSection"), filterQuery);
+    const newsHit = !fq || navMatches(t("navNewsSection"), filterQuery);
     const matchKey = (key: TranslationKey) =>
-        !fq || entHit || navMatches(t(key), filterQuery);
+        !fq || entHit || newsHit || navMatches(t(key), filterQuery);
     return (<>
       {links.filter((e) => matchKey(e.labelKey)).map((e) => {
-            const active = isActive(pathname, e.href);
+            const active = e.dailyNewsSource === "engoo"
+                ? isEngooDailyNewsNavActive(pathname, dailyNewsSrc)
+                : isGuardianDailyNewsNavActive(pathname, dailyNewsSrc);
             const Icon = e.icon;
-            return (<NavSidebarRow key={e.href} href={e.href} labelKey={e.labelKey} onLinkClick={onLinkClick} className={[rowBase, active ? rowActive : rowIdle].join(" ")} active={active} icon={Icon}/>);
+            return (<NavSidebarRow key={e.href} href={e.href} labelKey={e.labelKey} onLinkClick={onLinkClick} className={[subBase, active ? subActive : subIdle].join(" ")} active={active} sub icon={Icon}/>);
         })}
     </>);
+}
+function NewsSourceNavSearchParamsBridge({ pathname, t, filterQuery, onLinkClick, links, }: {
+    pathname: string;
+    t: (key: TranslationKey) => string;
+    filterQuery?: string;
+    onLinkClick?: () => void;
+    links: NewsSourceLink[];
+}) {
+    const searchParams = useSearchParams();
+    const dailyNewsSrc = searchParams.get("src");
+    return (<NewsSourceExpandedNavLinks pathname={pathname} t={t} filterQuery={filterQuery} onLinkClick={onLinkClick} links={links} dailyNewsSrc={dailyNewsSrc}/>);
 }
 function StudyExpandedNavLinks({ pathname, t, filterQuery = "", onLinkClick, links, }: {
     pathname: string;
@@ -400,27 +469,43 @@ function SiteNavInner() {
             match(navT("studyKitSessionHistory")) ||
             match(navT("studyKitSavedFolder")) ||
             studyLinks.length > 0;
-        const entertainmentFqMatch =
-            match(navT("navEntertainmentSection")) ||
+        const newsSearchHit =
+            match(navT("navNewsSection")) ||
+            match(navT("dailyNewsSourceEngoo")) ||
+            match(navT("dailyNewsSourceGuardian")) ||
             match(navT("articleHomeNav")) ||
-            match(navT("watchTogetherNav")) ||
-            navMatches("article", navQ) ||
-            navMatches("articles", navQ) ||
             navMatches("engoo", navQ) ||
+            navMatches("guardian", navQ) ||
             navMatches("daily news", navQ) ||
             navMatches("bài đọc", navQ) ||
             navMatches("doc bai", navQ) ||
-            navMatches("giai tri", navQ) ||
-            navMatches("giải trí", navQ) ||
+            navMatches("tin tức", navQ) ||
+            navMatches("tin tuc", navQ);
+        const watchSearchHit =
+            match(navT("watchTogetherNav")) ||
             navMatches("watch together", navQ) ||
             navMatches("xem chung", navQ);
-        const entertainmentLinks = !fq
-            ? entertainmentSectionLinks
-            : entertainmentFqMatch
-              ? entertainmentSectionLinks
-              : entertainmentSectionLinks.filter((l) => match(navT(l.labelKey)));
+        const entertainmentSectionHit =
+            match(navT("navEntertainmentSection")) ||
+            navMatches("giai tri", navQ) ||
+            navMatches("giải trí", navQ) ||
+            navMatches("article", navQ) ||
+            navMatches("articles", navQ);
+        const entertainmentFqMatch =
+            entertainmentSectionHit || newsSearchHit || watchSearchHit;
+        const newsLinksFiltered =
+            !fq || newsSearchHit || entertainmentSectionHit
+                ? newsSectionLinks
+                : newsSectionLinks.filter((l) => match(navT(l.labelKey)));
+        const watchLinksFiltered =
+            !fq || watchSearchHit || entertainmentSectionHit
+                ? entertainmentSectionLinks
+                : entertainmentSectionLinks.filter((l) => match(navT(l.labelKey)));
         const showEntertainment =
-            !fq || entertainmentFqMatch || entertainmentLinks.length > 0;
+            !fq ||
+            entertainmentFqMatch ||
+            newsLinksFiltered.length > 0 ||
+            watchLinksFiltered.length > 0;
         const scheduleLinks = !fq
             ? scheduleSectionLinks
             : match(navT("navScheduleSection")) || match(navT("notes"))
@@ -460,7 +545,8 @@ function SiteNavInner() {
             plinks,
             dlinks,
             studyLinks,
-            entertainmentLinks,
+            newsLinksFiltered,
+            watchLinksFiltered,
             scheduleLinks,
             showPortfolio,
             showDictionary,
@@ -556,7 +642,7 @@ function SiteNavInner() {
             setStudyOpen(true);
     }, [pathname]);
     useEffect(() => {
-        if (isEntertainmentPath(pathname))
+        if (isEntertainmentSidebarActive(pathname))
             setEntertainmentOpen(true);
     }, [pathname]);
     useEffect(() => {
@@ -768,16 +854,31 @@ function SiteNavInner() {
               {navFilter.showEntertainment ? (<div className="flex flex-col gap-0.5">
                 <NavSectionHeader isOpen={entertainmentOpen} onToggle={toggleEntertainmentSection} icon={PartyPopper} labelKey="navEntertainmentSection" outerClass={[
                 "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
-                isEntertainmentPath(pathname)
+                isEntertainmentSidebarActive(pathname)
                     ? "bg-zinc-100 text-zinc-900 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
                     : "text-zinc-500 hover:bg-blue-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
             ].join(" ")} iconBoxClass={[
                 "flex h-10 w-10 items-center justify-center rounded-xl transition",
-                isEntertainmentPath(pathname)
+                isEntertainmentSidebarActive(pathname)
                     ? "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900"
                     : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
             ].join(" ")}/>
-                {entertainmentOpen && (<EntertainmentExpandedNavLinks pathname={pathname} t={navT} filterQuery={navSearch} onLinkClick={clearQuickSearch} links={navFilter.entertainmentLinks}/>)}
+                {entertainmentOpen && (<>
+                  {navFilter.newsLinksFiltered.length > 0 ? (<>
+                    <EntertainmentNewsGroupTitle label={navT("navNewsSection")}/>
+                    <Suspense fallback={<NewsSourceExpandedNavLinks pathname={pathname} t={navT} filterQuery={navSearch} onLinkClick={clearQuickSearch} links={navFilter.newsLinksFiltered} dailyNewsSrc={null}/>}>
+                      <NewsSourceNavSearchParamsBridge pathname={pathname} t={navT} filterQuery={navSearch} onLinkClick={clearQuickSearch} links={navFilter.newsLinksFiltered}/>
+                    </Suspense>
+                  </>) : null}
+                  {navFilter.watchLinksFiltered.map((link) => {
+                    const active = isActive(pathname, link.href);
+                    const Icon = link.icon;
+                    return (<NavSidebarRow key={link.href} href={link.href} labelKey={link.labelKey} onLinkClick={clearQuickSearch} className={[
+                            "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200",
+                            active ? NAV_LINK_ROW_ACTIVE : NAV_LINK_ROW_IDLE,
+                        ].join(" ")} active={active} icon={Icon}/>);
+                })}
+                </>)}
               </div>) : null}
 
               {navFilter.showEntertainment && navFilter.showSchedule ? (<div className="my-2 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
@@ -963,16 +1064,31 @@ function SiteNavInner() {
             {navFilter.showEntertainment ? (<div className="flex shrink-0 flex-col gap-0.5">
               <NavSectionHeader isOpen={entertainmentOpen} onToggle={toggleEntertainmentSection} icon={PartyPopper} labelKey="navEntertainmentSection" outerClass={[
             "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
-            isEntertainmentPath(pathname)
+            isEntertainmentSidebarActive(pathname)
                 ? "bg-white text-zinc-900 shadow-sm ring-1 ring-blue-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
                 : "text-zinc-500 hover:bg-blue-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
         ].join(" ")} iconBoxClass={[
             "flex h-10 w-10 items-center justify-center rounded-xl transition",
-            isEntertainmentPath(pathname)
+            isEntertainmentSidebarActive(pathname)
                 ? "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900"
                 : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
         ].join(" ")}/>
-              {entertainmentOpen && (<EntertainmentExpandedNavLinks pathname={pathname} t={navT} filterQuery={navSearch} onLinkClick={clearQuickSearch} links={navFilter.entertainmentLinks}/>)}
+              {entertainmentOpen && (<>
+                {navFilter.newsLinksFiltered.length > 0 ? (<>
+                  <EntertainmentNewsGroupTitle label={navT("navNewsSection")}/>
+                  <Suspense fallback={<NewsSourceExpandedNavLinks pathname={pathname} t={navT} filterQuery={navSearch} onLinkClick={clearQuickSearch} links={navFilter.newsLinksFiltered} dailyNewsSrc={null}/>}>
+                    <NewsSourceNavSearchParamsBridge pathname={pathname} t={navT} filterQuery={navSearch} onLinkClick={clearQuickSearch} links={navFilter.newsLinksFiltered}/>
+                  </Suspense>
+                </>) : null}
+                {navFilter.watchLinksFiltered.map((link) => {
+                const active = isActive(pathname, link.href);
+                const Icon = link.icon;
+                return (<NavSidebarRow key={link.href} href={link.href} labelKey={link.labelKey} onLinkClick={clearQuickSearch} className={[
+                        "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200",
+                        active ? NAV_LINK_ROW_ACTIVE : NAV_LINK_ROW_IDLE,
+                    ].join(" ")} active={active} icon={Icon}/>);
+            })}
+              </>)}
             </div>) : null}
 
             {navFilter.showEntertainment && navFilter.showSchedule ? (<div className="my-2 shrink-0 border-t border-zinc-200 dark:border-zinc-700"/>) : null}

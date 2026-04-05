@@ -40,6 +40,8 @@ export type EngooArticlePayload = {
   questions: string[];
   discussion: string[];
   furtherDiscussion: string[];
+  /** When set, replaces “Engoo Daily News article” in the realtime tutor preamble (e.g. Guardian reader). */
+  readingTutorLessonDescription?: string;
 };
 
 export type EngooListCard = {
