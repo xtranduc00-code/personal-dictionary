@@ -13,6 +13,7 @@ import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import { createChessGame, joinChessGame, updateChessGame, type ChessGame } from "@/lib/chess-storage";
 import { BUILT_IN_PUZZLES, type BuiltInPuzzle } from "@/lib/chess-puzzles-data";
+import { GameReview } from "./game-review";
 
 const Chessboard = dynamic(
   () => import("react-chessboard").then((m) => m.Chessboard),
@@ -22,7 +23,7 @@ const Chessboard = dynamic(
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type PuzzleLevel = "beginner" | "intermediate" | "hard" | "expert";
-type Mode = "home" | "play-lobby" | "play-game" | "puzzles" | "puzzle-solve";
+type Mode = "home" | "play-lobby" | "play-game" | "puzzles" | "puzzle-solve" | "game-review";
 
 export type LibraryPuzzle = {
   id: string; fen: string; moves: string[];
@@ -97,6 +98,8 @@ export default function ChessPage() {
   const [tc, setTc]               = useState<TimeControl>(TIME_CONTROLS_POPULAR[2]); // Blitz 5+0
   const [color, setColor]         = useState<"white" | "black" | "random">("random");
   const [activePuzzle, setActivePuzzle] = useState<LibraryPuzzle | BuiltInPuzzle | null>(null);
+  const [reviewPgn, setReviewPgn] = useState("");
+  const [reviewPlayers, setReviewPlayers] = useState<{ white: string; black: string }>({ white: "White", black: "Black" });
 
   async function handleCreateGame() {
     setCreating(true);
@@ -127,12 +130,19 @@ export default function ChessPage() {
 
   function goHome() { setMode("home"); setGame(null); setCreatedGame(null); }
 
+  function handleReview(pgn: string, white: string, black: string) {
+    setReviewPgn(pgn);
+    setReviewPlayers({ white, black });
+    setMode("game-review");
+  }
+
   const headerTitle = {
-    home:         "Chess",
-    "play-lobby": "Play with Friend",
-    "play-game":  `Room: ${game?.roomCode ?? ""}`,
-    puzzles:      "Puzzles",
+    home:           "Chess",
+    "play-lobby":   "Play with Friend",
+    "play-game":    `Room: ${game?.roomCode ?? ""}`,
+    puzzles:        "Puzzles",
     "puzzle-solve": activePuzzle ? ("title" in activePuzzle ? activePuzzle.title : `Puzzle • ${activePuzzle.rating}`) : "Puzzle",
+    "game-review":  "Game Review",
   }[mode];
 
   return (
@@ -161,7 +171,19 @@ export default function ChessPage() {
           />
         )}
         {mode === "play-game" && game && user && (
-          <PlayGame initialGame={game} userId={user.id} userName={user.username} tc={tc} onBack={goHome} />
+          <PlayGame
+            initialGame={game} userId={user.id} userName={user.username}
+            tc={tc} onBack={goHome}
+            onReview={(pgn, white, black) => handleReview(pgn, white, black)}
+          />
+        )}
+        {mode === "game-review" && reviewPgn && (
+          <GameReview
+            pgn={reviewPgn}
+            whitePlayer={reviewPlayers.white}
+            blackPlayer={reviewPlayers.black}
+            onBack={() => setMode("play-game")}
+          />
         )}
         {mode === "puzzles" && (
           <PuzzleLibrary onSolve={(p) => { setActivePuzzle(p); setMode("puzzle-solve"); }} />
@@ -463,8 +485,10 @@ function MoveHistory({ pgn }: { pgn: string }) {
 
 // ─── Play Game ────────────────────────────────────────────────────────────────
 
-function PlayGame({ initialGame, userId, userName, tc, onBack }: {
-  initialGame: ChessGame; userId: string; userName: string; tc: TimeControl; onBack: () => void;
+function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
+  initialGame: ChessGame; userId: string; userName: string; tc: TimeControl;
+  onBack: () => void;
+  onReview: (pgn: string, white: string, black: string) => void;
 }) {
   const [gameState, setGameState] = useState<ChessGame>(initialGame);
   const [chess]    = useState(() => new Chess(initialGame.fen));
@@ -800,14 +824,24 @@ function PlayGame({ initialGame, userId, userName, tc, onBack }: {
             </>
           )}
           {isOver && (
-            <button onClick={() => {
-              setRematch("sent");
-              supabase.channel(`chess:${gameState.roomCode}`).send({ type: "broadcast", event: "rematch_offer", payload: { from: myColor } });
-            }}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
-              <RefreshCw className="h-3.5 w-3.5" /> Rematch
-            </button>
-          )}
+              <>
+                <button onClick={() => {
+                  setRematch("sent");
+                  supabase.channel(`chess:${gameState.roomCode}`).send({ type: "broadcast", event: "rematch_offer", payload: { from: myColor } });
+                }}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
+                  <RefreshCw className="h-3.5 w-3.5" /> Rematch
+                </button>
+                {gameState.pgn && (
+                  <button
+                    onClick={() => onReview(gameState.pgn, whiteLabel.replace(" (You)", ""), blackLabel.replace(" (You)", ""))}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-zinc-300 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                  >
+                    <BookOpen className="h-3.5 w-3.5" /> Review Game
+                  </button>
+                )}
+              </>
+            )}
         </div>
 
         {/* Move history */}
