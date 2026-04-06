@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { Chess } from "chess.js";
 import { toast } from "react-toastify";
@@ -789,44 +789,101 @@ function PuzzleLibrary({ onSolve }: { onSolve: (p: LibraryPuzzle) => void }) {
   );
 }
 
+// ─── Theme → human-readable description ──────────────────────────────────────
+
+const THEME_DESC: Record<string, string> = {
+  fork:              "A single piece attacks two of the opponent's pieces at the same time.",
+  pin:               "A piece can't move because it would expose a more valuable piece behind it.",
+  skewer:            "A high-value piece is attacked, and moving it reveals a lesser piece to be captured.",
+  discoveredAttack:  "Moving one piece unmasks an attack from a different piece hiding behind it.",
+  backRankMate:      "The king is stuck on its back rank with no escape — a rook or queen can deliver checkmate.",
+  hangingPiece:      "An undefended piece can be captured for free with no recapture threat.",
+  sacrifice:         "Giving up material (like a bishop or rook) to create a devastating follow-up.",
+  deflection:        "A defending piece is lured or forced away from the square it's protecting.",
+  decoy:             "The opponent's piece is drawn to a bad square where it can be exploited.",
+  quietMove:         "A non-capture, non-check move that sets up an unstoppable threat.",
+  mateIn1:           "There's one move that delivers immediate checkmate.",
+  mateIn2:           "A two-move combination forces checkmate no matter how the opponent responds.",
+  mateIn3:           "A three-move forced sequence leading to checkmate.",
+  crushing:          "The position has a move that gives a decisive material or positional advantage.",
+  trappedPiece:      "A piece has no safe squares to move — it's about to be captured.",
+  advancedPawn:      "A passed pawn close to promotion creates a decisive threat.",
+  exposedKing:       "The opponent's king is in an open position, vulnerable to attack.",
+  xRayAttack:        "A piece attacks through another piece to hit a target behind it.",
+  zwischenzug:       "An 'in-between' move that ignores the expected response to create a bigger threat.",
+  zugzwang:          "The opponent is in a position where any move they make worsens their situation.",
+};
+
+function themeToHint(themes: string[]): string {
+  for (const t of themes) {
+    if (THEME_DESC[t]) return THEME_DESC[t];
+  }
+  return themes.length > 0
+    ? `Look for a ${themes[0].replace(/([A-Z])/g, " $1").toLowerCase()} tactic.`
+    : "Look for a forcing move that creates multiple threats.";
+}
+
 // ─── Puzzle Solve ─────────────────────────────────────────────────────────────
 
 function PuzzleSolve({ puzzle, onBack }: {
   puzzle: LibraryPuzzle | BuiltInPuzzle;
   onBack: () => void;
 }) {
-  const isLibrary   = !("title" in puzzle);
-  // For Lichess puzzles: moves[0] is opponent's setup move, player starts at moves[1]
-  // For built-in puzzles: player starts at moves[0]
-  const setupMove   = isLibrary ? (puzzle as LibraryPuzzle).moves[0] : null;
-  const solMoves    = isLibrary
+  const isLibrary = !("title" in puzzle);
+  const setupMove = isLibrary ? (puzzle as LibraryPuzzle).moves[0] : null;
+  const solMoves  = isLibrary
     ? (puzzle as LibraryPuzzle).moves.slice(1)
     : (puzzle as BuiltInPuzzle).solutionMoves;
 
   const [chess]     = useState(() => new Chess(puzzle.fen));
-  const [fen, setFen]               = useState(puzzle.fen);
-  const [moveIdx, setMoveIdx]       = useState(0);
-  const [result, setResult]         = useState<"idle" | "wrong" | "solved">("idle");
-  const [showHint, setShowHint]     = useState(false);
-  const [muted, setMuted]           = useState(false);
+  const [fen, setFen]                     = useState(puzzle.fen);
+  const [moveIdx, setMoveIdx]             = useState(0);
+  const [result, setResult]               = useState<"idle" | "wrong" | "solved">("idle");
+  const [wrongCount, setWrongCount]       = useState(0);
+  const [showHint, setShowHint]           = useState(false);
+  const [lastMove, setLastMove]           = useState<[string, string] | null>(null);
+  const [explanation, setExplanation]     = useState("");
+  const [loadingExpl, setLoadingExpl]     = useState(false);
+  const [muted, setMuted]                 = useState(false);
   const chessRef = useRef(chess);
   chessRef.current = chess;
 
   const fenTurn      = puzzle.fen.split(" ")[1] as "w" | "b";
-  const playerColorAfterSetup = setupMove
-    ? (fenTurn === "w" ? "black" : "white")  // after opponent's setup move
-    : (fenTurn === "w" ? "white" : "black");
-  const playerColor = playerColorAfterSetup as "white" | "black";
+  const playerColor  = (setupMove
+    ? (fenTurn === "w" ? "black" : "white")
+    : (fenTurn === "w" ? "white" : "black")) as "white" | "black";
 
   // Auto-play setup move for Lichess puzzles
   useEffect(() => {
     if (!setupMove) return;
     const timer = setTimeout(() => {
       const m = chessRef.current.move({ from: setupMove.slice(0, 2), to: setupMove.slice(2, 4), promotion: setupMove[4] ?? "q" });
-      if (m) setFen(chessRef.current.fen());
+      if (m) { setFen(chessRef.current.fen()); setLastMove([setupMove.slice(0, 2), setupMove.slice(2, 4)]); }
     }, 600);
     return () => clearTimeout(timer);
   }, [setupMove]);
+
+  // Fetch AI explanation after solving
+  async function fetchExplanation() {
+    setLoadingExpl(true);
+    try {
+      const res = await fetch("/api/chess/puzzles/explain", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fen:    puzzle.fen,
+          moves:  isLibrary ? (puzzle as LibraryPuzzle).moves : solMoves,
+          themes: isLibrary ? (puzzle as LibraryPuzzle).themes : [],
+          level:  puzzle.level,
+          rating: isLibrary ? (puzzle as LibraryPuzzle).rating : undefined,
+        }),
+      });
+      const data = await res.json() as { explanation: string };
+      setExplanation(data.explanation ?? "");
+    } finally {
+      setLoadingExpl(false);
+    }
+  }
 
   function onDrop(sourceSquare: string, targetSquare: string): boolean {
     if (result === "solved") return false;
@@ -838,7 +895,8 @@ function PuzzleSolve({ puzzle, onBack }: {
 
     if (!match) {
       setResult("wrong");
-      setTimeout(() => setResult("idle"), 800);
+      setWrongCount((c) => c + 1);
+      setTimeout(() => setResult("idle"), 1200);
       return false;
     }
 
@@ -850,6 +908,7 @@ function PuzzleSolve({ puzzle, onBack }: {
     else playSound("move", muted);
 
     setFen(chess.fen());
+    setLastMove([sourceSquare, targetSquare]);
     setResult("idle");
 
     const nextIdx = moveIdx + 1;
@@ -858,6 +917,7 @@ function PuzzleSolve({ puzzle, onBack }: {
     if (nextIdx >= solMoves.length) {
       setResult("solved");
       playSound("notify", muted);
+      fetchExplanation();
       return true;
     }
 
@@ -868,7 +928,11 @@ function PuzzleSolve({ puzzle, onBack }: {
         const from = opponentMove.slice(0, 2);
         const to   = opponentMove.slice(2, 4);
         const m    = chessRef.current.move({ from, to, promotion: opponentMove[4] ?? "q" });
-        if (m) { setFen(chessRef.current.fen()); setMoveIdx(nextIdx + 1); }
+        if (m) {
+          setFen(chessRef.current.fen());
+          setLastMove([from, to]);
+          setMoveIdx(nextIdx + 1);
+        }
       }, 400);
     }
     return true;
@@ -879,13 +943,34 @@ function PuzzleSolve({ puzzle, onBack }: {
     setFen(puzzle.fen);
     setMoveIdx(0);
     setResult("idle");
+    setWrongCount(0);
     setShowHint(false);
+    setLastMove(null);
+    setExplanation("");
     if (setupMove) {
       setTimeout(() => {
         const m = chessRef.current.move({ from: setupMove.slice(0, 2), to: setupMove.slice(2, 4), promotion: setupMove[4] ?? "q" });
-        if (m) setFen(chessRef.current.fen());
+        if (m) { setFen(chessRef.current.fen()); setLastMove([setupMove.slice(0, 2), setupMove.slice(2, 4)]); }
       }, 600);
     }
+  }
+
+  // Squares to highlight (last move)
+  const squareStyles: Record<string, React.CSSProperties> = {};
+  if (lastMove) {
+    squareStyles[lastMove[0]] = { backgroundColor: "rgba(255, 213, 0, 0.45)" };
+    squareStyles[lastMove[1]] = { backgroundColor: "rgba(255, 213, 0, 0.45)" };
+  }
+
+  // Arrow hint after 2+ wrong attempts: show where the key piece should go
+  const hintArrows: { startSquare: string; endSquare: string; color: string }[] = [];
+  const nextExpected = solMoves[moveIdx];
+  if (wrongCount >= 2 && nextExpected && result !== "solved") {
+    hintArrows.push({
+      startSquare: nextExpected.slice(0, 2),
+      endSquare:   nextExpected.slice(2, 4),
+      color:       "rgba(255, 170, 0, 0.8)",
+    });
   }
 
   const ringColor =
@@ -893,11 +978,14 @@ function PuzzleSolve({ puzzle, onBack }: {
     result === "solved" ? "0 0 0 4px rgb(34 197 94)"  :
                           "0 4px 24px rgba(0,0,0,0.12)";
 
-  const hint = "hint" in puzzle ? puzzle.hint : (puzzle as LibraryPuzzle).themes.join(", ");
-  const title = "title" in puzzle ? puzzle.title : `Puzzle #${(puzzle as LibraryPuzzle).id}`;
-  const level = puzzle.level;
-  const playerMoves = Math.ceil(solMoves.length / 2);
-  const currentPlayerMove = Math.floor(moveIdx / 2) + 1;
+  const title   = "title" in puzzle ? puzzle.title : `Puzzle #${(puzzle as LibraryPuzzle).id}`;
+  const level   = puzzle.level;
+  const themes  = isLibrary ? (puzzle as LibraryPuzzle).themes : [];
+  const builtInHint = "hint" in puzzle ? (puzzle as BuiltInPuzzle).hint : "";
+  const hintText  = builtInHint || themeToHint(themes);
+  const totalPlayerMoves   = Math.ceil(solMoves.length / 2);
+  const currentPlayerMove  = Math.min(Math.floor(moveIdx / 2) + 1, totalPlayerMoves);
+  const progressPct        = result === "solved" ? 100 : Math.round((moveIdx / solMoves.length) * 100);
 
   return (
     <div className="flex flex-1 flex-col items-center gap-4 p-4 md:flex-row md:items-start md:justify-center md:gap-8 md:p-8">
@@ -909,11 +997,14 @@ function PuzzleSolve({ puzzle, onBack }: {
             boardOrientation: playerColor,
             allowDragging: result !== "solved",
             boardStyle: { borderRadius: "12px", boxShadow: ringColor, transition: "box-shadow 0.2s" },
+            squareStyles,
+            arrows: hintArrows,
           }}
         />
       </div>
 
       <div className="w-full max-w-xs space-y-3">
+        {/* Puzzle info */}
         <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
           <div className="flex items-start justify-between gap-2">
             <div>
@@ -922,8 +1013,8 @@ function PuzzleSolve({ puzzle, onBack }: {
                 <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${LEVEL_COLORS[level as PuzzleLevel]}`}>
                   {LEVEL_LABELS[level as PuzzleLevel]}
                 </span>
-                {!("title" in puzzle) && (
-                  <span className="text-xs text-zinc-400 font-mono">{(puzzle as LibraryPuzzle).rating}</span>
+                {isLibrary && (
+                  <span className="font-mono text-xs text-zinc-400">{(puzzle as LibraryPuzzle).rating}</span>
                 )}
               </div>
             </div>
@@ -934,41 +1025,85 @@ function PuzzleSolve({ puzzle, onBack }: {
           <p className="mt-2 text-sm text-zinc-500">
             Find the best move for <strong>{playerColor}</strong>.
           </p>
-          <p className="mt-1 text-xs text-zinc-400">
-            Move {Math.min(currentPlayerMove, playerMoves)} of {playerMoves}
-          </p>
+
+          {/* Progress bar */}
+          <div className="mt-3">
+            <div className="mb-1 flex items-center justify-between text-xs text-zinc-400">
+              <span>Move {currentPlayerMove} of {totalPlayerMoves}</span>
+              <span>{progressPct}%</span>
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${result === "solved" ? "bg-emerald-500" : "bg-amber-400"}`}
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+          </div>
         </div>
 
+        {/* Feedback */}
         {result === "solved" && (
           <div className="flex items-center gap-2 rounded-xl bg-emerald-50 p-3 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">
-            <Crown className="h-5 w-5 shrink-0" /><span className="font-semibold">Puzzle solved!</span>
+            <Crown className="h-5 w-5 shrink-0" />
+            <span className="font-semibold">Brilliant! Puzzle solved.</span>
           </div>
         )}
         {result === "wrong" && (
-          <div className="flex items-center gap-2 rounded-xl bg-red-50 p-3 text-red-600 dark:bg-red-950/30 dark:text-red-400">
-            <X className="h-4 w-4 shrink-0" /><span className="text-sm font-medium">Wrong move — try again</span>
+          <div className="rounded-xl bg-red-50 p-3 text-red-700 dark:bg-red-950/30 dark:text-red-400">
+            <div className="flex items-center gap-1.5">
+              <X className="h-4 w-4 shrink-0" />
+              <span className="text-sm font-medium">That&apos;s not the best move here.</span>
+            </div>
+            {wrongCount >= 2 && (
+              <p className="mt-1 text-xs text-red-500 dark:text-red-500">
+                Hint: look at the arrow on the board.
+              </p>
+            )}
           </div>
         )}
 
-        {hint && !showHint && result !== "solved" && (
+        {/* Hint */}
+        {!showHint && result !== "solved" && (
           <button onClick={() => setShowHint(true)}
             className="flex w-full items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-left text-sm font-medium text-amber-700 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-400">
             <Lightbulb className="h-4 w-4 shrink-0" /> Show hint
           </button>
         )}
-        {showHint && hint && (
+        {showHint && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-400">
-            <Lightbulb className="mb-0.5 inline h-3.5 w-3.5" /> {hint}
+            <p className="flex items-start gap-1.5">
+              <Lightbulb className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              {hintText}
+            </p>
+            {themes.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {themes.map((t) => (
+                  <span key={t} className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">{t}</span>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
+        {/* AI Explanation (after solve) */}
         {result === "solved" && (
-          <div className="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">Solution</p>
-            <p className="font-mono text-xs text-zinc-600 dark:text-zinc-400">{solMoves.join(" ")}</p>
+          <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+              <BookOpen className="h-3 w-3" /> Why this works
+            </p>
+            {loadingExpl ? (
+              <div className="flex items-center gap-2 text-sm text-zinc-400">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyzing…
+              </div>
+            ) : explanation ? (
+              <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{explanation}</p>
+            ) : (
+              <p className="text-xs text-zinc-400">Solution: <span className="font-mono">{solMoves.join(" ")}</span></p>
+            )}
           </div>
         )}
 
+        {/* Actions */}
         <div className="flex gap-2">
           <button onClick={handleReset}
             className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-zinc-300 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800">
@@ -977,7 +1112,7 @@ function PuzzleSolve({ puzzle, onBack }: {
           {result === "solved" && (
             <button onClick={onBack}
               className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-amber-500 py-2 text-sm font-semibold text-white hover:bg-amber-600">
-              <Check className="h-3.5 w-3.5" /> Next
+              <Check className="h-3.5 w-3.5" /> Next puzzle
             </button>
           )}
         </div>
