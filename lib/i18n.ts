@@ -476,6 +476,7 @@ export const translations = {
     meetsCallTimerHint: "Time since connected",
     meetsEndCall: "End call",
     watchTogetherNav: "Watch together",
+    youtubeVideosNav: "Videos",
     watchHubBadge: "Synced playback",
     watchHubTitle: "Watch video in sync",
     watchHubSubtitle:
@@ -1930,6 +1931,7 @@ export const translations = {
     meetsCallTimerHint: "Thời gian từ lúc kết nối",
     meetsEndCall: "Kết thúc",
     watchTogetherNav: "Xem cùng nhau",
+    youtubeVideosNav: "Video",
     watchHubBadge: "Xem đồng bộ",
     watchHubTitle: "Xem video đồng bộ",
     watchHubSubtitle:

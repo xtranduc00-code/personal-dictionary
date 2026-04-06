@@ -8,11 +8,12 @@ import type { GuardianListItem } from "@/lib/guardian-content-types";
 import type { EngooListApiResponse } from "@/lib/engoo-types";
 
 type DailyNewsHubProps = {
-  guardianInitial?: GuardianListItem[] | null;
+  guardianNewsInitial?: GuardianListItem[] | null;
+  guardianSportInitial?: GuardianListItem[] | null;
   engooInitial?: EngooListApiResponse | null;
 };
 
-function DailyNewsHubInner({ guardianInitial, engooInitial }: DailyNewsHubProps) {
+function DailyNewsHubInner({ guardianNewsInitial, guardianSportInitial, engooInitial }: DailyNewsHubProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const source: "engoo" | "guardian" =
@@ -28,16 +29,23 @@ function DailyNewsHubInner({ guardianInitial, engooInitial }: DailyNewsHubProps)
       {source === "engoo" ? (
         <EngooDailyNewsHomeInner initialData={engooInitial} />
       ) : (
-        <GuardianDailyNewsPanel initialNewsItems={guardianInitial} />
+        <GuardianDailyNewsPanel
+          initialNewsItems={guardianNewsInitial}
+          initialSportItems={guardianSportInitial}
+        />
       )}
     </div>
   );
 }
 
-export function DailyNewsHub({ guardianInitial, engooInitial }: DailyNewsHubProps) {
+export function DailyNewsHub({ guardianNewsInitial, guardianSportInitial, engooInitial }: DailyNewsHubProps) {
   return (
     <Suspense fallback={<HomeSkeleton layout="featured" />}>
-      <DailyNewsHubInner guardianInitial={guardianInitial} engooInitial={engooInitial} />
+      <DailyNewsHubInner
+        guardianNewsInitial={guardianNewsInitial}
+        guardianSportInitial={guardianSportInitial}
+        engooInitial={engooInitial}
+      />
     </Suspense>
   );
 }

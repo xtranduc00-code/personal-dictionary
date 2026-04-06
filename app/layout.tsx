@@ -8,6 +8,7 @@ import { ToastProvider } from "@/components/toast-provider";
 import { AuthModalLazy } from "@/components/auth-modal-lazy";
 import { AppShell } from "@/components/app-shell";
 import { MeetCallProvider } from "@/lib/meet-call-context";
+import { YTPlayerProvider } from "@/lib/yt-player-context";
 import { SeoJsonLd } from "@/components/seo-json-ld";
 import { getSiteUrl } from "@/lib/site-url";
 import { blockSearchIndexing } from "@/lib/search-indexing";
@@ -122,9 +123,11 @@ export default function RootLayout({ children, }: Readonly<{
           <I18nProvider>
             <AuthProvider>
               <MeetCallProvider>
-                <ToastProvider />
-                <AuthModalLazy />
-                <AppShell>{children}</AppShell>
+                <YTPlayerProvider>
+                  <ToastProvider />
+                  <AuthModalLazy />
+                  <AppShell>{children}</AppShell>
+                </YTPlayerProvider>
               </MeetCallProvider>
             </AuthProvider>
           </I18nProvider>

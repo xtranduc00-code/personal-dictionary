@@ -26,13 +26,17 @@ export default async function NewsIndexPage({
 
   // Pre-fetch whichever source the URL is pointing to — fire-and-forget failures
   // so a slow upstream never blocks the page from rendering.
-  let guardianInitial: GuardianListItem[] | null = null;
+  // Keep news and sport separate so the panel never initialises the wrong state.
+  let guardianNewsInitial: GuardianListItem[] | null = null;
+  let guardianSportInitial: GuardianListItem[] | null = null;
   let engooInitial: EngooListApiResponse | null = null;
 
   if (isGuardian) {
-    guardianInitial = await fetchGuardianListItems(guardianSection, 30).catch(
-      () => null,
-    );
+    if (guardianTab === "sport") {
+      guardianSportInitial = await fetchGuardianListItems("sport", 30).catch(() => null);
+    } else {
+      guardianNewsInitial = await fetchGuardianListItems("world", 30).catch(() => null);
+    }
   } else {
     engooInitial = await fetchEngooDefaultItems(18).catch(() => null);
   }
@@ -40,7 +44,8 @@ export default async function NewsIndexPage({
   return (
     <Suspense fallback={<HomeSkeleton layout={isGuardian ? "category" : "featured"} />}>
       <DailyNewsHub
-        guardianInitial={guardianInitial}
+        guardianNewsInitial={guardianNewsInitial}
+        guardianSportInitial={guardianSportInitial}
         engooInitial={engooInitial}
       />
     </Suspense>

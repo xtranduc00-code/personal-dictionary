@@ -9,6 +9,7 @@ import {
   encryptRefreshTokenForCookie,
 } from "@/lib/spotify/cookie-crypto";
 import { spotifyRtCookieBase } from "@/lib/spotify/rt-cookie-options";
+import { dbReadSpotifyRt, dbWriteSpotifyRt } from "@/lib/spotify/supabase-token-store";
 
 const LOG_PREFIX = "[spotify:refresh]";
 
@@ -98,9 +99,17 @@ async function setCachedAccessToken(token: string): Promise<void> {
 }
 
 async function persistRotatedRefreshToken(refreshToken: string): Promise<boolean> {
+  const enc = encryptRefreshTokenForCookie(refreshToken);
+
+  // Write to Supabase first — shared across all serverless instances.
+  const dbOk = await dbWriteSpotifyRt(enc);
+  if (dbOk && process.env.NODE_ENV === "development") {
+    console.info(LOG_PREFIX, "rotated refresh_token persisted to Supabase");
+  }
+
+  // Also write to the httpOnly cookie (fast path for subsequent requests).
   for (let i = 0; i < 5; i++) {
     try {
-      const enc = encryptRefreshTokenForCookie(refreshToken);
       const store = await cookies();
       store.set(SPOTIFY_RT_COOKIE, enc, spotifyRtCookieBase());
       if (process.env.NODE_ENV === "development") {
@@ -111,14 +120,16 @@ async function persistRotatedRefreshToken(refreshToken: string): Promise<boolean
       if (i === 4) {
         console.error(
           LOG_PREFIX,
-          "failed to persist rotated refresh_token after retries",
+          "failed to persist rotated refresh_token to cookie after retries",
           e,
         );
       }
       await sleep(80 * (i + 1));
     }
   }
-  return false;
+
+  // Cookie write failed, but Supabase may have succeeded.
+  return dbOk;
 }
 
 async function performRefreshSpotifyAccessToken(): Promise<RefreshResult> {
@@ -129,20 +140,36 @@ async function performRefreshSpotifyAccessToken(): Promise<RefreshResult> {
   }
 
   let refreshToken: string;
+  let refreshTokenEnc: string | null = null;
   try {
     const store = await cookies();
-    const enc = store.get(SPOTIFY_RT_COOKIE)?.value;
-    if (!enc) {
-      if (process.env.NODE_ENV === "development") {
-        console.info(LOG_PREFIX, "no spotify_rt cookie — user not connected");
+    const cookieEnc = store.get(SPOTIFY_RT_COOKIE)?.value;
+    if (cookieEnc) {
+      refreshTokenEnc = cookieEnc;
+      refreshToken = decryptRefreshTokenFromCookie(cookieEnc);
+    } else {
+      // Cookie missing — try Supabase (e.g. cookies cleared, or cross-device).
+      const dbEnc = await dbReadSpotifyRt();
+      if (!dbEnc) {
+        if (process.env.NODE_ENV === "development") {
+          console.info(LOG_PREFIX, "no spotify_rt in cookie or DB — user not connected");
+        }
+        return { ok: false, reason: "no_cookie" };
       }
-      return { ok: false, reason: "no_cookie" };
+      refreshTokenEnc = dbEnc;
+      refreshToken = decryptRefreshTokenFromCookie(dbEnc);
+      // Restore the cookie from DB so future requests don't need DB.
+      try {
+        const store2 = await cookies();
+        store2.set(SPOTIFY_RT_COOKIE, dbEnc, spotifyRtCookieBase());
+      } catch {
+        /* ignore — DB is the source of truth */
+      }
     }
-    refreshToken = decryptRefreshTokenFromCookie(enc);
   } catch (e) {
     console.warn(
       LOG_PREFIX,
-      "cookie decrypt failed (wrong SPOTIFY_TOKEN_ENCRYPTION_KEY, truncated cookie, or corrupt value)",
+      "cookie/db decrypt failed (wrong SPOTIFY_TOKEN_ENCRYPTION_KEY, truncated value, or corrupt data)",
       e,
     );
     return { ok: false, reason: "decrypt" };
@@ -201,6 +228,53 @@ async function performRefreshSpotifyAccessToken(): Promise<RefreshResult> {
       { status: res.status, error: json.error, body_preview: rawText.slice(0, 400) },
     );
     if (json.error === "invalid_grant") {
+      // A concurrent serverless instance may have already rotated the token
+      // and stored the new one in Supabase. Try reading from DB before giving up.
+      const dbEnc = await dbReadSpotifyRt();
+      if (dbEnc && dbEnc !== refreshTokenEnc) {
+        try {
+          const newerToken = decryptRefreshTokenFromCookie(dbEnc);
+          if (newerToken !== refreshToken) {
+            if (process.env.NODE_ENV === "development") {
+              console.info(LOG_PREFIX, "found newer refresh_token in DB — retrying refresh");
+            }
+            // Recurse once with the cleared single-flight so we pick up the DB token.
+            cachedAccessToken = null;
+            cachedAccessTokenExpiresAt = 0;
+            // Temporarily update the cookie to the DB value so the recursive call uses it.
+            try {
+              const store = await cookies();
+              store.set(SPOTIFY_RT_COOKIE, dbEnc, spotifyRtCookieBase());
+            } catch { /* ignore */ }
+            // Retry the refresh with the newer token from DB.
+            const body2 = new URLSearchParams({
+              grant_type: "refresh_token",
+              refresh_token: newerToken,
+              client_id: clientId,
+            });
+            const res2 = await fetch(SPOTIFY_TOKEN_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: body2,
+            });
+            if (res2.ok) {
+              const json2 = (await res2.json()) as {
+                access_token?: string;
+                refresh_token?: string;
+              };
+              if (json2.access_token) {
+                if (json2.refresh_token && json2.refresh_token !== newerToken) {
+                  await persistRotatedRefreshToken(json2.refresh_token);
+                }
+                await setCachedAccessToken(json2.access_token);
+                return { ok: true, accessToken: json2.access_token };
+              }
+            }
+          }
+        } catch {
+          /* fall through to revoked */
+        }
+      }
       if (process.env.NODE_ENV === "development") {
         console.warn(
           LOG_PREFIX,
@@ -225,16 +299,14 @@ async function performRefreshSpotifyAccessToken(): Promise<RefreshResult> {
   if (json.refresh_token && json.refresh_token !== refreshToken) {
     const okPersist = await persistRotatedRefreshToken(json.refresh_token);
     if (!okPersist) {
-      /**
-       * Spotify typically invalidates the previous refresh_token when issuing a new one.
-       * If we cannot store the new token, the next refresh will fail — treat as revoked
-       * so the user reconnects once instead of flaky "random expiry".
-       */
+      // Log the failure but don't invalidate the session — we already have a
+      // valid access_token for this request.  The next refresh (≈55 min) may
+      // fail if Spotify has invalidated the old token, but that's preferable
+      // to forcing a reconnect now when the user is actively using the app.
       console.error(
         LOG_PREFIX,
-        "rotation persist failed — user should reconnect Spotify",
+        "rotation persist failed (cookie + DB) — next session refresh may require reconnect",
       );
-      return { ok: false, reason: "refresh_revoked" };
     }
   }
 

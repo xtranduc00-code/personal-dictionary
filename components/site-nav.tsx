@@ -13,7 +13,7 @@ import {
 import { NavAccountFooter } from "@/components/nav-account-footer";
 import { ProfileModal } from "@/components/profile-modal";
 import { SecurityModal } from "@/components/security-modal";
-import { BookHeart, BookOpen, BookMarked, BookText, Bot, CalendarClock, CalendarDays, ChevronLeft, ChevronRight, Clapperboard, Cloud, FileText, FolderOpen, GraduationCap, Headphones, Image as LucideImage, History, Home, Languages, LayoutDashboard, Layers, LayoutGrid, LibraryBig, LogIn, LogOut, Mail, Menu, Mic, Moon, Music2, Newspaper, NotebookText, PartyPopper, PenLine, PhoneCall, Search, Sparkles, Star, Sun, Table2, UserCircle, Video, X, type LucideIcon, } from "lucide-react";
+import { BookHeart, BookOpen, BookMarked, BookText, Bot, CalendarClock, CalendarDays, ChevronLeft, ChevronRight, Clapperboard, Cloud, FileText, FolderOpen, GraduationCap, Headphones, Image as LucideImage, History, Home, Languages, LayoutDashboard, LayoutGrid, LibraryBig, LogIn, LogOut, Mail, Menu, Mic, Moon, Newspaper, NotebookText, PartyPopper, PenLine, PhoneCall, Search, Sparkles, Star, Sun, Table2, UserCircle, Video, X, Youtube, type LucideIcon, } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useMeetCallOptional } from "@/lib/meet-call-context";
 import { CLEAR_NAV_QUICK_SEARCH_EVENT } from "@/lib/nav-quick-search-events";
@@ -81,8 +81,8 @@ const entertainmentSectionLinks: {
     preventNavigation?: boolean;
 }[] = [
     { href: "/watch", labelKey: "watchTogetherNav", icon: Clapperboard },
+    { href: "/videos", labelKey: "youtubeVideosNav", icon: Youtube },
     { href: "/notes/diary", labelKey: "notesDiary", icon: BookHeart },
-    { href: "/spotify", labelKey: "spotifyNav", icon: Music2 },
 ];
 const scheduleSectionLinks: {
     href: string;
@@ -204,10 +204,10 @@ function isNewsPath(pathname: string) {
 }
 function isEntertainmentPath(pathname: string) {
     return (
-        pathname === "/spotify" ||
-        pathname.startsWith("/spotify/") ||
         pathname === "/watch" ||
         pathname.startsWith("/watch/") ||
+        pathname === "/videos" ||
+        pathname.startsWith("/videos/") ||
         pathname === "/notes/diary" ||
         pathname.startsWith("/notes/diary/")
     );
@@ -496,14 +496,14 @@ function SiteNavInner() {
             navMatches("tin tuc", navQ);
         const watchSearchHit =
             match(navT("watchTogetherNav")) ||
-            match(navT("spotifyNav")) ||
-            navMatches("spotify", navQ) ||
+            match(navT("youtubeVideosNav")) ||
             navMatches("watch together", navQ) ||
-            navMatches("xem chung", navQ);
+            navMatches("xem chung", navQ) ||
+            navMatches("youtube", navQ) ||
+            navMatches("video", navQ);
         const entertainmentSectionHit =
             match(navT("navEntertainmentSection")) ||
             match(navT("notesDiary")) ||
-            match(navT("spotifyNav")) ||
             navMatches("giai tri", navQ) ||
             navMatches("giải trí", navQ) ||
             navMatches("article", navQ) ||

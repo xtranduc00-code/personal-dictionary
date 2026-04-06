@@ -109,9 +109,12 @@ function GuardianListSkeleton() {
 
 export function GuardianDailyNewsPanel({
   initialNewsItems,
+  initialSportItems,
 }: {
   /** Server-pre-fetched world/news items — skips the initial client fetch when provided. */
   initialNewsItems?: GuardianListItem[] | null;
+  /** Server-pre-fetched sport items — skips the initial client fetch when provided. */
+  initialSportItems?: GuardianListItem[] | null;
 }) {
   const { t } = useI18n();
   const router = useRouter();
@@ -134,13 +137,16 @@ export function GuardianDailyNewsPanel({
   );
 
   const hasServerNews = Array.isArray(initialNewsItems) && initialNewsItems.length > 0;
+  const hasServerSport = Array.isArray(initialSportItems) && initialSportItems.length > 0;
 
   const [newsItems, setNewsItems] = useState<GuardianListItem[]>(
     hasServerNews ? initialNewsItems! : [],
   );
-  const [sportItems, setSportItems] = useState<GuardianListItem[]>([]);
+  const [sportItems, setSportItems] = useState<GuardianListItem[]>(
+    hasServerSport ? initialSportItems! : [],
+  );
   const [loadingNews, setLoadingNews] = useState(tab === "news" && !hasServerNews);
-  const [loadingSport, setLoadingSport] = useState(tab === "sport");
+  const [loadingSport, setLoadingSport] = useState(tab === "sport" && !hasServerSport);
   const [newsError, setNewsError] = useState<string | null>(null);
   const [sportError, setSportError] = useState<string | null>(null);
   const [noKey, setNoKey] = useState(false);
@@ -209,8 +215,9 @@ export function GuardianDailyNewsPanel({
     [t],
   );
 
-  // Skip the first world/news fetch when the server already pre-fetched the data.
+  // Skip the first fetch when the server already pre-fetched data for that tab.
   const skipNewsRef = useRef(hasServerNews);
+  const skipSportRef = useRef(hasServerSport);
 
   useEffect(() => {
     if (tab !== "news") return;
@@ -223,6 +230,10 @@ export function GuardianDailyNewsPanel({
 
   useEffect(() => {
     if (tab !== "sport") return;
+    if (skipSportRef.current) {
+      skipSportRef.current = false;
+      return;
+    }
     void loadList("sport");
   }, [tab, loadList]);
 

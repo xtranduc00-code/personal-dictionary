@@ -8,6 +8,7 @@ import { useI18n } from "@/components/i18n-provider";
 import { AddFlashcardModal } from "@/components/ielts";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { sanitizeFlashcardDefinitionHtml } from "@/lib/sanitize-html-app";
+import { KindleImportModal } from "@/components/kindle-import-modal";
 export default function FlashcardsPage() {
     const { t } = useI18n();
     const [sets, setSets] = useState<FlashcardSet[]>([]);
@@ -25,6 +26,7 @@ export default function FlashcardsPage() {
         definition: string;
     } | null>(null);
     const [savingCard, setSavingCard] = useState(false);
+    const [showKindleImport, setShowKindleImport] = useState(false);
     useEffect(() => {
         getFlashcardSets().then((loaded) => {
             setSets(loaded);
@@ -286,10 +288,15 @@ export default function FlashcardsPage() {
                     : `${cards.length} card${cards.length > 1 ? "s" : ""}`}
                       </p>
                     </div>
-                    {cards.length > 0 && (<button type="button" onClick={() => setShowAddModal(true)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-zinc-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200">
-                        <Plus className="h-4 w-4"/>
-                        {t("addNewFlashcard")}
-                      </button>)}
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button type="button" onClick={() => setShowKindleImport(true)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-950/50" title="Import from Kindle">
+                        📚 Kindle
+                      </button>
+                      {cards.length > 0 && (<button type="button" onClick={() => setShowAddModal(true)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-zinc-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200">
+                          <Plus className="h-4 w-4"/>
+                          {t("addNewFlashcard")}
+                        </button>)}
+                    </div>
                   </div>
                 </div>
 
@@ -301,10 +308,15 @@ export default function FlashcardsPage() {
                     <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">
                       {t("createFirstCardHint")}
                     </p>
-                    <button type="button" onClick={() => setShowAddModal(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200">
-                      <Plus className="h-4 w-4"/>
-                      {t("addNewFlashcard")}
-                    </button>
+                    <div className="flex flex-col items-center gap-2 sm:flex-row">
+                      <button type="button" onClick={() => setShowKindleImport(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-950/50">
+                        📚 Import from Kindle
+                      </button>
+                      <button type="button" onClick={() => setShowAddModal(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200">
+                        <Plus className="h-4 w-4"/>
+                        {t("addNewFlashcard")}
+                      </button>
+                    </div>
                   </div>) : (<>
                     <ul className="space-y-3">
                       {cards.map((c) => {
@@ -363,5 +375,20 @@ export default function FlashcardsPage() {
                 }
                 toast.success(t("toastCardAdded"));
             }}/>)}
+      {showKindleImport && currentSet && (
+        <KindleImportModal
+          setId={currentSet.id}
+          setName={currentSet.name}
+          onClose={() => setShowKindleImport(false)}
+          onImported={async (count) => {
+            setShowKindleImport(false);
+            if (selectedSetId) {
+              const next = await getFlashcardsBySet(selectedSetId);
+              setCards(next);
+            }
+            toast.success(`Imported ${count} highlight${count !== 1 ? "s" : ""} from Kindle`);
+          }}
+        />
+      )}
     </div>);
 }

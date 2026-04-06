@@ -4,7 +4,7 @@ import { SiteNav } from "@/components/site-nav";
 import { MainScrollShell } from "@/components/main-scroll-shell";
 import { AuthGate } from "@/components/auth-gate";
 import { MeetPersistentLayer } from "@/components/meet/MeetPersistentLayer";
-import { SpotifyDock } from "@/components/spotify/SpotifyDock";
+import { YouTubeDock } from "@/components/youtube-dock";
 import { useMeetCall } from "@/lib/meet-call-context";
 import { meetPathMatchesRoom } from "@/lib/meet-call-path";
 
@@ -24,11 +24,9 @@ export function AppShell({ children }: {
     const isDailyNewsRoute =
         pathname === "/news" ||
         (Boolean(pathname) && pathname.startsWith("/news/"));
-    const isSpotifyPage = pathname === "/spotify";
-    const isHubGreyShell = isDailyNewsRoute || isSpotifyPage;
+    const isHubGreyShell = isDailyNewsRoute;
     const isPortfolioLanding =
         pathname === "/" || pathname === "/portfolio";
-    const spotifyDockUnmount = pathname === "/spotify";
     const noOuterMainPadding =
         !isStandaloneAuth && (fullMeet || isWatchPartyRoom);
 
@@ -47,9 +45,7 @@ export function AppShell({ children }: {
                 : isMeetShell && !isStandaloneAuth
                 ? "bg-[#F6F7F9] px-4 py-6 text-[#111827] antialiased sm:px-6 md:px-8 md:py-7 dark:bg-[#0a0a0b] dark:p-0 dark:text-zinc-100 md:dark:p-1"
                 : isHubGreyShell && !isStandaloneAuth
-                    ? isSpotifyPage
-                        ? "bg-[#F6F7F9] px-4 py-3 text-[#111827] antialiased sm:px-6 md:px-8 md:py-4 dark:bg-zinc-950 dark:text-zinc-100"
-                        : "bg-[#F6F7F9] px-4 py-6 text-[#111827] antialiased sm:px-6 md:px-8 md:py-7 dark:bg-zinc-950 dark:text-zinc-100"
+                    ? "bg-[#F6F7F9] px-4 py-6 text-[#111827] antialiased sm:px-6 md:px-8 md:py-7 dark:bg-zinc-950 dark:text-zinc-100"
                 : !isStandaloneAuth
                     ? "px-4 py-6 md:px-8 md:py-8"
                     : "",
@@ -58,9 +54,7 @@ export function AppShell({ children }: {
       {!isStandaloneAuth ? <SiteNav/> : null}
       <main className={mainClass}>
         {!isStandaloneAuth ? <MeetPersistentLayer/> : null}
-        {!isStandaloneAuth && !spotifyDockUnmount ? (
-          <SpotifyDock visuallyHidden={false} />
-        ) : null}
+        {!isStandaloneAuth ? <YouTubeDock /> : null}
         <AuthGate>
           <div className={fullMeet ? "hidden" : "contents"}>
             {isStandaloneAuth ? (<div className="fixed inset-0 z-[1] box-border flex items-center justify-center overflow-x-hidden overflow-y-auto bg-zinc-50 p-4 dark:bg-zinc-950">

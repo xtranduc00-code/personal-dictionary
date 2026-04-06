@@ -9,9 +9,8 @@ import {
 } from "@/lib/spotify/constants";
 import { encryptRefreshTokenForCookie } from "@/lib/spotify/cookie-crypto";
 import { spotifyRtCookieBase } from "@/lib/spotify/rt-cookie-options";
-import {
-  spotifyRedirectUriFromRequest,
-} from "@/lib/spotify/redirect-uri";
+import { spotifyRedirectUriFromRequest } from "@/lib/spotify/redirect-uri";
+import { dbWriteSpotifyRt } from "@/lib/spotify/supabase-token-store";
 
 function appOriginFromSpotifyRedirect(redirectUri: string): string {
   return redirectUri.replace(/\/api\/spotify\/callback\/?$/, "");
@@ -93,6 +92,9 @@ export async function GET(req: Request) {
   } catch {
     return oauthFailRedirect(appOrigin, oauthPopup, "crypto");
   }
+
+  // Store in Supabase for durable cross-instance access.
+  void dbWriteSpotifyRt(enc);
 
   const res = NextResponse.redirect(
     oauthPopup

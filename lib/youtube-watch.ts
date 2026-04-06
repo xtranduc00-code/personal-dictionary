@@ -11,7 +11,22 @@ export type YtPlayerApi = {
     playVideo: () => void;
     pauseVideo: () => void;
     setVolume: (n: number) => void;
+    mute: () => void;
+    unMute: () => void;
+    isMuted: () => boolean;
     destroy: () => void;
+    // Playback rate
+    setPlaybackRate: (rate: number) => void;
+    getPlaybackRate: () => number;
+    getAvailablePlaybackRates: () => number[];
+    // Quality
+    setPlaybackQuality: (quality: string) => void;
+    getPlaybackQuality: () => string;
+    getAvailableQualityLevels: () => string[];
+    // Captions (unofficial but widely used)
+    loadModule: (module: string) => void;
+    unloadModule: (module: string) => void;
+    setOption: (module: string, option: string, value: unknown) => void;
 };
 
 type YtPlayerOptions = {
