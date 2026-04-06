@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import dynamic from "next/dynamic";
 import { Chess } from "chess.js";
 import {
   ArrowLeft, ArrowRight, BookOpen, ChevronLeft, ChevronRight,
@@ -10,15 +9,11 @@ import {
 import { toast } from "react-toastify";
 import { updateGameAccuracy } from "@/lib/chess-storage";
 import { useAuth, authFetch } from "@/lib/auth-context";
+import { KenChessboard } from "@/components/chess/ken-chessboard";
 
 /** Runtime-only worker script (not bundled). Override with NEXT_PUBLIC_STOCKFISH_WORKER_URL. */
 const STOCKFISH_CDN_DEFAULT =
   "https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js";
-
-const Chessboard = dynamic(
-  () => import("react-chessboard").then((m) => m.Chessboard),
-  { ssr: false, loading: () => <div className="aspect-square w-full animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-700" /> },
-);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -573,12 +568,11 @@ export function GameReview({ pgn, gameId, whitePlayer, blackPlayer, onBack }: {
               )}
             </div>
 
-            <Chessboard
+            <KenChessboard
               options={{
                 position: fen,
                 boardOrientation: "white",
                 allowDragging: false,
-                boardStyle: { borderRadius: "12px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)" },
                 squareStyles,
                 arrows: bestArrow,
               }}

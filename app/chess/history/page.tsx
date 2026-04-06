@@ -54,6 +54,7 @@ export default function ChessHistoryPage() {
   const [items, setItems]           = useState<GameHistoryItem[]>([]);
   const [total, setTotal]           = useState(0);
   const [loading, setLoading]       = useState(false);
+  const [loadError, setLoadError]   = useState<string | null>(null);
   const [page, setPage]             = useState(0);
   const [resultFilter, setResultFilter] = useState<ResultFilter>("all");
   const [tcFilter, setTcFilter]     = useState("");
@@ -67,6 +68,7 @@ export default function ChessHistoryPage() {
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     setLoading(true);
+    setLoadError(null);
     try {
       const data = await getGameHistory({
         result: rf,
@@ -79,7 +81,9 @@ export default function ChessHistoryPage() {
         setTotal(data.total);
       }
     } catch {
-      // aborted or error
+      if (!ctrl.signal.aborted) {
+        setLoadError("Could not load your games. Check your connection and try again.");
+      }
     } finally {
       if (!ctrl.signal.aborted) setLoading(false);
     }
@@ -127,9 +131,9 @@ export default function ChessHistoryPage() {
   }
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-zinc-200 bg-white/90 px-5 py-3 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90">
+      <div className="sticky top-0 z-10 flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur sm:px-5 dark:border-zinc-800 dark:bg-zinc-950/90">
         <Link href="/chess" className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200">
           <ArrowLeft className="h-4 w-4" />
         </Link>
@@ -143,7 +147,19 @@ export default function ChessHistoryPage() {
         </button>
       </div>
 
-      <div className="flex flex-1 flex-col gap-4 p-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden overscroll-y-contain p-4 pb-8">
+        {loadError && (
+          <div className="flex flex-col items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-center dark:border-red-900/40 dark:bg-red-950/30">
+            <p className="text-sm font-medium text-red-800 dark:text-red-200">{loadError}</p>
+            <button
+              type="button"
+              onClick={() => user && load(page, resultFilter, tcFilter)}
+              className="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         {/* ── Summary stats ─────────────────────────────────────────────────── */}
         <div className="grid grid-cols-3 gap-3">
@@ -207,11 +223,23 @@ export default function ChessHistoryPage() {
 
         {/* ── Game list ─────────────────────────────────────────────────────── */}
         {loading ? (
-          <div className="flex flex-1 items-center justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
+          <div className="space-y-2">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-[4.5rem] animate-pulse rounded-xl border border-zinc-100 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/50"
+              />
+            ))}
           </div>
         ) : items.length === 0 ? (
-          <EmptyState filtered={resultFilter !== "all" || !!tcFilter} />
+          <EmptyState
+            filtered={resultFilter !== "all" || !!tcFilter}
+            onClearFilters={() => {
+              setResultFilter("all");
+              setTcFilter("");
+              setPage(0);
+            }}
+          />
         ) : (
           <div className="space-y-2">
             {items.map((game) => (
@@ -316,7 +344,13 @@ function GameRow({ game, onReview }: { game: GameHistoryItem; onReview: () => vo
 
 // ─── Empty State ──────────────────────────────────────────────────────────────
 
-function EmptyState({ filtered }: { filtered: boolean }) {
+function EmptyState({
+  filtered,
+  onClearFilters,
+}: {
+  filtered: boolean;
+  onClearFilters: () => void;
+}) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
       <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-100 text-3xl dark:bg-zinc-800">
@@ -327,10 +361,18 @@ function EmptyState({ filtered }: { filtered: boolean }) {
       </p>
       <p className="text-sm text-zinc-400">
         {filtered
-          ? "Try adjusting your filters"
+          ? "Try adjusting your filters or reset them below."
           : "Play your first game to see history here"}
       </p>
-      {!filtered && (
+      {filtered ? (
+        <button
+          type="button"
+          onClick={onClearFilters}
+          className="mt-1 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+        >
+          Clear filters
+        </button>
+      ) : (
         <Link
           href="/chess"
           className="mt-1 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"

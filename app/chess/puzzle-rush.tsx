@@ -1,19 +1,9 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import dynamic from "next/dynamic";
 import { Chess } from "chess.js";
-import { RefreshCw } from "lucide-react";
-
-const Chessboard = dynamic(
-  () => import("react-chessboard").then((m) => m.Chessboard),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="aspect-square w-full animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-700" />
-    ),
-  },
-);
+import { Loader2, RefreshCw } from "lucide-react";
+import { KenChessboard } from "@/components/chess/ken-chessboard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -72,14 +62,26 @@ function formatTime(ms: number): string {
   return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
 }
 
+function shuffleInPlace<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/** Offset 0 + client shuffle — avoids empty slice when random offset exceeded DB size */
 async function fetchPuzzleBatch(level: PuzzleLevel, count = 20): Promise<LibraryPuzzle[]> {
-  const offset = Math.floor(Math.random() * 400);
-  const params = new URLSearchParams({ level, limit: String(count), offset: String(offset) });
+  const params = new URLSearchParams({ level, limit: String(count), offset: "0" });
   try {
     const res = await fetch(`/api/chess/puzzles/library?${params}`);
-    const data = await res.json();
-    return (data.items ?? []) as LibraryPuzzle[];
-  } catch { return []; }
+    if (!res.ok) return [];
+    const data = (await res.json()) as { items?: LibraryPuzzle[] };
+    const items = (data.items ?? []).filter((p) => p.level === level) as LibraryPuzzle[];
+    return shuffleInPlace([...items]);
+  } catch {
+    return [];
+  }
 }
 
 // ─── Root Component ───────────────────────────────────────────────────────────
@@ -177,6 +179,8 @@ function ModeSelect({ onSelect }: { onSelect: (m: RushMode) => void }) {
 
 // ─── Rush Game ────────────────────────────────────────────────────────────────
 
+type RushLoadStatus = "loading" | "ready" | "error";
+
 function RushGame({
   mode,
   onGameOver,
@@ -191,7 +195,9 @@ function RushGame({
   const [score, setScore]       = useState(0);
   const [timeMs, setTimeMs]     = useState(initMs);
   const [fen, setFen]           = useState("");
-  const [loading, setLoading]   = useState(true);
+  const [loadStatus, setLoadStatus] = useState<RushLoadStatus>("loading");
+  const [loadError, setLoadError]   = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [boardOrientation, setBoardOrientation] = useState<"white" | "black">("white");
   const [flashStyle, setFlashStyle] = useState<React.CSSProperties>({
     borderRadius: "12px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)",
@@ -212,26 +218,120 @@ function RushGame({
   const lastTickRef    = useRef(Date.now());
   const transitionRef  = useRef(false); // prevent drops during puzzle transition
 
-  // ── Load initial puzzles ──────────────────────────────────────────────────
+  function endGame() {
+    if (gameEndedRef.current) return;
+    gameEndedRef.current = true;
+    if (timerRef.current) clearInterval(timerRef.current);
+    onGameOver(scoreRef.current, correctRef.current, attemptsRef.current, mode);
+  }
+
+  /** Returns false if FEN / moves are unusable (skip puzzle). */
+  function loadPuzzle(p: LibraryPuzzle): boolean {
+    if (!p?.fen || !Array.isArray(p.moves) || p.moves.length < 2) return false;
+
+    let chess: Chess;
+    try {
+      chess = new Chess(p.fen);
+    } catch {
+      return false;
+    }
+
+    const setupUci = p.moves[0];
+    if (setupUci && setupUci.length >= 4) {
+      try {
+        chess.move({
+          from: setupUci.slice(0, 2) as never,
+          to: setupUci.slice(2, 4) as never,
+          promotion: setupUci[4] ?? "q",
+        });
+      } catch {
+        return false;
+      }
+    }
+
+    const nextFen = chess.fen();
+    if (!nextFen || nextFen.split(" ").length < 4) return false;
+
+    chessRef.current = chess;
+    puzzleRef.current = p;
+    stepRef.current = 1;
+
+    const orient = chess.turn() === "w" ? "white" : "black";
+    setBoardOrientation(orient);
+    setFen(nextFen);
+
+    // Pre-fetch more when queue is low
+    if (queueRef.current.length < 5 && !fetchingRef.current) {
+      fetchingRef.current = true;
+      const level = levelForScore(scoreRef.current);
+      fetchPuzzleBatch(level, 20).then((more) => {
+        queueRef.current = [...queueRef.current, ...more];
+        fetchingRef.current = false;
+      });
+    }
+    return true;
+  }
+
+  /** Pop puzzles until one loads or queue empty. */
+  function tryLoadNextFromQueue(): boolean {
+    while (queueRef.current.length > 0) {
+      const next = queueRef.current[0]!;
+      queueRef.current = queueRef.current.slice(1);
+      if (loadPuzzle(next)) return true;
+    }
+    return false;
+  }
+
+  // ── Load initial puzzles (do not tie unmount to game over — fixes Strict Mode) ──
   useEffect(() => {
-    fetchPuzzleBatch("beginner", 25).then((puzzles) => {
-      if (gameEndedRef.current) return;
-      queueRef.current = puzzles.slice(1);
-      if (puzzles[0]) loadPuzzle(puzzles[0]);
-      setLoading(false);
-    });
+    let alive = true;
+
+    async function bootstrap() {
+      setLoadStatus("loading");
+      setLoadError(null);
+
+      const puzzles = (
+        await Promise.all([import("react-chessboard"), fetchPuzzleBatch("beginner", 25)])
+      )[1];
+      if (!alive) return;
+
+      if (puzzles.length === 0) {
+        setLoadStatus("error");
+        setLoadError("Failed to load puzzle");
+        return;
+      }
+
+      queueRef.current = [...puzzles];
+
+      while (queueRef.current.length > 0 && alive) {
+        const next = queueRef.current[0]!;
+        queueRef.current = queueRef.current.slice(1);
+        if (loadPuzzle(next)) {
+          setLoadStatus("ready");
+          return;
+        }
+      }
+
+      setLoadStatus("error");
+      setLoadError("Failed to load puzzle");
+    }
+
+    bootstrap();
+
     return () => {
-      gameEndedRef.current = true;
+      alive = false;
       if (timerRef.current) clearInterval(timerRef.current);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [retryNonce]);
 
-  // ── Timer ─────────────────────────────────────────────────────────────────
+  // ── Timer: only after first valid puzzle is on the board ─────────────────
   useEffect(() => {
-    if (loading || !isFinite(initMs)) return;
+    if (loadStatus !== "ready" || !isFinite(initMs)) return;
 
+    setTimeMs(initMs);
     lastTickRef.current = Date.now();
+
     timerRef.current = setInterval(() => {
       if (gameEndedRef.current) return;
       const now = Date.now();
@@ -251,45 +351,7 @@ function RushGame({
 
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]);
-
-  function endGame() {
-    if (gameEndedRef.current) return;
-    gameEndedRef.current = true;
-    if (timerRef.current) clearInterval(timerRef.current);
-    onGameOver(scoreRef.current, correctRef.current, attemptsRef.current, mode);
-  }
-
-  function loadPuzzle(p: LibraryPuzzle) {
-    const chess = new Chess(p.fen);
-    const setupUci = p.moves[0];
-    if (setupUci) {
-      try {
-        chess.move({
-          from: setupUci.slice(0, 2) as never,
-          to: setupUci.slice(2, 4) as never,
-          promotion: setupUci[4] ?? "q",
-        });
-      } catch { /* ignore invalid */ }
-    }
-    chessRef.current = chess;
-    puzzleRef.current = p;
-    stepRef.current = 1;
-
-    const orient = chess.turn() === "w" ? "white" : "black";
-    setBoardOrientation(orient);
-    setFen(chess.fen());
-
-    // Pre-fetch more when queue is low
-    if (queueRef.current.length < 5 && !fetchingRef.current) {
-      fetchingRef.current = true;
-      const level = levelForScore(scoreRef.current);
-      fetchPuzzleBatch(level, 20).then((more) => {
-        queueRef.current = [...queueRef.current, ...more];
-        fetchingRef.current = false;
-      });
-    }
-  }
+  }, [loadStatus, initMs]);
 
   function flash(type: "green" | "red") {
     const shadow = type === "green"
@@ -332,13 +394,15 @@ function RushGame({
         transitionRef.current = true;
 
         setTimeout(() => {
-          if (gameEndedRef.current) return;
-          transitionRef.current = false;
-          const next = queueRef.current[0];
-          if (next) {
-            queueRef.current = queueRef.current.slice(1);
-            loadPuzzle(next);
-          }
+          void (async () => {
+            if (gameEndedRef.current) return;
+            transitionRef.current = false;
+            if (tryLoadNextFromQueue()) return;
+            const more = await fetchPuzzleBatch(levelForScore(scoreRef.current), 30);
+            queueRef.current = [...queueRef.current, ...more];
+            if (tryLoadNextFromQueue()) return;
+            endGame();
+          })();
         }, 450);
       } else {
         // ── More user moves needed — auto-play opponent ───────────────────
@@ -382,24 +446,27 @@ function RushGame({
   return (
     <div className="flex flex-1 flex-col gap-3 p-4">
       {/* ── HUD ────────────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-2">
-        {/* Score */}
-        <div className="flex min-w-[48px] flex-col items-center">
-          <p className="text-3xl font-black tabular-nums text-zinc-900 dark:text-zinc-100">{score}</p>
-          <p className="text-[10px] uppercase tracking-wide text-zinc-400">Score</p>
+      <div className="flex min-h-[3.25rem] flex-wrap items-center justify-between gap-x-2 gap-y-1 px-0.5">
+        <div className="flex min-w-[3rem] shrink-0 flex-col items-center">
+          <p className="text-2xl font-black tabular-nums leading-none text-zinc-900 dark:text-zinc-100 sm:text-3xl">{score}</p>
+          <p className="text-[9px] uppercase tracking-wide text-zinc-400 sm:text-[10px]">Score</p>
         </div>
 
-        {/* Timer */}
-        <p className={`text-4xl font-black tabular-nums transition-colors ${
-          isLow ? "text-red-500 animate-pulse" : "text-zinc-900 dark:text-zinc-100"
-        }`}>
+        <p
+          className={`min-w-0 flex-1 text-center text-3xl font-black tabular-nums leading-none transition-colors sm:text-4xl ${
+            isLow ? "text-red-500 animate-pulse" : "text-zinc-900 dark:text-zinc-100"
+          }`}
+        >
           {mode === "survival" ? "∞" : formatTime(timeMs)}
         </p>
 
-        {/* Lives */}
-        <div className="flex min-w-[48px] items-center justify-end gap-0.5">
+        <div className="flex shrink-0 items-center justify-end gap-0.5">
           {Array.from({ length: LIVES }).map((_, i) => (
-            <span key={i} className={`text-lg transition-opacity ${i < lives ? "opacity-100" : "opacity-15"}`}>
+            <span
+              key={i}
+              className={`text-base transition-opacity sm:text-lg ${i < lives ? "opacity-100" : "opacity-15"}`}
+              aria-hidden
+            >
               ❤️
             </span>
           ))}
@@ -407,11 +474,37 @@ function RushGame({
       </div>
 
       {/* ── Board ──────────────────────────────────────────────────────────── */}
-      {loading ? (
-        <div className="mx-auto aspect-square w-full max-w-xs animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-700" />
-      ) : (
-        <div className="mx-auto w-full max-w-xs">
-          <Chessboard
+      <div className="mx-auto w-full max-w-xs">
+        {loadStatus === "loading" && (
+          <div
+            className="flex aspect-square w-full flex-col items-center justify-center gap-3 rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900/50"
+            role="status"
+            aria-live="polite"
+            aria-label="Loading puzzle"
+          >
+            <Loader2 className="h-10 w-10 animate-spin text-zinc-400" />
+            <p className="text-xs font-medium text-zinc-500">Loading puzzle…</p>
+          </div>
+        )}
+
+        {loadStatus === "error" && (
+          <div className="flex aspect-square w-full flex-col items-center justify-center gap-4 rounded-xl border border-red-200 bg-red-50/80 p-4 text-center dark:border-red-900/50 dark:bg-red-950/30">
+            <p className="text-sm font-semibold text-red-800 dark:text-red-200">
+              {loadError ?? "Failed to load puzzle"}
+            </p>
+            <button
+              type="button"
+              onClick={() => setRetryNonce((n) => n + 1)}
+              className="flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </button>
+          </div>
+        )}
+
+        {loadStatus === "ready" && fen && (
+          <KenChessboard
             options={{
               position: fen,
               onPieceDrop: ({ sourceSquare, targetSquare }) =>
@@ -421,8 +514,8 @@ function RushGame({
               boardStyle: flashStyle,
             }}
           />
-        </div>
-      )}
+        )}
+      </div>
 
       {/* ── Status strip ───────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between text-xs text-zinc-400">

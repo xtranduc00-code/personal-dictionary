@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
-import { readFileSync } from "fs";
+import { readFile } from "fs/promises";
 import { join } from "path";
+import { NextResponse } from "next/server";
 
 export type LibraryPuzzle = {
   id: string;
@@ -11,21 +11,22 @@ export type LibraryPuzzle = {
   level: "beginner" | "intermediate" | "hard" | "expert";
 };
 
-let _all: LibraryPuzzle[] | null = null;
-// Pre-computed per-level shuffled arrays (stable within a server instance)
+const VALID_LEVELS = new Set(["beginner", "intermediate", "hard", "expert"]);
+
+let _allPromise: Promise<LibraryPuzzle[]> | null = null;
 const _byLevel = new Map<string, LibraryPuzzle[]>();
 
-function loadPuzzles(): LibraryPuzzle[] {
-  if (_all) return _all;
-  const path = join(process.cwd(), "public", "chess-puzzles.json");
-  _all = JSON.parse(readFileSync(path, "utf-8")) as LibraryPuzzle[];
-  return _all;
+async function loadPuzzles(): Promise<LibraryPuzzle[]> {
+  if (!_allPromise) {
+    const path = join(process.cwd(), "public", "chess-puzzles.json");
+    _allPromise = readFile(path, "utf-8").then((raw) => JSON.parse(raw) as LibraryPuzzle[]);
+  }
+  return _allPromise;
 }
 
-function getShuffledByLevel(level: string): LibraryPuzzle[] {
+async function getShuffledByLevel(level: string): Promise<LibraryPuzzle[]> {
   if (_byLevel.has(level)) return _byLevel.get(level)!;
-  // Filter strictly by level label, then shuffle once
-  const subset = loadPuzzles().filter((p) => p.level === level);
+  const subset = (await loadPuzzles()).filter((p) => p.level === level);
   const arr = [...subset];
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -36,24 +37,30 @@ function getShuffledByLevel(level: string): LibraryPuzzle[] {
 }
 
 export async function GET(req: Request) {
-  const url    = new URL(req.url);
-  const level  = url.searchParams.get("level") ?? "beginner";
-  const theme  = url.searchParams.get("theme") ?? "";
-  const limit  = Math.min(parseInt(url.searchParams.get("limit") ?? "20"), 50);
-  const offset = parseInt(url.searchParams.get("offset") ?? "0");
+  const url = new URL(req.url);
+  const rawLevel = url.searchParams.get("level") ?? "beginner";
+  const level = VALID_LEVELS.has(rawLevel) ? rawLevel : "beginner";
+  const theme = url.searchParams.get("theme") ?? "";
+  const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "20", 10), 50);
+  const offset = Math.max(0, parseInt(url.searchParams.get("offset") ?? "0", 10));
 
-  // Always filter strictly by level; use stable pre-shuffled order
-  let puzzles = getShuffledByLevel(level);
+  try {
+    let puzzles = await getShuffledByLevel(level);
 
-  if (theme) {
-    puzzles = puzzles.filter((p) => p.themes.includes(theme));
+    if (theme) {
+      puzzles = puzzles.filter((p) => p.themes.includes(theme));
+    }
+
+    const total = puzzles.length;
+    const items = puzzles.slice(offset, offset + limit);
+    const safe = items.filter((p) => p.level === level);
+
+    return NextResponse.json({ items: safe, total, offset, limit, level });
+  } catch (e) {
+    console.error("[chess/puzzles/library]", e);
+    return NextResponse.json(
+      { items: [], total: 0, offset, limit, error: "Failed to load puzzle library" },
+      { status: 500 },
+    );
   }
-
-  const total = puzzles.length;
-  const items = puzzles.slice(offset, offset + limit);
-
-  // Sanity guard: ensure every returned item truly matches the requested level
-  const safe = items.filter((p) => p.level === level);
-
-  return NextResponse.json({ items: safe, total, offset, limit });
 }

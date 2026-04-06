@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
             "**/public/stockfish.js",
             "**/stockfish.js",
             "**/stockfish.wasm",
+            "**/stockfish.*.wasm",
+            "**/node_modules/**/*.wasm",
         ],
     },
     serverExternalPackages: [

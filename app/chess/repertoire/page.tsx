@@ -2,18 +2,13 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { Chess } from "chess.js";
 import {
   ArrowLeft, BookOpen, ChevronRight, Edit2, Loader2,
   Plus, RotateCcw, StickyNote, Trash2, Upload, X,
 } from "lucide-react";
 import { useAuth, authFetch } from "@/lib/auth-context";
-
-const Chessboard = dynamic(
-  () => import("react-chessboard").then((m) => m.Chessboard),
-  { ssr: false, loading: () => <div className="aspect-square w-full animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-700" /> },
-);
+import { KenChessboard } from "@/components/chess/ken-chessboard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -101,9 +96,9 @@ export default function RepertoirePage() {
   const black = filtered.filter((l) => l.color === "black");
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-zinc-200 bg-white/90 px-5 py-3 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90">
+      <div className="sticky top-0 z-10 flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur sm:px-5 dark:border-zinc-800 dark:bg-zinc-950/90">
         <Link href="/chess" className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">
           <ArrowLeft className="h-4 w-4" />
         </Link>
@@ -126,7 +121,7 @@ export default function RepertoirePage() {
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-4 p-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden overscroll-y-contain p-4 pb-8">
         {/* ── Color filter tabs ────────────────────────────────────────────── */}
         <div className="flex overflow-hidden rounded-xl border border-zinc-200 bg-white text-xs dark:border-zinc-700 dark:bg-zinc-900">
           {(["all", "white", "black"] as const).map((c) => (
@@ -353,9 +348,9 @@ function LineForm({ line, onDone }: {
   const explorerTotal = explorer ? (explorer.white + explorer.draws + explorer.black) : 0;
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       {/* Header */}
-      <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-zinc-200 bg-white/90 px-5 py-3 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90">
+      <div className="sticky top-0 z-10 flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur sm:px-5 dark:border-zinc-800 dark:bg-zinc-950/90">
         <button onClick={() => onDone()} className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">
           <ArrowLeft className="h-4 w-4" />
         </button>
@@ -372,7 +367,7 @@ function LineForm({ line, onDone }: {
         </button>
       </div>
 
-      <div className="flex flex-1 flex-col gap-4 p-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden overscroll-y-contain p-4 pb-8">
         {/* Name */}
         <div>
           <label className="mb-1 block text-xs font-semibold text-zinc-500">Line Name</label>
@@ -560,7 +555,7 @@ function BoardBuilder({
   return (
     <div className="space-y-2">
       <div className="mx-auto w-full max-w-xs">
-        <Chessboard
+        <KenChessboard
           options={{
             position: fen,
             onPieceDrop: ({ sourceSquare, targetSquare }) => handleDrop(sourceSquare, targetSquare ?? ""),

@@ -7,6 +7,7 @@ import { useI18n } from "@/components/i18n-provider";
 import { AVATAR_ALLOWED_TYPES, AVATAR_BUCKET, AVATAR_MAX_BYTES, avatarObjectPath, } from "@/lib/avatar-storage";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { withAvatarCacheBust } from "@/lib/avatar-display-url";
+import { readChessMoveAnnounceEnabled, writeChessMoveAnnounceEnabled } from "@/lib/chess-move-announce-settings";
 function initials(u: AuthUser | null): string {
     const s = u?.username?.trim() || "?";
     return s.slice(0, 2).toUpperCase();
@@ -18,6 +19,7 @@ export function ProfileModal({ open, onClose }: {
     const { t } = useI18n();
     const { user, refreshUser, avatarDisplayRev, bumpAvatarDisplay } = useAuth();
     const [avatarBusy, setAvatarBusy] = useState(false);
+    const [chessMoveAnnounce, setChessMoveAnnounce] = useState(true);
     const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null);
     const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
     const fileRef = useRef<HTMLInputElement>(null);
@@ -34,6 +36,9 @@ export function ProfileModal({ open, onClose }: {
     useEffect(() => {
         if (!open) {
             clearAvatarStaging();
+        }
+        else {
+            setChessMoveAnnounce(readChessMoveAnnounceEnabled());
         }
     }, [open, clearAvatarStaging]);
     useEffect(() => {
@@ -233,6 +238,36 @@ export function ProfileModal({ open, onClose }: {
           </div>
           <p className="text-center text-[11px] leading-snug text-zinc-500 dark:text-zinc-400">{t("profileAvatarSaveHint")}</p>
         </div>
+        <section className="mb-5">
+          <h3 className="mb-2 text-sm font-semibold text-zinc-800 dark:text-zinc-200">{t("profileChessMoveAnnounce")}</h3>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={chessMoveAnnounce}
+            onClick={() => {
+                const next = !chessMoveAnnounce;
+                setChessMoveAnnounce(next);
+                writeChessMoveAnnounceEnabled(next);
+            }}
+            className="flex w-full items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-left text-sm dark:border-zinc-600 dark:bg-zinc-800/80"
+          >
+            <span className="text-zinc-700 dark:text-zinc-200">
+              {chessMoveAnnounce ? t("profileSettingOn") : t("profileSettingOff")}
+            </span>
+            <span
+              className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
+                chessMoveAnnounce ? "bg-emerald-500" : "bg-zinc-300 dark:bg-zinc-600"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                  chessMoveAnnounce ? "left-5" : "left-0.5"
+                }`}
+              />
+            </span>
+          </button>
+          <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">{t("profileChessMoveAnnounceHint")}</p>
+        </section>
         <section>
           <h3 className="mb-2 text-sm font-semibold text-zinc-800 dark:text-zinc-200">{t("profileSectionAccount")}</h3>
           <dl className="space-y-2.5 text-sm">

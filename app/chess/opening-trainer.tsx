@@ -1,21 +1,11 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import dynamic from "next/dynamic";
 import { Chess } from "chess.js";
 import {
   ArrowLeft, BookOpen, ChevronRight, RefreshCw, RotateCcw, Star,
 } from "lucide-react";
-
-const Chessboard = dynamic(
-  () => import("react-chessboard").then((m) => m.Chessboard),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="aspect-square w-full animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-700" />
-    ),
-  },
-);
+import { KenChessboard } from "@/components/chess/ken-chessboard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -110,7 +100,7 @@ export function OpeningTrainer() {
   const [tab, setTab] = useState<"explore" | "practice">("explore");
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex border-b border-zinc-200 dark:border-zinc-700">
         {(["explore", "practice"] as const).map((t) => (
           <button
@@ -214,7 +204,7 @@ function ExploreMode() {
   const globalB = explorer ? pct(explorer.black, total) : "–";
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-4">
+    <div className="flex min-w-0 flex-1 flex-col gap-4 p-3 sm:p-4">
       {/* Opening name */}
       {explorer?.opening && (
         <div className="flex items-center gap-2 rounded-xl bg-violet-50 px-4 py-2.5 dark:bg-violet-900/20">
@@ -227,7 +217,7 @@ function ExploreMode() {
 
       {/* Board */}
       <div className="mx-auto w-full max-w-xs">
-        <Chessboard
+        <KenChessboard
           options={{
             position: fen,
             onPieceDrop: ({ sourceSquare, targetSquare }) => handleDrop(sourceSquare, targetSquare ?? ""),
@@ -546,7 +536,7 @@ function PracticeBoard({
 
       {/* Board */}
       <div className="mx-auto w-full max-w-xs">
-        <Chessboard
+        <KenChessboard
           options={{
             position: fen,
             onPieceDrop: ({ sourceSquare, targetSquare }) => handleUserDrop(sourceSquare, targetSquare ?? ""),

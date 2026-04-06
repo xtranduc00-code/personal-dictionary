@@ -2,18 +2,13 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { Chess } from "chess.js";
 import {
   ArrowLeft, CheckCircle2, ChevronRight, Loader2, RotateCcw, StickyNote, XCircle,
 } from "lucide-react";
 import { useAuth, authFetch } from "@/lib/auth-context";
 import { type RepertoireLine, lineFromRow, movesToSan } from "../utils";
-
-const Chessboard = dynamic(
-  () => import("react-chessboard").then((m) => m.Chessboard),
-  { ssr: false, loading: () => <div className="aspect-square w-full animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-700" /> },
-);
+import { KenChessboard } from "@/components/chess/ken-chessboard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -90,7 +85,7 @@ export default function DrillPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-full items-center justify-center">
+      <div className="flex h-full min-h-0 flex-1 items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
       </div>
     );
@@ -157,8 +152,8 @@ function DrillSelect({ lines, onStart }: { lines: RepertoireLine[]; onStart: (li
   }
 
   return (
-    <div className="flex min-h-full flex-col">
-      <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-zinc-200 bg-white/90 px-5 py-3 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="sticky top-0 z-10 flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur sm:px-5 dark:border-zinc-800 dark:bg-zinc-950/90">
         <Link href="/chess/repertoire" className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">
           <ArrowLeft className="h-4 w-4" />
         </Link>
@@ -172,7 +167,7 @@ function DrillSelect({ lines, onStart }: { lines: RepertoireLine[]; onStart: (li
         </button>
       </div>
 
-      <div className="flex flex-1 flex-col gap-4 p-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden overscroll-y-contain p-4 pb-8">
         {lines.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
             <p className="text-sm text-zinc-400">No lines to drill yet.</p>
@@ -439,9 +434,9 @@ function DrillSession({
   })();
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       {/* Header */}
-      <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-zinc-200 bg-white/90 px-5 py-3 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90">
+      <div className="sticky top-0 z-10 flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur sm:px-5 dark:border-zinc-800 dark:bg-zinc-950/90">
         <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate max-w-[60%]">{line.name}</span>
         <span className="ml-auto text-xs text-zinc-400">
           Line {lineIdx + 1}/{queue.length}
@@ -451,7 +446,7 @@ function DrillSession({
         </button>
       </div>
 
-      <div className="flex flex-1 flex-col gap-3 p-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden overscroll-y-contain p-4 pb-8">
         {/* Progress bar for this line */}
         <div className="relative h-1.5 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
           <div
@@ -470,7 +465,7 @@ function DrillSession({
 
         {/* Board */}
         <div className="mx-auto w-full max-w-sm">
-          <Chessboard
+          <KenChessboard
             options={{
               position: fen,
               onPieceDrop: ({ sourceSquare, targetSquare }) => handleDrop(sourceSquare, targetSquare ?? ""),
@@ -555,15 +550,15 @@ function DrillSummary({
     .sort((a, b) => (a.correct / a.total) - (b.correct / b.total));
 
   return (
-    <div className="flex min-h-full flex-col">
-      <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-zinc-200 bg-white/90 px-5 py-3 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="sticky top-0 z-10 flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur sm:px-5 dark:border-zinc-800 dark:bg-zinc-950/90">
         <Link href="/chess/repertoire" className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <span className="text-lg font-bold text-zinc-900 dark:text-zinc-100">Drill Complete</span>
       </div>
 
-      <div className="flex flex-1 flex-col gap-4 p-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden overscroll-y-contain p-4 pb-8">
         {/* Accuracy card */}
         <div className="rounded-2xl border border-violet-200 bg-violet-50 p-5 text-center dark:border-violet-800 dark:bg-violet-900/20">
           <p className="text-5xl font-black text-violet-700 dark:text-violet-300">{accuracy}%</p>

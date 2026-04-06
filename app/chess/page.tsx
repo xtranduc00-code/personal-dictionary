@@ -7,22 +7,43 @@ import { toast } from "react-toastify";
 import {
   ArrowLeft, BookOpen, Check, ChevronRight, Copy, Crown, Flag,
   History, LibraryBig, Lightbulb, Loader2, MessageSquare, Mic, MicOff, Pause, Play,
-  RefreshCw, Send, Square, Swords, Trophy, Users, Volume2, VolumeX, X, Zap,
+  RefreshCw, Send, Square, Swords, Trophy, Undo2, Users, Volume2, VolumeX, X, Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import { createChessGame, joinChessGame, updateChessGame, type ChessGame } from "@/lib/chess-storage";
+import { useMeetCall } from "@/lib/meet-call-context";
 import { BUILT_IN_PUZZLES, type BuiltInPuzzle } from "@/lib/chess-puzzles-data";
-import { GameReview } from "./game-review";
-import { OpeningTrainer } from "./opening-trainer";
-import { EndgameTrainer } from "./endgame-trainer";
-import { PuzzleRush } from "./puzzle-rush";
+function ChessSectionSkeleton({ label }: { label: string }) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-zinc-400">
+      <Loader2 className="h-8 w-8 animate-spin" />
+      <p className="text-sm">{label}</p>
+    </div>
+  );
+}
 
-const Chessboard = dynamic(
-  () => import("react-chessboard").then((m) => m.Chessboard),
-  { ssr: false, loading: () => <div className="aspect-square w-full animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-700" /> },
-);
+const GameReview = dynamic(() => import("./game-review").then((m) => m.GameReview), {
+  ssr: false,
+  loading: () => <ChessSectionSkeleton label="Loading game review…" />,
+});
+const OpeningTrainer = dynamic(() => import("./opening-trainer").then((m) => m.OpeningTrainer), {
+  ssr: false,
+  loading: () => <ChessSectionSkeleton label="Loading opening trainer…" />,
+});
+const EndgameTrainer = dynamic(() => import("./endgame-trainer").then((m) => m.EndgameTrainer), {
+  ssr: false,
+  loading: () => <ChessSectionSkeleton label="Loading endgame trainer…" />,
+});
+const PuzzleRush = dynamic(() => import("./puzzle-rush").then((m) => m.PuzzleRush), {
+  ssr: false,
+  loading: () => <ChessSectionSkeleton label="Loading Puzzle Rush…" />,
+});
+import { ChessMoveAnnounceChip } from "@/components/chess-move-announce-chip";
+import { useChessMoveAnnouncement } from "@/hooks/use-chess-move-announcement";
+import type { Move } from "chess.js";
+import { KenChessboard } from "@/components/chess/ken-chessboard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -154,9 +175,11 @@ export default function ChessPage() {
     "puzzle-rush":      "Puzzle Rush",
   }[mode];
 
+  const playGameActive = mode === "play-game" && game;
+
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-zinc-200 bg-white/90 px-5 py-3 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="sticky top-0 z-10 flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur sm:px-5 dark:border-zinc-800 dark:bg-zinc-950/90">
         {mode !== "home" && (
           <button onClick={goHome} className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200">
             <ArrowLeft className="h-4 w-4" />
@@ -165,7 +188,13 @@ export default function ChessPage() {
         <span className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{headerTitle}</span>
       </div>
 
-      <div className="flex flex-1 flex-col">
+      <div
+        className={
+          playGameActive
+            ? "flex min-h-0 flex-1 flex-col overflow-hidden"
+            : "flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-y-contain"
+        }
+      >
         {mode === "home" && (
           <HomeView
             onPlay={() => setMode("play-lobby")}
@@ -243,7 +272,7 @@ function HomeView({
   ] as const;
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
+    <div className="flex flex-1 flex-col items-center justify-start gap-6 px-8 pb-10 pt-8">
       <div className="grid w-full max-w-sm gap-4">
         {cards.map(({ label, sub, icon: Icon, color, action, href }) => {
           const inner = (
@@ -546,26 +575,48 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
   const [rematch, setRematch]       = useState<"sent" | "received" | null>(null);
   const [opponentName, setOpponentName] = useState<string | null>(null);
 
+  const { requestJoin, connecting: voiceConnecting, error: voiceError, session: voiceSession } = useMeetCall();
+  const livekitConfigured = Boolean(process.env.NEXT_PUBLIC_LIVEKIT_URL);
+  const voiceRoom         = gameState.roomCode;
+  const voiceConnected    = voiceSession?.displayName === voiceRoom;
+  const voiceErrRef       = useRef<string | null>(null);
+
   const startTimeRef = useRef<number | null>(null);
+  const { chip: moveAnnounceChip, announce: announceMove } = useChessMoveAnnouncement();
+  const prevPgnMoveCountRef = useRef(0);
+
+  useEffect(() => {
+    const c = new Chess();
+    try {
+      c.loadPgn(initialGame.pgn ?? "");
+    } catch {
+      /* noop */
+    }
+    prevPgnMoveCountRef.current = c.history().length;
+  }, [initialGame.roomCode, initialGame.pgn]);
 
   // ── Responsive board sizing ───────────────────────────────────────────────
   const [boardPx, setBoardPx] = useState(0);
   useEffect(() => {
     function updateBoard() {
       const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const HEADER      = 60;   // sticky header
-      const PLAYER_ROWS = 80;   // two clock rows (~36px each + gap)
-      const V_PAD       = 40;   // top + bottom padding of the flex container
-      const PANEL       = vw >= 768 ? 420 : 0;  // right panel + gap (desktop only)
-      const H_PAD       = 32;   // horizontal padding
-      const byHeight = vh - HEADER - PLAYER_ROWS - V_PAD;
-      const byWidth  = vw - PANEL - H_PAD;
-      setBoardPx(Math.max(200, Math.min(byHeight, byWidth)));
+      const vh = window.visualViewport?.height ?? window.innerHeight;
+      const CHESS_BAR = 52; // sticky "Room" header inside /chess
+      const PAGE_Y_PAD = vw < 768 ? 20 : 28;
+      const CLOCK_BAND = vw < 768 ? 88 : 92; // two clock rows + gaps + chip row
+      const PANEL = vw >= 768 ? 400 : 0;
+      const H_PAD = vw < 768 ? 20 : 36;
+      const usableH = vh - CHESS_BAR - PAGE_Y_PAD - CLOCK_BAND;
+      const usableW = vw - PANEL - H_PAD;
+      setBoardPx(Math.max(200, Math.min(Math.floor(usableH), Math.floor(usableW))));
     }
     updateBoard();
     window.addEventListener("resize", updateBoard);
-    return () => window.removeEventListener("resize", updateBoard);
+    window.visualViewport?.addEventListener("resize", updateBoard);
+    return () => {
+      window.removeEventListener("resize", updateBoard);
+      window.visualViewport?.removeEventListener("resize", updateBoard);
+    };
   }, []);
 
   // Timers — unlimited = 0 means ∞
@@ -576,6 +627,9 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
   const lastTickRef = useRef(Date.now());
   const chessRef = useRef(chess);
   chessRef.current = chess;
+
+  const gameStateRef = useRef(gameState);
+  gameStateRef.current = gameState;
 
   const isWhite   = gameState.whiteUserId === userId;
   const isBlack   = gameState.blackUserId === userId;
@@ -622,10 +676,13 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
         filter: `room_code=eq.${gameState.roomCode}`,
       }, (payload) => {
         const row = payload.new as Record<string, unknown>;
+        const prevSnap = gameStateRef.current;
+        const nextPgn = String(row.pgn ?? prevSnap.pgn);
+
         setGameState((prev) => ({
           ...prev,
           fen:          String(row.fen ?? prev.fen),
-          pgn:          String(row.pgn ?? prev.pgn),
+          pgn:          nextPgn,
           turn:         (row.turn ?? prev.turn) as "w" | "b",
           status:       (row.status ?? prev.status) as ChessGame["status"],
           winner:       (row.winner ?? null) as ChessGame["winner"],
@@ -633,17 +690,39 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
           blackUserId:  row.black_user_id ? String(row.black_user_id) : prev.blackUserId,
           updatedAt:    String(row.updated_at ?? prev.updatedAt),
         }));
+
         if (typeof row.fen === "string") {
-          // Extract last move from PGN history
           const newChess = new Chess();
           try {
-            newChess.loadPgn(typeof row.pgn === "string" ? row.pgn : "");
-            const hist = newChess.history({ verbose: true });
+            newChess.loadPgn(nextPgn);
+          } catch {
+            /* noop */
+          }
+          const hist = newChess.history({ verbose: true }) as Move[];
+          const len = hist.length;
+          if (len < prevPgnMoveCountRef.current) {
+            prevPgnMoveCountRef.current = len;
+          } else if (len > prevPgnMoveCountRef.current) {
+            const last = hist[len - 1];
+            if (last) {
+              const oppMoved =
+                myColor == null
+                  ? true
+                  : myColor === "white"
+                    ? last.color === "b"
+                    : last.color === "w";
+              if (oppMoved) announceMove(last, newChess);
+            }
+            prevPgnMoveCountRef.current = len;
+          }
+          try {
             if (hist.length > 0) {
               const last = hist[hist.length - 1];
               setLastMove([last.from, last.to]);
             }
-          } catch { /* noop */ }
+          } catch {
+            /* noop */
+          }
           chessRef.current.load(row.fen as string);
           setFen(row.fen as string);
         }
@@ -653,7 +732,9 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
       })
       .on("broadcast", { event: "draw_decline" }, () => setDrawOffer(null))
       .on("broadcast", { event: "rematch_offer" }, ({ payload }) => {
-        if ((payload as { from: string }).from !== myColor) setRematch("received");
+        const from = (payload as { from: string }).from;
+        if (from === "accepted") return;
+        if (from !== myColor) setRematch("received");
       })
       .on("broadcast", { event: "hello" }, ({ payload }) => {
         const p = payload as { name: string; color: string };
@@ -664,7 +745,7 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
         channel.send({ type: "broadcast", event: "hello", payload: { name: userName, color: myColor ?? "spectator" } });
       });
     return () => { supabase.removeChannel(channel); };
-  }, [gameState.roomCode, myColor, userName]);
+  }, [gameState.roomCode, myColor, userName, announceMove]);
 
   // Track game start time when game becomes active
   useEffect(() => {
@@ -672,6 +753,18 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
       startTimeRef.current = Date.now();
     }
   }, [gameState.status]);
+
+  useEffect(() => {
+    if (!voiceError || voiceError === voiceErrRef.current) return;
+    voiceErrRef.current = voiceError;
+    if (voiceError === "no_url") toast.error("Voice chat is not configured on this site.");
+    else if (voiceError === "invalid_room") toast.error("This room cannot be used for voice.");
+    else toast.error("Could not start voice call.");
+  }, [voiceError]);
+
+  useEffect(() => {
+    if (!voiceError) voiceErrRef.current = null;
+  }, [voiceError]);
 
   // Helper: builds extra fields to persist when a game ends
   function endMeta(): { white_player: string; black_player: string; time_control: string; duration_seconds: number } {
@@ -706,6 +799,8 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
 
     const move = chess.move({ from: sourceSquare, to: targetSquare, promotion: "q" });
     if (!move) return false;
+
+    announceMove(move, chess);
 
     // Sound
     if (chess.isCheck())          playSound("check",   muted);
@@ -773,8 +868,10 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
     const newChess = new Chess();
     chess.load(newChess.fen());
     setFen(newChess.fen());
+    prevPgnMoveCountRef.current = 0;
     setWhiteMs(initMs); setBlackMs(initMs);
     setRematch(null); setDrawOffer(null);
+    startTimeRef.current = Date.now();
     await updateChessGame(gameState.roomCode, { fen: newChess.fen(), pgn: "", turn: "w", status: "active", winner: null })
       .catch(() => toast.error("Failed to reset"));
     supabase.channel(`chess:${gameState.roomCode}`).send({ type: "broadcast", event: "rematch_offer", payload: { from: "accepted" } });
@@ -793,14 +890,14 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
   const blackLabel = isBlack ? `${userName} (You)` : `${opponentLabel}`;
   const whiteLabel = isWhite ? `${userName} (You)` : `${opponentLabel}`;
 
-  const boardStyle: React.CSSProperties = boardPx
-    ? { width: boardPx, height: boardPx, flexShrink: 0 }
-    : { width: "min(calc(100vh - 180px), calc(100vw - 2rem))", flexShrink: 0 };
+  const boardColumnStyle: React.CSSProperties = boardPx
+    ? { width: boardPx, maxWidth: "100%", flexShrink: 0 }
+    : { width: "100%", maxWidth: "min(calc(100vw - 1.5rem), calc(100dvh - 10rem))", flexShrink: 0 };
 
   return (
-    <div className="flex flex-1 flex-col gap-4 overflow-hidden p-4 md:flex-row md:items-start md:justify-center md:gap-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3 sm:gap-4 sm:p-4 md:flex-row md:items-start md:justify-center md:gap-4">
       {/* ── Board column ─────────────────────────────────────────────────── */}
-      <div className="flex shrink-0 flex-col gap-1.5" style={boardStyle}>
+      <div className="flex min-h-0 shrink-0 flex-col gap-1.5" style={boardColumnStyle}>
         {/* Black clock + label */}
         <div className="flex h-9 items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -819,15 +916,14 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
           />
         </div>
 
-        {/* Board fills the remaining space in the column */}
-        <div className="flex-1">
-          <Chessboard
+        <div className="aspect-square w-full shrink-0">
+          <KenChessboard
+            className="h-full w-full"
             options={{
               position: fen,
               onPieceDrop: ({ sourceSquare, targetSquare }) => onDrop(sourceSquare, targetSquare ?? ""),
               boardOrientation: myColor ?? "white",
               allowDragging: isMyTurn && !isOver && !isWaiting,
-              boardStyle: { borderRadius: "12px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)" },
               squareStyles: lastMove ? {
                 [lastMove[0]]: { backgroundColor: "rgba(255, 213, 0, 0.4)" },
                 [lastMove[1]]: { backgroundColor: "rgba(255, 213, 0, 0.4)" },
@@ -853,12 +949,13 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
             low={whiteMs < 30000}
           />
         </div>
+        <ChessMoveAnnounceChip text={moveAnnounceChip} />
       </div>
 
       {/* ── Side panel ───────────────────────────────────────────────────── */}
       <div
         className="flex w-full flex-col gap-2.5 overflow-y-auto md:w-72 md:shrink-0"
-        style={{ maxHeight: boardPx ? boardPx + 72 : "calc(100vh - 108px)" }}
+        style={{ maxHeight: boardPx ? boardPx + 100 : "min(calc(100dvh - 7rem), 32rem)" }}
       >
 
         {/* Room code + copy link */}
@@ -899,10 +996,15 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
         {/* Rematch offer */}
         {rematch === "received" && (
           <div className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-            <p className="flex-1 text-sm text-zinc-700 dark:text-zinc-200">Opponent wants a rematch!</p>
+            <p className="flex-1 text-sm text-zinc-700 dark:text-zinc-200">Opponent wants to play again!</p>
             <button onClick={handleRematch} className="rounded-lg bg-emerald-600 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-700">Accept</button>
             <button onClick={() => setRematch(null)} className="rounded-lg border border-zinc-300 px-2 py-1 text-xs text-zinc-600 dark:border-zinc-600 dark:text-zinc-300">Decline</button>
           </div>
+        )}
+        {rematch === "sent" && isOver && (
+          <p className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-center text-xs text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-400">
+            Waiting for opponent to accept play again…
+          </p>
         )}
 
         {/* Action row — always visible */}
@@ -936,7 +1038,7 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
                   supabase.channel(`chess:${gameState.roomCode}`).send({ type: "broadcast", event: "rematch_offer", payload: { from: myColor } });
                 }}
                   className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
-                  <RefreshCw className="h-3.5 w-3.5" /> Rematch
+                  <RefreshCw className="h-3.5 w-3.5" /> Play again
                 </button>
                 {gameState.pgn && (
                   <button
@@ -953,14 +1055,43 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
         {/* Move history */}
         <MoveHistory pgn={gameState.pgn} />
 
-        {/* Chat — always open */}
-        {!isWaiting && <ChatPanel roomCode={gameState.roomCode} myColor={myColor} />}
+        {/* Chat — same room as chess; host can type while waiting for guest */}
+        {myColor ? <ChatPanel roomCode={gameState.roomCode} myColor={myColor} /> : null}
 
-        {/* Voice */}
-        <a href="/call" target="_blank" rel="noopener noreferrer"
-          className="flex items-center justify-center gap-2 rounded-xl border border-zinc-300 py-2 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800">
-          <Mic className="h-3.5 w-3.5" /> Voice Call
-        </a>
+        {/* Voice + in-call chat: LiveKit mini panel on this page (same room name as chess code) */}
+        <div className="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">Voice &amp; in-call chat</p>
+          {!livekitConfigured ? (
+            <p className="text-xs text-zinc-500">Voice is not enabled on this deployment.</p>
+          ) : voiceConnected ? (
+            <div className="space-y-2">
+              <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                Connected — use the floating window for mute, camera, text chat, and hang up.
+              </p>
+              <Link
+                href={`/call/${encodeURIComponent(voiceRoom)}`}
+                className="flex items-center justify-center gap-1.5 rounded-lg border border-zinc-200 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              >
+                <Mic className="h-3.5 w-3.5" /> Open full-screen call
+              </Link>
+            </div>
+          ) : (
+            <>
+              <button
+                type="button"
+                disabled={voiceConnecting}
+                onClick={() => requestJoin(voiceRoom)}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 py-2.5 text-xs font-semibold text-violet-800 hover:bg-violet-100 disabled:opacity-60 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-200 dark:hover:bg-violet-950/50"
+              >
+                {voiceConnecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mic className="h-3.5 w-3.5" />}
+                {voiceConnecting ? "Connecting…" : "Start voice & in-call chat"}
+              </button>
+              <p className="mt-2 text-[10px] leading-relaxed text-zinc-400">
+                Stays on this page. Both players join the same call using room code <span className="font-mono">{voiceRoom}</span>. After the mic check, a small panel appears — open chat from there.
+              </p>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -979,35 +1110,46 @@ function PuzzleLibrary({ onSolve }: { onSolve: (p: LibraryPuzzle) => void }) {
   const [theme, setTheme]             = useState("");
   const [puzzles, setPuzzles]         = useState<LibraryPuzzle[]>([]);
   const [loading, setLoading]         = useState(false);
+  const [loadError, setLoadError]     = useState<string | null>(null);
   const [offset, setOffset]           = useState(0);
   const [hasMore, setHasMore]         = useState(true);
   const abortRef = useRef<AbortController | null>(null);
+  const fetchEpochRef = useRef(0);
   const LIMIT = 20;
 
   const load = useCallback(async (lvl: PuzzleLevel, th: string, off: number, replace: boolean) => {
-    // Cancel any in-flight request for a previous tab/theme
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
+    const epoch = ++fetchEpochRef.current;
 
     setLoading(true);
-    if (replace) setPuzzles([]); // clear immediately so stale cards never show
+    setLoadError(null);
+    if (replace) setPuzzles([]);
     try {
-      const params = new URLSearchParams({ level: lvl, limit: String(LIMIT), offset: String(off), random: "true" });
+      const params = new URLSearchParams({ level: lvl, limit: String(LIMIT), offset: String(off) });
       if (th) params.set("theme", th);
       const res = await fetch(`/api/chess/puzzles/library?${params}`, { signal: ctrl.signal });
-      const data = await res.json() as { items: LibraryPuzzle[]; total: number };
-      // Only apply if this request wasn't aborted
-      if (!ctrl.signal.aborted) {
-        // Double-check: only render cards that truly match the requested level
-        const filtered = data.items.filter((p) => p.level === lvl);
-        setPuzzles((prev) => replace ? filtered : [...prev, ...filtered]);
-        setHasMore(filtered.length === LIMIT);
+      const data = await res.json() as { items: LibraryPuzzle[]; total: number; error?: string };
+      if (ctrl.signal.aborted || epoch !== fetchEpochRef.current) return;
+
+      if (!res.ok) {
+        setLoadError(data.error ?? "Could not load puzzles.");
+        setHasMore(false);
+        return;
       }
+
+      const filtered = data.items.filter((p) => p.level === lvl);
+      setPuzzles((prev) => (replace ? filtered : [...prev, ...filtered]));
+      setHasMore(filtered.length === LIMIT);
     } catch (e) {
-      if ((e as Error).name !== "AbortError") console.error(e);
+      if ((e as Error).name === "AbortError") return;
+      if (epoch === fetchEpochRef.current) {
+        setLoadError("Could not load puzzles. Check your connection and try again.");
+        setHasMore(false);
+      }
     } finally {
-      if (!ctrl.signal.aborted) setLoading(false);
+      if (!ctrl.signal.aborted && epoch === fetchEpochRef.current) setLoading(false);
     }
   }, []);
 
@@ -1018,9 +1160,11 @@ function PuzzleLibrary({ onSolve }: { onSolve: (p: LibraryPuzzle) => void }) {
   }, [activeLevel, theme, load]);
 
   function loadMore() {
-    const next = offset + LIMIT;
-    setOffset(next);
-    load(activeLevel, theme, next, false);
+    setOffset((prev) => {
+      const next = prev + LIMIT;
+      void load(activeLevel, theme, next, false);
+      return next;
+    });
   }
 
   const levelCounts: Record<PuzzleLevel, number> = { beginner: 500, intermediate: 500, hard: 500, expert: 500 };
@@ -1056,8 +1200,25 @@ function PuzzleLibrary({ onSolve }: { onSolve: (p: LibraryPuzzle) => void }) {
         ))}
       </div>
 
-      {/* Grid */}
-      <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {loadError && (
+        <div className="mx-4 flex flex-col items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-center dark:border-red-900/40 dark:bg-red-950/30">
+          <p className="text-sm font-medium text-red-800 dark:text-red-200">{loadError}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setOffset(0);
+              setHasMore(true);
+              load(activeLevel, theme, 0, true);
+            }}
+            className="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Grid — single column on narrow phones */}
+      <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {puzzles.map((p) => (
           <div key={p.id} className="flex flex-col gap-2 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
             <div className="flex items-start justify-between gap-2">
@@ -1082,9 +1243,20 @@ function PuzzleLibrary({ onSolve }: { onSolve: (p: LibraryPuzzle) => void }) {
             </button>
           </div>
         ))}
-        {loading && Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-32 animate-pulse rounded-2xl bg-zinc-100 dark:bg-zinc-800" />
-        ))}
+        {loading &&
+          puzzles.length === 0 &&
+          Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex h-36 flex-col gap-2 rounded-2xl border border-zinc-100 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/50">
+              <div className="h-5 w-24 animate-pulse rounded-full bg-zinc-200 dark:bg-zinc-700" />
+              <div className="h-3 w-16 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
+              <div className="mt-auto h-9 animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-700" />
+            </div>
+          ))}
+        {loading && puzzles.length > 0 && (
+          <div className="col-span-full flex justify-center py-2">
+            <Loader2 className="h-6 w-6 animate-spin text-zinc-400" aria-hidden />
+          </div>
+        )}
       </div>
 
       {/* Load more */}
@@ -1159,6 +1331,7 @@ function PuzzleSolve({ puzzle, onBack }: {
   const [explanation, setExplanation]     = useState("");
   const [loadingExpl, setLoadingExpl]     = useState(false);
   const [muted, setMuted]                 = useState(false);
+  const wrongExplGenRef = useRef(0);
   // TTS
   const [speaking, setSpeaking] = useState(false);
   const [paused, setPaused]     = useState(false);
@@ -1167,6 +1340,7 @@ function PuzzleSolve({ puzzle, onBack }: {
   const fenBeforeDropRef = useRef(puzzle.fen);
   const chessRef = useRef(chess);
   chessRef.current = chess;
+  const { chip: moveAnnounceChip, announce: announceMove } = useChessMoveAnnouncement();
 
   const fenTurn      = puzzle.fen.split(" ")[1] as "w" | "b";
   const playerColor  = (setupMove
@@ -1208,6 +1382,7 @@ function PuzzleSolve({ puzzle, onBack }: {
 
   // Fetch wrong-move explanation from AI (non-blocking)
   async function fetchWrongExplanation(currentFen: string, wrongMove: string) {
+    const requestId = ++wrongExplGenRef.current;
     setLoadingWrong(true);
     setWrongExpl("");
     try {
@@ -1223,9 +1398,10 @@ function PuzzleSolve({ puzzle, onBack }: {
         }),
       });
       const data = await res.json() as { explanation: string };
+      if (requestId !== wrongExplGenRef.current) return;
       setWrongExpl(data.explanation ?? "");
     } finally {
-      setLoadingWrong(false);
+      if (requestId === wrongExplGenRef.current) setLoadingWrong(false);
     }
   }
 
@@ -1295,6 +1471,8 @@ function PuzzleSolve({ puzzle, onBack }: {
     const move = chess.move({ from: sourceSquare, to: targetSquare, promotion: expectedUci[4] ?? "q" });
     if (!move) return false;
 
+    announceMove(move, chess);
+
     if (chess.isCheck()) playSound("check", muted);
     else if (move.flags.includes("c")) playSound("capture", muted);
     else playSound("move", muted);
@@ -1324,6 +1502,7 @@ function PuzzleSolve({ puzzle, onBack }: {
         const to   = opponentMove.slice(2, 4);
         const m    = chessRef.current.move({ from, to, promotion: opponentMove[4] ?? "q" });
         if (m) {
+          announceMove(m, chessRef.current);
           setFen(chessRef.current.fen());
           fenBeforeDropRef.current = chessRef.current.fen();
           setLastMove([from, to]);
@@ -1334,8 +1513,24 @@ function PuzzleSolve({ puzzle, onBack }: {
     return true;
   }
 
+  /** Wrong drops never apply to chess.js — sync FEN and clear feedback for another attempt. */
+  function handleTryAgain() {
+    wrongExplGenRef.current++;
+    setLoadingWrong(false);
+    setResult("idle");
+    setWrongSquares(null);
+    setWrongExpl("");
+    setShowHint(false);
+    setWrongCount(0);
+    const f = chessRef.current.fen();
+    setFen(f);
+    fenBeforeDropRef.current = f;
+  }
+
   function handleReset() {
     stopSpeech();
+    wrongExplGenRef.current++;
+    setLoadingWrong(false);
     chess.load(puzzle.fen);
     setFen(puzzle.fen);
     fenBeforeDropRef.current = puzzle.fen;
@@ -1396,26 +1591,30 @@ function PuzzleSolve({ puzzle, onBack }: {
   const progressPct        = result === "solved" ? 100 : Math.round((moveIdx / solMoves.length) * 100);
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-4 lg:flex-row lg:items-start lg:gap-6 lg:p-6">
-      {/* ── Board: 60% on desktop ─────────────────────────────────────────── */}
-      <div className="min-w-0 lg:flex-[3]">
+    <div className="flex min-w-0 flex-1 flex-col gap-4 p-4 lg:flex-row lg:items-start lg:gap-6 lg:p-6">
+      {/* ── Board: stacked on mobile, side panel on lg ─────────────────────── */}
+      <div className="min-w-0 w-full lg:flex-[3]">
         <div className="mx-auto w-full" style={{ maxWidth: "min(100%, calc(100vh - 10rem))" }}>
-          <Chessboard
+          <KenChessboard
             options={{
               position: fen,
               onPieceDrop: ({ sourceSquare, targetSquare }) => onDrop(sourceSquare, targetSquare ?? ""),
               boardOrientation: playerColor,
               allowDragging: result !== "solved",
-              boardStyle: { borderRadius: "12px", boxShadow: ringColor, transition: "box-shadow 0.2s" },
+              boardStyle: { boxShadow: ringColor, transition: "box-shadow 0.2s" },
               squareStyles,
               arrows: hintArrows,
             }}
           />
         </div>
+        <ChessMoveAnnounceChip text={moveAnnounceChip} />
       </div>
 
       {/* ── Info panel: 40% on desktop ────────────────────────────────────── */}
-      <div className="w-full space-y-3 lg:flex-[2] lg:overflow-y-auto" style={{ maxHeight: "calc(100vh - 8rem)" }}>
+      <div
+        className="min-w-0 w-full space-y-3 lg:flex-[2] lg:overflow-y-auto"
+        style={{ maxHeight: "min(calc(100dvh - 6rem), 42rem)" }}
+      >
         {/* Puzzle info */}
         <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
           <div className="flex items-start justify-between gap-2">
@@ -1557,17 +1756,34 @@ function PuzzleSolve({ puzzle, onBack }: {
         )}
 
         {/* Actions */}
-        <div className="flex gap-2">
-          <button onClick={handleReset}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-zinc-300 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800">
-            <RefreshCw className="h-3.5 w-3.5" /> Reset
-          </button>
-          {result === "solved" && (
-            <button onClick={() => { stopSpeech(); onBack(); }}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-amber-500 py-2 text-sm font-semibold text-white hover:bg-amber-600">
-              <Check className="h-3.5 w-3.5" /> Next puzzle
+        <div className="flex flex-col gap-2">
+          {result === "wrong" && (
+            <button
+              type="button"
+              onClick={handleTryAgain}
+              className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-zinc-900 py-2.5 text-sm font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+            >
+              <Undo2 className="h-3.5 w-3.5" /> Try again
             </button>
           )}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleReset}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-zinc-300 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              <RefreshCw className="h-3.5 w-3.5" /> Reset
+            </button>
+            {result === "solved" && (
+              <button
+                type="button"
+                onClick={() => { stopSpeech(); onBack(); }}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-amber-500 py-2 text-sm font-semibold text-white hover:bg-amber-600"
+              >
+                <Check className="h-3.5 w-3.5" /> Next puzzle
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

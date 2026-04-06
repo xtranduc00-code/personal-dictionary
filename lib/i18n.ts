@@ -910,6 +910,11 @@ export const translations = {
     profileAvatarInvalidType: "Use JPEG, PNG, or WebP.",
     profileAvatarTooLarge: "Image must be 2 MB or smaller.",
     profileAvatarSaveHint: "Saved when you use Upload photo or Remove photo.",
+    profileChessMoveAnnounce: "Chess move announcements",
+    profileSettingOn: "On",
+    profileSettingOff: "Off",
+    profileChessMoveAnnounceHint:
+      "Speak each move in English and show a short label under the board (puzzles, play with friend, endgame trainer).",
     profilePasswordSeparateHint:
       "Only your password is changed here. Use Profile in the account menu for your photo and account details.",
     driveMobileDisconnect: "Disconnect Drive",
@@ -2364,6 +2369,11 @@ export const translations = {
     profileAvatarInvalidType: "Chỉ dùng JPEG, PNG hoặc WebP.",
     profileAvatarTooLarge: "Ảnh tối đa 2 MB.",
     profileAvatarSaveHint: "Lưu khi bạn bấm Tải ảnh lên hoặc Xóa ảnh.",
+    profileChessMoveAnnounce: "Đọc nước đi cờ vua",
+    profileSettingOn: "Bật",
+    profileSettingOff: "Tắt",
+    profileChessMoveAnnounceHint:
+      "Đọc to mỗi nước bằng tiếng Anh và hiện nhãn ngắn dưới bàn cờ (câu đố, chơi với bạn, luyện tàn cuộc).",
     profilePasswordSeparateHint:
       "Chỉ đổi mật khẩu tại đây. Ảnh và thông tin tài khoản: mục Hồ sơ trong menu tài khoản.",
     driveMobileDisconnect: "Ngắt kết nối Drive",

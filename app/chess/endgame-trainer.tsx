@@ -1,19 +1,11 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import dynamic from "next/dynamic";
+import { ChessMoveAnnounceChip } from "@/components/chess-move-announce-chip";
+import { useChessMoveAnnouncement } from "@/hooks/use-chess-move-announcement";
+import { KenChessboard } from "@/components/chess/ken-chessboard";
 import { Chess } from "chess.js";
 import { ArrowLeft, CheckCircle2, ChevronRight, RefreshCw, Trophy } from "lucide-react";
-
-const Chessboard = dynamic(
-  () => import("react-chessboard").then((m) => m.Chessboard),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="aspect-square w-full animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-700" />
-    ),
-  },
-);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -361,6 +353,7 @@ function LessonBoard({
   const [moveCount, setMoveCount]             = useState(0);
   const [isOpponentTurn, setIsOpponentTurn]   = useState(false);
   const processingRef = useRef(false);
+  const { chip: moveAnnounceChip, announce: announceMove } = useChessMoveAnnouncement();
 
   const userSide = lesson.winningSide; // user always plays as the winning side
   const orientation = userSide === "w" ? "white" : "black";
@@ -414,6 +407,7 @@ function LessonBoard({
         promotion: best.uci[4] ?? "q",
       });
       if (!move) return;
+      announceMove(move, chess);
       setLastMoveSquares({
         [best.uci.slice(0, 2)]: { background: "rgba(100,100,255,0.25)" },
         [best.uci.slice(2, 4)]: { background: "rgba(100,100,255,0.25)" },
@@ -456,6 +450,7 @@ function LessonBoard({
 
     // Check for checkmate
     if (chess.isCheckmate()) {
+      announceMove(move, chess);
       setFen(newFen);
       setLastMoveSquares({
         [from]: { background: "rgba(100,200,100,0.4)" },
@@ -471,6 +466,7 @@ function LessonBoard({
     if (chess.isDraw()) {
       setFen(newFen);
       if (lesson.drawGoal) {
+        announceMove(move, chess);
         setFeedback({ result: "optimal", msg: "½ Draw! You held the position perfectly." });
         setFinished(true);
         onComplete(moveCount + 1);
@@ -486,6 +482,8 @@ function LessonBoard({
         return false;
       }
     }
+
+    announceMove(move, chess);
 
     // Show board immediately, then fetch tablebase async
     setFen(newFen);
@@ -577,7 +575,7 @@ function LessonBoard({
   };
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-4">
+    <div className="flex min-w-0 flex-1 flex-col gap-4 p-3 sm:p-4">
       {/* Back + title */}
       <div className="flex items-center justify-between">
         <button
@@ -611,7 +609,7 @@ function LessonBoard({
 
       {/* Board */}
       <div className="mx-auto w-full max-w-xs">
-        <Chessboard
+        <KenChessboard
           options={{
             position: fen,
             onPieceDrop: ({ sourceSquare, targetSquare }) => handleDrop(sourceSquare, targetSquare ?? ""),
@@ -620,6 +618,7 @@ function LessonBoard({
           }}
         />
       </div>
+      <ChessMoveAnnounceChip text={moveAnnounceChip} />
 
       {/* DTM + status bar */}
       <div className="flex items-center justify-between rounded-xl bg-zinc-50 px-4 py-2.5 dark:bg-zinc-800/50">
