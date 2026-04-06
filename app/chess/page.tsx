@@ -842,9 +842,14 @@ function PuzzleSolve({ puzzle, onBack }: {
   const [wrongCount, setWrongCount]       = useState(0);
   const [showHint, setShowHint]           = useState(false);
   const [lastMove, setLastMove]           = useState<[string, string] | null>(null);
+  const [wrongSquares, setWrongSquares]   = useState<[string, string] | null>(null);
+  const [wrongExpl, setWrongExpl]         = useState("");
+  const [loadingWrong, setLoadingWrong]   = useState(false);
   const [explanation, setExplanation]     = useState("");
   const [loadingExpl, setLoadingExpl]     = useState(false);
   const [muted, setMuted]                 = useState(false);
+  // FEN at the moment the player is about to move (before their drop)
+  const fenBeforeDropRef = useRef(puzzle.fen);
   const chessRef = useRef(chess);
   chessRef.current = chess;
 
@@ -871,6 +876,7 @@ function PuzzleSolve({ puzzle, onBack }: {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          mode:   "solve",
           fen:    puzzle.fen,
           moves:  isLibrary ? (puzzle as LibraryPuzzle).moves : solMoves,
           themes: isLibrary ? (puzzle as LibraryPuzzle).themes : [],
@@ -885,6 +891,29 @@ function PuzzleSolve({ puzzle, onBack }: {
     }
   }
 
+  // Fetch wrong-move explanation from AI (non-blocking)
+  async function fetchWrongExplanation(currentFen: string, wrongMove: string) {
+    setLoadingWrong(true);
+    setWrongExpl("");
+    try {
+      const res = await fetch("/api/chess/puzzles/explain", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode:       "wrong_move",
+          currentFen,
+          wrongMove,
+          themes:     isLibrary ? (puzzle as LibraryPuzzle).themes : [],
+          level:      puzzle.level,
+        }),
+      });
+      const data = await res.json() as { explanation: string };
+      setWrongExpl(data.explanation ?? "");
+    } finally {
+      setLoadingWrong(false);
+    }
+  }
+
   function onDrop(sourceSquare: string, targetSquare: string): boolean {
     if (result === "solved") return false;
     const expectedUci = solMoves[moveIdx];
@@ -896,7 +925,10 @@ function PuzzleSolve({ puzzle, onBack }: {
     if (!match) {
       setResult("wrong");
       setWrongCount((c) => c + 1);
-      setTimeout(() => setResult("idle"), 1200);
+      setWrongSquares([sourceSquare, targetSquare]);
+      // Capture current FEN before the wrong move for AI context
+      const fenNow = fenBeforeDropRef.current;
+      fetchWrongExplanation(fenNow, actualUci);
       return false;
     }
 
@@ -908,7 +940,10 @@ function PuzzleSolve({ puzzle, onBack }: {
     else playSound("move", muted);
 
     setFen(chess.fen());
+    fenBeforeDropRef.current = chess.fen();
     setLastMove([sourceSquare, targetSquare]);
+    setWrongSquares(null);
+    setWrongExpl("");
     setResult("idle");
 
     const nextIdx = moveIdx + 1;
@@ -930,6 +965,7 @@ function PuzzleSolve({ puzzle, onBack }: {
         const m    = chessRef.current.move({ from, to, promotion: opponentMove[4] ?? "q" });
         if (m) {
           setFen(chessRef.current.fen());
+          fenBeforeDropRef.current = chessRef.current.fen();
           setLastMove([from, to]);
           setMoveIdx(nextIdx + 1);
         }
@@ -941,35 +977,46 @@ function PuzzleSolve({ puzzle, onBack }: {
   function handleReset() {
     chess.load(puzzle.fen);
     setFen(puzzle.fen);
+    fenBeforeDropRef.current = puzzle.fen;
     setMoveIdx(0);
     setResult("idle");
     setWrongCount(0);
     setShowHint(false);
     setLastMove(null);
+    setWrongSquares(null);
+    setWrongExpl("");
     setExplanation("");
     if (setupMove) {
       setTimeout(() => {
         const m = chessRef.current.move({ from: setupMove.slice(0, 2), to: setupMove.slice(2, 4), promotion: setupMove[4] ?? "q" });
-        if (m) { setFen(chessRef.current.fen()); setLastMove([setupMove.slice(0, 2), setupMove.slice(2, 4)]); }
+        if (m) {
+          setFen(chessRef.current.fen());
+          fenBeforeDropRef.current = chessRef.current.fen();
+          setLastMove([setupMove.slice(0, 2), setupMove.slice(2, 4)]);
+        }
       }, 600);
     }
   }
 
-  // Squares to highlight (last move)
+  // Square highlights: yellow for last move, red for wrong move
   const squareStyles: Record<string, React.CSSProperties> = {};
-  if (lastMove) {
+  if (result !== "wrong" && lastMove) {
     squareStyles[lastMove[0]] = { backgroundColor: "rgba(255, 213, 0, 0.45)" };
     squareStyles[lastMove[1]] = { backgroundColor: "rgba(255, 213, 0, 0.45)" };
   }
+  if (result === "wrong" && wrongSquares) {
+    squareStyles[wrongSquares[0]] = { backgroundColor: "rgba(239, 68, 68, 0.5)" };
+    squareStyles[wrongSquares[1]] = { backgroundColor: "rgba(239, 68, 68, 0.5)" };
+  }
 
-  // Arrow hint after 2+ wrong attempts: show where the key piece should go
+  // Arrow hint after 2+ wrong attempts
   const hintArrows: { startSquare: string; endSquare: string; color: string }[] = [];
   const nextExpected = solMoves[moveIdx];
   if (wrongCount >= 2 && nextExpected && result !== "solved") {
     hintArrows.push({
       startSquare: nextExpected.slice(0, 2),
       endSquare:   nextExpected.slice(2, 4),
-      color:       "rgba(255, 170, 0, 0.8)",
+      color:       "rgba(255, 170, 0, 0.85)",
     });
   }
 
@@ -1048,15 +1095,26 @@ function PuzzleSolve({ puzzle, onBack }: {
             <span className="font-semibold">Brilliant! Puzzle solved.</span>
           </div>
         )}
-        {result === "wrong" && (
-          <div className="rounded-xl bg-red-50 p-3 text-red-700 dark:bg-red-950/30 dark:text-red-400">
-            <div className="flex items-center gap-1.5">
+        {(result === "wrong" || (wrongExpl && result === "idle")) && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/30">
+            <div className="flex items-center gap-1.5 text-red-700 dark:text-red-400">
               <X className="h-4 w-4 shrink-0" />
-              <span className="text-sm font-medium">That&apos;s not the best move here.</span>
+              <span className="text-sm font-semibold">Not the best move here.</span>
+            </div>
+            <div className="mt-2 text-sm leading-relaxed text-red-600 dark:text-red-400">
+              {loadingWrong ? (
+                <span className="flex items-center gap-1.5 text-xs text-red-400">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Analyzing your move…
+                </span>
+              ) : wrongExpl ? (
+                <p>{wrongExpl}</p>
+              ) : (
+                <p className="text-xs text-red-400">Try looking for a move that creates multiple threats at once.</p>
+              )}
             </div>
             {wrongCount >= 2 && (
-              <p className="mt-1 text-xs text-red-500 dark:text-red-500">
-                Hint: look at the arrow on the board.
+              <p className="mt-1.5 text-xs font-medium text-red-500">
+                Arrow on the board shows the right direction →
               </p>
             )}
           </div>
