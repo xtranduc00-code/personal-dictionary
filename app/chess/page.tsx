@@ -45,17 +45,22 @@ const LEVEL_LABELS: Record<PuzzleLevel, string> = {
   beginner: "Beginner", intermediate: "Intermediate", hard: "Hard", expert: "Expert",
 };
 
-const TIME_CONTROLS: TimeControl[] = [
-  { label: "Bullet 1+0",    mins: 1,  inc: 0 },
+const TIME_CONTROLS_POPULAR: TimeControl[] = [
+  { label: "Bullet 1+0",  mins: 1,  inc: 0 },
+  { label: "Blitz 3+2",   mins: 3,  inc: 2 },
+  { label: "Blitz 5+0",   mins: 5,  inc: 0 },
+  { label: "Rapid 10+0",  mins: 10, inc: 0 },
+  { label: "Unlimited",   mins: 0,  inc: 0 },
+];
+
+const TIME_CONTROLS_MORE: TimeControl[] = [
   { label: "Bullet 2+1",    mins: 2,  inc: 1 },
   { label: "Blitz 3+0",     mins: 3,  inc: 0 },
-  { label: "Blitz 3+2",     mins: 3,  inc: 2 },
-  { label: "Blitz 5+0",     mins: 5,  inc: 0 },
-  { label: "Rapid 10+0",    mins: 10, inc: 0 },
   { label: "Rapid 10+5",    mins: 10, inc: 5 },
   { label: "Classical 30+0",mins: 30, inc: 0 },
-  { label: "Unlimited",     mins: 0,  inc: 0 },
 ];
+
+const TIME_CONTROLS = [...TIME_CONTROLS_POPULAR, ...TIME_CONTROLS_MORE];
 
 // ─── Sound ────────────────────────────────────────────────────────────────────
 
@@ -83,22 +88,29 @@ function formatClock(ms: number): string {
 
 export default function ChessPage() {
   const { user } = useAuth();
-  const [mode, setMode]         = useState<Mode>("home");
-  const [game, setGame]         = useState<ChessGame | null>(null);
-  const [joinCode, setJoinCode] = useState("");
-  const [joining, setJoining]   = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [tc, setTc]             = useState<TimeControl>(TIME_CONTROLS[4]); // Blitz 5+0
+  const [mode, setMode]           = useState<Mode>("home");
+  const [game, setGame]           = useState<ChessGame | null>(null);
+  const [createdGame, setCreatedGame] = useState<ChessGame | null>(null); // waiting in lobby
+  const [joinCode, setJoinCode]   = useState("");
+  const [joining, setJoining]     = useState(false);
+  const [creating, setCreating]   = useState(false);
+  const [tc, setTc]               = useState<TimeControl>(TIME_CONTROLS_POPULAR[2]); // Blitz 5+0
+  const [color, setColor]         = useState<"white" | "black" | "random">("random");
   const [activePuzzle, setActivePuzzle] = useState<LibraryPuzzle | BuiltInPuzzle | null>(null);
 
   async function handleCreateGame() {
     setCreating(true);
     try {
       const g = await createChessGame();
-      setGame(g);
-      setMode("play-game");
+      setCreatedGame(g); // show code inline, don't navigate yet
     } catch { toast.error("Failed to create game"); }
     finally { setCreating(false); }
+  }
+
+  function handleEnterGame(g: ChessGame) {
+    setGame(g);
+    setCreatedGame(null);
+    setMode("play-game");
   }
 
   async function handleJoinGame() {
@@ -113,7 +125,7 @@ export default function ChessPage() {
     finally { setJoining(false); }
   }
 
-  function goHome() { setMode("home"); setGame(null); }
+  function goHome() { setMode("home"); setGame(null); setCreatedGame(null); }
 
   const headerTitle = {
     home:         "Chess",
@@ -141,7 +153,11 @@ export default function ChessPage() {
             joinCode={joinCode} setJoinCode={setJoinCode}
             creating={creating} joining={joining}
             tc={tc} setTc={setTc}
-            onCreate={handleCreateGame} onJoin={handleJoinGame}
+            color={color} setColor={setColor}
+            createdGame={createdGame}
+            onCreate={handleCreateGame}
+            onEnterGame={handleEnterGame}
+            onJoin={handleJoinGame}
           />
         )}
         {mode === "play-game" && game && user && (
@@ -188,20 +204,40 @@ function HomeView({ onPlay, onPuzzles }: { onPlay: () => void; onPuzzles: () => 
 
 // ─── Play Lobby ───────────────────────────────────────────────────────────────
 
-function PlayLobby({ joinCode, setJoinCode, creating, joining, tc, setTc, onCreate, onJoin }: {
+function PlayLobby({ joinCode, setJoinCode, creating, joining, tc, setTc, color, setColor, createdGame, onCreate, onEnterGame, onJoin }: {
   joinCode: string; setJoinCode: (v: string) => void;
   creating: boolean; joining: boolean;
   tc: TimeControl; setTc: (t: TimeControl) => void;
-  onCreate: () => void; onJoin: () => void;
+  color: "white" | "black" | "random"; setColor: (c: "white" | "black" | "random") => void;
+  createdGame: ChessGame | null;
+  onCreate: () => void;
+  onEnterGame: (g: ChessGame) => void;
+  onJoin: () => void;
 }) {
+  const [showMore, setShowMore] = useState(false);
+  const [copied, setCopied]     = useState(false);
+
+  function copyCode(code: string) {
+    navigator.clipboard.writeText(code).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+  }
+
+  const visibleTCs = showMore ? TIME_CONTROLS : TIME_CONTROLS_POPULAR;
+
+  const COLOR_OPTIONS: { value: "white" | "black" | "random"; label: string; icon: string }[] = [
+    { value: "white",  label: "White",  icon: "♔" },
+    { value: "random", label: "Random", icon: "🎲" },
+    { value: "black",  label: "Black",  icon: "♚" },
+  ];
+
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 p-6">
-      <div className="w-full max-w-xs space-y-4">
-        {/* Time control */}
+    <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
+      <div className="w-full max-w-xs space-y-3">
+
+        {/* ── Time control ─────────────────────────────────────────── */}
         <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">Time Control</p>
+          <p className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">Time Control</p>
           <div className="flex flex-wrap gap-1.5">
-            {TIME_CONTROLS.map((t) => (
+            {visibleTCs.map((t) => (
               <button key={t.label} onClick={() => setTc(t)}
                 className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
                   tc.label === t.label
@@ -210,28 +246,70 @@ function PlayLobby({ joinCode, setJoinCode, creating, joining, tc, setTc, onCrea
                 }`}
               >{t.label}</button>
             ))}
+            <button onClick={() => setShowMore((s) => !s)}
+              className="rounded-lg px-2.5 py-1 text-xs font-medium text-zinc-400 underline-offset-2 hover:text-zinc-600 dark:hover:text-zinc-300">
+              {showMore ? "Less" : "More…"}
+            </button>
           </div>
         </div>
 
-        {/* Create */}
-        <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-          <p className="mb-1 font-semibold text-zinc-800 dark:text-zinc-200">Create a new game</p>
-          <p className="mb-3 text-sm text-zinc-500">You play as White. Share the room code.</p>
-          <button onClick={onCreate} disabled={creating}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-          >
-            {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Swords className="h-4 w-4" />}
-            Create Room
-          </button>
-        </div>
+        {/* ── Create ───────────────────────────────────────────────── */}
+        {createdGame ? (
+          /* Room created — show code inline */
+          <div className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 p-4 dark:border-emerald-700 dark:bg-emerald-950/30">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Room created!</p>
+            <p className="mb-3 text-xs text-emerald-700 dark:text-emerald-500">Share this code with your friend, then enter when ready.</p>
+            <div className="mb-4 flex items-center justify-between rounded-xl bg-white px-4 py-3 dark:bg-zinc-900">
+              <span className="font-mono text-3xl font-bold tracking-[0.25em] text-zinc-900 dark:text-zinc-100">
+                {createdGame.roomCode}
+              </span>
+              <button onClick={() => copyCode(createdGame.roomCode)}
+                className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                {copied ? <><Check className="h-3.5 w-3.5 text-emerald-500" /> Copied!</> : <><Copy className="h-3.5 w-3.5" /> Copy</>}
+              </button>
+            </div>
+            <button onClick={() => onEnterGame(createdGame)}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 font-semibold text-white hover:bg-emerald-700">
+              <Swords className="h-4 w-4" /> Enter Game
+            </button>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+            <p className="mb-3 font-semibold text-zinc-800 dark:text-zinc-200">Create a new game</p>
 
-        {/* Join */}
+            {/* Color picker */}
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">Play as</p>
+            <div className="mb-4 grid grid-cols-3 gap-1.5">
+              {COLOR_OPTIONS.map(({ value, label, icon }) => (
+                <button key={value} onClick={() => setColor(value)}
+                  className={`flex flex-col items-center rounded-xl border py-2.5 text-xs font-medium transition ${
+                    color === value
+                      ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                      : "border-zinc-200 bg-zinc-50 text-zinc-600 hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400"
+                  }`}
+                >
+                  <span className="mb-0.5 text-lg">{icon}</span>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <button onClick={onCreate} disabled={creating}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+            >
+              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Swords className="h-4 w-4" />}
+              Create Room
+            </button>
+          </div>
+        )}
+
+        {/* ── Join ─────────────────────────────────────────────────── */}
         <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
           <p className="mb-3 font-semibold text-zinc-800 dark:text-zinc-200">Join a game</p>
           <input
             value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase().slice(0, 6))}
             onKeyDown={(e) => e.key === "Enter" && onJoin()}
-            placeholder="Room code (e.g. AB3X7Y)"
+            placeholder="Room code — e.g. AB3X7Y"
             className="mb-3 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 font-mono text-lg tracking-widest placeholder:font-sans placeholder:text-sm placeholder:tracking-normal dark:border-zinc-600 dark:bg-zinc-800 dark:text-white"
             maxLength={6}
           />
@@ -242,6 +320,7 @@ function PlayLobby({ joinCode, setJoinCode, creating, joining, tc, setTc, onCrea
             Join Room
           </button>
         </div>
+
       </div>
     </div>
   );
