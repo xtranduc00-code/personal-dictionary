@@ -6,9 +6,10 @@ import { Chess } from "chess.js";
 import { toast } from "react-toastify";
 import {
   ArrowLeft, BookOpen, Check, ChevronRight, Copy, Crown, Flag,
-  Lightbulb, Loader2, MessageSquare, Mic, MicOff, RefreshCw,
+  History, Lightbulb, Loader2, MessageSquare, Mic, MicOff, RefreshCw,
   Send, Swords, Trophy, Users, Volume2, VolumeX, X,
 } from "lucide-react";
+import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import { createChessGame, joinChessGame, updateChessGame, type ChessGame } from "@/lib/chess-storage";
@@ -100,7 +101,8 @@ export default function ChessPage() {
   const [tc, setTc]               = useState<TimeControl>(TIME_CONTROLS_POPULAR[2]); // Blitz 5+0
   const [color, setColor]         = useState<"white" | "black" | "random">("random");
   const [activePuzzle, setActivePuzzle] = useState<LibraryPuzzle | BuiltInPuzzle | null>(null);
-  const [reviewPgn, setReviewPgn] = useState("");
+  const [reviewPgn, setReviewPgn]         = useState("");
+  const [reviewGameId, setReviewGameId]   = useState<string | undefined>(undefined);
   const [reviewPlayers, setReviewPlayers] = useState<{ white: string; black: string }>({ white: "White", black: "Black" });
 
   async function handleCreateGame() {
@@ -132,8 +134,9 @@ export default function ChessPage() {
 
   function goHome() { setMode("home"); setGame(null); setCreatedGame(null); }
 
-  function handleReview(pgn: string, white: string, black: string) {
+  function handleReview(pgn: string, white: string, black: string, gameId?: string) {
     setReviewPgn(pgn);
+    setReviewGameId(gameId);
     setReviewPlayers({ white, black });
     setMode("game-review");
   }
@@ -185,12 +188,13 @@ export default function ChessPage() {
           <PlayGame
             initialGame={game} userId={user.id} userName={user.username}
             tc={tc} onBack={goHome}
-            onReview={(pgn, white, black) => handleReview(pgn, white, black)}
+            onReview={(pgn, white, black, gameId) => handleReview(pgn, white, black, gameId)}
           />
         )}
         {mode === "game-review" && reviewPgn && (
           <GameReview
             pgn={reviewPgn}
+            gameId={reviewGameId}
             whitePlayer={reviewPlayers.white}
             blackPlayer={reviewPlayers.black}
             onBack={() => setMode("play-game")}
@@ -223,29 +227,34 @@ function HomeView({
   onEndgames: () => void;
 }) {
   const cards = [
-    { label: "Play with Friend", sub: "Create or join a room", icon: Users, color: "emerald", action: onPlay },
-    { label: "Puzzles", sub: "2000+ Lichess puzzles · 4 levels", icon: BookOpen, color: "amber", action: onPuzzles },
-    { label: "Opening Trainer", sub: "Explore & practice openings with Lichess data", icon: Crown, color: "violet", action: onOpenings },
-    { label: "Endgame Trainer", sub: "K+Q, K+R, K+P, Lucena, Philidor", icon: Swords, color: "rose", action: onEndgames },
+    { label: "Play with Friend", sub: "Create or join a room", icon: Users, color: "emerald", action: onPlay, href: null },
+    { label: "Puzzles", sub: "2000+ Lichess puzzles · 4 levels", icon: BookOpen, color: "amber", action: onPuzzles, href: null },
+    { label: "Opening Trainer", sub: "Explore & practice openings with Lichess data", icon: Crown, color: "violet", action: onOpenings, href: null },
+    { label: "Endgame Trainer", sub: "K+Q, K+R, K+P, Lucena, Philidor", icon: Swords, color: "rose", action: onEndgames, href: null },
+    { label: "Game History", sub: "Review past games and track progress", icon: History, color: "sky", action: null, href: "/chess/history" },
   ] as const;
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
       <div className="grid w-full max-w-sm gap-4">
-        {cards.map(({ label, sub, icon: Icon, color, action }) => (
-          <button key={label} onClick={action}
-            className="group flex items-center gap-4 rounded-2xl border border-zinc-200 bg-white p-5 text-left shadow-sm transition hover:border-zinc-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-600"
-          >
-            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-${color}-100 dark:bg-${color}-900/30`}>
-              <Icon className={`h-6 w-6 text-${color}-600 dark:text-${color}-400`} />
-            </div>
-            <div className="flex-1">
-              <p className="font-semibold text-zinc-900 dark:text-zinc-100">{label}</p>
-              <p className="text-sm text-zinc-500">{sub}</p>
-            </div>
-            <ChevronRight className="h-4 w-4 text-zinc-400 transition group-hover:translate-x-0.5" />
-          </button>
-        ))}
+        {cards.map(({ label, sub, icon: Icon, color, action, href }) => {
+          const inner = (
+            <>
+              <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-${color}-100 dark:bg-${color}-900/30`}>
+                <Icon className={`h-6 w-6 text-${color}-600 dark:text-${color}-400`} />
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold text-zinc-900 dark:text-zinc-100">{label}</p>
+                <p className="text-sm text-zinc-500">{sub}</p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-zinc-400 transition group-hover:translate-x-0.5" />
+            </>
+          );
+          const cls = "group flex items-center gap-4 rounded-2xl border border-zinc-200 bg-white p-5 text-left shadow-sm transition hover:border-zinc-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-600";
+          return href
+            ? <Link key={label} href={href} className={cls}>{inner}</Link>
+            : <button key={label} onClick={action ?? undefined} className={cls}>{inner}</button>;
+        })}
       </div>
     </div>
   );
@@ -515,7 +524,7 @@ function MoveHistory({ pgn }: { pgn: string }) {
 function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
   initialGame: ChessGame; userId: string; userName: string; tc: TimeControl;
   onBack: () => void;
-  onReview: (pgn: string, white: string, black: string) => void;
+  onReview: (pgn: string, white: string, black: string, gameId: string) => void;
 }) {
   const [gameState, setGameState] = useState<ChessGame>(initialGame);
   const [chess]    = useState(() => new Chess(initialGame.fen));
@@ -528,6 +537,8 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
   const [drawOffer, setDrawOffer]   = useState<"sent" | "received" | null>(null);
   const [rematch, setRematch]       = useState<"sent" | "received" | null>(null);
   const [opponentName, setOpponentName] = useState<string | null>(null);
+
+  const startTimeRef = useRef<number | null>(null);
 
   // Timers — unlimited = 0 means ∞
   const initMs = tc.mins * 60 * 1000;
@@ -627,6 +638,27 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
     return () => { supabase.removeChannel(channel); };
   }, [gameState.roomCode, myColor, userName]);
 
+  // Track game start time when game becomes active
+  useEffect(() => {
+    if (gameState.status === "active" && startTimeRef.current === null) {
+      startTimeRef.current = Date.now();
+    }
+  }, [gameState.status]);
+
+  // Helper: builds extra fields to persist when a game ends
+  function endMeta(): { white_player: string; black_player: string; time_control: string; duration_seconds: number } {
+    const whiteName = isWhite ? userName : (opponentName ?? "Guest");
+    const blackName = isBlack ? userName : (opponentName ?? "Guest");
+    return {
+      white_player: whiteName,
+      black_player: blackName,
+      time_control: tc.label,
+      duration_seconds: startTimeRef.current
+        ? Math.floor((Date.now() - startTimeRef.current) / 1000)
+        : 0,
+    };
+  }
+
   // ── Status text ───────────────────────────────────────────────────────────
   useEffect(() => {
     if (isWaiting)               setStatus("Waiting for opponent…");
@@ -665,10 +697,12 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
 
     let newStatus: ChessGame["status"] = "active";
     let winner: ChessGame["winner"] = null;
+    const isTerminal = chess.isCheckmate() || chess.isDraw() || chess.isStalemate() || chess.isThreefoldRepetition();
     if (chess.isCheckmate())                                   { newStatus = "finished"; winner = myColor === "white" ? "white" : "black"; }
     else if (chess.isDraw() || chess.isStalemate() || chess.isThreefoldRepetition()) { newStatus = "draw"; winner = "draw"; }
 
-    updateChessGame(gameState.roomCode, { fen: newFen, pgn: chess.pgn(), turn: chess.turn(), status: newStatus, winner })
+    const extra = isTerminal ? endMeta() : {};
+    updateChessGame(gameState.roomCode, { fen: newFen, pgn: chess.pgn(), turn: chess.turn(), status: newStatus, winner, ...extra })
       .catch(() => { chess.undo(); setFen(chess.fen()); toast.error("Failed to sync move"); });
 
     return true;
@@ -676,13 +710,20 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
 
   async function handleResign() {
     if (!confirm("Resign this game?")) return;
-    await updateChessGame(gameState.roomCode, { status: "resigned", winner: myColor === "white" ? "black" : "white" })
-      .catch(() => toast.error("Failed to resign"));
+    await updateChessGame(gameState.roomCode, {
+      status: "resigned",
+      winner: myColor === "white" ? "black" : "white",
+      ...endMeta(),
+    }).catch(() => toast.error("Failed to resign"));
   }
 
   async function handleTimeout(side: "white" | "black") {
     if (timerRef.current) clearInterval(timerRef.current);
-    await updateChessGame(gameState.roomCode, { status: "timeout" as ChessGame["status"], winner: side === "white" ? "black" : "white" }).catch(() => {});
+    await updateChessGame(gameState.roomCode, {
+      status: "timeout" as ChessGame["status"],
+      winner: side === "white" ? "black" : "white",
+      ...endMeta(),
+    }).catch(() => {});
   }
 
   function offerDraw() {
@@ -692,7 +733,7 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
 
   function acceptDraw() {
     setDrawOffer(null);
-    updateChessGame(gameState.roomCode, { status: "draw", winner: "draw" });
+    updateChessGame(gameState.roomCode, { status: "draw", winner: "draw", ...endMeta() });
   }
 
   function declineDraw() {
@@ -861,7 +902,7 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
                 </button>
                 {gameState.pgn && (
                   <button
-                    onClick={() => onReview(gameState.pgn, whiteLabel.replace(" (You)", ""), blackLabel.replace(" (You)", ""))}
+                    onClick={() => onReview(gameState.pgn, whiteLabel.replace(" (You)", ""), blackLabel.replace(" (You)", ""), gameState.id)}
                     className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-zinc-300 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
                   >
                     <BookOpen className="h-3.5 w-3.5" /> Review Game

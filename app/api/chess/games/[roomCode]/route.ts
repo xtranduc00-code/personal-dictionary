@@ -28,7 +28,7 @@ export async function PATCH(req: Request, { params }: Params) {
   const { roomCode } = await params;
   const body = await req.json().catch(() => ({})) as Record<string, unknown>;
 
-  const allowed = ["fen", "pgn", "turn", "status", "winner"] as const;
+  const allowed = ["fen", "pgn", "turn", "status", "winner", "white_player", "black_player", "time_control", "duration_seconds"] as const;
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   for (const key of allowed) {
     if (key in body) patch[key] = body[key];

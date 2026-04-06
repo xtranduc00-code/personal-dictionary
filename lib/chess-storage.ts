@@ -11,8 +11,20 @@ export type ChessGame = {
   status: "waiting" | "active" | "finished" | "resigned" | "draw" | "timeout";
   turn: "w" | "b";
   winner: "white" | "black" | "draw" | null;
+  // Extended history fields (populated when a game ends)
+  whitePlayer: string | null;
+  blackPlayer: string | null;
+  whiteAccuracy: number | null;
+  blackAccuracy: number | null;
+  timeControl: string | null;
+  durationSeconds: number | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type GameHistoryItem = ChessGame & {
+  myColor: "white" | "black" | null;
+  result: "win" | "loss" | "draw" | null;
 };
 
 export type ChessPuzzle = {
@@ -46,6 +58,12 @@ function gameFromRow(r: Record<string, unknown>): ChessGame {
     status: r.status as ChessGame["status"],
     turn: r.turn as "w" | "b",
     winner: (r.winner ?? null) as ChessGame["winner"],
+    whitePlayer: r.white_player ? String(r.white_player) : null,
+    blackPlayer: r.black_player ? String(r.black_player) : null,
+    whiteAccuracy: r.white_accuracy != null ? Number(r.white_accuracy) : null,
+    blackAccuracy: r.black_accuracy != null ? Number(r.black_accuracy) : null,
+    timeControl: r.time_control ? String(r.time_control) : null,
+    durationSeconds: r.duration_seconds != null ? Number(r.duration_seconds) : null,
     createdAt: String(r.created_at),
     updatedAt: String(r.updated_at),
   };
@@ -90,7 +108,17 @@ export async function joinChessGame(roomCode: string): Promise<ChessGame> {
 
 export async function updateChessGame(
   roomCode: string,
-  patch: { fen?: string; pgn?: string; turn?: "w" | "b"; status?: ChessGame["status"]; winner?: ChessGame["winner"] },
+  patch: {
+    fen?: string;
+    pgn?: string;
+    turn?: "w" | "b";
+    status?: ChessGame["status"];
+    winner?: ChessGame["winner"];
+    white_player?: string;
+    black_player?: string;
+    time_control?: string;
+    duration_seconds?: number;
+  },
 ): Promise<ChessGame> {
   const res = await authFetch(`${BASE}/games/${encodeURIComponent(roomCode)}`, {
     method: "PATCH",
@@ -159,4 +187,40 @@ export async function deleteChessPuzzle(id: string): Promise<void> {
 
 export async function markPuzzleSolved(id: string): Promise<void> {
   await authFetch(`${BASE}/puzzles/${id}/solved`, { method: "POST" });
+}
+
+// ─── History ──────────────────────────────────────────────────────────────────
+
+export type HistoryFilters = {
+  result?: "win" | "loss" | "draw" | "all";
+  timeControl?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+  offset?: number;
+};
+
+export async function getGameHistory(filters: HistoryFilters = {}): Promise<{ items: GameHistoryItem[]; total: number }> {
+  const params = new URLSearchParams();
+  if (filters.result && filters.result !== "all") params.set("result", filters.result);
+  if (filters.timeControl) params.set("time_control", filters.timeControl);
+  if (filters.from) params.set("from", filters.from);
+  if (filters.to) params.set("to", filters.to);
+  if (filters.limit) params.set("limit", String(filters.limit));
+  if (filters.offset) params.set("offset", String(filters.offset));
+
+  const res = await authFetch(`${BASE}/history?${params}`);
+  return getJson<{ items: GameHistoryItem[]; total: number }>(res);
+}
+
+export async function updateGameAccuracy(
+  gameId: string,
+  whiteAccuracy: number,
+  blackAccuracy: number,
+): Promise<void> {
+  await authFetch(`${BASE}/games/accuracy/${gameId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ white_accuracy: whiteAccuracy, black_accuracy: blackAccuracy }),
+  });
 }

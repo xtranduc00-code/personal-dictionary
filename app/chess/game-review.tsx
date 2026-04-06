@@ -7,6 +7,7 @@ import {
   ArrowLeft, ArrowRight, ChevronLeft, ChevronRight,
   Loader2, SkipBack, SkipForward,
 } from "lucide-react";
+import { updateGameAccuracy } from "@/lib/chess-storage";
 
 const Chessboard = dynamic(
   () => import("react-chessboard").then((m) => m.Chessboard),
@@ -159,8 +160,9 @@ function EvalBar({ cp }: { cp: number }) {
 
 // ─── GameReview Component ─────────────────────────────────────────────────────
 
-export function GameReview({ pgn, whitePlayer, blackPlayer, onBack }: {
+export function GameReview({ pgn, gameId, whitePlayer, blackPlayer, onBack }: {
   pgn: string;
+  gameId?: string;
   whitePlayer?: string;
   blackPlayer?: string;
   onBack: () => void;
@@ -229,7 +231,16 @@ export function GameReview({ pgn, whitePlayer, blackPlayer, onBack }: {
 
     setAnalyzing(false);
     setAnalysisDone(true);
-  }, [analyzing, analysisDone, moves, fens, init, analyze]);
+
+    // Persist accuracy to DB if we have a game ID
+    if (gameId && results.length > 0) {
+      const wMoves = results.filter((m) => m.color === "w");
+      const bMoves = results.filter((m) => m.color === "b");
+      const wAcc = calcAccuracy(wMoves);
+      const bAcc = calcAccuracy(bMoves);
+      updateGameAccuracy(gameId, wAcc, bAcc).catch(() => {});
+    }
+  }, [analyzing, analysisDone, moves, fens, init, analyze, gameId]);
 
   useEffect(() => {
     return () => { abortRef.current = true; terminate(); };
