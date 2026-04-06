@@ -6,7 +6,7 @@ import { Chess } from "chess.js";
 import { toast } from "react-toastify";
 import {
   ArrowLeft, BookOpen, Check, ChevronRight, Copy, Crown, Flag,
-  History, Lightbulb, Loader2, MessageSquare, Mic, MicOff, RefreshCw,
+  History, LibraryBig, Lightbulb, Loader2, MessageSquare, Mic, MicOff, RefreshCw,
   Send, Swords, Trophy, Users, Volume2, VolumeX, X, Zap,
 } from "lucide-react";
 import Link from "next/link";
@@ -238,6 +238,7 @@ function HomeView({
     { label: "Puzzle Rush", sub: "3 lives · solve as many as you can!", icon: Zap, color: "orange", action: onRush, href: null },
     { label: "Opening Trainer", sub: "Explore & practice openings with Lichess data", icon: Crown, color: "violet", action: onOpenings, href: null },
     { label: "Endgame Trainer", sub: "K+Q, K+R, K+P, Lucena, Philidor", icon: Swords, color: "rose", action: onEndgames, href: null },
+    { label: "Opening Repertoire", sub: "Build & drill your personal opening lines", icon: LibraryBig, color: "teal", action: null, href: "/chess/repertoire" },
     { label: "Game History", sub: "Review past games and track progress", icon: History, color: "sky", action: null, href: "/chess/history" },
   ] as const;
 

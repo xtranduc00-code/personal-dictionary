@@ -4,10 +4,11 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { Chess } from "chess.js";
 import {
-  ArrowLeft, ArrowRight, ChevronLeft, ChevronRight,
-  Loader2, Sparkles, SkipBack, SkipForward,
+  ArrowLeft, ArrowRight, BookOpen, ChevronLeft, ChevronRight,
+  Loader2, Sparkles, SkipBack, SkipForward, X,
 } from "lucide-react";
 import { updateGameAccuracy } from "@/lib/chess-storage";
+import { useAuth, authFetch } from "@/lib/auth-context";
 
 const Chessboard = dynamic(
   () => import("react-chessboard").then((m) => m.Chessboard),
@@ -186,6 +187,16 @@ export function GameReview({ pgn, gameId, whitePlayer, blackPlayer, onBack }: {
   const [gameSummary, setGameSummary]       = useState<GameSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
 
+  // ── Save to repertoire state ──────────────────────────────────────────────
+  const { user } = useAuth();
+  const [showSavePanel, setShowSavePanel] = useState(false);
+  const [saveName, setSaveName]       = useState("");
+  const [saveColor, setSaveColor]     = useState<"white" | "black">("white");
+  const [saveMoveCount, setSaveMoveCount] = useState(10);
+  const [saveNotes, setSaveNotes]     = useState("");
+  const [savingLine, setSavingLine]   = useState(false);
+  const [savedOk, setSavedOk]         = useState(false);
+
   const { init, analyze, terminate } = useStockfish();
   const abortRef = useRef(false);
 
@@ -320,6 +331,27 @@ export function GameReview({ pgn, gameId, whitePlayer, blackPlayer, onBack }: {
     finally { setSummaryLoading(false); }
   }
 
+  // ── Save opening line to repertoire ──────────────────────────────────────
+  async function saveOpeningLine() {
+    if (!saveName.trim() || !user) return;
+    setSavingLine(true);
+    const chess = new Chess();
+    const sliced = moves.slice(0, saveMoveCount);
+    const uciMoves: string[] = [];
+    for (const mv of sliced) {
+      chess.move({ from: mv.uci.slice(0, 2) as never, to: mv.uci.slice(2, 4) as never, promotion: mv.uci[4] ?? "q" });
+      uciMoves.push(mv.uci.slice(0, 4));
+    }
+    await authFetch("/api/chess/repertoire", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: saveName.trim(), color: saveColor, moves: uciMoves, pgn: chess.pgn(), notes: saveNotes }),
+    }).catch(() => {});
+    setSavingLine(false);
+    setSavedOk(true);
+    setTimeout(() => { setSavedOk(false); setShowSavePanel(false); }, 1500);
+  }
+
   // ── Current display ───────────────────────────────────────────────────────
   const fen = fens[cursor] ?? new Chess().fen();
   const currentMove = cursor > 0 ? analyzed[cursor - 1] : null;
@@ -351,6 +383,21 @@ export function GameReview({ pgn, gameId, whitePlayer, blackPlayer, onBack }: {
           <ArrowLeft className="h-4 w-4" />
         </button>
         <span className="text-lg font-bold text-zinc-900 dark:text-zinc-100">Game Review</span>
+        {moves.length > 0 && user && (
+          <button
+            onClick={() => {
+              setSaveName("");
+              setSaveColor("white");
+              setSaveMoveCount(Math.min(10, moves.length));
+              setSaveNotes("");
+              setSavedOk(false);
+              setShowSavePanel((v) => !v);
+            }}
+            className="flex items-center gap-1 rounded-lg border border-zinc-200 px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            <BookOpen className="h-3.5 w-3.5" /> Save Opening
+          </button>
+        )}
         {!analysisDone && !analyzing && (
           <button onClick={runAnalysis}
             className="ml-auto flex items-center gap-1.5 rounded-xl bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900">
@@ -369,6 +416,56 @@ export function GameReview({ pgn, gameId, whitePlayer, blackPlayer, onBack }: {
           </span>
         )}
       </div>
+
+      {/* Save Opening Panel */}
+      {showSavePanel && (
+        <div className="border-b border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100">Save Opening to Repertoire</p>
+            <button onClick={() => setShowSavePanel(false)} className="text-zinc-400 hover:text-zinc-600"><X className="h-4 w-4" /></button>
+          </div>
+          <div className="space-y-3">
+            <input
+              value={saveName}
+              onChange={(e) => setSaveName(e.target.value)}
+              placeholder="Line name (e.g. Italian Game – Giuoco Piano)"
+              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500"
+            />
+            <div className="flex items-center gap-3">
+              <div className="flex overflow-hidden rounded-xl border border-zinc-200 text-xs dark:border-zinc-700">
+                {(["white", "black"] as const).map((c) => (
+                  <button key={c} onClick={() => setSaveColor(c)}
+                    className={`px-3 py-1.5 transition ${saveColor === c ? "bg-zinc-900 font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900" : "bg-white text-zinc-500 dark:bg-zinc-900"}`}>
+                    {c === "white" ? "♔ White" : "♚ Black"}
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-1 items-center gap-2">
+                <span className="text-xs text-zinc-500 shrink-0">First {saveMoveCount} plies</span>
+                <input
+                  type="range" min={2} max={Math.min(moves.length, 30)} value={saveMoveCount}
+                  onChange={(e) => setSaveMoveCount(Number(e.target.value))}
+                  className="flex-1 accent-violet-500"
+                />
+              </div>
+            </div>
+            <textarea
+              value={saveNotes}
+              onChange={(e) => setSaveNotes(e.target.value)}
+              placeholder="Notes (optional)…"
+              rows={2}
+              className="w-full rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm placeholder-amber-400 text-amber-900 dark:border-amber-800 dark:bg-amber-900/10 dark:text-amber-200 focus:outline-none"
+            />
+            <button
+              onClick={saveOpeningLine}
+              disabled={!saveName.trim() || savingLine || savedOk}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-900 py-2.5 text-sm font-semibold text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+            >
+              {savingLine ? <Loader2 className="h-4 w-4 animate-spin" /> : savedOk ? "✓ Saved!" : <><BookOpen className="h-4 w-4" /> Save to Repertoire</>}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Analysis progress bar */}
       {analyzing && (
