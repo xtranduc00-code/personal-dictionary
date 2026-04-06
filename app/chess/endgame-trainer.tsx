@@ -47,14 +47,16 @@ type Lesson = {
   id: string;
   title: string;
   icon: string;
-  difficulty: "Beginner" | "Intermediate" | "Advanced";
+  difficulty: "Beginner" | "Intermediate" | "Advanced" | "Expert";
   concept: string;
   fen: string;
   goal: string;
   winningSide: "w" | "b";
+  drawGoal?: boolean;
 };
 
 const LESSONS: Lesson[] = [
+  // ── Beginner ────────────────────────────────────────────────────────────────
   {
     id: "kqk",
     title: "Queen & King vs King",
@@ -75,6 +77,7 @@ const LESSONS: Lesson[] = [
     goal: "Checkmate the lone king",
     winningSide: "w",
   },
+  // ── Intermediate ────────────────────────────────────────────────────────────
   {
     id: "kpk",
     title: "King & Pawn vs King (Win)",
@@ -94,7 +97,50 @@ const LESSONS: Lesson[] = [
     fen: "8/8/4k3/8/8/4K3/4P3/8 b - - 0 1",
     goal: "Hold the draw as Black",
     winningSide: "b",
+    drawGoal: true,
   },
+  {
+    id: "kbbk",
+    title: "Two Bishops vs King",
+    icon: "♗",
+    difficulty: "Intermediate",
+    concept: "Use both bishops and the king together to drive the lone king to the edge, then corner it for checkmate.",
+    fen: "8/8/3k4/8/8/8/3BB3/4K3 w - - 0 1",
+    goal: "Checkmate the lone king with the bishop pair",
+    winningSide: "w",
+  },
+  {
+    id: "zugzwang",
+    title: "Zugzwang & Key Squares",
+    icon: "♙",
+    difficulty: "Intermediate",
+    concept: "The key squares for a d-pawn are c6, d6 and e6. Get your king to a key square and the pawn promotes — it's zugzwang!",
+    fen: "8/8/8/4k3/3P4/3K4/8/8 w - - 0 1",
+    goal: "Advance the pawn by reaching its key squares",
+    winningSide: "w",
+  },
+  {
+    id: "passed_pawn",
+    title: "Passed Pawn Endgame",
+    icon: "♟",
+    difficulty: "Intermediate",
+    concept: "Escort the passed pawn to promotion. The king leads the charge — use it aggressively to clear the path.",
+    fen: "8/8/3k4/8/8/3P4/3K4/8 w - - 0 1",
+    goal: "Promote the passed pawn",
+    winningSide: "w",
+  },
+  {
+    id: "philidor2",
+    title: "Philidor Defense (R+P vs R)",
+    icon: "♜",
+    difficulty: "Intermediate",
+    concept: "When the pawn reaches the 6th rank, move your rook to the 8th rank, then harass from behind. The passive defense fails!",
+    fen: "4k3/8/4P3/4K3/8/8/8/R6r b - - 0 1",
+    goal: "Hold the draw as Black — use the Philidor technique",
+    winningSide: "b",
+    drawGoal: true,
+  },
+  // ── Advanced ─────────────────────────────────────────────────────────────────
   {
     id: "lucena",
     title: "Lucena Position",
@@ -107,20 +153,74 @@ const LESSONS: Lesson[] = [
   },
   {
     id: "philidor",
-    title: "Philidor Position",
+    title: "Philidor Position (R vs R)",
     icon: "♜",
     difficulty: "Advanced",
     concept: "Hold the draw by keeping your rook on the 6th rank until the king advances.",
     fen: "8/8/3r4/3k4/8/8/3KR3/8 b - - 0 1",
     goal: "Draw — stop the opposing king from advancing",
     winningSide: "b",
+    drawGoal: true,
+  },
+  {
+    id: "ocb",
+    title: "Opposite Colored Bishops",
+    icon: "♗",
+    difficulty: "Advanced",
+    concept: "A bishop on the wrong color can't control the pawn's promotion square. Get your king to the corner for stalemate!",
+    fen: "8/Pk6/8/K7/8/8/1B6/8 b - - 0 1",
+    goal: "Hold the draw — reach the a8 corner to force stalemate",
+    winningSide: "b",
+    drawGoal: true,
+  },
+  {
+    id: "rook_7th",
+    title: "Rook on the 7th Rank",
+    icon: "♖",
+    difficulty: "Advanced",
+    concept: "A rook on the 7th rank cuts off the enemy king and creates decisive threats. Combined with a passer it becomes unstoppable.",
+    fen: "r5k1/1R4P1/8/8/8/8/8/6K1 w - - 0 1",
+    goal: "Win using the dominant rook on the 7th rank",
+    winningSide: "w",
+  },
+  {
+    id: "qvr",
+    title: "Queen vs Rook",
+    icon: "♛",
+    difficulty: "Advanced",
+    concept: "The queen defeats the rook — use skewers and forks to win the rook cleanly. Avoid perpetual checks and stalemate traps.",
+    fen: "8/8/8/4k3/8/8/3r4/4KQ2 w - - 0 1",
+    goal: "Win the rook with precise queen technique",
+    winningSide: "w",
+  },
+  {
+    id: "active_king",
+    title: "Active King in Rook Endgame",
+    icon: "♔",
+    difficulty: "Advanced",
+    concept: "An active king is your most powerful piece in the endgame. Use it aggressively to support the pawn and dominate the position.",
+    fen: "8/8/3k4/3r4/3P4/3K4/8/8 w - - 0 1",
+    goal: "Use the active king to escort the pawn to promotion",
+    winningSide: "w",
+  },
+  // ── Expert ───────────────────────────────────────────────────────────────────
+  {
+    id: "bnk",
+    title: "Bishop & Knight vs King",
+    icon: "♞",
+    difficulty: "Expert",
+    concept: "The hardest basic checkmate. Drive the king to a corner that matches your bishop's color, using the W-maneuver with the knight.",
+    fen: "8/8/8/4k3/8/8/8/3KNB2 w - - 0 1",
+    goal: "Force checkmate — drive the king to the correct corner",
+    winningSide: "w",
   },
 ];
 
 const DIFFICULTY_COLORS = {
-  Beginner: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+  Beginner:     "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
   Intermediate: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-  Advanced: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+  Advanced:     "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+  Expert:       "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
 };
 
 const STORAGE_KEY = "endgame_progress";
@@ -185,42 +285,54 @@ export function EndgameTrainer() {
         <Trophy className={`h-7 w-7 ${completed === LESSONS.length ? "text-amber-500" : "text-zinc-300 dark:text-zinc-600"}`} />
       </div>
 
-      {/* Lesson list */}
-      <div className="space-y-3">
-        {LESSONS.map((lesson) => {
-          const prog = progress[lesson.id];
-          return (
-            <button
-              key={lesson.id}
-              onClick={() => setSelected(lesson)}
-              className="group flex w-full items-center gap-4 rounded-2xl border border-zinc-200 bg-white p-4 text-left transition hover:border-zinc-300 hover:shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
-            >
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-2xl dark:bg-zinc-800">
-                {prog?.completed ? (
-                  <CheckCircle2 className="h-6 w-6 text-emerald-500" />
-                ) : (
-                  lesson.icon
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-semibold text-zinc-900 dark:text-zinc-100">{lesson.title}</p>
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${DIFFICULTY_COLORS[lesson.difficulty]}`}>
-                    {lesson.difficulty}
-                  </span>
-                </div>
-                <p className="mt-0.5 text-xs text-zinc-500 line-clamp-1">{lesson.concept}</p>
-                {prog?.bestMoves && (
-                  <p className="mt-0.5 text-[10px] text-emerald-600 dark:text-emerald-400">
-                    Best: {prog.bestMoves} moves
-                  </p>
-                )}
-              </div>
-              <ChevronRight className="h-4 w-4 shrink-0 text-zinc-400 transition group-hover:translate-x-0.5" />
-            </button>
-          );
-        })}
-      </div>
+      {/* Lesson list — grouped by difficulty */}
+      {(["Beginner", "Intermediate", "Advanced", "Expert"] as const).map((diff) => {
+        const group = LESSONS.filter((l) => l.difficulty === diff);
+        if (group.length === 0) return null;
+        return (
+          <div key={diff} className="space-y-2">
+            <p className="px-1 text-xs font-semibold uppercase tracking-wider text-zinc-400">{diff}</p>
+            {group.map((lesson) => {
+              const prog = progress[lesson.id];
+              return (
+                <button
+                  key={lesson.id}
+                  onClick={() => setSelected(lesson)}
+                  className="group flex w-full items-center gap-4 rounded-2xl border border-zinc-200 bg-white p-4 text-left transition hover:border-zinc-300 hover:shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
+                >
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-2xl dark:bg-zinc-800">
+                    {prog?.completed ? (
+                      <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+                    ) : (
+                      lesson.icon
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold text-zinc-900 dark:text-zinc-100">{lesson.title}</p>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${DIFFICULTY_COLORS[lesson.difficulty]}`}>
+                        {lesson.difficulty}
+                      </span>
+                      {lesson.drawGoal && (
+                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                          Draw
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-xs text-zinc-500 line-clamp-1">{lesson.concept}</p>
+                    {prog?.bestMoves ? (
+                      <p className="mt-0.5 text-[10px] text-emerald-600 dark:text-emerald-400">
+                        Best: {prog.bestMoves} moves
+                      </p>
+                    ) : null}
+                  </div>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-zinc-400 transition group-hover:translate-x-0.5" />
+                </button>
+              );
+            })}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -309,6 +421,15 @@ function LessonBoard({
       const newFen = chess.fen();
       setFen(newFen);
       setHistory((h) => [...h, move.san]);
+
+      // If the opponent triggers a draw in a draw-goal lesson, that counts as success
+      if (chess.isDraw() && lesson.drawGoal) {
+        setFeedback({ result: "optimal", msg: "½ Draw! You held the position perfectly." });
+        setFinished(true);
+        setIsOpponentTurn(false);
+        return;
+      }
+
       setIsOpponentTurn(false);
       fetchTablebase(newFen).then((d) => {
         if (d?.dtm != null) setDtmCurrent(Math.abs(d.dtm));
@@ -349,7 +470,7 @@ function LessonBoard({
     // Check for draw
     if (chess.isDraw()) {
       setFen(newFen);
-      if (lesson.id === "kpk_draw" || lesson.id === "philidor") {
+      if (lesson.drawGoal) {
         setFeedback({ result: "optimal", msg: "½ Draw! You held the position perfectly." });
         setFinished(true);
         onComplete(moveCount + 1);

@@ -237,7 +237,7 @@ function HomeView({
     { label: "Puzzles", sub: "2000+ Lichess puzzles · 4 levels", icon: BookOpen, color: "amber", action: onPuzzles, href: null },
     { label: "Puzzle Rush", sub: "3 lives · solve as many as you can!", icon: Zap, color: "orange", action: onRush, href: null },
     { label: "Opening Trainer", sub: "Explore & practice openings with Lichess data", icon: Crown, color: "violet", action: onOpenings, href: null },
-    { label: "Endgame Trainer", sub: "K+Q, K+R, K+P, Lucena, Philidor", icon: Swords, color: "rose", action: onEndgames, href: null },
+    { label: "Endgame Trainer", sub: "15 lessons · Beginner to Expert · tablebase-validated", icon: Swords, color: "rose", action: onEndgames, href: null },
     { label: "Opening Repertoire", sub: "Build & drill your personal opening lines", icon: LibraryBig, color: "teal", action: null, href: "/chess/repertoire" },
     { label: "Game History", sub: "Review past games and track progress", icon: History, color: "sky", action: null, href: "/chess/history" },
   ] as const;
