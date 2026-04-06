@@ -477,6 +477,7 @@ export const translations = {
     meetsEndCall: "End call",
     watchTogetherNav: "Watch together",
     youtubeVideosNav: "Videos",
+    chessNav: "Chess",
     watchHubBadge: "Synced playback",
     watchHubTitle: "Watch video in sync",
     watchHubSubtitle:
@@ -1932,6 +1933,7 @@ export const translations = {
     meetsEndCall: "Kết thúc",
     watchTogetherNav: "Xem cùng nhau",
     youtubeVideosNav: "Video",
+    chessNav: "Cờ vua",
     watchHubBadge: "Xem đồng bộ",
     watchHubTitle: "Xem video đồng bộ",
     watchHubSubtitle:

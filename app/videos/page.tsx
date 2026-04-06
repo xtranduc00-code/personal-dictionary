@@ -790,7 +790,7 @@ export default function VideosPage() {
                         <div className="flex-1 min-w-0">
                           <p title={v.title} className="text-xs font-medium text-zinc-800 dark:text-zinc-200 line-clamp-2 leading-snug">{v.title}</p>
                           <p className="mt-0.5 text-[10px] text-zinc-400 truncate">{v.channelTitle}</p>
-                          <p className="text-[10px] text-zinc-400">{relativeTime("publishedAt" in v ? v.publishedAt : v.addedAt)}</p>
+                          <p className="text-[10px] text-zinc-400">{relativeTime(v.publishedAt)}</p>
                         </div>
                       </button>
                     ))}

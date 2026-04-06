@@ -82,6 +82,7 @@ const entertainmentSectionLinks: {
 }[] = [
     { href: "/watch", labelKey: "watchTogetherNav", icon: Clapperboard },
     { href: "/videos", labelKey: "youtubeVideosNav", icon: Youtube },
+    { href: "/chess", labelKey: "chessNav", icon: LayoutGrid },
     { href: "/notes/diary", labelKey: "notesDiary", icon: BookHeart },
 ];
 const scheduleSectionLinks: {
