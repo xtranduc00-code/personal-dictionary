@@ -64,7 +64,7 @@ function VideoCard({
   onUnsave: (videoId: string) => void;
   onAddToPlaylist: (v: YTVideo | YTSavedVideo | MyPlaylistItem) => void;
 }) {
-  const publishedAt = "publishedAt" in video ? video.publishedAt : video.addedAt;
+  const publishedAt = video.publishedAt;
   return (
     <div className="group relative rounded-xl overflow-hidden bg-zinc-100 dark:bg-zinc-800">
       <button onClick={() => onPlay(video)} className="w-full text-left">
