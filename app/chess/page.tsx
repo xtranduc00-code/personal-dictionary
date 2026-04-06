@@ -14,6 +14,8 @@ import { supabase } from "@/lib/supabase";
 import { createChessGame, joinChessGame, updateChessGame, type ChessGame } from "@/lib/chess-storage";
 import { BUILT_IN_PUZZLES, type BuiltInPuzzle } from "@/lib/chess-puzzles-data";
 import { GameReview } from "./game-review";
+import { OpeningTrainer } from "./opening-trainer";
+import { EndgameTrainer } from "./endgame-trainer";
 
 const Chessboard = dynamic(
   () => import("react-chessboard").then((m) => m.Chessboard),
@@ -23,7 +25,7 @@ const Chessboard = dynamic(
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type PuzzleLevel = "beginner" | "intermediate" | "hard" | "expert";
-type Mode = "home" | "play-lobby" | "play-game" | "puzzles" | "puzzle-solve" | "game-review";
+type Mode = "home" | "play-lobby" | "play-game" | "puzzles" | "puzzle-solve" | "game-review" | "opening-trainer" | "endgame-trainer";
 
 export type LibraryPuzzle = {
   id: string; fen: string; moves: string[];
@@ -137,12 +139,14 @@ export default function ChessPage() {
   }
 
   const headerTitle = {
-    home:           "Chess",
-    "play-lobby":   "Play with Friend",
-    "play-game":    `Room: ${game?.roomCode ?? ""}`,
-    puzzles:        "Puzzles",
-    "puzzle-solve": activePuzzle ? ("title" in activePuzzle ? activePuzzle.title : `Puzzle • ${activePuzzle.rating}`) : "Puzzle",
-    "game-review":  "Game Review",
+    home:               "Chess",
+    "play-lobby":       "Play with Friend",
+    "play-game":        `Room: ${game?.roomCode ?? ""}`,
+    puzzles:            "Puzzles",
+    "puzzle-solve":     activePuzzle ? ("title" in activePuzzle ? activePuzzle.title : `Puzzle • ${activePuzzle.rating}`) : "Puzzle",
+    "game-review":      "Game Review",
+    "opening-trainer":  "Opening Trainer",
+    "endgame-trainer":  "Endgame Trainer",
   }[mode];
 
   return (
@@ -157,7 +161,14 @@ export default function ChessPage() {
       </div>
 
       <div className="flex flex-1 flex-col">
-        {mode === "home" && <HomeView onPlay={() => setMode("play-lobby")} onPuzzles={() => setMode("puzzles")} />}
+        {mode === "home" && (
+          <HomeView
+            onPlay={() => setMode("play-lobby")}
+            onPuzzles={() => setMode("puzzles")}
+            onOpenings={() => setMode("opening-trainer")}
+            onEndgames={() => setMode("endgame-trainer")}
+          />
+        )}
         {mode === "play-lobby" && (
           <PlayLobby
             joinCode={joinCode} setJoinCode={setJoinCode}
@@ -191,6 +202,8 @@ export default function ChessPage() {
         {mode === "puzzle-solve" && activePuzzle && (
           <PuzzleSolve puzzle={activePuzzle} onBack={() => { setMode("puzzles"); setActivePuzzle(null); }} />
         )}
+        {mode === "opening-trainer" && <OpeningTrainer />}
+        {mode === "endgame-trainer" && <EndgameTrainer />}
       </div>
     </div>
   );
@@ -198,14 +211,28 @@ export default function ChessPage() {
 
 // ─── Home ─────────────────────────────────────────────────────────────────────
 
-function HomeView({ onPlay, onPuzzles }: { onPlay: () => void; onPuzzles: () => void }) {
+function HomeView({
+  onPlay,
+  onPuzzles,
+  onOpenings,
+  onEndgames,
+}: {
+  onPlay: () => void;
+  onPuzzles: () => void;
+  onOpenings: () => void;
+  onEndgames: () => void;
+}) {
+  const cards = [
+    { label: "Play with Friend", sub: "Create or join a room", icon: Users, color: "emerald", action: onPlay },
+    { label: "Puzzles", sub: "2000+ Lichess puzzles · 4 levels", icon: BookOpen, color: "amber", action: onPuzzles },
+    { label: "Opening Trainer", sub: "Explore & practice openings with Lichess data", icon: Crown, color: "violet", action: onOpenings },
+    { label: "Endgame Trainer", sub: "K+Q, K+R, K+P, Lucena, Philidor", icon: Swords, color: "rose", action: onEndgames },
+  ] as const;
+
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
       <div className="grid w-full max-w-sm gap-4">
-        {[
-          { label: "Play with Friend", sub: "Create or join a room", icon: Users, color: "emerald", action: onPlay },
-          { label: "Puzzles", sub: "2000+ Lichess puzzles · 4 levels", icon: BookOpen, color: "amber", action: onPuzzles },
-        ].map(({ label, sub, icon: Icon, color, action }) => (
+        {cards.map(({ label, sub, icon: Icon, color, action }) => (
           <button key={label} onClick={action}
             className="group flex items-center gap-4 rounded-2xl border border-zinc-200 bg-white p-5 text-left shadow-sm transition hover:border-zinc-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-600"
           >
