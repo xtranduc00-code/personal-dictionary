@@ -7,7 +7,7 @@ import { toast } from "react-toastify";
 import {
   ArrowLeft, BookOpen, Check, ChevronRight, Copy, Crown, Flag,
   History, Lightbulb, Loader2, MessageSquare, Mic, MicOff, RefreshCw,
-  Send, Swords, Trophy, Users, Volume2, VolumeX, X,
+  Send, Swords, Trophy, Users, Volume2, VolumeX, X, Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
@@ -17,6 +17,7 @@ import { BUILT_IN_PUZZLES, type BuiltInPuzzle } from "@/lib/chess-puzzles-data";
 import { GameReview } from "./game-review";
 import { OpeningTrainer } from "./opening-trainer";
 import { EndgameTrainer } from "./endgame-trainer";
+import { PuzzleRush } from "./puzzle-rush";
 
 const Chessboard = dynamic(
   () => import("react-chessboard").then((m) => m.Chessboard),
@@ -26,7 +27,7 @@ const Chessboard = dynamic(
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type PuzzleLevel = "beginner" | "intermediate" | "hard" | "expert";
-type Mode = "home" | "play-lobby" | "play-game" | "puzzles" | "puzzle-solve" | "game-review" | "opening-trainer" | "endgame-trainer";
+type Mode = "home" | "play-lobby" | "play-game" | "puzzles" | "puzzle-solve" | "game-review" | "opening-trainer" | "endgame-trainer" | "puzzle-rush";
 
 export type LibraryPuzzle = {
   id: string; fen: string; moves: string[];
@@ -150,6 +151,7 @@ export default function ChessPage() {
     "game-review":      "Game Review",
     "opening-trainer":  "Opening Trainer",
     "endgame-trainer":  "Endgame Trainer",
+    "puzzle-rush":      "Puzzle Rush",
   }[mode];
 
   return (
@@ -170,6 +172,7 @@ export default function ChessPage() {
             onPuzzles={() => setMode("puzzles")}
             onOpenings={() => setMode("opening-trainer")}
             onEndgames={() => setMode("endgame-trainer")}
+            onRush={() => setMode("puzzle-rush")}
           />
         )}
         {mode === "play-lobby" && (
@@ -208,6 +211,7 @@ export default function ChessPage() {
         )}
         {mode === "opening-trainer" && <OpeningTrainer />}
         {mode === "endgame-trainer" && <EndgameTrainer />}
+        {mode === "puzzle-rush" && <PuzzleRush />}
       </div>
     </div>
   );
@@ -220,15 +224,18 @@ function HomeView({
   onPuzzles,
   onOpenings,
   onEndgames,
+  onRush,
 }: {
   onPlay: () => void;
   onPuzzles: () => void;
   onOpenings: () => void;
   onEndgames: () => void;
+  onRush: () => void;
 }) {
   const cards = [
     { label: "Play with Friend", sub: "Create or join a room", icon: Users, color: "emerald", action: onPlay, href: null },
     { label: "Puzzles", sub: "2000+ Lichess puzzles · 4 levels", icon: BookOpen, color: "amber", action: onPuzzles, href: null },
+    { label: "Puzzle Rush", sub: "3 lives · solve as many as you can!", icon: Zap, color: "orange", action: onRush, href: null },
     { label: "Opening Trainer", sub: "Explore & practice openings with Lichess data", icon: Crown, color: "violet", action: onOpenings, href: null },
     { label: "Endgame Trainer", sub: "K+Q, K+R, K+P, Lucena, Philidor", icon: Swords, color: "rose", action: onEndgames, href: null },
     { label: "Game History", sub: "Review past games and track progress", icon: History, color: "sky", action: null, href: "/chess/history" },

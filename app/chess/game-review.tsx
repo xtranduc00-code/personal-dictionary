@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { Chess } from "chess.js";
 import {
   ArrowLeft, ArrowRight, ChevronLeft, ChevronRight,
-  Loader2, SkipBack, SkipForward,
+  Loader2, Sparkles, SkipBack, SkipForward,
 } from "lucide-react";
 import { updateGameAccuracy } from "@/lib/chess-storage";
 
@@ -176,6 +176,16 @@ export function GameReview({ pgn, gameId, whitePlayer, blackPlayer, onBack }: {
   const [analysisDone, setAnalysisDone] = useState(false);
   const [progress, setProgress] = useState(0);
 
+  // ── AI explanation state ──────────────────────────────────────────────────
+  const [explCache, setExplCache]       = useState<Record<number, string>>({});  // keyed by cursor index
+  const [explLoading, setExplLoading]   = useState(false);
+  const [explCursor, setExplCursor]     = useState<number | null>(null); // which cursor has explanation shown
+
+  // ── AI game summary state ─────────────────────────────────────────────────
+  type GameSummary = { opening: string; turningPoint: string; weakness: string; suggestions: string[] };
+  const [gameSummary, setGameSummary]       = useState<GameSummary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+
   const { init, analyze, terminate } = useStockfish();
   const abortRef = useRef(false);
 
@@ -245,6 +255,70 @@ export function GameReview({ pgn, gameId, whitePlayer, blackPlayer, onBack }: {
   useEffect(() => {
     return () => { abortRef.current = true; terminate(); };
   }, [terminate]);
+
+  // ── AI: explain the move at a given cursor position ───────────────────────
+  async function fetchMoveExplanation(c: number) {
+    if (!analysisDone || c === 0 || analyzed[c - 1] === undefined) return;
+    if (explCache[c] !== undefined) { setExplCursor(c); return; }
+
+    setExplLoading(true);
+    setExplCursor(c);
+
+    const mv = analyzed[c - 1];
+    try {
+      const res = await fetch("/api/chess/review-move", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fen: mv.fenBefore,
+          moveSan: mv.san,
+          bestUci: mv.bestMove,
+          cpLoss: mv.cpLoss,
+          classification: mv.classification,
+          color: mv.color,
+          moveNum: mv.moveNum,
+        }),
+      });
+      const data = await res.json() as { explanation: string };
+      setExplCache((prev) => ({ ...prev, [c]: data.explanation }));
+    } catch { /* ignore */ }
+    finally { setExplLoading(false); }
+  }
+
+  // ── AI: full game summary ─────────────────────────────────────────────────
+  async function fetchGameSummary() {
+    if (summaryLoading || gameSummary || !analysisDone) return;
+    setSummaryLoading(true);
+
+    const whiteMoves = analyzed.filter((m) => m.color === "w");
+    const blackMoves = analyzed.filter((m) => m.color === "b");
+    const wAcc = calcAccuracy(whiteMoves);
+    const bAcc = calcAccuracy(blackMoves);
+    const blunders = analyzed.filter((m) => m.classification === "blunder")
+      .map((m) => ({ moveNum: m.moveNum, color: m.color, san: m.san, cpLoss: m.cpLoss }));
+    const mistakes = analyzed.filter((m) => m.classification === "mistake")
+      .map((m) => ({ moveNum: m.moveNum, color: m.color, san: m.san, cpLoss: m.cpLoss }));
+
+    try {
+      const res = await fetch("/api/chess/review-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pgn,
+          whitePlayer: whitePlayer ?? "White",
+          blackPlayer: blackPlayer ?? "Black",
+          whiteAccuracy: wAcc,
+          blackAccuracy: bAcc,
+          blunders,
+          mistakes,
+          totalMoves: moves.length,
+        }),
+      });
+      const data = await res.json() as { opening: string; turningPoint: string; weakness: string; suggestions: string[] };
+      setGameSummary(data);
+    } catch { /* ignore */ }
+    finally { setSummaryLoading(false); }
+  }
 
   // ── Current display ───────────────────────────────────────────────────────
   const fen = fens[cursor] ?? new Chess().fen();
@@ -379,14 +453,29 @@ export function GameReview({ pgn, gameId, whitePlayer, blackPlayer, onBack }: {
           {/* Current move info */}
           {currentMove && (
             <div className={`rounded-xl border border-zinc-200 p-3 dark:border-zinc-700 ${CLASS_META[currentMove.classification].bg}`}>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
                   {currentMove.color === "w" ? "White" : "Black"} played{" "}
                   <span className="font-mono">{currentMove.san}</span>
                 </span>
-                <span className={`text-sm font-bold ${CLASS_META[currentMove.classification].color}`}>
-                  {CLASS_META[currentMove.classification].symbol}
-                </span>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className={`text-sm font-bold ${CLASS_META[currentMove.classification].color}`}>
+                    {CLASS_META[currentMove.classification].symbol}
+                  </span>
+                  {analysisDone && (
+                    <button
+                      onClick={() => fetchMoveExplanation(cursor)}
+                      disabled={explLoading && explCursor === cursor}
+                      className="flex items-center gap-1 rounded-lg bg-violet-600 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-violet-700 disabled:opacity-60"
+                    >
+                      {explLoading && explCursor === cursor
+                        ? <Loader2 className="h-3 w-3 animate-spin" />
+                        : <Sparkles className="h-3 w-3" />
+                      }
+                      Explain
+                    </button>
+                  )}
+                </div>
               </div>
               <p className={`mt-0.5 text-xs font-medium ${CLASS_META[currentMove.classification].color}`}>
                 {CLASS_META[currentMove.classification].label}
@@ -400,6 +489,24 @@ export function GameReview({ pgn, gameId, whitePlayer, blackPlayer, onBack }: {
                   </span>
                   <span className="ml-1 text-[10px] text-zinc-400">(blue arrow)</span>
                 </p>
+              )}
+
+              {/* AI explanation */}
+              {explCursor === cursor && (
+                <div className="mt-2 border-t border-zinc-200/60 pt-2 dark:border-zinc-700/60">
+                  {explLoading ? (
+                    <div className="space-y-1.5">
+                      <div className="h-2.5 w-full animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
+                      <div className="h-2.5 w-4/5 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
+                      <div className="h-2.5 w-3/5 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
+                    </div>
+                  ) : explCache[cursor] ? (
+                    <p className="text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">
+                      <Sparkles className="mr-1 inline h-3 w-3 text-violet-500" />
+                      {explCache[cursor]}
+                    </p>
+                  ) : null}
+                </div>
               )}
             </div>
           )}
@@ -455,6 +562,62 @@ export function GameReview({ pgn, gameId, whitePlayer, blackPlayer, onBack }: {
               <MoveSummary label="Blunders"  cls="blunder"   moves={analyzed} />
               <MoveSummary label="Mistakes"  cls="mistake"   moves={analyzed} />
               <MoveSummary label="Inaccuracies" cls="inaccuracy" moves={analyzed} />
+            </div>
+          )}
+
+          {/* AI Game Summary */}
+          {analysisDone && !gameSummary && (
+            <button
+              onClick={fetchGameSummary}
+              disabled={summaryLoading}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-violet-300 bg-violet-50 py-2.5 text-sm font-semibold text-violet-700 hover:bg-violet-100 disabled:opacity-60 dark:border-violet-700 dark:bg-violet-900/20 dark:text-violet-300"
+            >
+              {summaryLoading
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating summary…</>
+                : <><Sparkles className="h-4 w-4" /> Get AI Game Summary</>
+              }
+            </button>
+          )}
+
+          {gameSummary && (
+            <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 dark:border-violet-800 dark:bg-violet-900/20">
+              <div className="mb-2 flex items-center gap-1.5">
+                <Sparkles className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                <p className="text-sm font-bold text-violet-800 dark:text-violet-300">AI Game Summary</p>
+              </div>
+              <div className="space-y-3 text-xs text-zinc-700 dark:text-zinc-300">
+                {gameSummary.opening && (
+                  <div>
+                    <p className="mb-0.5 font-semibold text-zinc-800 dark:text-zinc-200">📖 Opening</p>
+                    <p className="leading-relaxed">{gameSummary.opening}</p>
+                  </div>
+                )}
+                {gameSummary.turningPoint && (
+                  <div>
+                    <p className="mb-0.5 font-semibold text-zinc-800 dark:text-zinc-200">⚡ Turning Point</p>
+                    <p className="leading-relaxed">{gameSummary.turningPoint}</p>
+                  </div>
+                )}
+                {gameSummary.weakness && (
+                  <div>
+                    <p className="mb-0.5 font-semibold text-zinc-800 dark:text-zinc-200">🎯 Key Weakness</p>
+                    <p className="leading-relaxed">{gameSummary.weakness}</p>
+                  </div>
+                )}
+                {gameSummary.suggestions.length > 0 && (
+                  <div>
+                    <p className="mb-1 font-semibold text-zinc-800 dark:text-zinc-200">💡 Suggestions</p>
+                    <ul className="space-y-1">
+                      {gameSummary.suggestions.map((s, i) => (
+                        <li key={i} className="flex items-start gap-1.5">
+                          <span className="mt-0.5 shrink-0 font-bold text-violet-600 dark:text-violet-400">{i + 1}.</span>
+                          {s}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
