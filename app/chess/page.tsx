@@ -875,21 +875,41 @@ function PuzzleLibrary({ onSolve }: { onSolve: (p: LibraryPuzzle) => void }) {
   const [loading, setLoading]         = useState(false);
   const [offset, setOffset]           = useState(0);
   const [hasMore, setHasMore]         = useState(true);
+  const abortRef = useRef<AbortController | null>(null);
   const LIMIT = 20;
 
   const load = useCallback(async (lvl: PuzzleLevel, th: string, off: number, replace: boolean) => {
+    // Cancel any in-flight request for a previous tab/theme
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+
     setLoading(true);
+    if (replace) setPuzzles([]); // clear immediately so stale cards never show
     try {
       const params = new URLSearchParams({ level: lvl, limit: String(LIMIT), offset: String(off), random: "true" });
       if (th) params.set("theme", th);
-      const res  = await fetch(`/api/chess/puzzles/library?${params}`);
+      const res = await fetch(`/api/chess/puzzles/library?${params}`, { signal: ctrl.signal });
       const data = await res.json() as { items: LibraryPuzzle[]; total: number };
-      setPuzzles((prev) => replace ? data.items : [...prev, ...data.items]);
-      setHasMore(data.items.length === LIMIT);
-    } finally { setLoading(false); }
+      // Only apply if this request wasn't aborted
+      if (!ctrl.signal.aborted) {
+        // Double-check: only render cards that truly match the requested level
+        const filtered = data.items.filter((p) => p.level === lvl);
+        setPuzzles((prev) => replace ? filtered : [...prev, ...filtered]);
+        setHasMore(filtered.length === LIMIT);
+      }
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") console.error(e);
+    } finally {
+      if (!ctrl.signal.aborted) setLoading(false);
+    }
   }, []);
 
-  useEffect(() => { setOffset(0); setHasMore(true); load(activeLevel, theme, 0, true); }, [activeLevel, theme, load]);
+  useEffect(() => {
+    setOffset(0);
+    setHasMore(true);
+    load(activeLevel, theme, 0, true);
+  }, [activeLevel, theme, load]);
 
   function loadMore() {
     const next = offset + LIMIT;
