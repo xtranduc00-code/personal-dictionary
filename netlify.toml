@@ -1,6 +1,9 @@
 [build]
   command = "npm run build"
 
+# If the site hits the account build+deploy time cap (~18m), check Netlify UI → Project → Build & deploy →
+# Build settings / Environment (deploy timeouts) and reduce upload size (e.g. Stockfish loads from CDN, not public/).
+
 # Exam Notes: long work uses async Background Function (see .env.example). Sync Next routes may still hit
 # the default Lambda limit — raise timeout in Netlify UI: Project configuration → Functions → Function timeout
 # (toml `timeout = 120` under [functions] is rejected by current config parsers).

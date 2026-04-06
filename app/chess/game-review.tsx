@@ -7,8 +7,13 @@ import {
   ArrowLeft, ArrowRight, BookOpen, ChevronLeft, ChevronRight,
   Loader2, Sparkles, SkipBack, SkipForward, X,
 } from "lucide-react";
+import { toast } from "react-toastify";
 import { updateGameAccuracy } from "@/lib/chess-storage";
 import { useAuth, authFetch } from "@/lib/auth-context";
+
+/** Runtime-only worker script (not bundled). Override with NEXT_PUBLIC_STOCKFISH_WORKER_URL. */
+const STOCKFISH_CDN_DEFAULT =
+  "https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js";
 
 const Chessboard = dynamic(
   () => import("react-chessboard").then((m) => m.Chessboard),
@@ -101,31 +106,85 @@ type SfResult = { cp: number; bestMove: string };
 
 function useStockfish() {
   const workerRef = useRef<Worker | null>(null);
+  const blobUrlRef = useRef<string | null>(null);
   const resolveRef = useRef<((r: SfResult) => void) | null>(null);
   const pendingCp = useRef(0);
+  const initPromiseRef = useRef<Promise<void> | null>(null);
 
-  const init = useCallback(() => {
+  const init = useCallback(async () => {
     if (typeof window === "undefined") return;
-    const w = new Worker("/stockfish.js");
-    w.onmessage = (e: MessageEvent<string>) => {
-      const msg = e.data;
-      if (typeof msg !== "string") return;
+    if (workerRef.current) return;
+    if (initPromiseRef.current) {
+      await initPromiseRef.current;
+      return;
+    }
 
-      // Parse score (prefer score cp, fallback mate → ±30000)
-      const cpMatch = msg.match(/score cp (-?\d+)/);
-      if (cpMatch) pendingCp.current = parseInt(cpMatch[1]);
-      const mateMatch = msg.match(/score mate (-?\d+)/);
-      if (mateMatch) pendingCp.current = parseInt(mateMatch[1]) > 0 ? 30000 : -30000;
+    const url =
+      (typeof process !== "undefined" &&
+        process.env.NEXT_PUBLIC_STOCKFISH_WORKER_URL) ||
+      STOCKFISH_CDN_DEFAULT;
 
-      if (msg.startsWith("bestmove")) {
-        const bm = msg.split(" ")[1] ?? "";
-        resolveRef.current?.({ cp: pendingCp.current, bestMove: bm });
-        resolveRef.current = null;
+    initPromiseRef.current = (async () => {
+      let w: Worker;
+
+      const res = await fetch(url, { credentials: "omit", mode: "cors" });
+      if (!res.ok) throw new Error(`Stockfish script HTTP ${res.status}`);
+      const code = await res.text();
+      if (code.length < 1000) throw new Error("Stockfish script too small");
+
+      const blobUrl = URL.createObjectURL(
+        new Blob([code], { type: "application/javascript" }),
+      );
+      blobUrlRef.current = blobUrl;
+      w = new Worker(blobUrl);
+
+      w.onmessage = (e: MessageEvent<string>) => {
+        const msg = e.data;
+        if (typeof msg !== "string") return;
+
+        const cpMatch = msg.match(/score cp (-?\d+)/);
+        if (cpMatch) pendingCp.current = parseInt(cpMatch[1], 10);
+        const mateMatch = msg.match(/score mate (-?\d+)/);
+        if (mateMatch) pendingCp.current = parseInt(mateMatch[1], 10) > 0 ? 30000 : -30000;
+
+        if (msg.startsWith("bestmove")) {
+          const bm = msg.split(" ")[1] ?? "";
+          resolveRef.current?.({ cp: pendingCp.current, bestMove: bm });
+          resolveRef.current = null;
+        }
+      };
+
+      w.postMessage("uci");
+      w.postMessage("isready");
+      workerRef.current = w;
+
+      await new Promise<void>((resolve, reject) => {
+        const t = setTimeout(() => reject(new Error("Stockfish ready timeout")), 20000);
+        const onMsg = (ev: MessageEvent<string>) => {
+          const m = ev.data;
+          if (typeof m === "string" && m.includes("readyok")) {
+            clearTimeout(t);
+            w.removeEventListener("message", onMsg as never);
+            resolve();
+          }
+        };
+        w.addEventListener("message", onMsg as never);
+      });
+    })();
+
+    try {
+      await initPromiseRef.current;
+    } catch (e) {
+      initPromiseRef.current = null;
+      const wKill = workerRef.current as Worker | null;
+      workerRef.current = null;
+      if (wKill) wKill.terminate();
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
       }
-    };
-    w.postMessage("uci");
-    w.postMessage("isready");
-    workerRef.current = w;
+      throw e;
+    }
   }, []);
 
   const analyze = useCallback((fen: string, depth = 15): Promise<SfResult> => {
@@ -133,7 +192,10 @@ function useStockfish() {
       resolveRef.current = resolve;
       pendingCp.current = 0;
       const w = workerRef.current;
-      if (!w) { resolve({ cp: 0, bestMove: "" }); return; }
+      if (!w) {
+        resolve({ cp: 0, bestMove: "" });
+        return;
+      }
       w.postMessage(`position fen ${fen}`);
       w.postMessage(`go depth ${depth}`);
     });
@@ -142,6 +204,11 @@ function useStockfish() {
   const terminate = useCallback(() => {
     workerRef.current?.terminate();
     workerRef.current = null;
+    initPromiseRef.current = null;
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = null;
+    }
   }, []);
 
   return { init, analyze, terminate };
@@ -215,7 +282,14 @@ export function GameReview({ pgn, gameId, whitePlayer, blackPlayer, onBack }: {
     if (analyzing || analysisDone || moves.length === 0) return;
     setAnalyzing(true);
     abortRef.current = false;
-    init();
+    try {
+      await init();
+    } catch (e) {
+      console.error("[Stockfish]", e);
+      toast.error("Could not load the analysis engine. Check your connection and try again.");
+      setAnalyzing(false);
+      return;
+    }
 
     const results: AnalyzedMove[] = [];
     const evals: number[] = [];   // White's perspective for each FEN

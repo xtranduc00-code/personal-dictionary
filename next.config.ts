@@ -1,5 +1,13 @@
 import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
+    /** Smaller serverless traces / faster uploads (Stockfish is loaded from CDN at runtime) */
+    outputFileTracingExcludes: {
+        "*": [
+            "**/public/stockfish.js",
+            "**/stockfish.js",
+            "**/stockfish.wasm",
+        ],
+    },
     serverExternalPackages: [
         "pdf-parse",
         "pdfjs-dist",
