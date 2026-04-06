@@ -155,7 +155,7 @@ export default function ChessPage() {
   }[mode];
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="flex h-full flex-col overflow-hidden">
       <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-zinc-200 bg-white/90 px-5 py-3 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90">
         {mode !== "home" && (
           <button onClick={goHome} className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200">
@@ -548,6 +548,26 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
 
   const startTimeRef = useRef<number | null>(null);
 
+  // ── Responsive board sizing ───────────────────────────────────────────────
+  const [boardPx, setBoardPx] = useState(0);
+  useEffect(() => {
+    function updateBoard() {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const HEADER      = 60;   // sticky header
+      const PLAYER_ROWS = 80;   // two clock rows (~36px each + gap)
+      const V_PAD       = 40;   // top + bottom padding of the flex container
+      const PANEL       = vw >= 768 ? 420 : 0;  // right panel + gap (desktop only)
+      const H_PAD       = 32;   // horizontal padding
+      const byHeight = vh - HEADER - PLAYER_ROWS - V_PAD;
+      const byWidth  = vw - PANEL - H_PAD;
+      setBoardPx(Math.max(200, Math.min(byHeight, byWidth)));
+    }
+    updateBoard();
+    window.addEventListener("resize", updateBoard);
+    return () => window.removeEventListener("resize", updateBoard);
+  }, []);
+
   // Timers — unlimited = 0 means ∞
   const initMs = tc.mins * 60 * 1000;
   const [whiteMs, setWhiteMs] = useState(initMs);
@@ -773,12 +793,16 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
   const blackLabel = isBlack ? `${userName} (You)` : `${opponentLabel}`;
   const whiteLabel = isWhite ? `${userName} (You)` : `${opponentLabel}`;
 
+  const boardStyle: React.CSSProperties = boardPx
+    ? { width: boardPx, height: boardPx, flexShrink: 0 }
+    : { width: "min(calc(100vh - 180px), calc(100vw - 2rem))", flexShrink: 0 };
+
   return (
-    <div className="flex flex-1 flex-col gap-3 p-3 md:flex-row md:items-start md:justify-center md:gap-6 md:p-6">
-      {/* Board column */}
-      <div className="flex w-full max-w-[500px] flex-col gap-2">
+    <div className="flex flex-1 flex-col gap-4 overflow-hidden p-4 md:flex-row md:items-start md:justify-center md:gap-4">
+      {/* ── Board column ─────────────────────────────────────────────────── */}
+      <div className="flex shrink-0 flex-col gap-1.5" style={boardStyle}>
         {/* Black clock + label */}
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex h-9 items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <div className="h-3 w-3 shrink-0 rounded-full bg-zinc-800 ring-1 ring-zinc-600" />
             <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
@@ -795,22 +819,25 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
           />
         </div>
 
-        <Chessboard
-          options={{
-            position: fen,
-            onPieceDrop: ({ sourceSquare, targetSquare }) => onDrop(sourceSquare, targetSquare ?? ""),
-            boardOrientation: myColor ?? "white",
-            allowDragging: isMyTurn && !isOver && !isWaiting,
-            boardStyle: { borderRadius: "12px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)" },
-            squareStyles: lastMove ? {
-              [lastMove[0]]: { backgroundColor: "rgba(255, 213, 0, 0.4)" },
-              [lastMove[1]]: { backgroundColor: "rgba(255, 213, 0, 0.4)" },
-            } : {},
-          }}
-        />
+        {/* Board fills the remaining space in the column */}
+        <div className="flex-1">
+          <Chessboard
+            options={{
+              position: fen,
+              onPieceDrop: ({ sourceSquare, targetSquare }) => onDrop(sourceSquare, targetSquare ?? ""),
+              boardOrientation: myColor ?? "white",
+              allowDragging: isMyTurn && !isOver && !isWaiting,
+              boardStyle: { borderRadius: "12px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)" },
+              squareStyles: lastMove ? {
+                [lastMove[0]]: { backgroundColor: "rgba(255, 213, 0, 0.4)" },
+                [lastMove[1]]: { backgroundColor: "rgba(255, 213, 0, 0.4)" },
+              } : {},
+            }}
+          />
+        </div>
 
         {/* White clock + label */}
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex h-9 items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <div className="h-3 w-3 shrink-0 rounded-full bg-zinc-100 ring-1 ring-zinc-300" />
             <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
@@ -828,8 +855,11 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
         </div>
       </div>
 
-      {/* Side panel */}
-      <div className="flex w-full max-w-xs flex-col gap-3">
+      {/* ── Side panel ───────────────────────────────────────────────────── */}
+      <div
+        className="flex w-full flex-col gap-2.5 overflow-y-auto md:w-72 md:shrink-0"
+        style={{ maxHeight: boardPx ? boardPx + 72 : "calc(100vh - 108px)" }}
+      >
 
         {/* Room code + copy link */}
         <div className="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">

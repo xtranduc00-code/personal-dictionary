@@ -65,6 +65,14 @@ export function MainScrollShell({ children }: PropsWithChildren) {
             </div>
         );
     }
+    /** Chess: inner game manages sizing, outer shell must not scroll */
+    if (pathname === "/chess" || pathname.startsWith("/chess/")) {
+        return (
+            <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+                {children}
+            </div>
+        );
+    }
     /** Portfolio home: fill viewport beside sidebar (flex-1 + min height on small screens). */
     if (pathname === "/" || pathname === "/portfolio") {
         return (
