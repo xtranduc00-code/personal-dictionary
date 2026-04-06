@@ -79,25 +79,22 @@ Be encouraging, specific about the flaw of ${wrongSan}, and concise. No bullet p
 
     const prompt = `You are a chess coach explaining a tactical puzzle to a student.
 
-Puzzle details:
-- Difficulty: ${level}${ratingText}
-- Tactical themes: ${themeList}
-- Starting FEN: ${fen}
-- Full move sequence (setup + solution): ${sanMoves.join(", ")}
-- The player's solution moves: ${solutionMoves}
+Puzzle: ${level}${ratingText} · themes: ${themeList}
+FEN: ${fen}
+Solution moves: ${solutionMoves}
 
-Explain in 3-4 friendly, concise sentences:
-1. What tactical idea makes this solution work
-2. Why specifically ${sanMoves[1] ?? sanMoves[0]} is the key move
-3. Why other moves would fail
+In exactly 3 short, direct sentences (no bullet points):
+1. The key tactical idea that makes ${sanMoves[1] ?? sanMoves[0]} the right move
+2. What it threatens or wins
+3. One reason other moves fail
 
-Use simple language — no jargon without explanation. Be encouraging. No bullet points, just flowing sentences.`;
+Simple language, encouraging tone.`;
 
     const completion = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 200,
-      temperature: 0.7,
+      max_tokens: 120,
+      temperature: 0.65,
     });
 
     return NextResponse.json({

@@ -6,8 +6,8 @@ import { Chess } from "chess.js";
 import { toast } from "react-toastify";
 import {
   ArrowLeft, BookOpen, Check, ChevronRight, Copy, Crown, Flag,
-  History, LibraryBig, Lightbulb, Loader2, MessageSquare, Mic, MicOff, RefreshCw,
-  Send, Swords, Trophy, Users, Volume2, VolumeX, X, Zap,
+  History, LibraryBig, Lightbulb, Loader2, MessageSquare, Mic, MicOff, Pause, Play,
+  RefreshCw, Send, Square, Swords, Trophy, Users, Volume2, VolumeX, X, Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
@@ -1129,6 +1129,10 @@ function PuzzleSolve({ puzzle, onBack }: {
   const [explanation, setExplanation]     = useState("");
   const [loadingExpl, setLoadingExpl]     = useState(false);
   const [muted, setMuted]                 = useState(false);
+  // TTS
+  const [speaking, setSpeaking] = useState(false);
+  const [paused, setPaused]     = useState(false);
+  const utterRef = useRef<SpeechSynthesisUtterance | null>(null);
   // FEN at the moment the player is about to move (before their drop)
   const fenBeforeDropRef = useRef(puzzle.fen);
   const chessRef = useRef(chess);
@@ -1195,6 +1199,51 @@ function PuzzleSolve({ puzzle, onBack }: {
     }
   }
 
+  // ── TTS helpers ──────────────────────────────────────────────────────────
+  function speakText(text: string) {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.rate  = 0.9;
+    utter.pitch = 1.0;
+    utter.lang  = "en-US";
+    utter.onstart = () => { setSpeaking(true); setPaused(false); };
+    utter.onend   = () => { setSpeaking(false); setPaused(false); };
+    utter.onerror  = () => { setSpeaking(false); setPaused(false); };
+    utterRef.current = utter;
+    window.speechSynthesis.speak(utter);
+  }
+
+  function pauseResumeSpeech() {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    if (paused) { window.speechSynthesis.resume(); setPaused(false); }
+    else        { window.speechSynthesis.pause();  setPaused(true);  }
+  }
+
+  function stopSpeech() {
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    setSpeaking(false);
+    setPaused(false);
+  }
+
+  // Auto-speak when explanation arrives (respect mute)
+  useEffect(() => {
+    if (explanation && result === "solved" && !muted) {
+      speakText(explanation);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [explanation]);
+
+  // Stop speech when muted or on unmount
+  useEffect(() => {
+    if (muted) stopSpeech();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [muted]);
+
+  useEffect(() => () => stopSpeech(), []);
+
   function onDrop(sourceSquare: string, targetSquare: string): boolean {
     if (result === "solved") return false;
     const expectedUci = solMoves[moveIdx];
@@ -1256,6 +1305,7 @@ function PuzzleSolve({ puzzle, onBack }: {
   }
 
   function handleReset() {
+    stopSpeech();
     chess.load(puzzle.fen);
     setFen(puzzle.fen);
     fenBeforeDropRef.current = puzzle.fen;
@@ -1316,22 +1366,26 @@ function PuzzleSolve({ puzzle, onBack }: {
   const progressPct        = result === "solved" ? 100 : Math.round((moveIdx / solMoves.length) * 100);
 
   return (
-    <div className="flex flex-1 flex-col items-center gap-4 p-4 md:flex-row md:items-start md:justify-center md:gap-8 md:p-8">
-      <div className="w-full max-w-[480px]">
-        <Chessboard
-          options={{
-            position: fen,
-            onPieceDrop: ({ sourceSquare, targetSquare }) => onDrop(sourceSquare, targetSquare ?? ""),
-            boardOrientation: playerColor,
-            allowDragging: result !== "solved",
-            boardStyle: { borderRadius: "12px", boxShadow: ringColor, transition: "box-shadow 0.2s" },
-            squareStyles,
-            arrows: hintArrows,
-          }}
-        />
+    <div className="flex flex-1 flex-col gap-4 p-4 lg:flex-row lg:items-start lg:gap-6 lg:p-6">
+      {/* ── Board: 60% on desktop ─────────────────────────────────────────── */}
+      <div className="min-w-0 lg:flex-[3]">
+        <div className="mx-auto w-full" style={{ maxWidth: "min(100%, calc(100vh - 10rem))" }}>
+          <Chessboard
+            options={{
+              position: fen,
+              onPieceDrop: ({ sourceSquare, targetSquare }) => onDrop(sourceSquare, targetSquare ?? ""),
+              boardOrientation: playerColor,
+              allowDragging: result !== "solved",
+              boardStyle: { borderRadius: "12px", boxShadow: ringColor, transition: "box-shadow 0.2s" },
+              squareStyles,
+              arrows: hintArrows,
+            }}
+          />
+        </div>
       </div>
 
-      <div className="w-full max-w-xs space-y-3">
+      {/* ── Info panel: 40% on desktop ────────────────────────────────────── */}
+      <div className="w-full space-y-3 lg:flex-[2] lg:overflow-y-auto" style={{ maxHeight: "calc(100vh - 8rem)" }}>
         {/* Puzzle info */}
         <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
           <div className="flex items-start justify-between gap-2">
@@ -1427,9 +1481,39 @@ function PuzzleSolve({ puzzle, onBack }: {
         {/* AI Explanation (after solve) */}
         {result === "solved" && (
           <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
-              <BookOpen className="h-3 w-3" /> Why this works
-            </p>
+            <div className="mb-2 flex items-center gap-1.5">
+              <BookOpen className="h-3 w-3 text-zinc-400" />
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Why this works</p>
+              {/* TTS controls */}
+              <div className="ml-auto flex items-center gap-1">
+                {speaking ? (
+                  <>
+                    <button
+                      onClick={pauseResumeSpeech}
+                      title={paused ? "Resume" : "Pause"}
+                      className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
+                    >
+                      {paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
+                    </button>
+                    <button
+                      onClick={stopSpeech}
+                      title="Stop"
+                      className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-red-500 dark:hover:bg-zinc-800"
+                    >
+                      <Square className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                ) : explanation && !loadingExpl ? (
+                  <button
+                    onClick={() => speakText(explanation)}
+                    title="Read aloud"
+                    className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
+                  >
+                    <Volume2 className="h-3.5 w-3.5" />
+                  </button>
+                ) : null}
+              </div>
+            </div>
             {loadingExpl ? (
               <div className="flex items-center gap-2 text-sm text-zinc-400">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyzing…
@@ -1449,7 +1533,7 @@ function PuzzleSolve({ puzzle, onBack }: {
             <RefreshCw className="h-3.5 w-3.5" /> Reset
           </button>
           {result === "solved" && (
-            <button onClick={onBack}
+            <button onClick={() => { stopSpeech(); onBack(); }}
               className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-amber-500 py-2 text-sm font-semibold text-white hover:bg-amber-600">
               <Check className="h-3.5 w-3.5" /> Next puzzle
             </button>
