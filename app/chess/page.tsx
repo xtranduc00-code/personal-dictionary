@@ -161,7 +161,7 @@ export default function ChessPage() {
           />
         )}
         {mode === "play-game" && game && user && (
-          <PlayGame initialGame={game} userId={user.id} tc={tc} onBack={goHome} />
+          <PlayGame initialGame={game} userId={user.id} userName={user.username} tc={tc} onBack={goHome} />
         )}
         {mode === "puzzles" && (
           <PuzzleLibrary onSolve={(p) => { setActivePuzzle(p); setMode("puzzle-solve"); }} />
@@ -424,20 +424,59 @@ function ChatPanel({ roomCode, myColor }: { roomCode: string; myColor: "white" |
   );
 }
 
+// ─── Move History ─────────────────────────────────────────────────────────────
+
+function MoveHistory({ pgn }: { pgn: string }) {
+  const moves = pgn
+    .replace(/\d+\./g, "")
+    .replace(/\{[^}]*\}/g, "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const pairs: [string, string | null][] = [];
+  for (let i = 0; i < moves.length; i += 2) {
+    pairs.push([moves[i], moves[i + 1] ?? null]);
+  }
+
+  const endRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [pgn]);
+
+  if (pairs.length === 0) return null;
+
+  return (
+    <div className="max-h-36 overflow-y-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+      <p className="sticky top-0 border-b border-zinc-100 bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:border-zinc-800 dark:bg-zinc-900">Moves</p>
+      <div className="px-1 py-1">
+        {pairs.map(([w, b], i) => (
+          <div key={i} className="grid grid-cols-[2rem_1fr_1fr] items-center gap-0.5 rounded px-1 py-0.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+            <span className="text-[10px] font-medium text-zinc-300 dark:text-zinc-600">{i + 1}.</span>
+            <span className="font-mono text-xs font-medium text-zinc-800 dark:text-zinc-200">{w}</span>
+            {b && <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{b}</span>}
+          </div>
+        ))}
+        <div ref={endRef} />
+      </div>
+    </div>
+  );
+}
+
 // ─── Play Game ────────────────────────────────────────────────────────────────
 
-function PlayGame({ initialGame, userId, tc, onBack }: {
-  initialGame: ChessGame; userId: string; tc: TimeControl; onBack: () => void;
+function PlayGame({ initialGame, userId, userName, tc, onBack }: {
+  initialGame: ChessGame; userId: string; userName: string; tc: TimeControl; onBack: () => void;
 }) {
   const [gameState, setGameState] = useState<ChessGame>(initialGame);
   const [chess]    = useState(() => new Chess(initialGame.fen));
-  const [fen, setFen]             = useState(initialGame.fen);
-  const [status, setStatus]       = useState("");
-  const [copied, setCopied]       = useState(false);
-  const [muted, setMuted]         = useState(false);
-  const [showChat, setShowChat]   = useState(false);
-  const [drawOffer, setDrawOffer] = useState<"sent" | "received" | null>(null);
-  const [rematch, setRematch]     = useState<"sent" | "received" | null>(null);
+  const [fen, setFen]               = useState(initialGame.fen);
+  const [lastMove, setLastMove]     = useState<[string, string] | null>(null);
+  const [status, setStatus]         = useState("");
+  const [copied, setCopied]         = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [muted, setMuted]           = useState(false);
+  const [drawOffer, setDrawOffer]   = useState<"sent" | "received" | null>(null);
+  const [rematch, setRematch]       = useState<"sent" | "received" | null>(null);
+  const [opponentName, setOpponentName] = useState<string | null>(null);
 
   // Timers — unlimited = 0 means ∞
   const initMs = tc.mins * 60 * 1000;
@@ -505,8 +544,18 @@ function PlayGame({ initialGame, userId, tc, onBack }: {
           updatedAt:    String(row.updated_at ?? prev.updatedAt),
         }));
         if (typeof row.fen === "string") {
-          chessRef.current.load(row.fen);
-          setFen(row.fen);
+          // Extract last move from PGN history
+          const newChess = new Chess();
+          try {
+            newChess.loadPgn(typeof row.pgn === "string" ? row.pgn : "");
+            const hist = newChess.history({ verbose: true });
+            if (hist.length > 0) {
+              const last = hist[hist.length - 1];
+              setLastMove([last.from, last.to]);
+            }
+          } catch { /* noop */ }
+          chessRef.current.load(row.fen as string);
+          setFen(row.fen as string);
         }
       })
       .on("broadcast", { event: "draw_offer" }, ({ payload }) => {
@@ -516,9 +565,16 @@ function PlayGame({ initialGame, userId, tc, onBack }: {
       .on("broadcast", { event: "rematch_offer" }, ({ payload }) => {
         if ((payload as { from: string }).from !== myColor) setRematch("received");
       })
-      .subscribe();
+      .on("broadcast", { event: "hello" }, ({ payload }) => {
+        const p = payload as { name: string; color: string };
+        if (p.color !== myColor) setOpponentName(p.name);
+      })
+      .subscribe(() => {
+        // Announce yourself once subscribed
+        channel.send({ type: "broadcast", event: "hello", payload: { name: userName, color: myColor ?? "spectator" } });
+      });
     return () => { supabase.removeChannel(channel); };
-  }, [gameState.roomCode, myColor]);
+  }, [gameState.roomCode, myColor, userName]);
 
   // ── Status text ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -548,6 +604,7 @@ function PlayGame({ initialGame, userId, tc, onBack }: {
 
     const newFen = chess.fen();
     setFen(newFen);
+    setLastMove([sourceSquare, targetSquare]);
 
     // Increment time after move
     if (initMs > 0) {
@@ -607,8 +664,14 @@ function PlayGame({ initialGame, userId, tc, onBack }: {
     navigator.clipboard.writeText(gameState.roomCode).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   }
 
-  const blackPlayer = isBlack ? "You" : "Opponent";
-  const whitePlayer = isWhite ? "You" : "Opponent";
+  function copyLink() {
+    const url = `${window.location.origin}/chess?join=${gameState.roomCode}`;
+    navigator.clipboard.writeText(url).then(() => { setCopiedLink(true); setTimeout(() => setCopiedLink(false), 2000); });
+  }
+
+  const opponentLabel = opponentName ?? "Opponent";
+  const blackLabel = isBlack ? `${userName} (You)` : `${opponentLabel}`;
+  const whiteLabel = isWhite ? `${userName} (You)` : `${opponentLabel}`;
 
   return (
     <div className="flex flex-1 flex-col gap-3 p-3 md:flex-row md:items-start md:justify-center md:gap-6 md:p-6">
@@ -617,11 +680,19 @@ function PlayGame({ initialGame, userId, tc, onBack }: {
         {/* Black clock + label */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-zinc-800 ring-1 ring-zinc-600" />
-            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Black ({blackPlayer})</span>
-            {gameState.turn === "b" && !isOver && <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">● TURN</span>}
+            <div className="h-3 w-3 shrink-0 rounded-full bg-zinc-800 ring-1 ring-zinc-600" />
+            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              ♚ {blackLabel}
+            </span>
+            {gameState.turn === "b" && !isOver && !isWaiting && (
+              <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">● TURN</span>
+            )}
           </div>
-          {initMs > 0 && <Clock ms={blackMs} active={gameState.turn === "b" && !isOver && !isWaiting} low={blackMs < 30000} />}
+          <Clock
+            ms={blackMs}
+            active={gameState.turn === "b" && !isOver && !isWaiting}
+            low={blackMs < 30000}
+          />
         </div>
 
         <Chessboard
@@ -631,31 +702,50 @@ function PlayGame({ initialGame, userId, tc, onBack }: {
             boardOrientation: myColor ?? "white",
             allowDragging: isMyTurn && !isOver && !isWaiting,
             boardStyle: { borderRadius: "12px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)" },
+            squareStyles: lastMove ? {
+              [lastMove[0]]: { backgroundColor: "rgba(255, 213, 0, 0.4)" },
+              [lastMove[1]]: { backgroundColor: "rgba(255, 213, 0, 0.4)" },
+            } : {},
           }}
         />
 
         {/* White clock + label */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-zinc-100 ring-1 ring-zinc-300" />
-            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">White ({whitePlayer})</span>
-            {gameState.turn === "w" && !isOver && <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">● TURN</span>}
+            <div className="h-3 w-3 shrink-0 rounded-full bg-zinc-100 ring-1 ring-zinc-300" />
+            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              ♔ {whiteLabel}
+            </span>
+            {gameState.turn === "w" && !isOver && !isWaiting && (
+              <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">● TURN</span>
+            )}
           </div>
-          {initMs > 0 && <Clock ms={whiteMs} active={gameState.turn === "w" && !isOver && !isWaiting} low={whiteMs < 30000} />}
+          <Clock
+            ms={whiteMs}
+            active={gameState.turn === "w" && !isOver && !isWaiting}
+            low={whiteMs < 30000}
+          />
         </div>
       </div>
 
       {/* Side panel */}
       <div className="flex w-full max-w-xs flex-col gap-3">
-        {/* Room code */}
+
+        {/* Room code + copy link */}
         <div className="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
           <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-zinc-400">Room Code</p>
           <div className="flex items-center gap-2">
             <span className="font-mono text-2xl font-bold tracking-widest text-zinc-900 dark:text-zinc-100">{gameState.roomCode}</span>
-            <button onClick={copyCode} className="ml-auto rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+            <button onClick={copyCode} title="Copy code" className="ml-auto rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">
               {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
             </button>
           </div>
+          {isWaiting && (
+            <button onClick={copyLink}
+              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-zinc-200 py-1.5 text-xs font-medium text-zinc-500 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
+              {copiedLink ? <><Check className="h-3 w-3 text-emerald-500" /> Link copied!</> : <><Copy className="h-3 w-3" /> Copy invite link</>}
+            </button>
+          )}
         </div>
 
         {/* Status */}
@@ -685,69 +775,51 @@ function PlayGame({ initialGame, userId, tc, onBack }: {
           </div>
         )}
 
-        {/* Actions */}
-        {!isWaiting && (
-          <div className="flex flex-wrap gap-2">
-            {/* Sound toggle */}
-            <button onClick={() => setMuted((m) => !m)}
-              className="flex items-center gap-1 rounded-xl border border-zinc-300 px-2.5 py-2 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
-              title={muted ? "Unmute" : "Mute"}>
-              {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
-            </button>
+        {/* Action row — always visible */}
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => setMuted((m) => !m)} title={muted ? "Unmute" : "Mute"}
+            className="flex items-center gap-1 rounded-xl border border-zinc-300 px-2.5 py-2 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800">
+            {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+          </button>
 
-            {/* Chat toggle */}
-            <button onClick={() => setShowChat((s) => !s)}
-              className={`flex items-center gap-1 rounded-xl border px-2.5 py-2 text-xs font-medium transition ${
-                showChat ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-950/30 dark:text-blue-400"
-                         : "border-zinc-300 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
-              }`}>
-              <MessageSquare className="h-3.5 w-3.5" /> Chat
-            </button>
-
-            {!isOver && (
-              <>
-                {drawOffer === null && (
-                  <button onClick={offerDraw}
-                    className="flex items-center gap-1 rounded-xl border border-zinc-300 px-2.5 py-2 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800">
-                    ½ Draw
-                  </button>
-                )}
-                {drawOffer === "sent" && (
-                  <span className="flex items-center gap-1 rounded-xl border border-zinc-200 px-2.5 py-2 text-xs text-zinc-400">Draw offered…</span>
-                )}
-                <button onClick={handleResign}
-                  className="flex items-center gap-1.5 rounded-xl border border-zinc-300 px-2.5 py-2 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800">
-                  <Flag className="h-3.5 w-3.5" /> Resign
+          {!isWaiting && !isOver && (
+            <>
+              {drawOffer === null && (
+                <button onClick={offerDraw}
+                  className="flex items-center gap-1 rounded-xl border border-zinc-300 px-2.5 py-2 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800">
+                  ½ Draw
                 </button>
-              </>
-            )}
-            {isOver && (
-              <button onClick={() => {
-                setRematch("sent");
-                supabase.channel(`chess:${gameState.roomCode}`).send({ type: "broadcast", event: "rematch_offer", payload: { from: myColor } });
-              }}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
-                <RefreshCw className="h-3.5 w-3.5" /> Rematch
+              )}
+              {drawOffer === "sent" && (
+                <span className="flex items-center rounded-xl border border-zinc-200 px-2.5 py-2 text-xs text-zinc-400">Draw offered…</span>
+              )}
+              <button onClick={handleResign}
+                className="flex items-center gap-1.5 rounded-xl border border-zinc-300 px-2.5 py-2 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800">
+                <Flag className="h-3.5 w-3.5" /> Resign
               </button>
-            )}
-          </div>
-        )}
-
-        {/* Chat panel */}
-        {showChat && <ChatPanel roomCode={gameState.roomCode} myColor={myColor} />}
+            </>
+          )}
+          {isOver && (
+            <button onClick={() => {
+              setRematch("sent");
+              supabase.channel(`chess:${gameState.roomCode}`).send({ type: "broadcast", event: "rematch_offer", payload: { from: myColor } });
+            }}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
+              <RefreshCw className="h-3.5 w-3.5" /> Rematch
+            </button>
+          )}
+        </div>
 
         {/* Move history */}
-        {gameState.pgn && (
-          <div className="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">Moves</p>
-            <p className="break-all font-mono text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">{gameState.pgn}</p>
-          </div>
-        )}
+        <MoveHistory pgn={gameState.pgn} />
 
-        {/* Voice — wire to existing LiveKit room */}
+        {/* Chat — always open */}
+        {!isWaiting && <ChatPanel roomCode={gameState.roomCode} myColor={myColor} />}
+
+        {/* Voice */}
         <a href="/call" target="_blank" rel="noopener noreferrer"
           className="flex items-center justify-center gap-2 rounded-xl border border-zinc-300 py-2 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800">
-          <Mic className="h-3.5 w-3.5" /> Voice Call (LiveKit)
+          <Mic className="h-3.5 w-3.5" /> Voice Call
         </a>
       </div>
     </div>
