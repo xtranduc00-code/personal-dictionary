@@ -47,8 +47,8 @@ const FILES = ["a", "b", "c", "d", "e", "f", "g", "h"] as const;
  * Shared dynamically loaded chessboard: avoids SSR, merges Ken default board chrome.
  */
 /** Notation gutter sizes for the fixedEdgeNotation layout. */
-const RANK_GUTTER = 16;  // left gutter (sm:w-4 = 16px)
-const FILE_GUTTER = 24;  // bottom gutter (h-6 = 24px)
+const RANK_GUTTER = 16;  // left gutter (w-4 = 16px)
+const FILE_GUTTER = 16;  // bottom gutter — matches rank gutter to keep board square
 
 export function KenChessboard({ options, className, fixedEdgeNotation = true }: Props) {
   const { boardStyle, showNotation, boardOrientation = "white", ...rest } = options;

@@ -1365,10 +1365,28 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
             whiteUserId: g.whiteUserId,
             updatedAt: g.updatedAt,
           }));
+          // Re-announce ourselves so opponent learns our name
+          try {
+            supabase.channel(`chess:${gameState.roomCode}`).send({
+              type: "broadcast", event: "hello",
+              payload: { name: userName, color: myColor ?? "spectator" },
+            });
+          } catch { /* ignore */ }
           return;
         }
 
-        // Skip if PGN hasn't changed (same position)
+        // Always sync status changes (resign, timeout, draw don't change PGN)
+        const statusChanged = g.status !== gameStateRef.current.status;
+        if (statusChanged) {
+          setGameState((prev) => ({
+            ...prev,
+            status: g.status,
+            winner: g.winner,
+            updatedAt: g.updatedAt,
+          }));
+        }
+
+        // Skip move sync if PGN hasn't changed
         if (g.pgn === lastPollPgnRef.current) return;
         lastPollPgnRef.current = g.pgn;
 
