@@ -361,16 +361,13 @@ function pickVocabPayloadsForUser(
   return words.map((w, i) => {
     const path = w.pushOpenFlashcards ? "/flashcards" : "/ielts-speaking";
 
-    // Title: "word (POS) — short def" — fits in one line on Chrome/Apple Watch
+    // Title: word only (one line)
     const posLabel = w.partOfSpeech ? ` (${posAbbrev(w.partOfSpeech)})` : "";
-    const shortDef = w.shortDefinition
-      || (typeof w.explanation === "string" ? htmlToPlainPushText(w.explanation) : "");
-    const titlePrefix = `${w.word}${posLabel}`;
-    const title = shortDef ? `${titlePrefix} — ${shortDef}` : titlePrefix;
+    const title = `${w.word}${posLabel}`;
 
-    // Body: example sentence only (definition is already in the title)
+    // Body: example sentence (second line)
     const ex = pickExampleForPushBody(w, bucket).trim();
-    const body = (ex && ex !== shortDef) ? clampPushBody(ex) : "Open to review.";
+    const body = ex ? clampPushBody(ex) : "Open to review.";
 
     return JSON.stringify({
       title,
