@@ -19,9 +19,29 @@ export type VocabItem = {
   examples?: string[];
   /** Preferred: fully-formed sentences generated and stored ahead of time. */
   sentences?: string[];
+  /** Part of speech abbreviation (N, V, Adj, Adv, etc.) */
+  partOfSpeech?: string;
   /** From vocabulary notes (`flashcard_cards`); notification opens `/flashcards`. */
   pushOpenFlashcards?: boolean;
 };
+
+/** Abbreviate part-of-speech for notification title. */
+function posAbbrev(pos: string): string {
+  const p = pos.trim().toLowerCase();
+  if (p === "noun" || p === "n") return "N";
+  if (p === "verb" || p === "v") return "V";
+  if (p === "adjective" || p === "adj") return "Adj";
+  if (p === "adverb" || p === "adv") return "Adv";
+  if (p === "preposition" || p === "prep") return "Prep";
+  if (p === "conjunction" || p === "conj") return "Conj";
+  if (p === "pronoun" || p === "pron") return "Pron";
+  if (p === "interjection" || p === "interj") return "Interj";
+  if (p === "determiner" || p === "det") return "Det";
+  if (p === "phrase") return "Phrase";
+  if (p === "idiom") return "Idiom";
+  // Already abbreviated or unknown — capitalize first letter
+  return pos.charAt(0).toUpperCase() + pos.slice(1).toLowerCase();
+}
 
 function normalizeWordKey(word: string): string {
   return word.trim().replace(/\s+/g, " ").toLowerCase();
@@ -252,13 +272,14 @@ function htmlToPlainPushText(html: string): string {
     .trim();
 }
 
-function flashcardRowToVocabItem(word: string, definition: string): VocabItem | null {
+function flashcardRowToVocabItem(word: string, definition: string, partOfSpeech?: string): VocabItem | null {
   const w = typeof word === "string" ? word.trim() : "";
   if (!w) return null;
   const plain = htmlToPlainPushText(typeof definition === "string" ? definition : "");
   const item: VocabItem = {
     word: w,
     pushOpenFlashcards: true,
+    partOfSpeech: partOfSpeech || undefined,
   };
   if (plain.length >= 12 && /\s/.test(plain) && /[.?!]/.test(plain)) {
     item.sentences = [plain.length > 800 ? `${plain.slice(0, 797)}…` : plain];
@@ -283,7 +304,7 @@ async function loadUserFlashcardVocabByUserId(
     const chunk = userIds.slice(i, i + FLASHCARD_USER_CHUNK);
     const { data, error } = await db
       .from("flashcard_cards")
-      .select("user_id,word,definition")
+      .select("user_id,word,definition,part_of_speech")
       .in("user_id", chunk);
     if (error) throw error;
     for (const row of data ?? []) {
@@ -291,6 +312,7 @@ async function loadUserFlashcardVocabByUserId(
       const item = flashcardRowToVocabItem(
         row.word as string,
         (row.definition as string) ?? "",
+        (row.part_of_speech as string) ?? undefined,
       );
       if (!item) continue;
       const list = byUser.get(uid);
@@ -314,7 +336,6 @@ function pickVocabPayloadsForUser(
   const combined = dedupeVocabItems([...userWords, ...ieltsWords]);
   if (combined.length === 0) return [];
 
-  const dayKey = bucketDayKey(bucket);
   const sentencePool = combined.filter((w) => hasSentenceForPush(w));
   const nonTrivial = combined.filter((w) => !isTrivialForPush(w));
   const pool =
@@ -323,20 +344,37 @@ function pickVocabPayloadsForUser(
       : nonTrivial.length >= 8
         ? nonTrivial
         : combined;
-  const ordered = stableDailyWordOrder(pool, dayKey);
+  // Shuffle using the full bucket (day+time) as seed — ensures different words each slot
+  const ordered = stableDailyWordOrder(pool, bucket);
   const slotIdx = bucketSlotIndex(bucket);
-  const start = (slotIdx * 2) % ordered.length;
+  // Use a prime stride to avoid short cycles when pool is small
+  const stride = pool.length <= 3 ? 1 : 7;
+  const start = (slotIdx * stride) % ordered.length;
   const words =
     ordered.length >= 2
-      ? [ordered[start]!, ordered[(start + 1) % ordered.length]!]
+      ? [ordered[start]!, ordered[(start + stride) % ordered.length]!]
       : [ordered[start]!];
 
   const base = siteUrl.replace(/\/$/, "");
   return words.map((w, i) => {
-    const body = pickBodyForPush(w, bucket);
     const path = w.pushOpenFlashcards ? "/flashcards" : "/ielts-speaking";
+
+    // Title: "word (POS)" — e.g. "fabric (N)"
+    const posLabel = w.partOfSpeech ? ` (${posAbbrev(w.partOfSpeech)})` : "";
+    const title = `${w.word}${posLabel}`;
+
+    // Body: line 1 = definition, line 2 = example
+    const def = typeof w.explanation === "string" ? htmlToPlainPushText(w.explanation) : "";
+    const ex = pickExampleForPushBody(w, bucket).trim();
+    const bodyParts: string[] = [];
+    if (def) bodyParts.push(clampPushBody(def));
+    if (ex && ex !== def) bodyParts.push(clampPushBody(ex));
+    const body = bodyParts.join("\n") || (w.pushOpenFlashcards
+      ? "Open vocabulary notes to review."
+      : "IELTS vocabulary — open to review.");
+
     return JSON.stringify({
-      title: w.word,
+      title,
       body,
       url: `${base}${path}`,
       tag: `vocab-${bucket}-${i}`,
