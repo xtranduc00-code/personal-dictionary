@@ -295,8 +295,8 @@ export function GuardianDailyNewsPanel({
               {t("dailyNewsPageTitle")}
             </h1>
           </div>
-          <div className="flex w-full max-w-md flex-col gap-2 sm:max-w-none sm:w-auto sm:flex-row sm:items-stretch sm:gap-3">
-            <label className="flex w-full max-w-md flex-1 items-center gap-2 rounded-xl border border-zinc-200/90 bg-zinc-50/90 px-3 py-2.5 shadow-inner shadow-zinc-200/20 dark:border-zinc-600 dark:bg-zinc-950/50 dark:shadow-none">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[22rem] sm:flex-row sm:items-stretch sm:gap-3">
+            <label className="flex w-full flex-1 items-center gap-2 rounded-xl border border-zinc-200/90 bg-zinc-50/90 px-3 py-2.5 shadow-inner shadow-zinc-200/20 dark:border-zinc-600 dark:bg-zinc-950/50 dark:shadow-none">
               <Search
                 className="h-4 w-4 shrink-0 text-zinc-400 dark:text-zinc-500"
                 aria-hidden
@@ -329,9 +329,6 @@ export function GuardianDailyNewsPanel({
                     ? t("dailyNewsSportKindleBuilding")
                     : t("dailyNewsSportKindleDownload")}
                 </button>
-                <p className="max-w-[min(100%,18rem)] text-center text-[11px] leading-snug text-zinc-500 dark:text-zinc-400 sm:max-w-[14rem] sm:text-left">
-                  {t("dailyNewsSportKindleDownloadHint")}
-                </p>
               </div>
             ) : null}
           </div>
