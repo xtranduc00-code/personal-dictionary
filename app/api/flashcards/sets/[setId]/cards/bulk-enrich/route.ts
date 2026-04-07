@@ -143,6 +143,7 @@ export async function POST(
     set_id: setId,
     word: e.word.slice(0, 500),
     definition: buildDefinitionHtml(e).slice(0, 5000),
+    part_of_speech: e.part_of_speech || "other",
   }));
 
   if (rows.length === 0) {
