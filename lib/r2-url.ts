@@ -1,6 +1,7 @@
 export const R2_BUCKET = "ielts";
 export const R2_MOVIES_PREFIX = "movies/";
 export const R2_SUBTITLES_PREFIX = "subtitles/";
+export const R2_CHAT_FILES_PREFIX = "chat-files/";
 
 // Reuse the existing R2 public domain already used for listening assets.
 // Prefer env overrides when present (no new env vars required).

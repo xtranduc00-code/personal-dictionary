@@ -18,7 +18,11 @@ import {
   Play,
   RefreshCw,
   Rewind,
+  Settings,
+  Subtitles,
   Users,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import {
   LiveKitRoom,
@@ -121,6 +125,18 @@ export function WatchPartySession({
 
 const SEEK_BROADCAST_MS = 220;
 const WATCH_SKIP_SECONDS = 10;
+const SPEED_OPTIONS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+const QUALITY_OPTIONS: { key: string; label: string }[] = [
+  { key: "hd2160", label: "2160p (4K)" },
+  { key: "hd1440", label: "1440p (2K)" },
+  { key: "hd1080", label: "1080p" },
+  { key: "hd720", label: "720p" },
+  { key: "large", label: "480p" },
+  { key: "medium", label: "360p" },
+  { key: "small", label: "240p" },
+  { key: "tiny", label: "144p" },
+  { key: "auto", label: "Auto" },
+];
 
 function getDocumentFullscreenElement(): Element | null {
   const doc = document as Document & {
@@ -164,6 +180,7 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
   const [, bumpParticipantList] = useReducer((n: number) => n + 1, 0);
   const micLevel = useMeetsLocalMicLevel(isMicrophoneEnabled);
   const [chatOpen, setChatOpen] = useState(false);
+  const [desktopChatOpen, setDesktopChatOpen] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cloudInputRef = useRef<HTMLInputElement>(null);
@@ -197,6 +214,12 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
   const youtubeIdRef = useRef<string | null>(null);
   const publishStateRef = useRef<() => Promise<void>>(async () => {});
   const volumeRef = useRef(1);
+  const [muted, setMuted] = useState(false);
+  const [speed, setSpeed] = useState(1);
+  const [quality, setQuality] = useState("default");
+  const [availableQualities, setAvailableQualities] = useState<string[]>([]);
+  const [ccEnabled, setCcEnabled] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   type YoutubeSyncMsg = Extract<WatchSyncEnvelope, { kind: "state" }> & {
     source: "youtube";
     youtubeId: string;
@@ -632,6 +655,8 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
                 setDuration(d);
               }
               e.target.setVolume(volumeRef.current * 100);
+              const qs = e.target.getAvailableQualityLevels();
+              if (qs?.length) setAvailableQualities(qs);
             } catch {
               /* ignore */
             }
@@ -667,6 +692,11 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
             if (st === YT_STATE_PLAYING) {
               clearPartnerPlayGate();
             }
+            try {
+              const qs = ev.target.getAvailableQualityLevels();
+              if (qs?.length) setAvailableQualities(qs);
+              setQuality(ev.target.getPlaybackQuality());
+            } catch { /* ignore */ }
             if (st === YT_STATE_PLAYING || st === YT_STATE_PAUSED) {
               void publishStateRef.current();
             }
@@ -1358,6 +1388,51 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
     }
   };
 
+  const toggleMute = () => {
+    const next = !muted;
+    setMuted(next);
+    if (youtubeId && ytPlayerRef.current) {
+      try { ytPlayerRef.current.setVolume(next ? 0 : Math.round(volume * 100)); } catch { /* ignore */ }
+    } else {
+      const v = videoRef.current;
+      if (v) v.muted = next;
+    }
+  };
+
+  const handleSpeedChange = (rate: number) => {
+    setSpeed(rate);
+    setShowSettings(false);
+    if (youtubeId && ytPlayerRef.current) {
+      try { ytPlayerRef.current.setPlaybackRate(rate); } catch { /* ignore */ }
+    } else {
+      const v = videoRef.current;
+      if (v) v.playbackRate = rate;
+    }
+  };
+
+  const handleQualityChange = (q: string) => {
+    setQuality(q);
+    setShowSettings(false);
+    if (youtubeId && ytPlayerRef.current) {
+      try { ytPlayerRef.current.setPlaybackQuality(q); } catch { /* ignore */ }
+    }
+  };
+
+  const toggleCc = () => {
+    const p = ytPlayerRef.current;
+    if (!p) return;
+    try {
+      if (ccEnabled) {
+        p.unloadModule("cc");
+        p.unloadModule("captions");
+      } else {
+        p.loadModule("cc");
+        p.setOption("captions", "track", { languageCode: "en" });
+      }
+      setCcEnabled((v) => !v);
+    } catch { /* ignore */ }
+  };
+
   const toggleStageFullscreen = () => {
     const el = videoStageRef.current;
     if (!el) {
@@ -1964,204 +2039,255 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
                   ) : null}
                 </div>
 
-                <div className="watch-party-controls flex min-h-[2.25rem] shrink-0 flex-nowrap items-center gap-1.5 overflow-x-auto overflow-y-hidden border-t border-zinc-800/80 bg-zinc-900 px-2 py-1 sm:gap-2 sm:px-2 sm:py-1.5">
-                  <button
-                    type="button"
-                    disabled={!hasMedia}
-                    onClick={() => skipSeconds(-WATCH_SKIP_SECONDS)}
-                    title={t("watchSkipBack10")}
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-600 bg-zinc-800 text-zinc-100 shadow-sm hover:bg-zinc-700 disabled:opacity-40 sm:h-8 sm:w-8"
-                    aria-label={t("watchSkipBack10")}
-                  >
-                    <Rewind
-                      className="h-4 w-4 shrink-0"
-                      strokeWidth={2}
-                      aria-hidden
-                    />
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!hasMedia}
-                    onClick={togglePlay}
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-600 bg-zinc-800 text-zinc-100 shadow-sm hover:bg-zinc-700 disabled:opacity-40 sm:h-8 sm:w-8"
-                    aria-label={
-                      playing ? t("watchPlayerPause") : t("watchPlayerPlay")
-                    }
-                  >
-                    {playing ? (
-                      <Pause
-                        className="h-4 w-4 shrink-0"
-                        strokeWidth={2}
-                        aria-hidden
-                      />
-                    ) : (
-                      <Play
-                        className="h-4 w-4 shrink-0"
-                        strokeWidth={2}
-                        aria-hidden
-                      />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!hasMedia}
-                    onClick={() => skipSeconds(WATCH_SKIP_SECONDS)}
-                    title={t("watchSkipForward10")}
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-600 bg-zinc-800 text-zinc-100 shadow-sm hover:bg-zinc-700 disabled:opacity-40 sm:h-8 sm:w-8"
-                    aria-label={t("watchSkipForward10")}
-                  >
-                    <FastForward
-                      className="h-4 w-4 shrink-0"
-                      strokeWidth={2}
-                      aria-hidden
-                    />
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!connected}
-                    onClick={() => {
-                      void publishRequest();
-                    }}
-                    title={t("watchSyncNowTooltip")}
-                    className="inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-lg border border-zinc-600 bg-zinc-800 px-2 text-zinc-100 shadow-sm hover:bg-zinc-700 disabled:opacity-40 sm:min-w-[2rem] sm:px-2.5"
-                    aria-label={t("watchTogetherSyncNow")}
-                  >
-                    <RefreshCw
-                      className="h-4 w-4 shrink-0"
-                      strokeWidth={2}
-                      aria-hidden
-                    />
-                    <span className="hidden text-[11px] font-medium sm:inline">
-                      {t("watchTogetherSyncNow")}
+                <div className="watch-party-controls shrink-0 border-t border-zinc-800 bg-zinc-900 px-3 py-2 flex flex-col gap-1.5">
+                  {/* Seek bar row */}
+                  <div className="flex items-center gap-2">
+                    <span className="tabular-nums text-[10px] text-zinc-400 shrink-0 w-10 text-right">
+                      {formatWatchTime(displayTime)}
                     </span>
-                  </button>
-                  <span className="max-w-[5.5rem] shrink-0 truncate tabular-nums text-[10px] text-zinc-300 sm:max-w-none sm:text-xs md:text-sm">
-                    {formatWatchTime(displayTime)} /{" "}
-                    {formatWatchTime(durationSafe)}
-                  </span>
-                  <label className="flex min-h-0 min-w-0 flex-1 items-center">
-                    <span className="sr-only">{t("watchPlayerSeek")}</span>
                     <input
                       type="range"
                       aria-label={t("watchPlayerSeek")}
                       disabled={!hasMedia || durationSafe <= 0}
                       min={0}
                       max={durationSafe > 0 ? durationSafe : 1}
-                      step={0.05}
-                      value={
-                        durationSafe > 0
-                          ? Math.min(displayTime, durationSafe)
-                          : 0
-                      }
+                      step={0.1}
+                      value={durationSafe > 0 ? Math.min(displayTime, durationSafe) : 0}
                       onPointerDown={() => {
-                        if (
-                          youtubeId &&
-                          ytPlayerRef.current &&
-                          durationSafe > 0
-                        ) {
-                          const p = ytPlayerRef.current;
+                        if (youtubeId && ytPlayerRef.current && durationSafe > 0) {
                           try {
                             scrubbingRef.current = true;
                             setScrubbing(true);
-                            setScrubTime(p.getCurrentTime());
-                          } catch {
-                            /* ignore */
-                          }
+                            setScrubTime(ytPlayerRef.current.getCurrentTime());
+                          } catch { /* ignore */ }
                           return;
                         }
                         const v = videoRef.current;
-                        if (!v?.src || durationSafe <= 0) {
-                          return;
-                        }
+                        if (!v?.src || durationSafe <= 0) return;
                         scrubbingRef.current = true;
                         setScrubbing(true);
                         setScrubTime(v.currentTime);
                       }}
                       onChange={(e) => {
                         const x = Number(e.target.value);
-                        if (!Number.isFinite(x)) {
-                          return;
-                        }
+                        if (!Number.isFinite(x)) return;
                         if (youtubeId && ytPlayerRef.current) {
                           ytPlayerRef.current.seekTo(x, true);
                           setScrubTime(x);
                           return;
                         }
                         const v = videoRef.current;
-                        if (!v?.src) {
-                          return;
-                        }
+                        if (!v?.src) return;
                         setScrubTime(x);
                         v.currentTime = x;
                       }}
-                      className="h-1.5 w-full min-w-[4rem] flex-1 cursor-pointer accent-zinc-400 disabled:opacity-40 sm:h-2 sm:min-w-[6rem]"
+                      className="flex-1 h-1 accent-red-500 cursor-pointer disabled:opacity-40"
                     />
-                  </label>
-                  <label className="flex shrink-0 items-center">
-                    <span className="sr-only">{t("watchPlayerVolume")}</span>
+                    <span className="tabular-nums text-[10px] text-zinc-400 shrink-0 w-10">
+                      {formatWatchTime(durationSafe)}
+                    </span>
+                  </div>
+
+                  {/* Buttons row */}
+                  <div className="flex items-center gap-1.5">
+                    {/* Rewind */}
+                    <button
+                      type="button"
+                      disabled={!hasMedia}
+                      onClick={() => skipSeconds(-WATCH_SKIP_SECONDS)}
+                      title={t("watchSkipBack10")}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-100 hover:bg-zinc-700 disabled:opacity-40 transition-colors"
+                    >
+                      <Rewind className="h-3.5 w-3.5" />
+                    </button>
+
+                    {/* Play / Pause */}
+                    <button
+                      type="button"
+                      disabled={!hasMedia}
+                      onClick={togglePlay}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-100 hover:bg-zinc-700 disabled:opacity-40 transition-colors"
+                    >
+                      {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                    </button>
+
+                    {/* Forward */}
+                    <button
+                      type="button"
+                      disabled={!hasMedia}
+                      onClick={() => skipSeconds(WATCH_SKIP_SECONDS)}
+                      title={t("watchSkipForward10")}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-100 hover:bg-zinc-700 disabled:opacity-40 transition-colors"
+                    >
+                      <FastForward className="h-3.5 w-3.5" />
+                    </button>
+
+                    {/* Mute / Volume */}
+                    <button
+                      type="button"
+                      onClick={toggleMute}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-100 hover:bg-zinc-700 transition-colors"
+                    >
+                      {muted || volume === 0 ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+                    </button>
                     <input
                       type="range"
                       aria-label={t("watchPlayerVolume")}
                       disabled={!hasMedia}
                       min={0}
                       max={1}
-                      step={0.05}
-                      value={volume}
+                      step={0.02}
+                      value={muted ? 0 : volume}
                       onChange={(e) => {
                         const x = Number(e.target.value);
-                        if (youtubeId && ytPlayerRef.current) {
-                          try {
-                            ytPlayerRef.current.setVolume(Math.round(x * 100));
-                          } catch {
-                            /* ignore */
-                          }
-                          setVolume(x);
-                          return;
-                        }
-                        const v = videoRef.current;
-                        if (!v?.src) {
-                          return;
-                        }
-                        v.volume = x;
                         setVolume(x);
+                        setMuted(x === 0);
+                        if (youtubeId && ytPlayerRef.current) {
+                          try { ytPlayerRef.current.setVolume(Math.round(x * 100)); } catch { /* ignore */ }
+                        } else {
+                          const v = videoRef.current;
+                          if (v?.src) { v.volume = x; v.muted = x === 0; }
+                        }
                       }}
-                      className="h-1.5 w-14 cursor-pointer accent-zinc-400 sm:h-2 sm:w-20 disabled:opacity-40"
+                      className="w-16 h-1 accent-zinc-400 cursor-pointer"
                     />
-                  </label>
-                  <button
-                    type="button"
-                    disabled={!hasMedia}
-                    onClick={toggleStageFullscreen}
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-600 bg-zinc-800 text-zinc-100 shadow-sm hover:bg-zinc-700 disabled:opacity-40"
-                    aria-label={
-                      stageFullscreen
-                        ? t("watchExitFullscreen")
-                        : t("watchPlayerFullscreen")
-                    }
-                  >
-                    {stageFullscreen ? (
-                      <Minimize2
-                        className="h-4 w-4"
-                        strokeWidth={2}
-                        aria-hidden
-                      />
-                    ) : (
-                      <Maximize2
-                        className="h-4 w-4"
-                        strokeWidth={2}
-                        aria-hidden
-                      />
+
+                    {/* Spacer */}
+                    <div className="flex-1" />
+
+                    {/* Sync now */}
+                    <button
+                      type="button"
+                      disabled={!connected}
+                      onClick={() => { void publishRequest(); }}
+                      title={t("watchSyncNowTooltip")}
+                      className="inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-lg border border-zinc-700 bg-zinc-800 px-2 text-zinc-100 hover:bg-zinc-700 disabled:opacity-40 transition-colors"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      <span className="hidden text-[10px] font-medium sm:inline">
+                        {t("watchTogetherSyncNow")}
+                      </span>
+                    </button>
+
+                    {/* CC (YouTube only) */}
+                    {youtubeId && (
+                      <button
+                        type="button"
+                        onClick={toggleCc}
+                        disabled={!ytReady}
+                        title="Subtitles"
+                        className={`inline-flex h-7 items-center justify-center gap-1 rounded-lg border px-2 text-[10px] font-bold transition-colors disabled:opacity-40 ${
+                          ccEnabled
+                            ? "border-white bg-white text-zinc-900"
+                            : "border-zinc-700 bg-zinc-800 text-zinc-100 hover:bg-zinc-700"
+                        }`}
+                      >
+                        <Subtitles className="h-3.5 w-3.5" />
+                      </button>
                     )}
-                  </button>
+
+                    {/* Settings (speed + quality) */}
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setShowSettings((v) => !v)}
+                        disabled={!hasMedia}
+                        title="Settings"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-100 hover:bg-zinc-700 disabled:opacity-40 transition-colors"
+                      >
+                        <Settings className="h-3.5 w-3.5" />
+                      </button>
+
+                      {showSettings && (
+                        <div
+                          className="absolute bottom-9 right-0 z-30 w-52 rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl overflow-hidden"
+                          onMouseLeave={() => setShowSettings(false)}
+                        >
+                          {/* Speed */}
+                          <div className="px-3 py-2 border-b border-zinc-700">
+                            <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wide mb-1.5">Speed</p>
+                            <div className="flex flex-wrap gap-1">
+                              {SPEED_OPTIONS.map((r) => (
+                                <button
+                                  key={r}
+                                  onClick={() => handleSpeedChange(r)}
+                                  className={`rounded px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                                    speed === r
+                                      ? "bg-white text-zinc-900"
+                                      : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                                  }`}
+                                >
+                                  {r === 1 ? "Normal" : `${r}×`}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Quality */}
+                          {youtubeId && (
+                            <div className="px-3 py-2">
+                              <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wide mb-1.5">Quality</p>
+                              <div className="flex flex-col gap-0.5">
+                                {QUALITY_OPTIONS.map(({ key: q, label }) => {
+                                  const available = availableQualities.length === 0 || availableQualities.includes(q) || q === "auto";
+                                  return (
+                                    <button
+                                      key={q}
+                                      onClick={() => handleQualityChange(q === "auto" ? "default" : q)}
+                                      disabled={!available}
+                                      className={`flex items-center justify-between rounded px-2 py-1 text-[11px] transition-colors ${
+                                        (quality === q || (q === "auto" && quality === "default"))
+                                          ? "bg-white text-zinc-900 font-medium"
+                                          : available
+                                            ? "text-zinc-300 hover:bg-zinc-800"
+                                            : "text-zinc-600 opacity-50 cursor-not-allowed"
+                                      }`}
+                                    >
+                                      <span>{label}</span>
+                                      {(quality === q || (q === "auto" && quality === "default")) && <span className="text-[9px] opacity-60">✓</span>}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Fullscreen */}
+                    <button
+                      type="button"
+                      disabled={!hasMedia}
+                      onClick={toggleStageFullscreen}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-100 hover:bg-zinc-700 disabled:opacity-40 transition-colors"
+                      title={stageFullscreen ? t("watchExitFullscreen") : t("watchPlayerFullscreen")}
+                    >
+                      {stageFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <CallChatPanel
-              variant="watch"
-              roomDisplayName={roomDisplayName}
-              className={WATCH_CHAT_DESKTOP}
-            />
+            {/* Desktop chat toggle + panel */}
+            {desktopChatOpen ? (
+              <CallChatPanel
+                variant="watch"
+                roomDisplayName={roomDisplayName}
+                className={WATCH_CHAT_DESKTOP}
+                onToggle={() => setDesktopChatOpen(false)}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setDesktopChatOpen(true)}
+                className="hidden lg:inline-flex self-start shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 transition-colors shadow-sm"
+              >
+                <MessageSquare className="h-3.5 w-3.5" />
+                {t("meetsToggleChatShow")}
+              </button>
+            )}
           </div>
         </div>
       </div>

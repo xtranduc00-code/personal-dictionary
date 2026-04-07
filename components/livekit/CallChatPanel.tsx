@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useChat, useLocalParticipant } from "@livekit/components-react";
-import { MessageCircle } from "lucide-react";
+import { ChevronDown, ChevronRight, ExternalLink, FileText, MessageCircle, Paperclip, Loader2 } from "lucide-react";
 import { toast } from "react-toastify";
 import { authFetch } from "@/lib/auth-context";
 import { useI18n } from "@/components/i18n-provider";
@@ -19,6 +19,8 @@ type Props = {
      * Use `true` with `variant="watch"` on Meet calls (light card + hint).
      */
     showChatHint?: boolean;
+    /** Called when the user clicks "Hide chat" — parent controls visibility. */
+    onToggle?: () => void;
 };
 
 type ChatMsgLike = {
@@ -26,6 +28,150 @@ type ChatMsgLike = {
     from?: { identity?: string; name?: string };
     message?: string;
 };
+
+const URL_RE = /https?:\/\/[^\s<]+/g;
+const DOC_EXT_RE = /\.(pdf|docx?|xlsx?|pptx?|txt|csv|rtf)(\?[^\s]*)?$/i;
+
+function isDocumentUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return DOC_EXT_RE.test(u.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function getDocFileName(url: string): string {
+  try {
+    const u = new URL(url);
+    const name = u.pathname.split("/").pop() || url;
+    return decodeURIComponent(name);
+  } catch {
+    return url;
+  }
+}
+
+function isPdfUrl(url: string): boolean {
+  try {
+    return /\.pdf(\?[^\s]*)?$/i.test(new URL(url).pathname);
+  } catch {
+    return false;
+  }
+}
+
+/** Renders a document link card with optional open/close PDF preview */
+function DocLinkCard({ url, variant }: { url: string; variant: CallChatPanelVariant }) {
+  const [open, setOpen] = useState(false);
+  const fileName = getDocFileName(url);
+  const canPreview = isPdfUrl(url);
+  const isWatch = variant === "watch";
+
+  return (
+    <div className={`mt-1.5 rounded-lg border overflow-hidden ${
+      isWatch ? "border-zinc-200 bg-white" : "border-zinc-600/50 bg-zinc-800/60"
+    }`}>
+      <div className="flex items-center gap-2 px-2.5 py-2">
+        <FileText className={`h-4 w-4 shrink-0 ${isWatch ? "text-red-500" : "text-red-400"}`} />
+        <span className={`min-w-0 flex-1 truncate text-xs font-medium ${isWatch ? "text-zinc-800" : "text-zinc-200"}`}>
+          {fileName}
+        </span>
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`shrink-0 p-1 rounded hover:bg-zinc-100/10 ${isWatch ? "text-zinc-500 hover:text-zinc-700" : "text-zinc-400 hover:text-zinc-200"}`}
+          title="Open in new tab"
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+        {canPreview && (
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className={`shrink-0 p-1 rounded transition-colors ${
+              isWatch
+                ? "text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100"
+                : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700"
+            }`}
+            title={open ? "Close preview" : "Open preview"}
+          >
+            {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          </button>
+        )}
+      </div>
+      {canPreview && open && (
+        <div className="border-t border-zinc-200/50">
+          <iframe
+            src={url}
+            className="w-full h-64 bg-white"
+            title={fileName}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Renders message text with clickable links and document link cards */
+function ChatMessageContent({ text, variant }: { text: string; variant: CallChatPanelVariant }) {
+  const isWatch = variant === "watch";
+  const parts: (string | { type: "url" | "doc"; url: string })[] = [];
+  let lastIndex = 0;
+
+  for (const match of text.matchAll(URL_RE)) {
+    const url = match[0];
+    const idx = match.index;
+    if (idx > lastIndex) parts.push(text.slice(lastIndex, idx));
+    if (isDocumentUrl(url)) {
+      parts.push({ type: "doc", url });
+    } else {
+      parts.push({ type: "url", url });
+    }
+    lastIndex = idx + url.length;
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+
+  const hasDocLinks = parts.some((p) => typeof p !== "string" && p.type === "doc");
+
+  return (
+    <>
+      <p className={`whitespace-pre-wrap break-words text-sm ${isWatch ? "text-zinc-800" : "text-zinc-100"}`}>
+        {parts.map((part, i) => {
+          if (typeof part === "string") return <span key={i}>{part}</span>;
+          if (part.type === "url") {
+            return (
+              <a
+                key={i}
+                href={part.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`underline break-all ${isWatch ? "text-blue-600 hover:text-blue-700" : "text-blue-400 hover:text-blue-300"}`}
+              >
+                {part.url}
+              </a>
+            );
+          }
+          // doc links rendered inline as link text, card below
+          return (
+            <a
+              key={i}
+              href={part.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`underline break-all ${isWatch ? "text-blue-600 hover:text-blue-700" : "text-blue-400 hover:text-blue-300"}`}
+            >
+              {part.url}
+            </a>
+          );
+        })}
+      </p>
+      {hasDocLinks &&
+        parts
+          .filter((p): p is { type: "doc"; url: string } => typeof p !== "string" && p.type === "doc")
+          .map((p, i) => <DocLinkCard key={i} url={p.url} variant={variant} />)}
+    </>
+  );
+}
 
 /** List only — avoids re-rendering bubbles while the draft input changes. */
 const MeetChatMessageList = memo(function MeetChatMessageList({
@@ -99,7 +245,7 @@ const MeetChatMessageList = memo(function MeetChatMessageList({
                                 <span className="truncate font-medium text-zinc-700">{label}</span>
                                 {time ? <span className="shrink-0 tabular-nums">{time}</span> : null}
                             </div>
-                            <p className="whitespace-pre-wrap break-words text-sm text-zinc-800">{msg.message}</p>
+                            <ChatMessageContent text={msg.message ?? ""} variant="watch" />
                         </div>
                     );
                 }
@@ -116,7 +262,7 @@ const MeetChatMessageList = memo(function MeetChatMessageList({
                             <span className="truncate font-medium text-zinc-300">{label}</span>
                             {time ? <span className="shrink-0 tabular-nums">{time}</span> : null}
                         </div>
-                        <p className="whitespace-pre-wrap break-words text-sm text-zinc-100">{msg.message}</p>
+                        <ChatMessageContent text={msg.message ?? ""} variant={variant} />
                     </div>
                 );
             })}
@@ -138,13 +284,16 @@ export const CallChatPanel = memo(function CallChatPanel({
     className = "",
     variant = "meet",
     showChatHint: showChatHintProp,
+    onToggle,
 }: Props) {
     const { t } = useI18n();
     const showChatHint = showChatHintProp !== undefined ? showChatHintProp : variant === "meet";
     const { chatMessages, send, isSending } = useChat();
     const { localParticipant } = useLocalParticipant();
     const [draft, setDraft] = useState("");
+    const [fileUploading, setFileUploading] = useState(false);
     const listRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const shell = variant === "watch" ? PANEL_SHELL_WATCH : PANEL_SHELL_MEET;
 
@@ -178,6 +327,54 @@ export const CallChatPanel = memo(function CallChatPanel({
         }
     }, [draft, isSending, roomDisplayName, send, t]);
 
+    const uploadFile = useCallback(async (file: File) => {
+        if (fileUploading) return;
+        setFileUploading(true);
+        try {
+            const presignRes = await authFetch("/api/r2/chat-presign", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    fileName: file.name,
+                    contentType: file.type || "application/octet-stream",
+                    size: file.size,
+                }),
+            });
+            if (!presignRes.ok) {
+                const err = await presignRes.json().catch(() => ({}));
+                toast.error(err.error || "Upload failed");
+                return;
+            }
+            const { uploadUrl, url } = await presignRes.json();
+            const putRes = await fetch(uploadUrl, {
+                method: "PUT",
+                headers: { "Content-Type": file.type || "application/octet-stream" },
+                body: file,
+            });
+            if (!putRes.ok) {
+                toast.error("Upload failed");
+                return;
+            }
+            const msg = `📎 ${file.name}\n${url}`;
+            await send(msg);
+            void authFetch("/api/meets/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ room: roomDisplayName, message: msg }),
+            });
+        } catch {
+            toast.error("Upload failed");
+        } finally {
+            setFileUploading(false);
+        }
+    }, [fileUploading, roomDisplayName, send]);
+
+    const onFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) void uploadFile(file);
+        e.target.value = "";
+    }, [uploadFile]);
+
     const headerClass =
         variant === "watch"
             ? "shrink-0 border-b border-zinc-200 bg-zinc-50/90 px-4 py-2.5"
@@ -200,7 +397,22 @@ export const CallChatPanel = memo(function CallChatPanel({
     return (
         <div className={`${shell} ${className}`}>
             <div className={headerClass}>
-                <h2 className={titleClass}>{t("meetsChatTitle")}</h2>
+                <div className="flex items-center justify-between">
+                    <h2 className={titleClass}>{t("meetsChatTitle")}</h2>
+                    {onToggle && (
+                        <button
+                            type="button"
+                            onClick={onToggle}
+                            className={`text-[11px] font-medium transition-colors ${
+                                variant === "watch"
+                                    ? "text-zinc-400 hover:text-zinc-600"
+                                    : "text-zinc-500 hover:text-zinc-300"
+                            }`}
+                        >
+                            {t("meetsToggleChatHide")}
+                        </button>
+                    )}
+                </div>
                 {showChatHint ? <p className={hintClass}>{t("meetsChatHint")}</p> : null}
             </div>
             <div
@@ -220,6 +432,28 @@ export const CallChatPanel = memo(function CallChatPanel({
                     void submit();
                 }}
             >
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.png,.jpg,.jpeg,.gif,.webp"
+                    className="sr-only"
+                    onChange={onFileInputChange}
+                />
+                <button
+                    type="button"
+                    disabled={fileUploading}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`shrink-0 rounded-xl p-2 transition ${
+                        variant === "watch"
+                            ? "text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100"
+                            : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800"
+                    } disabled:opacity-40`}
+                    title="Attach file"
+                >
+                    {fileUploading
+                        ? <Loader2 className="h-4 w-4 animate-spin" />
+                        : <Paperclip className="h-4 w-4" />}
+                </button>
                 <input
                     type="text"
                     value={draft}
