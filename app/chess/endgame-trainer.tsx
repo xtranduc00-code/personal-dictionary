@@ -5,6 +5,7 @@ import { ChessMoveAnnounceChip } from "@/components/chess-move-announce-chip";
 import { useChessMoveAnnouncement } from "@/hooks/use-chess-move-announcement";
 import { ChessBoardWrapper } from "@/components/chess/ChessBoardWrapper";
 import { squareStylesForLastMove } from "@/components/chess/move-highlight-styles";
+import { useChessLegalMoves } from "@/hooks/use-chess-legal-moves";
 import { Chess } from "chess.js";
 import { ArrowLeft, CheckCircle2, ChevronRight, RefreshCw, Target, Trophy } from "lucide-react";
 
@@ -398,8 +399,9 @@ function LessonBoard({
   }, []);
 
   function autoPlayOpponent(data: TablebaseData) {
+    // Include all move categories — cursed-win / blessed-loss are valid opponent moves
     const opponentMoves = data.moves.filter(
-      (m) => m.category === "win" || m.category === "loss" || m.category === "draw",
+      (m) => m.category !== "unknown",
     );
     // Opponent plays the "worst" move from the winning side's perspective (hardest defense)
     // Sort by dtm (pick the one that maximises distance to mate for defender)
@@ -409,7 +411,11 @@ function LessonBoard({
       return db - da;
     })[0];
 
-    if (!best) return;
+    // If no valid move or no data, just unlock the board
+    if (!best) {
+      setIsOpponentTurn(false);
+      return;
+    }
 
     setTimeout(() => {
       const chess = chessRef.current;
@@ -418,7 +424,11 @@ function LessonBoard({
         to: best.uci.slice(2, 4) as never,
         promotion: best.uci[4] ?? "q",
       });
-      if (!move) return;
+      if (!move) {
+        // Move failed (shouldn't happen) — unlock the board
+        setIsOpponentTurn(false);
+        return;
+      }
       announceMove(move, chess);
       setLastMoveSquares(squareStylesForLastMove(best.uci.slice(0, 2), best.uci.slice(2, 4), "opponent"));
       const newFen = chess.fen();
@@ -555,6 +565,7 @@ function LessonBoard({
     setFinished(false);
     setMoveCount(0);
     setIsOpponentTurn(false);
+    clearSelection();
 
     const chess = chessRef.current;
     const isMyTurn = chess.turn() === userSide;
@@ -565,7 +576,10 @@ function LessonBoard({
     });
   }
 
-  const squareStyles = useMemo(() => ({ ...lastMoveSquares, ...wrongSquares }), [lastMoveSquares, wrongSquares]);
+  const canInteract = !finished && !isOpponentTurn && !processingRef.current;
+  const { legalMoveStyles, handlers: legalMoveHandlers, clearSelection } = useChessLegalMoves(chessRef, handleDrop, canInteract);
+
+  const squareStyles = useMemo(() => ({ ...lastMoveSquares, ...wrongSquares, ...legalMoveStyles }), [lastMoveSquares, wrongSquares, legalMoveStyles]);
 
   const dtmDisplay = dtmCurrent != null ? dtmCurrent : "–";
 
@@ -687,9 +701,10 @@ function LessonBoard({
               className="overflow-hidden rounded-xl shadow-md ring-1 ring-black/[0.06] dark:ring-white/10"
               options={{
                 position: fen,
-                onPieceDrop: ({ sourceSquare, targetSquare }) => handleDrop(sourceSquare, targetSquare ?? ""),
+                onPieceDrop: ({ sourceSquare, targetSquare }) => { clearSelection(); return handleDrop(sourceSquare, targetSquare ?? ""); },
                 boardOrientation: orientation,
                 squareStyles,
+                ...legalMoveHandlers,
               }}
             />
           </div>

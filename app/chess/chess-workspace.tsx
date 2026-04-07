@@ -48,6 +48,7 @@ import type { Arrow as ChessboardArrow } from "react-chessboard";
 import { ChessBoardWrapper, computeChessBoardSize, useChessBoardSize } from "@/components/chess/ChessBoardWrapper";
 import { ChessMoveHistoryPanel, historyFromPgn } from "@/components/chess/chess-move-history-panel";
 import { squareStylesForLastMove } from "@/components/chess/move-highlight-styles";
+import { useChessLegalMoves } from "@/hooks/use-chess-legal-moves";
 
 const PUZZLE_ARROW_USER = "rgba(34, 197, 94, 0.95)";
 const PUZZLE_ARROW_OPPONENT = "rgba(100, 116, 139, 0.9)";
@@ -1489,6 +1490,9 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
     else                        setStatus(`${gameState.turn === "w" ? "White" : "Black"} to move`);
   }, [gameState, chess, isWaiting]);
 
+  // ── Legal move indicators + click-to-move ─────────────────────────────────
+  const { legalMoveStyles: playLegalStyles, handlers: playLegalHandlers, clearSelection: clearPlaySelection } = useChessLegalMoves(chessRef, onDrop, isMyTurn && !isOver);
+
   // ── Move ──────────────────────────────────────────────────────────────────
   function onDrop(sourceSquare: string, targetSquare: string): boolean {
     if (!isMyTurn || gameState.status !== "active") return false;
@@ -1715,17 +1719,20 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
             fixedEdgeNotation={false}
             options={{
               position: fen,
-              onPieceDrop: ({ sourceSquare, targetSquare }) => onDrop(sourceSquare, targetSquare ?? ""),
+              onPieceDrop: ({ sourceSquare, targetSquare }) => { clearPlaySelection(); return onDrop(sourceSquare, targetSquare ?? ""); },
               boardOrientation: myColor ?? "white",
               allowDragging: isMyTurn && !isOver,
-              squareStyles:
-                lastMove != null
+              squareStyles: {
+                ...(lastMove != null
                   ? squareStylesForLastMove(
                       lastMove[0],
                       lastMove[1],
                       lastMoveBy === "self" ? "user" : "opponent",
                     )
-                  : {},
+                  : {}),
+                ...playLegalStyles,
+              },
+              ...playLegalHandlers,
             }}
           />
         </div>
@@ -2648,6 +2655,9 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
 
   useEffect(() => () => stopSpeech(), []);
 
+  // ── Legal move indicators + click-to-move ─────────────────────────────────
+  const { legalMoveStyles: puzzleLegalStyles, handlers: puzzleLegalHandlers, clearSelection: clearPuzzleSelection } = useChessLegalMoves(chessRef, onDrop, result !== "solved");
+
   function onDrop(sourceSquare: string, targetSquare: string): boolean {
     if (result === "solved") return false;
     const expectedUci = solMoves[moveIdx];
@@ -2878,14 +2888,15 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
             }`}
             options={{
               position: fen,
-              onPieceDrop: ({ sourceSquare, targetSquare }) => onDrop(sourceSquare, targetSquare ?? ""),
+              onPieceDrop: ({ sourceSquare, targetSquare }) => { clearPuzzleSelection(); return onDrop(sourceSquare, targetSquare ?? ""); },
               boardOrientation: playerColor,
               allowDragging: result !== "solved",
               allowDrawingArrows: false,
               clearArrowsOnPositionChange: false,
               arrows: moveArrows,
               boardStyle: { boxShadow: innerBoardShadow, transition: "box-shadow 0.2s" },
-              squareStyles,
+              squareStyles: { ...squareStyles, ...puzzleLegalStyles },
+              ...puzzleLegalHandlers,
             }}
           />
           <div className="flex min-h-[2rem] w-full max-w-full shrink-0 justify-center">

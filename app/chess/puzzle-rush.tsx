@@ -5,6 +5,7 @@ import { Chess } from "chess.js";
 import { Heart, Loader2, RefreshCw, Zap } from "lucide-react";
 import { ChessBoardWrapper } from "@/components/chess/ChessBoardWrapper";
 import { squareStylesForLastMove } from "@/components/chess/move-highlight-styles";
+import { useChessLegalMoves } from "@/hooks/use-chess-legal-moves";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -400,6 +401,8 @@ function RushGame({
   const lastTickRef = useRef(Date.now());
   const transitionRef = useRef(false);
 
+  const { legalMoveStyles, handlers: legalMoveHandlers, clearSelection } = useChessLegalMoves(chessRef, handleDrop, !gameEndedRef.current);
+
   function endGame() {
     if (gameEndedRef.current) return;
     gameEndedRef.current = true;
@@ -760,18 +763,24 @@ function RushGame({
                   fixedEdgeNotation={false}
                   options={{
                     position: fen,
-                    onPieceDrop: ({ sourceSquare, targetSquare }) =>
-                      handleDrop(sourceSquare, targetSquare ?? ""),
+                    onPieceDrop: ({ sourceSquare, targetSquare }) => {
+                      clearSelection();
+                      return handleDrop(sourceSquare, targetSquare ?? "");
+                    },
                     boardOrientation,
                     allowDragging: !gameEndedRef.current,
                     boardStyle: flashStyle,
-                    squareStyles: lastMoveHighlight
-                      ? squareStylesForLastMove(
-                          lastMoveHighlight.from,
-                          lastMoveHighlight.to,
-                          lastMoveHighlight.side,
-                        )
-                      : {},
+                    squareStyles: {
+                      ...(lastMoveHighlight
+                        ? squareStylesForLastMove(
+                            lastMoveHighlight.from,
+                            lastMoveHighlight.to,
+                            lastMoveHighlight.side,
+                          )
+                        : {}),
+                      ...legalMoveStyles,
+                    },
+                    ...legalMoveHandlers,
                   }}
                 />
               </div>
