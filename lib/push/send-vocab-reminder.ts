@@ -124,9 +124,7 @@ function pickBodyForPush(item: VocabItem, bucket: string): string {
       ? htmlToPlainPushText(item.explanation)
       : "";
   if (expl.length > 0) return clampPushBody(expl);
-  return item.pushOpenFlashcards
-    ? "Open your vocabulary notes to review this card."
-    : "IELTS vocabulary — open the app to review.";
+  return "Open to review.";
 }
 
 /**
@@ -372,9 +370,7 @@ function pickVocabPayloadsForUser(
 
     // Body: example sentence only (definition is already in the title)
     const ex = pickExampleForPushBody(w, bucket).trim();
-    const body = (ex && ex !== shortDef) ? clampPushBody(ex) : (w.pushOpenFlashcards
-      ? "Open vocabulary notes to review."
-      : "IELTS vocabulary — open to review.");
+    const body = (ex && ex !== shortDef) ? clampPushBody(ex) : "Open to review.";
 
     return JSON.stringify({
       title,
@@ -427,10 +423,11 @@ async function runVocabReminderSweepImpl(
     });
   }
 
+  const ieltsWords = await loadAllIeltsTopicVocab(db);
   const subscribedUserIds = [...subsByUser.keys()];
   const flashByUser = await loadUserFlashcardVocabByUserId(db, subscribedUserIds);
   const anyUserCards = [...flashByUser.values()].some((a) => a.length > 0);
-  if (!anyUserCards) {
+  if (ieltsWords.length === 0 && !anyUserCards) {
     return { sent: 0, errors: 0, skipped: "no vocab items" };
   }
 
@@ -441,7 +438,7 @@ async function runVocabReminderSweepImpl(
 
   for (const [userId, userSubs] of subsByUser) {
     const userWords = flashByUser.get(userId) ?? [];
-    const payloads = pickVocabPayloadsForUser([], userWords, bucket, siteUrl);
+    const payloads = pickVocabPayloadsForUser(ieltsWords, userWords, bucket, siteUrl);
     if (payloads.length === 0) continue;
 
     const shouldSend = await tryLogVocabSent(db, userId, bucket);
