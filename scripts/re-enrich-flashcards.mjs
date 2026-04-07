@@ -74,6 +74,7 @@ async function enrichBatch(words) {
 - "word": the word as given
 - "part_of_speech": one of "noun", "verb", "adjective", "adverb", "phrase", "other"
 - "definition": concise definition in English (max 2 sentences, plain text)
+- "short_definition": a very brief definition (max 5 words, no articles) for push notification titles. e.g. "personal free time", "very large", "move quickly"
 - "example": one natural example sentence using this word in context
 
 Return ONLY valid JSON array, no extra text.
@@ -144,9 +145,11 @@ async function main() {
 
         const newDef = buildDefinitionHtml(enriched);
         const newPos = enriched.part_of_speech || card.part_of_speech || "other";
+        const shortDef = (enriched.short_definition || "").slice(0, 60) || null;
 
         if (dryRun) {
           console.log(`  ✓ ${card.word} → ${enriched.definition.slice(0, 60)}...`);
+          console.log(`    short: ${shortDef ?? "(none)"}`);
           console.log(`    example: ${enriched.example}`);
           updated++;
           continue;
@@ -154,7 +157,7 @@ async function main() {
 
         const { error } = await supabase
           .from("flashcard_cards")
-          .update({ definition: newDef, part_of_speech: newPos })
+          .update({ definition: newDef, part_of_speech: newPos, short_definition: shortDef })
           .eq("id", card.id);
 
         if (error) {

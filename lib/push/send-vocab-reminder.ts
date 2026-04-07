@@ -11,6 +11,8 @@ import { getCalendarEventStorageTimeZone } from "@/lib/calendar/event-start-utc"
 export type VocabItem = {
   word: string;
   explanation?: string;
+  /** Brief 3-5 word definition for push notification title (e.g. "personal free time"). */
+  shortDefinition?: string;
   example?: string;
   /**
    * Optional list of extra example sentences (same word, different usage).
@@ -272,7 +274,7 @@ function htmlToPlainPushText(html: string): string {
     .trim();
 }
 
-function flashcardRowToVocabItem(word: string, definition: string, partOfSpeech?: string): VocabItem | null {
+function flashcardRowToVocabItem(word: string, definition: string, partOfSpeech?: string, shortDefinition?: string): VocabItem | null {
   const w = typeof word === "string" ? word.trim() : "";
   if (!w) return null;
   const plain = htmlToPlainPushText(typeof definition === "string" ? definition : "");
@@ -280,6 +282,7 @@ function flashcardRowToVocabItem(word: string, definition: string, partOfSpeech?
     word: w,
     pushOpenFlashcards: true,
     partOfSpeech: partOfSpeech || undefined,
+    shortDefinition: shortDefinition || undefined,
   };
   if (plain.length >= 12 && /\s/.test(plain) && /[.?!]/.test(plain)) {
     item.sentences = [plain.length > 800 ? `${plain.slice(0, 797)}…` : plain];
@@ -304,7 +307,7 @@ async function loadUserFlashcardVocabByUserId(
     const chunk = userIds.slice(i, i + FLASHCARD_USER_CHUNK);
     const { data, error } = await db
       .from("flashcard_cards")
-      .select("user_id,word,definition,part_of_speech")
+      .select("user_id,word,definition,part_of_speech,short_definition")
       .in("user_id", chunk);
     if (error) throw error;
     for (const row of data ?? []) {
@@ -313,6 +316,7 @@ async function loadUserFlashcardVocabByUserId(
         row.word as string,
         (row.definition as string) ?? "",
         (row.part_of_speech as string) ?? undefined,
+        (row.short_definition as string) ?? undefined,
       );
       if (!item) continue;
       const list = byUser.get(uid);
@@ -359,17 +363,16 @@ function pickVocabPayloadsForUser(
   return words.map((w, i) => {
     const path = w.pushOpenFlashcards ? "/flashcards" : "/ielts-speaking";
 
-    // Title: "word (POS)" — e.g. "fabric (N)"
+    // Title: "word (POS) — short def" — fits in one line on Chrome/Apple Watch
     const posLabel = w.partOfSpeech ? ` (${posAbbrev(w.partOfSpeech)})` : "";
-    const title = `${w.word}${posLabel}`;
+    const shortDef = w.shortDefinition
+      || (typeof w.explanation === "string" ? htmlToPlainPushText(w.explanation) : "");
+    const titlePrefix = `${w.word}${posLabel}`;
+    const title = shortDef ? `${titlePrefix} — ${shortDef}` : titlePrefix;
 
-    // Body: line 1 = definition, line 2 = example
-    const def = typeof w.explanation === "string" ? htmlToPlainPushText(w.explanation) : "";
+    // Body: example sentence only (definition is already in the title)
     const ex = pickExampleForPushBody(w, bucket).trim();
-    const bodyParts: string[] = [];
-    if (def) bodyParts.push(clampPushBody(def));
-    if (ex && ex !== def) bodyParts.push(clampPushBody(ex));
-    const body = bodyParts.join("\n") || (w.pushOpenFlashcards
+    const body = (ex && ex !== shortDef) ? clampPushBody(ex) : (w.pushOpenFlashcards
       ? "Open vocabulary notes to review."
       : "IELTS vocabulary — open to review.");
 
