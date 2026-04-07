@@ -12,7 +12,6 @@ const nextConfig: NextConfig = {
     outputFileTracingExcludes: {
         "*": [
             "**/public/**",
-            "**/.next/cache/**",
             "**/public/stockfish.js",
             "**/stockfish.js",
             "**/stockfish.wasm",

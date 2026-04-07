@@ -47,7 +47,7 @@ const MeetChatMessageList = memo(function MeetChatMessageList({
                         className="flex h-14 w-14 items-center justify-center rounded-2xl bg-zinc-100 ring-1 ring-zinc-200/90"
                         aria-hidden
                     >
-                        <MessageCircle className="h-7 w-7 text-blue-600" strokeWidth={1.75} />
+                        <MessageCircle className="h-7 w-7 text-zinc-500" strokeWidth={1.75} />
                     </div>
                     <div className="space-y-1">
                         <p className="text-sm font-semibold text-zinc-900">{t("meetsChatStartConversation")} 👋</p>
@@ -62,7 +62,7 @@ const MeetChatMessageList = memo(function MeetChatMessageList({
                     className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 ring-1 ring-white/10"
                     aria-hidden
                 >
-                    <MessageCircle className="h-7 w-7 text-sky-400/90" strokeWidth={1.75} />
+                    <MessageCircle className="h-7 w-7 text-zinc-400" strokeWidth={1.75} />
                 </div>
                 <div className="space-y-1">
                     <p className="text-sm font-semibold text-zinc-100">{t("meetsChatStartConversation")} 👋</p>
@@ -91,7 +91,7 @@ const MeetChatMessageList = memo(function MeetChatMessageList({
                             key={`${msg.timestamp}-${msg.from?.identity}-${msg.message?.slice(0, 12)}`}
                             className={`rounded-xl px-3 py-2 ${
                                 mine
-                                    ? "ml-2 bg-sky-50 text-zinc-900 ring-1 ring-sky-200/80"
+                                    ? "ml-2 bg-zinc-50 text-zinc-900 ring-1 ring-zinc-200/80"
                                     : "mr-2 bg-zinc-100 text-zinc-900 ring-1 ring-zinc-200/90"
                             }`}
                         >
@@ -108,7 +108,7 @@ const MeetChatMessageList = memo(function MeetChatMessageList({
                         key={`${msg.timestamp}-${msg.from?.identity}-${msg.message?.slice(0, 12)}`}
                         className={`rounded-xl px-3 py-2 ${
                             mine
-                                ? "ml-2 bg-sky-600/35 text-zinc-50 ring-1 ring-sky-500/30"
+                                ? "ml-2 bg-zinc-700/50 text-zinc-50 ring-1 ring-zinc-600/30"
                                 : "mr-2 bg-zinc-800/90 text-zinc-100 ring-1 ring-white/10"
                         }`}
                     >
@@ -190,12 +190,12 @@ export const CallChatPanel = memo(function CallChatPanel({
             : "flex shrink-0 gap-2 border-t border-zinc-600/60 bg-zinc-900/30 p-3 sm:p-4";
     const inputClass =
         variant === "watch"
-            ? "min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-            : "min-w-0 flex-1 rounded-xl border border-zinc-600/70 bg-zinc-950/80 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-sky-500/50 focus:ring-2 focus:ring-sky-500/25";
+            ? "min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-zinc-400 focus:ring-2 focus:ring-zinc-900/10"
+            : "min-w-0 flex-1 rounded-xl border border-zinc-600/70 bg-zinc-950/80 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-zinc-500 focus:ring-2 focus:ring-white/15";
     const sendClass =
         variant === "watch"
-            ? "shrink-0 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-45"
-            : "shrink-0 rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-500 disabled:opacity-45";
+            ? "shrink-0 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-zinc-800 disabled:opacity-45"
+            : "shrink-0 rounded-xl bg-zinc-100 px-4 py-2 text-sm font-semibold text-zinc-900 shadow-sm transition hover:bg-zinc-200 disabled:opacity-45";
 
     return (
         <div className={`${shell} ${className}`}>

@@ -66,7 +66,7 @@ export function StudyKitSessionHistoryAside({
             ].join(" ")}
         >
             <div className="flex items-center gap-2 border-b border-zinc-200/80 px-3 py-2 dark:border-white/10">
-                <History className="h-4 w-4 shrink-0 text-blue-600 dark:text-sky-400" aria-hidden />
+                <History className="h-4 w-4 shrink-0 text-zinc-700 dark:text-zinc-400" aria-hidden />
                 <h2 className="flex-1 text-sm font-semibold text-[#0f172a] dark:text-zinc-100">
                     {t("studyKitResultTabHistory")}
                 </h2>
@@ -105,9 +105,9 @@ export function StudyKitSessionHistoryAside({
                                     type="button"
                                     onClick={() => onSelectSession(row.id)}
                                     className={[
-                                        "w-full rounded-lg border border-zinc-200/80 bg-zinc-50/80 px-3 py-2 text-left text-xs transition hover:border-blue-200/80 hover:bg-blue-50/40 dark:border-white/10 dark:bg-zinc-900/40 dark:hover:border-sky-500/30 dark:hover:bg-sky-950/25",
+                                        "w-full rounded-lg border border-zinc-200/80 bg-zinc-50/80 px-3 py-2 text-left text-xs transition hover:border-zinc-300/80 hover:bg-zinc-50/40 dark:border-white/10 dark:bg-zinc-900/40 dark:hover:border-zinc-500/30 dark:hover:bg-zinc-900/25",
                                         sessionId === row.id
-                                            ? "ring-1 ring-blue-400/50 dark:ring-sky-500/40"
+                                            ? "ring-1 ring-zinc-400/50 dark:ring-zinc-500/40"
                                             : "",
                                     ].join(" ")}
                                 >
@@ -133,7 +133,7 @@ export function StudyKitSessionHistoryAside({
                     <button
                         type="button"
                         onClick={() => setSessionsExpanded((v) => !v)}
-                        className="w-full text-center text-xs font-semibold text-blue-600 transition hover:text-blue-500 dark:text-sky-400 dark:hover:text-sky-300"
+                        className="w-full text-center text-xs font-semibold text-zinc-700 transition hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-300"
                     >
                         {sessionsExpanded
                             ? t("studyKitHistoryShowLess")

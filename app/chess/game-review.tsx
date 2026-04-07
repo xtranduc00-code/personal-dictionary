@@ -9,7 +9,7 @@ import {
 import { toast } from "react-toastify";
 import { updateGameAccuracy } from "@/lib/chess-storage";
 import { useAuth, authFetch } from "@/lib/auth-context";
-import { KenChessboard } from "@/components/chess/ken-chessboard";
+import { ChessBoardWrapper } from "@/components/chess/ChessBoardWrapper";
 
 /** Runtime-only worker script (not bundled). Override with NEXT_PUBLIC_STOCKFISH_WORKER_URL. */
 const STOCKFISH_CDN_DEFAULT =
@@ -313,12 +313,12 @@ export function GameReview({ pgn, gameId, whitePlayer, blackPlayer, onBack }: {
           bestMove,
           classification,
         });
-        setAnalyzed([...results]);
       }
 
       setProgress(Math.round((i / moves.length) * 100));
     }
 
+    setAnalyzed([...results]);
     setAnalyzing(false);
     setAnalysisDone(true);
 
@@ -568,7 +568,8 @@ export function GameReview({ pgn, gameId, whitePlayer, blackPlayer, onBack }: {
               )}
             </div>
 
-            <KenChessboard
+            <ChessBoardWrapper
+              className="overflow-hidden rounded-xl"
               options={{
                 position: fen,
                 boardOrientation: "white",
@@ -649,7 +650,7 @@ export function GameReview({ pgn, gameId, whitePlayer, blackPlayer, onBack }: {
               {currentMove.bestMove && currentMove.bestMove !== currentMove.uci && currentMove.bestMove.length >= 4 && (
                 <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                   Best was:{" "}
-                  <span className="font-mono text-blue-600 dark:text-blue-400">
+                  <span className="font-mono text-zinc-600 dark:text-zinc-400">
                     {currentMove.bestMove.slice(0, 2)}→{currentMove.bestMove.slice(2, 4)}
                   </span>
                   <span className="ml-1 text-[10px] text-zinc-400">(blue arrow)</span>

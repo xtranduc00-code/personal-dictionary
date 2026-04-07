@@ -180,7 +180,7 @@ function SheetRow({
                         <button
                             type="button"
                             onClick={openSheet}
-                            className="rounded-lg p-1.5 text-zinc-400 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950 dark:hover:text-blue-300"
+                            className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
                             title={t("studyKitSavedOpen")}
                             aria-label={t("studyKitSavedOpen")}
                         >
@@ -270,7 +270,7 @@ export default function StudyKitSavedTopicPage() {
                 <p>{t("studyKitTopicNotFound")}</p>
                 <Link
                     href="/study-kit/saved"
-                    className="mt-4 inline-block text-blue-600 hover:underline dark:text-sky-400"
+                    className="mt-4 inline-block text-zinc-700 hover:underline dark:text-zinc-400"
                 >
                     {t("studyKitBackToSubjects")}
                 </Link>

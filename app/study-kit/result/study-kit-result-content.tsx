@@ -416,7 +416,7 @@ export function StudyKitResultContent() {
                     <button
                         type="button"
                         onClick={() => router.push("/study-kit")}
-                        className="inline-flex items-center gap-2 rounded-lg border border-zinc-200/80 bg-white px-3 py-1.5 text-sm font-medium text-[#475569] transition hover:border-zinc-300 hover:bg-zinc-50/80 hover:text-[#334155] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 dark:border-white/15 dark:bg-zinc-900/50 dark:text-zinc-300 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-100"
+                        className="inline-flex items-center gap-2 rounded-lg border border-zinc-200/80 bg-white px-3 py-1.5 text-sm font-medium text-[#475569] transition hover:border-zinc-300 hover:bg-zinc-50/80 hover:text-[#334155] focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/30 dark:border-white/15 dark:bg-zinc-900/50 dark:text-zinc-300 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-100"
                     >
                         <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
                         {t("studyKitBackToForm")}
@@ -468,7 +468,7 @@ export function StudyKitResultContent() {
                 {sheetMode === "edit" && hasSavedChats ? (
                     <div
                         role="status"
-                        className="mb-3 rounded-xl border border-sky-200/85 bg-sky-50/90 px-3 py-2.5 text-[11px] leading-snug text-sky-950 dark:border-sky-500/25 dark:bg-sky-950/35 dark:text-sky-100"
+                        className="mb-3 rounded-xl border border-zinc-200/85 bg-zinc-50/90 px-3 py-2.5 text-[11px] leading-snug text-zinc-900 dark:border-zinc-500/25 dark:bg-zinc-900/35 dark:text-zinc-100"
                     >
                         {t("studyKitResultSavedChatsUsePreview")}
                     </div>
@@ -508,7 +508,7 @@ export function StudyKitResultContent() {
                                     value={summary}
                                     onChange={(e) => setSummary(e.target.value)}
                                     spellCheck
-                                    className="min-h-[min(62vh,560px)] w-full resize-y rounded-xl bg-transparent px-4 py-4 font-mono text-[13px] leading-relaxed text-[#0f172a] outline-none focus:ring-2 focus:ring-blue-500/20 dark:text-zinc-100"
+                                    className="min-h-[min(62vh,560px)] w-full resize-y rounded-xl bg-transparent px-4 py-4 font-mono text-[13px] leading-relaxed text-[#0f172a] outline-none focus:ring-2 focus:ring-zinc-500/20 dark:text-zinc-100"
                                 />
                             </div>
                         )}
@@ -522,7 +522,7 @@ export function StudyKitResultContent() {
                             aria-valuemax={STUDY_KIT_RAIL_MAX}
                             aria-valuenow={railWidth}
                             tabIndex={0}
-                            className="absolute -left-3 top-0 z-40 hidden h-full w-4 cursor-col-resize rounded-sm md:block touch-none hover:bg-blue-500/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:hover:bg-sky-500/15 dark:focus-visible:ring-sky-400/40"
+                            className="absolute -left-3 top-0 z-40 hidden h-full w-4 cursor-col-resize rounded-sm md:block touch-none hover:bg-zinc-500/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/40 dark:hover:bg-zinc-500/15 dark:focus-visible:ring-zinc-400/40"
                             onPointerDown={onRailResizePointerDown}
                             onPointerMove={onRailResizePointerMove}
                             onPointerUp={endRailResize}

@@ -11,7 +11,7 @@ function LetterRadioCircle({ letter, selected, disabled, isWrong, isCorrect, }: 
     isCorrect: boolean;
 }) {
     const base = "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold transition-colors";
-    const selectedStyle = "bg-blue-500 text-white ring-2 ring-blue-200 dark:bg-blue-600 dark:ring-blue-500/40";
+    const selectedStyle = "bg-zinc-900 text-white ring-2 ring-zinc-300 dark:bg-zinc-100 dark:text-zinc-900 dark:ring-zinc-500/40";
     const unselectedStyle = "border-2 border-zinc-300 bg-white text-zinc-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200";
     const wrongStyle = "!bg-rose-500 !text-white !ring-rose-300 dark:!ring-rose-600";
     const correctStyle = "!bg-emerald-600 !text-white !ring-emerald-300 dark:!ring-emerald-600";

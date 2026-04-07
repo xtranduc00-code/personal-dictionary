@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --webpack --hostname 127.0.0.1",
     "build": "next build --webpack",
+    "build:clean": "rm -rf .next && next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "build:drive-css": "npx --yes tailwindcss@3.4.17 -c tailwind.drive.config.cjs -i ./features/google-drive/tw-input.css -o ./public/gdrive/drive.css --minify",

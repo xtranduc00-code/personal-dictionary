@@ -97,14 +97,14 @@ export const MeetsMicPrecheck = memo(function MeetsMicPrecheck({ onReady }: Prop
 
   return (
     <div className="flex min-h-[min(60vh,420px)] flex-col items-center justify-center gap-6 px-4 py-10 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-100 text-blue-700 dark:bg-sky-900/50 dark:text-sky-200">
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
         <Mic className="h-7 w-7" strokeWidth={2} aria-hidden />
       </div>
       <div className="max-w-md space-y-2">
-        <h2 className="text-lg font-semibold text-[#111827] dark:text-zinc-100">
+        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
           {t("meetsMicPrecheckTitle")}
         </h2>
-        <p className="text-sm text-[#6B7280] dark:text-zinc-400">
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
           {t("meetsMicPrecheckHint")}
         </p>
       </div>
@@ -117,10 +117,10 @@ export const MeetsMicPrecheck = memo(function MeetsMicPrecheck({ onReady }: Prop
 
       {phase === "live" ? (
         <div className="flex flex-col items-center gap-3">
-          <p className="text-sm font-medium text-[#374151] dark:text-zinc-300">
+          <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
             {t("meetsMicPrecheckSpeak")}
           </p>
-          <div className="flex items-center gap-3 rounded-2xl border border-[#E5E7EB] bg-white px-6 py-4 shadow-sm dark:border-white/10 dark:bg-zinc-900/80">
+          <div className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-6 py-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
             <MicLevelBars
               level={level}
               className="text-emerald-600 dark:text-emerald-400"
@@ -129,7 +129,7 @@ export const MeetsMicPrecheck = memo(function MeetsMicPrecheck({ onReady }: Prop
           </div>
           <button
             type="button"
-            className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 dark:bg-sky-600 dark:hover:bg-sky-500"
+            className="rounded-xl bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/40 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
             onClick={enterRoom}
           >
             {t("meetsMicPrecheckEnterRoom")}
@@ -139,7 +139,7 @@ export const MeetsMicPrecheck = memo(function MeetsMicPrecheck({ onReady }: Prop
         <div className="flex flex-col items-center gap-3">
           <button
             type="button"
-            className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 dark:bg-sky-600 dark:hover:bg-sky-500"
+            className="rounded-xl bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/40 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
             onClick={() => void requestMic()}
           >
             {t("meetsMicPrecheckAllow")}

@@ -101,7 +101,7 @@ export function AddFlashcardModal({ initialWord, onClose, onSaved, }: Props) {
                       {s.name}
                     </option>))}
                 </select>
-                <button type="button" onClick={() => setShowCreateSet(true)} className="mt-2 text-sm text-blue-600 hover:underline dark:text-blue-400">
+                <button type="button" onClick={() => setShowCreateSet(true)} className="mt-2 text-sm text-zinc-700 hover:underline dark:text-zinc-400">
                   {t("orCreateNewSet")}
                 </button>
               </>)}

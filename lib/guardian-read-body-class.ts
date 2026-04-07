@@ -12,7 +12,7 @@ export const GUARDIAN_READ_BODY_CLASS = [
   "[&_ul]:my-6 [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-6",
   "[&_ol]:my-6 [&_ol]:list-decimal [&_ol]:space-y-2 [&_ol]:pl-6",
   "[&_li]:pl-1 [&_li]:marker:text-zinc-400",
-  "[&_blockquote]:my-8 [&_blockquote]:border-l-[3px] [&_blockquote]:border-sky-500/70 [&_blockquote]:bg-zinc-50/80 [&_blockquote]:py-3 [&_blockquote]:pl-5 [&_blockquote]:pr-4 [&_blockquote]:text-[16px] [&_blockquote]:leading-relaxed [&_blockquote]:text-zinc-600 dark:[&_blockquote]:border-sky-400/50 dark:[&_blockquote]:bg-zinc-900/40 dark:[&_blockquote]:text-zinc-300",
+  "[&_blockquote]:my-8 [&_blockquote]:border-l-[3px] [&_blockquote]:border-zinc-500/70 [&_blockquote]:bg-zinc-50/80 [&_blockquote]:py-3 [&_blockquote]:pl-5 [&_blockquote]:pr-4 [&_blockquote]:text-[16px] [&_blockquote]:leading-relaxed [&_blockquote]:text-zinc-600 dark:[&_blockquote]:border-zinc-400/50 dark:[&_blockquote]:bg-zinc-900/40 dark:[&_blockquote]:text-zinc-300",
   "[&_figure]:my-8 [&_figure]:mx-auto [&_figure]:max-w-full [&_figure]:border-0 [&_figure]:bg-transparent [&_figure]:p-0 [&_figure]:shadow-none",
   "[&_figure>img]:block [&_figure>img]:max-h-[min(72vh,560px)] [&_figure>img]:w-full [&_figure>img]:max-w-full [&_figure>img]:rounded-lg [&_figure>img]:object-contain",
   "[&_figure_picture_img]:max-h-[min(72vh,560px)] [&_figure_picture_img]:w-full [&_figure_picture_img]:max-w-full [&_figure_picture_img]:rounded-lg [&_figure_picture_img]:object-contain",
@@ -27,7 +27,7 @@ export const GUARDIAN_READ_BODY_CLASS = [
   "[&_th]:border [&_th]:border-zinc-200/90 [&_th]:bg-zinc-100/95 [&_th]:px-3 [&_th]:py-2.5 [&_th]:font-semibold [&_th]:text-zinc-800 dark:[&_th]:border-zinc-700 dark:[&_th]:bg-zinc-800/90 dark:[&_th]:text-zinc-100",
   "[&_td]:border [&_td]:border-zinc-200/80 [&_td]:px-3 [&_td]:py-2 [&_td]:text-zinc-700 dark:[&_td]:border-zinc-700 dark:[&_td]:text-zinc-300",
   "[&_tr:nth-child(even)_td]:bg-zinc-50/50 dark:[&_tr:nth-child(even)_td]:bg-zinc-900/25",
-  "[&_a]:font-medium [&_a]:text-sky-700 [&_a]:underline-offset-2 [&_a]:transition-colors hover:[&_a]:text-sky-800 hover:[&_a]:underline dark:[&_a]:text-sky-400 dark:hover:[&_a]:text-sky-300",
+  "[&_a]:font-medium [&_a]:text-zinc-700 [&_a]:underline-offset-2 [&_a]:transition-colors hover:[&_a]:text-zinc-800 hover:[&_a]:underline dark:[&_a]:text-zinc-400 dark:hover:[&_a]:text-zinc-300",
   "[&_hr]:my-10 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-zinc-200 dark:[&_hr]:border-zinc-700",
   // <time> — live blog timestamps
   "[&_time]:block [&_time]:mb-1 [&_time]:text-[12px] [&_time]:font-semibold [&_time]:uppercase [&_time]:tracking-widest [&_time]:text-zinc-400 dark:[&_time]:text-zinc-500",

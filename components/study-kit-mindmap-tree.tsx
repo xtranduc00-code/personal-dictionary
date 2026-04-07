@@ -611,7 +611,7 @@ ${markup}
                     </p>
                     <button
                         type="button"
-                        className="mt-2 w-full rounded-lg border border-blue-200/90 bg-blue-50/90 px-3 py-2 text-center text-[11px] font-semibold text-blue-900 transition hover:bg-blue-100/90 dark:border-sky-500/30 dark:bg-sky-950/40 dark:text-sky-100 dark:hover:bg-sky-900/50"
+                        className="mt-2 w-full rounded-lg border border-zinc-200/90 bg-zinc-50/90 px-3 py-2 text-center text-[11px] font-semibold text-zinc-900 transition hover:bg-zinc-100/90 dark:border-zinc-500/30 dark:bg-zinc-900/40 dark:text-zinc-100 dark:hover:bg-zinc-800/50"
                         onClick={() => void copyAsk()}
                     >
                         {copied ? askCopiedLabel : copyAskLabel}
@@ -662,7 +662,7 @@ export function StudyKitMindmapTree({ source }: { source: string }) {
     return (
         <div
             className={[
-                "my-4 rounded-2xl border border-violet-200/90 bg-gradient-to-br from-violet-50/90 via-white to-cyan-50/50 p-5 shadow-[0_8px_30px_-12px_rgba(124,58,237,0.25)] dark:border-violet-500/20 dark:from-violet-950/40 dark:via-zinc-950/80 dark:to-sky-950/30 dark:shadow-[0_8px_32px_-12px_rgba(0,0,0,0.5)]",
+                "my-4 rounded-2xl border border-violet-200/90 bg-gradient-to-br from-violet-50/90 via-white to-cyan-50/50 p-5 shadow-[0_8px_30px_-12px_rgba(124,58,237,0.25)] dark:border-violet-500/20 dark:from-violet-950/40 dark:via-zinc-950/80 dark:to-zinc-950/30 dark:shadow-[0_8px_32px_-12px_rgba(0,0,0,0.5)]",
             ].join(" ")}
         >
             <p className="mb-4 text-center text-[11px] font-black uppercase tracking-[0.18em] text-violet-600/90 dark:text-violet-300/95">

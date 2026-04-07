@@ -33,7 +33,7 @@ export function HighlightToolbar({ x, y, hasHighlightId, selectedText, flashcard
             </Tooltip>)}
         </>)}
       <Tooltip content={t("addFlashcardTooltip")}>
-        <button type="button" onClick={() => word && onFlashcard(word)} disabled={!word} className="flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-blue-100 dark:text-zinc-200 dark:hover:bg-blue-500/30 disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="button" onClick={() => word && onFlashcard(word)} disabled={!word} className="flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-500/30 disabled:cursor-not-allowed disabled:opacity-50">
           <Layers className="h-3.5 w-3.5"/>
           {t("flashcardButton")}
         </button>

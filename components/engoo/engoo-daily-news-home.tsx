@@ -42,9 +42,9 @@ function categoryVisual(category: string): {
   if (c.includes("science") || c.includes("technology")) {
     return {
       feedPill:
-        "border-sky-200/90 bg-sky-50 text-sky-950 dark:border-sky-800/80 dark:bg-sky-950/50 dark:text-sky-100",
+        "border-zinc-200/90 bg-zinc-50 text-zinc-950 dark:border-zinc-800/80 dark:bg-zinc-950/50 dark:text-zinc-100",
       overlayPill:
-        "border-l-[3px] border-sky-500 bg-white/95 text-sky-950 shadow-sm dark:bg-zinc-900/95 dark:text-sky-100",
+        "border-l-[3px] border-zinc-500 bg-white/95 text-zinc-950 shadow-sm dark:bg-zinc-900/95 dark:text-zinc-100",
     };
   }
   if (c.includes("health") || c.includes("lifestyle")) {

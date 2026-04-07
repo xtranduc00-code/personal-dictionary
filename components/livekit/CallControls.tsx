@@ -44,10 +44,10 @@ type CallControlsProps = {
 };
 
 const btnLight =
-    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 bg-[#F3F4F6] text-[#374151] transition hover:bg-[#E5E7EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6]/30 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700 dark:focus-visible:ring-sky-400/40";
+    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/20 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700 dark:focus-visible:ring-white/20";
 
 const btnLightOn =
-    "bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-sky-900/50 dark:text-sky-200 dark:hover:bg-sky-900/70";
+    "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-200 dark:hover:bg-emerald-900/60";
 
 const btnMuted =
     "!border-0 !bg-red-500 !text-white hover:!bg-red-600 dark:!bg-red-600 dark:hover:!bg-red-500";
@@ -57,10 +57,10 @@ const btnShareActive =
 
 /** Nút trên dock tối (luôn dùng khi toolbarSurface=darkDock). */
 const btnDock =
-    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-zinc-600/60 bg-zinc-800/95 text-zinc-100 shadow-sm transition hover:bg-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/35";
+    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-zinc-600/60 bg-zinc-800/95 text-zinc-100 shadow-sm transition hover:bg-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20";
 
 const btnDockOn =
-    "border-sky-500/40 bg-sky-900/55 text-sky-100 hover:bg-sky-900/70";
+    "border-emerald-500/40 bg-emerald-900/45 text-emerald-100 hover:bg-emerald-900/60";
 
 const toolbarDarkDock =
     "meet-toolbar-enter pointer-events-auto flex flex-wrap items-center justify-center gap-2 rounded-[1.75rem] border border-white/12 bg-zinc-950/80 px-2 py-2.5 shadow-[0_16px_48px_rgba(0,0,0,0.65),0_0_0_1px_rgba(255,255,255,0.06)] backdrop-blur-2xl ring-1 ring-black/40 sm:gap-2 sm:px-3";
@@ -142,14 +142,14 @@ export const CallControls = memo(function CallControls({
                         {isMicrophoneEnabled ? (
                             <MicLevelBars
                                 level={micLevel}
-                                className="mb-0.5 text-blue-600"
-                                barClassName="bg-blue-500"
+                                className="mb-0.5 text-emerald-600"
+                                barClassName="bg-emerald-500"
                             />
                         ) : null}
                         <Tooltip content={micTooltip} placement="top">
                             <button
                                 type="button"
-                                className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 bg-[#F3F4F6] text-[#374151] transition hover:bg-[#E5E7EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6]/30 ${isMicrophoneEnabled ? btnLightOn : ""} ${!isMicrophoneEnabled ? btnMuted : ""}`}
+                                className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 bg-[#F3F4F6] text-[#374151] transition hover:bg-[#E5E7EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/20 ${isMicrophoneEnabled ? btnLightOn : ""} ${!isMicrophoneEnabled ? btnMuted : ""}`}
                                 onClick={() => void toggleMic()}
                                 aria-label={isMicrophoneEnabled ? t("meetsMuteMic") : t("meetsUnmuteMic")}
                                 aria-pressed={!isMicrophoneEnabled}
@@ -165,7 +165,7 @@ export const CallControls = memo(function CallControls({
                     <Tooltip content={camTooltip} placement="top">
                         <button
                             type="button"
-                            className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 bg-[#F3F4F6] text-[#374151] transition hover:bg-[#E5E7EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6]/30 ${isCameraEnabled ? btnLightOn : ""} ${!isCameraEnabled ? btnMuted : ""}`}
+                            className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 bg-[#F3F4F6] text-[#374151] transition hover:bg-[#E5E7EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/20 ${isCameraEnabled ? btnLightOn : ""} ${!isCameraEnabled ? btnMuted : ""}`}
                             onClick={toggleCam}
                             aria-label={isCameraEnabled ? t("meetsCamOff") : t("meetsCamOn")}
                             aria-pressed={!isCameraEnabled}
@@ -183,7 +183,7 @@ export const CallControls = memo(function CallControls({
                             className={
                                 isScreenShareEnabled
                                     ? "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 bg-emerald-600 text-white shadow-[0_0_0_2px_rgba(16,185,129,0.35)] transition hover:bg-emerald-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50"
-                                    : "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 bg-[#F3F4F6] text-[#374151] transition hover:bg-[#E5E7EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6]/30"
+                                    : "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 bg-[#F3F4F6] text-[#374151] transition hover:bg-[#E5E7EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/20"
                             }
                             onClick={toggleShare}
                             aria-label={isScreenShareEnabled ? t("meetsStopShare") : t("meetsShareScreen")}
@@ -243,8 +243,8 @@ export const CallControls = memo(function CallControls({
                     {isMicrophoneEnabled ? (
                         <MicLevelBars
                             level={micLevel}
-                            className={`mb-1 ${onDarkDock ? "text-sky-300" : "text-blue-600 dark:text-sky-300"}`}
-                            barClassName={onDarkDock ? "bg-sky-400" : "bg-blue-500 dark:bg-sky-400"}
+                            className={`mb-1 ${onDarkDock ? "text-emerald-300" : "text-emerald-600 dark:text-emerald-300"}`}
+                            barClassName={onDarkDock ? "bg-emerald-400" : "bg-emerald-500 dark:bg-emerald-400"}
                         />
                     ) : null}
                     <Tooltip content={micTooltip} placement="top">
@@ -304,7 +304,7 @@ export const CallControls = memo(function CallControls({
                             type="button"
                             className={
                                 chatOpen
-                                    ? "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 bg-blue-600 text-white transition hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:bg-sky-600 dark:hover:bg-sky-500"
+                                    ? "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 bg-zinc-900 text-white transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/40 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
                                     : baseBtn
                             }
                             aria-pressed={chatOpen ?? false}

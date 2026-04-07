@@ -810,6 +810,8 @@ export const translations = {
     dailyNewsSportKindleDownload: "Download for Kindle (EPUB)",
     dailyNewsSportKindleBuilding: "Building book…",
     dailyNewsSportKindleError: "Could not finish the download. Try again.",
+    dailyNewsSportKindleDownloadHint:
+      "Includes at most 15 articles from this list (faster, smaller file). Open individual articles to read the rest.",
     guardianReadBack: "← Back to list",
     guardianReadOriginal: "Original on the Guardian",
     guardianReadLoading: "Loading article…",
@@ -2271,6 +2273,8 @@ export const translations = {
     dailyNewsSportKindleDownload: "Tải cho Kindle (EPUB)",
     dailyNewsSportKindleBuilding: "Đang tạo sách…",
     dailyNewsSportKindleError: "Không tải xong. Thử lại.",
+    dailyNewsSportKindleDownloadHint:
+      "Chỉ gói tối đa 15 bài đầu trong danh sách (tải nhanh, file nhỏ hơn). Muốn đọc thêm, mở từng bài.",
     guardianReadBack: "← Quay lại danh sách",
     guardianReadOriginal: "Bản gốc trên The Guardian",
     guardianReadLoading: "Đang tải bài…",

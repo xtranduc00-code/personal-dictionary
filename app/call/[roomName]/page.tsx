@@ -21,11 +21,11 @@ export default function CallRoomPage() {
 
     if (!roomName) {
         return (
-            <p className="px-4 text-sm text-[#6B7280] dark:text-zinc-400">
+            <p className="px-4 text-sm text-zinc-500 dark:text-zinc-400">
                 {t("meetsInvalidRoom")}{" "}
                 <Link
                     href="/call"
-                    className="font-medium text-sky-700 underline decoration-sky-700/30 hover:text-sky-800 dark:text-sky-400 dark:decoration-sky-400/30 dark:hover:text-sky-300"
+                    className="font-medium text-zinc-700 underline decoration-zinc-400/30 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white"
                 >
                     {t("meetsBackToHub")}
                 </Link>
@@ -64,7 +64,7 @@ export default function CallRoomPage() {
 
     if (!session && connecting) {
         return (
-            <div className="flex flex-col items-center justify-center gap-2 py-16 text-[#6B7280] dark:text-zinc-400">
+            <div className="flex flex-col items-center justify-center gap-2 py-16 text-zinc-500 dark:text-zinc-400">
                 <p className="text-sm">{t("meetsConnecting")}</p>
             </div>
         );

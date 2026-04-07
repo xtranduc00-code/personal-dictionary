@@ -260,7 +260,7 @@ function CallRoomInner({
                         <button
                             type="button"
                             onClick={expandToFullRoute}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-700 shadow-sm transition hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-700 shadow-sm transition hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/20"
                             title={t("meetsExpandCall")}
                             aria-label={t("meetsExpandCall")}
                         >

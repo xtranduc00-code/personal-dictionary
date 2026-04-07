@@ -135,7 +135,7 @@ export function StudyKitSectionChat({
         >
             <h2 className="m-0 flex items-center gap-2 border-b border-zinc-200/80 px-3 py-2.5 text-left text-[12px] font-semibold text-[#334155] dark:border-white/10 dark:text-zinc-200">
                 <MessageSquareText
-                    className="h-4 w-4 shrink-0 text-blue-600 dark:text-sky-400"
+                    className="h-4 w-4 shrink-0 text-zinc-700 dark:text-zinc-400"
                     aria-hidden
                 />
                 <span className="min-w-0 flex-1">{toggleLabel}</span>
@@ -170,13 +170,13 @@ export function StudyKitSectionChat({
                                     key={m.id}
                                     className={
                                         m.role === "user"
-                                            ? "ml-2 rounded-lg bg-blue-50/90 px-2.5 py-1.5 text-[12px] leading-relaxed text-[#1e3a5f] dark:bg-sky-950/40 dark:text-sky-100"
+                                            ? "ml-2 rounded-lg bg-zinc-50/90 px-2.5 py-1.5 text-[12px] leading-relaxed text-[#1e3a5f] dark:bg-zinc-900/40 dark:text-zinc-100"
                                             : "mr-1 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2.5 py-1.5 text-[12px] leading-relaxed text-[#334155] dark:border-white/10 dark:bg-zinc-900/50 dark:text-zinc-200"
                                     }
                                 >
                                     {m.role === "user" ? (
                                         <>
-                                            <span className="mb-0.5 block text-[9px] font-semibold uppercase tracking-wide text-[#64748B] dark:text-sky-200/80">
+                                            <span className="mb-0.5 block text-[9px] font-semibold uppercase tracking-wide text-[#64748B] dark:text-zinc-300/80">
                                                 {t("studyKitChatYou")}
                                             </span>
                                             <StudyKitChatMarkdown markdown={m.content} />
@@ -218,12 +218,12 @@ export function StudyKitSectionChat({
                             onKeyDown={onComposerKeyDown}
                             rows={3}
                             placeholder={t("studyKitChatPlaceholder")}
-                            className="w-full resize-y rounded-lg border border-zinc-200/90 bg-white px-2.5 py-2 text-[12px] leading-relaxed text-[#0f172a] outline-none placeholder:text-zinc-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:border-white/15 dark:bg-zinc-900/60 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-sky-500/50"
+                            className="w-full resize-y rounded-lg border border-zinc-200/90 bg-white px-2.5 py-2 text-[12px] leading-relaxed text-[#0f172a] outline-none placeholder:text-zinc-400 focus:border-zinc-400 focus:ring-2 focus:ring-zinc-500/20 dark:border-white/15 dark:bg-zinc-900/60 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-zinc-500/50"
                         />
                         <button
                             type="submit"
                             disabled={loading || !input.trim()}
-                            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-sky-600 dark:hover:bg-sky-500"
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-zinc-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
                         >
                             {loading ? (
                                 <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />

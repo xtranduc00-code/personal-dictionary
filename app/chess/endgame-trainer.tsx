@@ -1,11 +1,23 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChessMoveAnnounceChip } from "@/components/chess-move-announce-chip";
 import { useChessMoveAnnouncement } from "@/hooks/use-chess-move-announcement";
-import { KenChessboard } from "@/components/chess/ken-chessboard";
+import { ChessBoardWrapper } from "@/components/chess/ChessBoardWrapper";
+import { squareStylesForLastMove } from "@/components/chess/move-highlight-styles";
 import { Chess } from "chess.js";
-import { ArrowLeft, CheckCircle2, ChevronRight, RefreshCw, Trophy } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ChevronRight, RefreshCw, Target, Trophy } from "lucide-react";
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const CATEGORY_LABELS: Record<string, string> = {
+  win: "Winning",
+  loss: "Losing",
+  draw: "Draw",
+  "cursed-win": "Winning (50-move)",
+  "blessed-loss": "Draw (50-move)",
+  unknown: "Unknown",
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -306,7 +318,7 @@ export function EndgameTrainer() {
                         {lesson.difficulty}
                       </span>
                       {lesson.drawGoal && (
-                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                        <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-700 dark:bg-zinc-800/30 dark:text-zinc-400">
                           Draw
                         </span>
                       )}
@@ -408,10 +420,7 @@ function LessonBoard({
       });
       if (!move) return;
       announceMove(move, chess);
-      setLastMoveSquares({
-        [best.uci.slice(0, 2)]: { background: "rgba(100,100,255,0.25)" },
-        [best.uci.slice(2, 4)]: { background: "rgba(100,100,255,0.25)" },
-      });
+      setLastMoveSquares(squareStylesForLastMove(best.uci.slice(0, 2), best.uci.slice(2, 4), "opponent"));
       const newFen = chess.fen();
       setFen(newFen);
       setHistory((h) => [...h, move.san]);
@@ -452,10 +461,7 @@ function LessonBoard({
     if (chess.isCheckmate()) {
       announceMove(move, chess);
       setFen(newFen);
-      setLastMoveSquares({
-        [from]: { background: "rgba(100,200,100,0.4)" },
-        [to]: { background: "rgba(100,200,100,0.4)" },
-      });
+      setLastMoveSquares(squareStylesForLastMove(from, to, "user"));
       setFeedback({ result: "optimal", msg: "♟ Checkmate! Excellent technique!" });
       setFinished(true);
       onComplete(moveCount + 1);
@@ -487,10 +493,7 @@ function LessonBoard({
 
     // Show board immediately, then fetch tablebase async
     setFen(newFen);
-    setLastMoveSquares({
-      [from]: { background: "rgba(100,200,100,0.4)" },
-      [to]: { background: "rgba(100,200,100,0.4)" },
-    });
+    setLastMoveSquares(squareStylesForLastMove(from, to, "user"));
 
     processingRef.current = true;
 
@@ -562,134 +565,184 @@ function LessonBoard({
     });
   }
 
-  const squareStyles = { ...lastMoveSquares, ...wrongSquares };
+  const squareStyles = useMemo(() => ({ ...lastMoveSquares, ...wrongSquares }), [lastMoveSquares, wrongSquares]);
 
   const dtmDisplay = dtmCurrent != null ? dtmCurrent : "–";
-  const categoryLabel: Record<string, string> = {
-    win: "Winning",
-    loss: "Losing",
-    draw: "Draw",
-    "cursed-win": "Winning (50-move)",
-    "blessed-loss": "Draw (50-move)",
-    unknown: "Unknown",
-  };
 
-  return (
-    <div className="flex min-w-0 flex-1 flex-col gap-4 p-3 sm:p-4">
-      {/* Back + title */}
-      <div className="flex items-center justify-between">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Lessons
-        </button>
-        <button
-          onClick={resetLesson}
-          className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-        >
-          <RefreshCw className="h-3.5 w-3.5" />
-          Reset
-        </button>
-      </div>
+  const positionCategory = tablebase?.category;
+  const positionValue = loading ? "…" : positionCategory ? (CATEGORY_LABELS[positionCategory] ?? positionCategory) : "–";
+  const positionValueClass =
+    positionCategory === "draw" || positionCategory === "blessed-loss"
+      ? "text-zinc-700 dark:text-zinc-300"
+      : positionCategory === "win" || positionCategory === "cursed-win"
+        ? "text-emerald-700 dark:text-emerald-400"
+        : positionCategory === "loss"
+          ? "text-red-700 dark:text-red-400"
+          : "text-zinc-800 dark:text-zinc-100";
 
-      {/* Lesson info */}
-      <div className="rounded-xl bg-zinc-50 px-4 py-3 dark:bg-zinc-800/50">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">{lesson.icon}</span>
-          <p className="font-semibold text-zinc-900 dark:text-zinc-100">{lesson.title}</p>
-          <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-medium ${DIFFICULTY_COLORS[lesson.difficulty]}`}>
-            {lesson.difficulty}
-          </span>
+  const objectiveBlock = (
+    <div className="rounded-xl border border-zinc-200/90 bg-white px-3 py-2.5 dark:border-zinc-700 dark:bg-zinc-900/90">
+      <div className="flex gap-2">
+        <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-violet-500/10 dark:bg-violet-400/10">
+          <Target className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" aria-hidden />
         </div>
-        <p className="mt-1 text-xs text-zinc-500">{lesson.concept}</p>
-        <p className="mt-1 text-xs font-medium text-violet-700 dark:text-violet-300">🎯 Goal: {lesson.goal}</p>
-      </div>
-
-      {/* Board */}
-      <div className="mx-auto w-full max-w-xs">
-        <KenChessboard
-          options={{
-            position: fen,
-            onPieceDrop: ({ sourceSquare, targetSquare }) => handleDrop(sourceSquare, targetSquare ?? ""),
-            boardOrientation: orientation,
-            squareStyles,
-          }}
-        />
-      </div>
-      <ChessMoveAnnounceChip text={moveAnnounceChip} />
-
-      {/* DTM + status bar */}
-      <div className="flex items-center justify-between rounded-xl bg-zinc-50 px-4 py-2.5 dark:bg-zinc-800/50">
-        <div className="text-center">
-          <p className="text-2xl font-bold tabular-nums text-zinc-900 dark:text-zinc-100">{dtmDisplay}</p>
-          <p className="text-[10px] text-zinc-400">DTM (moves to mate)</p>
-        </div>
-        <div className="text-center">
-          <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">
-            {loading ? "Checking…" : tablebase?.category ? categoryLabel[tablebase.category] ?? tablebase.category : "–"}
+        <div className="min-w-0 flex-1">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+            Training objective
           </p>
-          <p className="text-[10px] text-zinc-400">Position</p>
-        </div>
-        <div className="text-center">
-          <p className="text-2xl font-bold tabular-nums text-zinc-900 dark:text-zinc-100">{moveCount}</p>
-          <p className="text-[10px] text-zinc-400">Moves played</p>
+          <p className="mt-0.5 text-sm font-semibold leading-snug text-zinc-900 dark:text-zinc-100">
+            {lesson.goal}
+          </p>
+          <p className="mt-1 text-xs leading-snug text-zinc-500 dark:text-zinc-400 lg:text-[11px] lg:leading-relaxed">
+            {lesson.concept}
+          </p>
         </div>
       </div>
+    </div>
+  );
 
-      {/* Feedback */}
-      {feedback && (
-        <div
-          className={`rounded-xl px-4 py-2.5 text-sm font-medium ${
-            feedback.result === "optimal"
-              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400"
-              : feedback.result === "suboptimal"
-              ? "bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400"
-              : "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400"
-          }`}
+  const statsBlock = (
+    <div className="grid grid-cols-3 gap-1 rounded-xl border border-zinc-200/90 bg-zinc-50/90 p-2 dark:border-zinc-700 dark:bg-zinc-800/50">
+      <div className="rounded-lg bg-white/80 px-1.5 py-2 text-center dark:bg-zinc-900/50">
+        <p className="text-[9px] font-bold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">DTM</p>
+        <p className="mt-1 text-lg font-bold tabular-nums text-zinc-900 dark:text-zinc-50">{dtmDisplay}</p>
+        <p className="text-[9px] text-zinc-400 dark:text-zinc-500">to mate</p>
+      </div>
+      <div className="rounded-lg bg-white/80 px-1.5 py-2 text-center dark:bg-zinc-900/50">
+        <p className="text-[9px] font-bold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Eval</p>
+        <p
+          className={`mt-1 line-clamp-2 text-xs font-semibold leading-tight ${loading ? "text-zinc-400" : positionValueClass}`}
         >
-          {feedback.msg}
-        </div>
-      )}
+          {positionValue}
+        </p>
+      </div>
+      <div className="rounded-lg bg-white/80 px-1.5 py-2 text-center dark:bg-zinc-900/50">
+        <p className="text-[9px] font-bold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Moves</p>
+        <p className="mt-1 text-lg font-bold tabular-nums text-zinc-900 dark:text-zinc-50">{moveCount}</p>
+      </div>
+    </div>
+  );
 
-      {/* Finished */}
-      {finished && (
-        <div className="rounded-2xl bg-gradient-to-br from-emerald-50 to-emerald-100 p-5 text-center dark:from-emerald-900/20 dark:to-emerald-800/20">
-          <Trophy className="mx-auto mb-2 h-8 w-8 text-amber-500" />
-          <p className="text-base font-bold text-emerald-800 dark:text-emerald-300">
-            Lesson Complete!
-          </p>
-          <p className="text-sm text-emerald-600 dark:text-emerald-400">
-            Finished in {moveCount} moves
-          </p>
-          <button
-            onClick={resetLesson}
-            className="mt-3 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-          >
-            Practice Again
-          </button>
-        </div>
-      )}
-
-      {/* Opponent thinking */}
-      {isOpponentTurn && !finished && (
-        <p className="text-center text-xs text-zinc-400 animate-pulse">Opponent is thinking…</p>
-      )}
-
-      {/* Move history */}
-      {history.length > 0 && (
-        <div className="flex flex-wrap gap-1">
+  const moveListBlock =
+    history.length > 0 ? (
+      <div className="rounded-xl border border-zinc-200/80 bg-white px-2 py-2 dark:border-zinc-700 dark:bg-zinc-900/60">
+        <p className="mb-1.5 px-1 text-[10px] font-bold uppercase tracking-wider text-zinc-400">Move list</p>
+        <div className="flex max-h-28 flex-wrap gap-1 overflow-y-auto lg:max-h-40">
           {history.map((san, i) => (
-            <span key={i} className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-mono text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
-              {i % 2 === 0 && (
-                <span className="mr-0.5 text-zinc-400">{Math.floor(i / 2) + 1}.</span>
-              )}
+            <span
+              key={i}
+              className="rounded-md bg-zinc-100 px-1.5 py-0.5 font-mono text-[11px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+            >
+              {i % 2 === 0 && <span className="mr-0.5 text-zinc-400">{Math.floor(i / 2) + 1}.</span>}
               {san}
             </span>
           ))}
         </div>
-      )}
+      </div>
+    ) : null;
+
+  return (
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-zinc-50 dark:bg-zinc-950">
+      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-zinc-200/90 bg-white px-3 py-2.5 dark:border-zinc-800 dark:bg-zinc-900 sm:px-4">
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <span className="hidden sm:inline">Lessons</span>
+        </button>
+        <div className="flex min-w-0 flex-1 items-center justify-center gap-2 sm:justify-center">
+          <span className="text-lg sm:text-xl" aria-hidden>
+            {lesson.icon}
+          </span>
+          <div className="min-w-0 text-center sm:text-left">
+            <p className="truncate text-sm font-bold text-zinc-900 dark:text-zinc-100">{lesson.title}</p>
+            <span
+              className={`inline-flex rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${DIFFICULTY_COLORS[lesson.difficulty]}`}
+            >
+              {lesson.difficulty}
+            </span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={resetLesson}
+          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200 px-2.5 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Reset</span>
+        </button>
+      </header>
+
+      {/*
+        Board-first training layout: primary column is the board with minimal padding (no nested “lesson card”).
+        Objective + stats + list live in a secondary column on large screens; on small screens, board stays on top.
+      */}
+      <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col overflow-y-auto overflow-x-hidden px-2 py-2 sm:px-3 sm:py-3 lg:flex-row lg:items-start lg:gap-4 lg:px-4 lg:py-3">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-start lg:justify-start lg:self-stretch">
+          <div className="flex w-full justify-center px-0 pt-1 pb-2 lg:pt-1 lg:pb-2">
+            <ChessBoardWrapper
+              sizePreset="endgame"
+              className="overflow-hidden rounded-xl shadow-md ring-1 ring-black/[0.06] dark:ring-white/10"
+              options={{
+                position: fen,
+                onPieceDrop: ({ sourceSquare, targetSquare }) => handleDrop(sourceSquare, targetSquare ?? ""),
+                boardOrientation: orientation,
+                squareStyles,
+              }}
+            />
+          </div>
+          <div className="flex w-full max-w-md justify-center lg:hidden">
+            <ChessMoveAnnounceChip text={moveAnnounceChip} />
+          </div>
+        </div>
+
+        <aside className="flex w-full shrink-0 flex-col gap-2.5 pb-3 lg:mt-0 lg:w-[min(100%,19rem)] lg:pb-0 xl:w-80">
+          {objectiveBlock}
+          {statsBlock}
+          <div className="hidden justify-center lg:flex">
+            <ChessMoveAnnounceChip text={moveAnnounceChip} />
+          </div>
+
+          {feedback && (
+            <div
+              className={`rounded-xl border px-3 py-2 text-sm font-medium ${
+                feedback.result === "optimal"
+                  ? "border-emerald-200/80 bg-emerald-50 text-emerald-800 dark:border-emerald-800/50 dark:bg-emerald-950/35 dark:text-emerald-300"
+                  : feedback.result === "suboptimal"
+                    ? "border-amber-200/80 bg-amber-50 text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/35 dark:text-amber-200"
+                    : "border-red-200/80 bg-red-50 text-red-800 dark:border-red-900/50 dark:bg-red-950/35 dark:text-red-300"
+              }`}
+            >
+              {feedback.msg}
+            </div>
+          )}
+
+          {finished && (
+            <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/90 p-3 text-center dark:border-emerald-800/40 dark:bg-emerald-950/30">
+              <Trophy className="mx-auto mb-1.5 h-7 w-7 text-amber-500" />
+              <p className="text-sm font-bold text-emerald-900 dark:text-emerald-200">Lesson complete</p>
+              <p className="mt-0.5 text-xs text-emerald-700 dark:text-emerald-400">{moveCount} moves</p>
+              <button
+                type="button"
+                onClick={resetLesson}
+                className="mt-2 w-full rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+              >
+                Practice again
+              </button>
+            </div>
+          )}
+
+          {isOpponentTurn && !finished && (
+            <p className="text-center text-xs font-medium text-zinc-500 animate-pulse dark:text-zinc-400">
+              Opponent is thinking…
+            </p>
+          )}
+
+          {moveListBlock}
+        </aside>
+      </div>
     </div>
   );
 }

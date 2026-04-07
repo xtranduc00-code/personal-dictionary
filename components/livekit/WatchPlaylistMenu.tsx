@@ -408,7 +408,7 @@ export function WatchPlaylistMenu({ onPickClip }: Props) {
                                         type="button"
                                         disabled={busy || !newTitle.trim() || !newUrl.trim()}
                                         onClick={() => void onAddClip()}
-                                        className="rounded bg-blue-600 px-2 py-1 text-[11px] font-semibold text-white disabled:opacity-40"
+                                        className="rounded bg-zinc-900 px-2 py-1 text-[11px] font-semibold text-white disabled:opacity-40"
                                     >
                                         {t("watchPlaylistSave")}
                                     </button>
@@ -484,7 +484,7 @@ export function WatchPlaylistMenu({ onPickClip }: Props) {
                                                                 type="button"
                                                                 disabled={busy}
                                                                 onClick={() => void onSaveEdit()}
-                                                                className="text-[10px] font-semibold text-blue-600"
+                                                                className="text-[10px] font-semibold text-zinc-700"
                                                             >
                                                                 {t("watchPlaylistSave")}
                                                             </button>

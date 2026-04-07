@@ -27,6 +27,8 @@ export function AppShell({ children }: {
     const isHubGreyShell = isDailyNewsRoute;
     const isPortfolioLanding =
         pathname === "/" || pathname === "/portfolio";
+    const isChessPath =
+        pathname === "/chess" || (Boolean(pathname) && pathname.startsWith("/chess/"));
     const noOuterMainPadding =
         !isStandaloneAuth && (fullMeet || isWatchPartyRoom);
 
@@ -46,6 +48,8 @@ export function AppShell({ children }: {
                 ? "bg-[#F6F7F9] px-4 py-6 text-[#111827] antialiased sm:px-6 md:px-8 md:py-7 dark:bg-[#0a0a0b] dark:p-0 dark:text-zinc-100 md:dark:p-1"
                 : isHubGreyShell && !isStandaloneAuth
                     ? "bg-[#F6F7F9] px-4 py-6 text-[#111827] antialiased sm:px-6 md:px-8 md:py-7 dark:bg-zinc-950 dark:text-zinc-100"
+                : !isStandaloneAuth && isChessPath
+                    ? "bg-zinc-50 px-4 py-4 text-zinc-900 antialiased md:px-6 md:py-5 dark:bg-zinc-950 dark:text-zinc-100"
                 : !isStandaloneAuth
                     ? "px-4 py-6 md:px-8 md:py-8"
                     : "",

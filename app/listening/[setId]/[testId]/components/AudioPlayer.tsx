@@ -104,7 +104,7 @@ export function AudioPlayer({ src, onError }: Props) {
       
       <Tooltip content={t("audioSeekTooltip")}>
         <div className="relative h-1.5 w-full cursor-pointer rounded-full bg-zinc-200 dark:bg-zinc-700" onClick={onBarClick}>
-          <div className="h-full rounded-full bg-blue-500 transition-[width] duration-100" style={{ width: `${pct}%` }}/>
+          <div className="h-full rounded-full bg-zinc-700 transition-[width] duration-100" style={{ width: `${pct}%` }}/>
         </div>
       </Tooltip>
 
@@ -119,7 +119,7 @@ export function AudioPlayer({ src, onError }: Props) {
 
         
         <Tooltip content={playing ? t("audioPause") : t("audioPlay")}>
-          <button type="button" onClick={togglePlay} className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-blue-500 text-white hover:bg-blue-600 active:scale-95">
+          <button type="button" onClick={togglePlay} className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-zinc-900 text-white hover:bg-zinc-800 active:scale-95">
             {playing ? (<svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4">
                 <rect x="3" y="2" width="4" height="12" rx="1"/>
                 <rect x="9" y="2" width="4" height="12" rx="1"/>
@@ -159,7 +159,7 @@ export function AudioPlayer({ src, onError }: Props) {
             setMuted(v === 0);
             if (v > 1)
                 ensureWebAudio();
-        }} aria-label={t("audioVolumeTooltip")} className="h-1.5 w-20 cursor-pointer accent-blue-500"/>
+        }} aria-label={t("audioVolumeTooltip")} className="h-1.5 w-20 cursor-pointer accent-zinc-500"/>
           <span className={`w-9 text-right text-[11px] tabular-nums ${displayVol > 1
             ? "font-semibold text-amber-500"
             : "text-zinc-400 dark:text-zinc-500"}`}>

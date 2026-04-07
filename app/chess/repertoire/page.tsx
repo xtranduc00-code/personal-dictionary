@@ -8,7 +8,7 @@ import {
   Plus, RotateCcw, StickyNote, Trash2, Upload, X,
 } from "lucide-react";
 import { useAuth, authFetch } from "@/lib/auth-context";
-import { KenChessboard } from "@/components/chess/ken-chessboard";
+import { ChessBoardWrapper } from "@/components/chess/ChessBoardWrapper";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -269,6 +269,7 @@ function LineForm({ line, onDone }: {
   const [saving, setSaving]       = useState(false);
   const [explorer, setExplorer]   = useState<ExplorerData | null>(null);
   const explorerAbort = useRef<AbortController | null>(null);
+  const { chessRef, fen } = useChessFromMoves(moves);
 
   async function fetchExplorer(fen: string) {
     explorerAbort.current?.abort();
@@ -368,152 +369,230 @@ function LineForm({ line, onDone }: {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden overscroll-y-contain p-4 pb-8">
-        {/* Name */}
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-zinc-500">Line Name</label>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Italian Game — Giuoco Piano"
-            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500"
-          />
-        </div>
-
-        {/* Color */}
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-zinc-500">Play As</label>
-          <div className="flex overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700">
-            {(["white", "black"] as const).map((c) => (
-              <button
-                key={c}
-                onClick={() => setColor(c)}
-                className={`flex-1 py-2.5 text-sm font-medium transition ${
-                  color === c
-                    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                    : "bg-white text-zinc-500 hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-                }`}
-              >
-                {c === "white" ? "♔ White" : "♚ Black"}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Input mode tabs */}
-        <div>
-          <div className="mb-2 flex gap-2">
-            <label className="flex-1 text-xs font-semibold text-zinc-500">Moves</label>
-            <div className="flex rounded-lg border border-zinc-200 text-xs dark:border-zinc-700">
-              {(["board", "pgn"] as const).map((m) => (
-                <button key={m} onClick={() => setInputMode(m)}
-                  className={`px-2.5 py-1 transition first:rounded-l-lg last:rounded-r-lg ${
-                    inputMode === m
-                      ? "bg-zinc-900 font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
-                      : "text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                  }`}
-                >
-                  {m === "board" ? "🏆 Board" : "📋 PGN"}
-                </button>
-              ))}
-            </div>
-            <label className="flex cursor-pointer items-center gap-1 rounded-lg border border-zinc-200 px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
-              <Upload className="h-3 w-3" /> .pgn
-              <input type="file" accept=".pgn,.txt" className="sr-only" onChange={importPgnFile} />
-            </label>
-          </div>
-
-          {inputMode === "pgn" ? (
-            <div className="space-y-2">
-              <textarea
-                value={pgnText}
-                onChange={(e) => setPgnText(e.target.value)}
-                placeholder="Paste PGN here, e.g.: 1.e4 e5 2.Nf3 Nc6 3.Bc4"
-                rows={5}
-                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 font-mono text-xs text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500"
-              />
-              {pgnError && <p className="text-xs text-red-500">{pgnError}</p>}
-              <button
-                onClick={parsePgn}
-                className="rounded-xl bg-zinc-900 px-4 py-2 text-xs font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
-              >
-                Import Moves
-              </button>
-            </div>
-          ) : (
-            <BoardBuilder
-              moves={moves}
-              color={color}
-              onChange={setMoves}
-              explorer={explorer}
-            />
-          )}
-        </div>
-
-        {/* Explorer data (always visible) */}
-        {top3.length > 0 && (
-          <div className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
-            <div className="flex items-center justify-between border-b border-zinc-100 px-3 py-2 dark:border-zinc-800">
-              <p className="text-xs font-semibold text-zinc-500">
-                {explorer?.opening ? `${explorer.opening.eco} · ${explorer.opening.name}` : "Lichess Explorer"}
-              </p>
-              <p className="text-[10px] text-zinc-400">{(explorerTotal / 1000).toFixed(0)}k games</p>
-            </div>
-            <div className="divide-y divide-zinc-50 dark:divide-zinc-800">
-              {top3.map((m) => {
-                const t = m.white + m.draws + m.black;
-                const wPct = t ? (m.white / t) * 100 : 0;
-                const dPct = t ? (m.draws / t) * 100 : 0;
-                return (
-                  <div key={m.uci} className="flex items-center gap-3 px-3 py-2">
-                    <span className="w-8 font-mono text-sm font-bold text-zinc-900 dark:text-zinc-100">{m.san}</span>
-                    <div className="flex h-1.5 flex-1 overflow-hidden rounded-full">
-                      <div className="bg-white ring-1 ring-inset ring-zinc-300 dark:bg-zinc-200" style={{ width: `${wPct}%` }} />
-                      <div className="bg-zinc-400 dark:bg-zinc-600" style={{ width: `${dPct}%` }} />
-                      <div className="flex-1 bg-zinc-900 dark:bg-zinc-950" />
-                    </div>
-                    <span className="shrink-0 text-[10px] text-zinc-400">{pct(m.white, t)} W</span>
+        {inputMode === "board" ? (
+          <div className="grid min-h-0 grid-cols-1 gap-6 lg:grid-cols-[2fr_3fr] lg:items-start lg:gap-8">
+            <div className="flex min-w-0 flex-col gap-4">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-zinc-500">Line Name</label>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Italian Game — Giuoco Piano"
+                  className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-zinc-500">Play As</label>
+                <div className="flex overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700">
+                  {(["white", "black"] as const).map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setColor(c)}
+                      className={`flex-1 py-2.5 text-sm font-medium transition ${
+                        color === c
+                          ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                          : "bg-white text-zinc-500 hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                      }`}
+                    >
+                      {c === "white" ? "♔ White" : "♚ Black"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="min-w-0">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <label className="min-w-0 flex-1 text-xs font-semibold text-zinc-500">Moves</label>
+                  <div className="flex rounded-lg border border-zinc-200 text-xs dark:border-zinc-700">
+                    {(["board", "pgn"] as const).map((m) => (
+                      <button key={m} onClick={() => setInputMode(m)}
+                        className={`px-2.5 py-1 transition first:rounded-l-lg last:rounded-r-lg ${
+                          inputMode === m
+                            ? "bg-zinc-900 font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
+                            : "text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                        }`}
+                      >
+                        {m === "board" ? "🏆 Board" : "📋 PGN"}
+                      </button>
+                    ))}
                   </div>
-                );
-              })}
+                  <label className="flex cursor-pointer items-center gap-1 rounded-lg border border-zinc-200 px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
+                    <Upload className="h-3 w-3" /> .pgn
+                    <input type="file" accept=".pgn,.txt" className="sr-only" onChange={importPgnFile} />
+                  </label>
+                </div>
+                <BoardBuilderControls moves={moves} onChange={setMoves} chessRef={chessRef} explorer={explorer} />
+              </div>
+              {top3.length > 0 && (
+                <div className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+                  <div className="flex items-center justify-between border-b border-zinc-100 px-3 py-2 dark:border-zinc-800">
+                    <p className="text-xs font-semibold text-zinc-500">
+                      {explorer?.opening ? `${explorer.opening.eco} · ${explorer.opening.name}` : "Lichess Explorer"}
+                    </p>
+                    <p className="text-[10px] text-zinc-400">{(explorerTotal / 1000).toFixed(0)}k games</p>
+                  </div>
+                  <div className="divide-y divide-zinc-50 dark:divide-zinc-800">
+                    {top3.map((m) => {
+                      const t = m.white + m.draws + m.black;
+                      const wPct = t ? (m.white / t) * 100 : 0;
+                      const dPct = t ? (m.draws / t) * 100 : 0;
+                      return (
+                        <div key={m.uci} className="flex items-center gap-3 px-3 py-2">
+                          <span className="w-8 font-mono text-sm font-bold text-zinc-900 dark:text-zinc-100">{m.san}</span>
+                          <div className="flex h-1.5 flex-1 overflow-hidden rounded-full">
+                            <div className="bg-white ring-1 ring-inset ring-zinc-300 dark:bg-zinc-200" style={{ width: `${wPct}%` }} />
+                            <div className="bg-zinc-400 dark:bg-zinc-600" style={{ width: `${dPct}%` }} />
+                            <div className="flex-1 bg-zinc-900 dark:bg-zinc-950" />
+                          </div>
+                          <span className="shrink-0 text-[10px] text-zinc-400">{pct(m.white, t)} W</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              <div>
+                <label className="mb-1 flex items-center gap-1 text-xs font-semibold text-zinc-500">
+                  <StickyNote className="h-3 w-3 text-amber-500" /> Coach Notes
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder='e.g. "Always play h3 here to prevent Bg4 pin"'
+                  rows={3}
+                  className="w-full rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 placeholder-amber-400 dark:border-amber-800 dark:bg-amber-900/10 dark:text-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+            </div>
+            <div className="flex min-w-0 w-full flex-col items-center justify-start lg:sticky lg:top-4 lg:self-start">
+              <RepertoireBoardCanvas
+                moves={moves}
+                color={color}
+                onChange={setMoves}
+                chessRef={chessRef}
+                fen={fen}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-zinc-500">Line Name</label>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Italian Game — Giuoco Piano"
+                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-zinc-500">Play As</label>
+              <div className="flex overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700">
+                {(["white", "black"] as const).map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setColor(c)}
+                    className={`flex-1 py-2.5 text-sm font-medium transition ${
+                      color === c
+                        ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                        : "bg-white text-zinc-500 hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                    }`}
+                  >
+                    {c === "white" ? "♔ White" : "♚ Black"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <label className="min-w-0 flex-1 text-xs font-semibold text-zinc-500">Moves</label>
+                <div className="flex rounded-lg border border-zinc-200 text-xs dark:border-zinc-700">
+                  {(["board", "pgn"] as const).map((m) => (
+                    <button key={m} onClick={() => setInputMode(m)}
+                      className={`px-2.5 py-1 transition first:rounded-l-lg last:rounded-r-lg ${
+                        inputMode === m
+                          ? "bg-zinc-900 font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
+                          : "text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                      }`}
+                    >
+                      {m === "board" ? "🏆 Board" : "📋 PGN"}
+                    </button>
+                  ))}
+                </div>
+                <label className="flex cursor-pointer items-center gap-1 rounded-lg border border-zinc-200 px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
+                  <Upload className="h-3 w-3" /> .pgn
+                  <input type="file" accept=".pgn,.txt" className="sr-only" onChange={importPgnFile} />
+                </label>
+              </div>
+              <div className="space-y-2">
+                <textarea
+                  value={pgnText}
+                  onChange={(e) => setPgnText(e.target.value)}
+                  placeholder="Paste PGN here, e.g.: 1.e4 e5 2.Nf3 Nc6 3.Bc4"
+                  rows={5}
+                  className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 font-mono text-xs text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                />
+                {pgnError && <p className="text-xs text-red-500">{pgnError}</p>}
+                <button
+                  onClick={parsePgn}
+                  className="rounded-xl bg-zinc-900 px-4 py-2 text-xs font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+                >
+                  Import Moves
+                </button>
+              </div>
+            </div>
+            {top3.length > 0 && (
+              <div className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+                <div className="flex items-center justify-between border-b border-zinc-100 px-3 py-2 dark:border-zinc-800">
+                  <p className="text-xs font-semibold text-zinc-500">
+                    {explorer?.opening ? `${explorer.opening.eco} · ${explorer.opening.name}` : "Lichess Explorer"}
+                  </p>
+                  <p className="text-[10px] text-zinc-400">{(explorerTotal / 1000).toFixed(0)}k games</p>
+                </div>
+                <div className="divide-y divide-zinc-50 dark:divide-zinc-800">
+                  {top3.map((m) => {
+                    const t = m.white + m.draws + m.black;
+                    const wPct = t ? (m.white / t) * 100 : 0;
+                    const dPct = t ? (m.draws / t) * 100 : 0;
+                    return (
+                      <div key={m.uci} className="flex items-center gap-3 px-3 py-2">
+                        <span className="w-8 font-mono text-sm font-bold text-zinc-900 dark:text-zinc-100">{m.san}</span>
+                        <div className="flex h-1.5 flex-1 overflow-hidden rounded-full">
+                          <div className="bg-white ring-1 ring-inset ring-zinc-300 dark:bg-zinc-200" style={{ width: `${wPct}%` }} />
+                          <div className="bg-zinc-400 dark:bg-zinc-600" style={{ width: `${dPct}%` }} />
+                          <div className="flex-1 bg-zinc-900 dark:bg-zinc-950" />
+                        </div>
+                        <span className="shrink-0 text-[10px] text-zinc-400">{pct(m.white, t)} W</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            <div>
+              <label className="mb-1 flex items-center gap-1 text-xs font-semibold text-zinc-500">
+                <StickyNote className="h-3 w-3 text-amber-500" /> Coach Notes
+              </label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder='e.g. "Always play h3 here to prevent Bg4 pin"'
+                rows={3}
+                className="w-full rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 placeholder-amber-400 dark:border-amber-800 dark:bg-amber-900/10 dark:text-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
             </div>
           </div>
         )}
-
-        {/* Notes */}
-        <div>
-          <label className="mb-1 flex items-center gap-1 text-xs font-semibold text-zinc-500">
-            <StickyNote className="h-3 w-3 text-amber-500" /> Coach Notes
-          </label>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder='e.g. "Always play h3 here to prevent Bg4 pin"'
-            rows={3}
-            className="w-full rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 placeholder-amber-400 dark:border-amber-800 dark:bg-amber-900/10 dark:text-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-400"
-          />
-        </div>
       </div>
     </div>
   );
 }
 
-// ─── Board Builder ────────────────────────────────────────────────────────────
+// ─── Board Builder (repertoire line form) ─────────────────────────────────────
 
-function BoardBuilder({
-  moves,
-  color,
-  onChange,
-  explorer,
-}: {
-  moves: string[];
-  color: "white" | "black";
-  onChange: (moves: string[]) => void;
-  explorer: ExplorerData | null;
-}) {
+function useChessFromMoves(moves: string[]) {
   const chessRef = useRef(new Chess());
-  const [fen, setFen] = useState(new Chess().fen());
+  const [fen, setFen] = useState(() => new Chess().fen());
 
-  // Rebuild position from moves
   useEffect(() => {
     const chess = new Chess();
     for (const uci of moves) {
@@ -524,7 +603,24 @@ function BoardBuilder({
     setFen(chess.fen());
   }, [moves]);
 
+  return { chessRef, fen };
+}
+
+function RepertoireBoardCanvas({
+  moves,
+  color,
+  onChange,
+  chessRef,
+  fen,
+}: {
+  moves: string[];
+  color: "white" | "black";
+  onChange: (moves: string[]) => void;
+  chessRef: React.MutableRefObject<Chess>;
+  fen: string;
+}) {
   function handleDrop(from: string, to: string): boolean {
+    if (!to) return false;
     const chess = chessRef.current;
     const move = chess.move({ from: from as never, to: to as never, promotion: "q" });
     if (!move) return false;
@@ -532,6 +628,32 @@ function BoardBuilder({
     return true;
   }
 
+  return (
+    <div className="mx-auto flex w-full shrink-0 justify-center">
+      <ChessBoardWrapper
+        className="overflow-hidden rounded-xl"
+        fixedEdgeNotation={false}
+        options={{
+          position: fen,
+          onPieceDrop: ({ sourceSquare, targetSquare }) => handleDrop(sourceSquare, targetSquare ?? ""),
+          boardOrientation: color,
+        }}
+      />
+    </div>
+  );
+}
+
+function BoardBuilderControls({
+  moves,
+  onChange,
+  chessRef,
+  explorer,
+}: {
+  moves: string[];
+  onChange: (moves: string[]) => void;
+  chessRef: React.MutableRefObject<Chess>;
+  explorer: ExplorerData | null;
+}) {
   function clickExplorerMove(uci: string) {
     const chess = chessRef.current;
     const from = uci.slice(0, 2);
@@ -549,46 +671,30 @@ function BoardBuilder({
     onChange([]);
   }
 
-  // Highlight user's moves vs opponent's
-  const squareStyles: Record<string, React.CSSProperties> = {};
-
   return (
     <div className="space-y-2">
-      <div className="mx-auto w-full max-w-xs">
-        <KenChessboard
-          options={{
-            position: fen,
-            onPieceDrop: ({ sourceSquare, targetSquare }) => handleDrop(sourceSquare, targetSquare ?? ""),
-            boardOrientation: color,
-            squareStyles,
-          }}
-        />
-      </div>
-
-      {/* Move list + controls */}
-      <div className="flex items-center justify-between gap-2">
-        <p className="flex-1 font-mono text-xs text-zinc-500 break-all">
-          {movesToSan(moves) || "Make moves on the board…"}
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        <p className="min-w-0 flex-1 font-mono text-xs leading-relaxed text-zinc-500 break-words">
+          {movesToSan(moves)}
         </p>
         <div className="flex shrink-0 gap-1">
-          <button onClick={undo} disabled={moves.length === 0}
+          <button type="button" onClick={undo} disabled={moves.length === 0}
             className="rounded-lg border border-zinc-200 p-1.5 text-zinc-500 hover:bg-zinc-50 disabled:opacity-30 dark:border-zinc-700 dark:hover:bg-zinc-800">
             <RotateCcw className="h-3.5 w-3.5" />
           </button>
-          <button onClick={reset} disabled={moves.length === 0}
+          <button type="button" onClick={reset} disabled={moves.length === 0}
             className="rounded-lg border border-zinc-200 p-1.5 text-zinc-500 hover:bg-zinc-50 disabled:opacity-30 dark:border-zinc-700 dark:hover:bg-zinc-800">
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
-
-      {/* Clickable explorer moves */}
       {(explorer?.moves ?? []).slice(0, 4).length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          <span className="text-[10px] text-zinc-400 self-center">Play:</span>
+          <span className="self-center text-[10px] text-zinc-400">Play:</span>
           {(explorer?.moves ?? []).slice(0, 4).map((m) => (
             <button
               key={m.uci}
+              type="button"
               onClick={() => clickExplorerMove(m.uci)}
               className="rounded-lg border border-zinc-200 bg-white px-2 py-1 font-mono text-xs text-zinc-700 hover:border-violet-300 hover:bg-violet-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-violet-700"
             >

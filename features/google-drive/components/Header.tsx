@@ -37,7 +37,7 @@ const Header = () => {
         <div className="drive-header-actions">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button type="button" variant="outline" size="sm" className="shrink-0 border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 dark:border-blue-500/35 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/18 dark:hover:border-blue-400/45" onClick={() => setOpenLinkOpen(true)}>
+              <Button type="button" variant="outline" size="sm" className="shrink-0 border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 dark:border-zinc-500/35 dark:bg-zinc-500/10 dark:text-zinc-300 dark:hover:bg-zinc-500/18 dark:hover:border-zinc-400/45" onClick={() => setOpenLinkOpen(true)}>
                 Open link
               </Button>
             </TooltipTrigger>
@@ -61,7 +61,7 @@ const Header = () => {
           </p>
           <div className="flex gap-2">
             <Input placeholder="https://drive.google.com/... or https://docs.google.com/..." value={linkInput} onChange={(e) => setLinkInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleOpenLink()} className="min-w-0 flex-1 border-zinc-300 text-zinc-900 placeholder:text-zinc-500 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"/>
-            <Button type="button" size="sm" onClick={handleOpenLink} className="dark:bg-blue-600 dark:text-white dark:hover:bg-blue-500">
+            <Button type="button" size="sm" onClick={handleOpenLink} className="dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200">
               Open
             </Button>
           </div>

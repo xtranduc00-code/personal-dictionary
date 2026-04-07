@@ -153,7 +153,7 @@ function GuardianReadInner() {
         <p className="text-zinc-600 dark:text-zinc-400">Missing article link.</p>
         <Link
           href={returnTo}
-          className="mt-4 inline-block text-sm font-medium text-sky-700 underline-offset-2 hover:underline dark:text-sky-300"
+          className="mt-4 inline-block text-sm font-medium text-zinc-700 underline-offset-2 hover:underline dark:text-zinc-300"
         >
           {t("guardianReadBack")}
         </Link>
@@ -174,7 +174,7 @@ function GuardianReadInner() {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:px-5">
             <Link
               href={returnTo}
-              className="text-sm font-semibold tracking-tight text-sky-800 underline-offset-2 hover:underline dark:text-sky-300"
+              className="text-sm font-semibold tracking-tight text-zinc-800 underline-offset-2 hover:underline dark:text-zinc-300"
             >
               {t("guardianReadBack")}
             </Link>

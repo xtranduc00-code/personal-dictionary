@@ -551,3 +551,46 @@ body {
 .watch-party-video-stage:-moz-full-screen .watch-party-controls {
   flex-shrink: 0;
 }
+
+/* Chess puzzle board: wrong-move shake */
+@keyframes puzzle-board-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  18% {
+    transform: translateX(-7px);
+  }
+  36% {
+    transform: translateX(7px);
+  }
+  54% {
+    transform: translateX(-5px);
+  }
+  72% {
+    transform: translateX(5px);
+  }
+}
+
+.puzzle-board-shake {
+  animation: puzzle-board-shake 0.5s ease-in-out;
+}
+
+/* Chess puzzle: solved state — pulsing green ring around board */
+@keyframes puzzle-board-solved-ring {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 3px rgb(34 197 94),
+      0 0 0 1px rgba(34, 197, 94, 0.2);
+  }
+  50% {
+    box-shadow:
+      0 0 0 5px rgb(34 197 94),
+      0 0 28px rgba(34, 197, 94, 0.35);
+  }
+}
+
+.puzzle-board-solved-ring {
+  animation: puzzle-board-solved-ring 1.6s ease-in-out infinite;
+}

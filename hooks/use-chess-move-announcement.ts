@@ -15,7 +15,7 @@ function speakAnnouncement(text: string) {
   if (typeof window === "undefined" || !window.speechSynthesis) return;
   window.speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
-  u.rate = 0.9;
+  u.rate = 1.3;
   u.pitch = 1;
   u.lang = "en-US";
   window.speechSynthesis.speak(u);
@@ -55,7 +55,8 @@ export function useChessMoveAnnouncement() {
       timerRef.current = null;
     }, CHIP_MS);
 
-    speakAnnouncement(text);
+    // Delay TTS so move/check sound effect plays first without overlap
+    setTimeout(() => speakAnnouncement(text), 350);
   }, []);
 
   useEffect(

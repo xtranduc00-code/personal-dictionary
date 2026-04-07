@@ -128,22 +128,27 @@ const dictionarySectionLinks: {
     { href: "/history", labelKey: "history", icon: History },
 ];
 
-/** Accent nav rows: clearer active + hover (aligns with Meets / product blue) */
+/** Accent nav rows: clearer active + hover (neutral zinc palette) */
 const NAV_LINK_ROW_ACTIVE =
-    "border-l-2 border-blue-600 bg-blue-50 pl-[30px] font-semibold text-[#111827] dark:border-sky-400 dark:bg-sky-950/50 dark:text-sky-50";
+    "border-l-2 border-zinc-900 bg-zinc-100 pl-[30px] font-semibold text-[#111827] dark:border-zinc-400 dark:bg-zinc-800 dark:text-white";
 const NAV_LINK_ROW_IDLE =
-    "border-l-2 border-transparent pl-8 font-medium text-zinc-600 hover:border-blue-200 hover:bg-blue-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:border-sky-500/25 dark:hover:bg-zinc-800 dark:hover:text-zinc-100";
+    "border-l-2 border-transparent pl-8 font-medium text-zinc-600 hover:border-zinc-200 hover:bg-zinc-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:border-zinc-500/25 dark:hover:bg-zinc-800 dark:hover:text-zinc-100";
 const NAV_LINK_SUB_ACTIVE =
-    "border-l-2 border-blue-600 bg-blue-50 pl-[38px] font-semibold text-[#111827] dark:border-sky-400 dark:bg-sky-950/50 dark:text-sky-50";
+    "border-l-2 border-zinc-900 bg-zinc-100 pl-[38px] font-semibold text-[#111827] dark:border-zinc-400 dark:bg-zinc-800 dark:text-white";
 const NAV_LINK_SUB_IDLE =
-    "border-l-2 border-transparent pl-11 font-medium text-zinc-600 hover:border-blue-200 hover:bg-blue-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:border-sky-500/25 dark:hover:bg-zinc-800 dark:hover:text-zinc-100";
+    "border-l-2 border-transparent pl-11 font-medium text-zinc-600 hover:border-zinc-200 hover:bg-zinc-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:border-zinc-500/25 dark:hover:bg-zinc-800 dark:hover:text-zinc-100";
 const NAV_LINK_DRIVE_ACTIVE =
-    "border-l-2 border-blue-600 bg-blue-50 pl-[42px] font-semibold text-[#111827] dark:border-sky-400 dark:bg-sky-950/50 dark:text-sky-50";
+    "border-l-2 border-zinc-900 bg-zinc-100 pl-[42px] font-semibold text-[#111827] dark:border-zinc-400 dark:bg-zinc-800 dark:text-white";
 const NAV_LINK_DRIVE_IDLE =
-    "border-l-2 border-transparent pl-11 font-medium text-zinc-600 hover:border-blue-200 hover:bg-blue-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:border-sky-500/25 dark:hover:bg-zinc-800 dark:hover:text-zinc-100";
+    "border-l-2 border-transparent pl-11 font-medium text-zinc-600 hover:border-zinc-200 hover:bg-zinc-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:border-zinc-500/25 dark:hover:bg-zinc-800 dark:hover:text-zinc-100";
 /** Meets đang trong cuộc gọi — nổi bật cả khi đang ở route khác (Calendar, …). */
 const NAV_LINK_ROW_MEETS_LIVE =
     "border-l-2 border-red-500 bg-gradient-to-r from-red-50 via-orange-50/40 to-transparent pl-[30px] font-semibold text-red-950 shadow-sm ring-1 ring-red-200/60 dark:border-red-400 dark:from-red-950/55 dark:via-red-950/25 dark:to-transparent dark:text-red-50 dark:ring-red-500/25";
+/** Chess row: warm accent so /chess doesn’t read like generic “Dictionary” blue. */
+const NAV_LINK_CHESS_ACTIVE =
+    "border-l-2 border-amber-600 bg-amber-50 pl-[30px] font-semibold text-zinc-900 dark:border-amber-400 dark:bg-amber-950/40 dark:text-amber-50";
+const NAV_LINK_CHESS_IDLE =
+    "border-l-2 border-transparent pl-8 font-medium text-zinc-600 hover:border-amber-200/90 hover:bg-amber-50/85 hover:text-zinc-900 dark:text-zinc-400 dark:hover:border-amber-500/30 dark:hover:bg-amber-950/20 dark:hover:text-zinc-100";
 
 /** Same row geometry as top-level nav links (e.g. Watch together); keeps “News” label from looking like a tiny sub-caption. */
 function EntertainmentNewsGroupTitle({ label }: { label: string }) {
@@ -213,9 +218,12 @@ function isEntertainmentPath(pathname: string) {
         pathname.startsWith("/notes/diary/")
     );
 }
-/** Entertainment section active when on Daily News routes or Watch together. */
+function isChessPath(pathname: string) {
+    return pathname === "/chess" || pathname.startsWith("/chess/");
+}
+/** Entertainment section active when on Daily News routes, Watch together, or Chess (chess lives in this group). */
 function isEntertainmentSidebarActive(pathname: string) {
-    return isNewsPath(pathname) || isEntertainmentPath(pathname);
+    return isNewsPath(pathname) || isEntertainmentPath(pathname) || isChessPath(pathname);
 }
 /** Sidebar: Engoo daily hub + lesson/article paths (not Guardian hub / in-app readers). */
 function isEngooDailyNewsNavActive(pathname: string, src: string | null): boolean {
@@ -778,7 +786,7 @@ function SiteNavInner() {
             <div className="mb-3 shrink-0 px-2">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" aria-hidden/>
-                <input type="search" autoComplete="off" value={navSearch} onChange={(e) => setNavSearch(e.target.value)} placeholder={t("navQuickSearchPlaceholder")} aria-label={t("navQuickSearchAria")} className="w-full rounded-xl border border-zinc-200 bg-zinc-50 py-2.5 pl-9 pr-3 text-sm text-zinc-900 shadow-sm placeholder:text-zinc-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800/80 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-sky-500/40 dark:focus:ring-sky-500/20"/>
+                <input type="search" autoComplete="off" value={navSearch} onChange={(e) => setNavSearch(e.target.value)} placeholder={t("navQuickSearchPlaceholder")} aria-label={t("navQuickSearchAria")} className="w-full rounded-xl border border-zinc-200 bg-zinc-50 py-2.5 pl-9 pr-3 text-sm text-zinc-900 shadow-sm placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-500/20 dark:border-zinc-700 dark:bg-zinc-800/80 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-zinc-500/40 dark:focus:ring-zinc-500/20"/>
               </div>
             </div>
             <nav className="flex flex-1 flex-col gap-1 pb-6">
@@ -790,7 +798,7 @@ function SiteNavInner() {
                 "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
                 isPortfolioPath(pathname)
                     ? "bg-zinc-100 text-zinc-900 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
-                    : "text-zinc-500 hover:bg-blue-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+                    : "text-zinc-500 hover:bg-zinc-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
             ].join(" ")} iconBoxClass={[
                 "flex h-10 w-10 items-center justify-center rounded-xl transition",
                 isPortfolioPath(pathname)
@@ -815,7 +823,7 @@ function SiteNavInner() {
                 "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
                 isDictionaryPath(pathname)
                     ? "bg-zinc-100 text-zinc-900 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
-                    : "text-zinc-500 hover:bg-blue-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+                    : "text-zinc-500 hover:bg-zinc-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
             ].join(" ")} iconBoxClass={[
                 "flex h-10 w-10 items-center justify-center rounded-xl transition",
                 isDictionaryPath(pathname)
@@ -840,7 +848,7 @@ function SiteNavInner() {
                 "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
                 isIeltsPath(pathname)
                     ? "bg-zinc-100 text-zinc-900 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
-                    : "text-zinc-500 hover:bg-blue-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+                    : "text-zinc-500 hover:bg-zinc-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
             ].join(" ")} iconBoxClass={[
                 "flex h-10 w-10 items-center justify-center rounded-xl transition",
                 isIeltsPath(pathname)
@@ -857,7 +865,7 @@ function SiteNavInner() {
                 "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
                 isStudyPath(pathname)
                     ? "bg-zinc-100 text-zinc-900 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
-                    : "text-zinc-500 hover:bg-blue-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+                    : "text-zinc-500 hover:bg-zinc-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
             ].join(" ")} iconBoxClass={[
                 "flex h-10 w-10 items-center justify-center rounded-xl transition",
                 isStudyPath(pathname)
@@ -874,7 +882,7 @@ function SiteNavInner() {
                 "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
                 isEntertainmentSidebarActive(pathname)
                     ? "bg-zinc-100 text-zinc-900 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
-                    : "text-zinc-500 hover:bg-blue-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+                    : "text-zinc-500 hover:bg-zinc-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
             ].join(" ")} iconBoxClass={[
                 "flex h-10 w-10 items-center justify-center rounded-xl transition",
                 isEntertainmentSidebarActive(pathname)
@@ -892,11 +900,14 @@ function SiteNavInner() {
                     const active =
                         link.preventNavigation ? false : isActive(pathname, link.href);
                     const Icon = link.icon;
+                    const chessLink = link.href === "/chess";
                     return (<NavSidebarRow key={link.labelKey} href={link.href} labelKey={link.labelKey} preventNavigation={link.preventNavigation} onLinkClick={() => {
                             clearQuickSearch();
                         }} className={[
                             "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200",
-                            active ? NAV_LINK_ROW_ACTIVE : NAV_LINK_ROW_IDLE,
+                            chessLink
+                                ? (active ? NAV_LINK_CHESS_ACTIVE : NAV_LINK_CHESS_IDLE)
+                                : (active ? NAV_LINK_ROW_ACTIVE : NAV_LINK_ROW_IDLE),
                         ].join(" ")} active={active} icon={Icon}/>);
                 })}
                 </>)}
@@ -909,7 +920,7 @@ function SiteNavInner() {
                 "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
                 isSchedulePath(pathname)
                     ? "bg-zinc-100 text-zinc-900 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
-                    : "text-zinc-500 hover:bg-blue-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+                    : "text-zinc-500 hover:bg-zinc-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
             ].join(" ")} iconBoxClass={[
                 "flex h-10 w-10 items-center justify-center rounded-xl transition",
                 isSchedulePath(pathname)
@@ -938,7 +949,7 @@ function SiteNavInner() {
                 "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
                 isOthersPath(pathname)
                     ? "bg-zinc-100 text-zinc-900 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
-                    : "text-zinc-500 hover:bg-blue-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+                    : "text-zinc-500 hover:bg-zinc-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
             ].join(" ")} iconBoxClass={[
                 "flex h-10 w-10 items-center justify-center rounded-xl transition",
                 isOthersPath(pathname)
@@ -956,7 +967,10 @@ function SiteNavInner() {
           <ChevronRight className="h-4 w-4"/>
         </button>)}
       <aside className={[
-            "hidden h-screen shrink-0 border-r border-zinc-200/70 bg-zinc-50/80 backdrop-blur-xl transition-[width] duration-200 dark:border-zinc-800 dark:bg-zinc-900/80 md:flex md:flex-col md:overflow-hidden",
+            "hidden h-screen shrink-0 border-r border-zinc-200/70 backdrop-blur-xl transition-[width] duration-200 dark:border-zinc-800 md:flex md:flex-col md:overflow-hidden",
+            isChessPath(pathname || "")
+                ? "bg-gradient-to-b from-amber-50/75 via-zinc-50/95 to-zinc-50 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-950"
+                : "bg-zinc-50/80 dark:bg-zinc-900/80",
             sidebarOpen ? "w-80" : "w-0 overflow-hidden border-r-0",
         ].join(" ")}>
         <div className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden px-4 py-5">
@@ -989,7 +1003,7 @@ function SiteNavInner() {
               </div>
               <div className="relative min-w-0 flex-1">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" aria-hidden />
-                <input type="search" autoComplete="off" value={navSearch} onChange={(e) => setNavSearch(e.target.value)} placeholder={t("navQuickSearchPlaceholder")} aria-label={t("navQuickSearchAria")} className="h-8 w-full rounded-lg border border-zinc-200 bg-white py-1 pl-8 pr-2 text-xs text-zinc-900 shadow-sm placeholder:text-zinc-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800/80 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-sky-500/40 dark:focus:ring-sky-500/20" />
+                <input type="search" autoComplete="off" value={navSearch} onChange={(e) => setNavSearch(e.target.value)} placeholder={t("navQuickSearchPlaceholder")} aria-label={t("navQuickSearchAria")} className="h-8 w-full rounded-lg border border-zinc-200 bg-white py-1 pl-8 pr-2 text-xs text-zinc-900 shadow-sm placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-500/20 dark:border-zinc-700 dark:bg-zinc-800/80 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-zinc-500/40 dark:focus:ring-zinc-500/20" />
               </div>
             </div>
           </div>
@@ -1002,8 +1016,8 @@ function SiteNavInner() {
               <NavSectionHeader isOpen={portfolioOpen} onToggle={togglePortfolioSection} icon={LayoutDashboard} labelKey="portfolio" outerClass={[
             "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
             isPortfolioPath(pathname)
-                ? "bg-white text-zinc-900 shadow-sm ring-1 ring-blue-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
-                : "text-zinc-500 hover:bg-blue-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+                ? "bg-white text-zinc-900 shadow-sm ring-1 ring-zinc-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
+                : "text-zinc-500 hover:bg-zinc-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
         ].join(" ")} iconBoxClass={[
             "flex h-10 w-10 items-center justify-center rounded-xl transition",
             isPortfolioPath(pathname)
@@ -1027,8 +1041,8 @@ function SiteNavInner() {
               <NavSectionHeader isOpen={dictionaryOpen} onToggle={toggleDictionarySection} icon={BookMarked} labelKey="navLanguageSection" outerClass={[
             "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
             isDictionaryPath(pathname)
-                ? "bg-white text-zinc-900 shadow-sm ring-1 ring-blue-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
-                : "text-zinc-500 hover:bg-blue-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+                ? "bg-white text-zinc-900 shadow-sm ring-1 ring-zinc-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
+                : "text-zinc-500 hover:bg-zinc-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
         ].join(" ")} iconBoxClass={[
             "flex h-10 w-10 items-center justify-center rounded-xl transition",
             isDictionaryPath(pathname)
@@ -1052,8 +1066,8 @@ function SiteNavInner() {
               <NavSectionHeader isOpen={ieltsOpen} onToggle={toggleIeltsSection} icon={BookOpen} labelKey="ielts" outerClass={[
             "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
             isIeltsPath(pathname)
-                ? "bg-white text-zinc-900 shadow-sm ring-1 ring-blue-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
-                : "text-zinc-500 hover:bg-blue-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+                ? "bg-white text-zinc-900 shadow-sm ring-1 ring-zinc-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
+                : "text-zinc-500 hover:bg-zinc-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
         ].join(" ")} iconBoxClass={[
             "flex h-10 w-10 items-center justify-center rounded-xl transition",
             isIeltsPath(pathname)
@@ -1069,8 +1083,8 @@ function SiteNavInner() {
               <NavSectionHeader isOpen={studyOpen} onToggle={toggleStudySection} icon={GraduationCap} labelKey="navStudySection" outerClass={[
             "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
             isStudyPath(pathname)
-                ? "bg-white text-zinc-900 shadow-sm ring-1 ring-blue-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
-                : "text-zinc-500 hover:bg-blue-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+                ? "bg-white text-zinc-900 shadow-sm ring-1 ring-zinc-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
+                : "text-zinc-500 hover:bg-zinc-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
         ].join(" ")} iconBoxClass={[
             "flex h-10 w-10 items-center justify-center rounded-xl transition",
             isStudyPath(pathname)
@@ -1086,8 +1100,8 @@ function SiteNavInner() {
               <NavSectionHeader isOpen={entertainmentOpen} onToggle={toggleEntertainmentSection} icon={PartyPopper} labelKey="navEntertainmentSection" outerClass={[
             "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
             isEntertainmentSidebarActive(pathname)
-                ? "bg-white text-zinc-900 shadow-sm ring-1 ring-blue-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
-                : "text-zinc-500 hover:bg-blue-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+                ? "bg-white text-zinc-900 shadow-sm ring-1 ring-zinc-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
+                : "text-zinc-500 hover:bg-zinc-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
         ].join(" ")} iconBoxClass={[
             "flex h-10 w-10 items-center justify-center rounded-xl transition",
             isEntertainmentSidebarActive(pathname)
@@ -1105,11 +1119,14 @@ function SiteNavInner() {
                 const active =
                     link.preventNavigation ? false : isActive(pathname, link.href);
                 const Icon = link.icon;
+                const chessLink = link.href === "/chess";
                 return (<NavSidebarRow key={link.labelKey} href={link.href} labelKey={link.labelKey} preventNavigation={link.preventNavigation} onLinkClick={() => {
                         clearQuickSearch();
                     }} className={[
                         "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200",
-                        active ? NAV_LINK_ROW_ACTIVE : NAV_LINK_ROW_IDLE,
+                        chessLink
+                            ? (active ? NAV_LINK_CHESS_ACTIVE : NAV_LINK_CHESS_IDLE)
+                            : (active ? NAV_LINK_ROW_ACTIVE : NAV_LINK_ROW_IDLE),
                     ].join(" ")} active={active} icon={Icon}/>);
             })}
               </>)}
@@ -1121,8 +1138,8 @@ function SiteNavInner() {
               <NavSectionHeader isOpen={scheduleOpen} onToggle={toggleScheduleSection} icon={CalendarClock} labelKey="navScheduleSection" outerClass={[
             "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
             isSchedulePath(pathname)
-                ? "bg-white text-zinc-900 shadow-sm ring-1 ring-blue-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
-                : "text-zinc-500 hover:bg-blue-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+                ? "bg-white text-zinc-900 shadow-sm ring-1 ring-zinc-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
+                : "text-zinc-500 hover:bg-zinc-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
         ].join(" ")} iconBoxClass={[
             "flex h-10 w-10 items-center justify-center rounded-xl transition",
             isSchedulePath(pathname)
@@ -1150,8 +1167,8 @@ function SiteNavInner() {
               <NavSectionHeader isOpen={othersOpen} onToggle={toggleOthersSection} icon={Cloud} labelKey="others" outerClass={[
             "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
             isOthersPath(pathname)
-                ? "bg-white text-zinc-900 shadow-sm ring-1 ring-blue-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
-                : "text-zinc-500 hover:bg-blue-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+                ? "bg-white text-zinc-900 shadow-sm ring-1 ring-zinc-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
+                : "text-zinc-500 hover:bg-zinc-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
         ].join(" ")} iconBoxClass={[
             "flex h-10 w-10 items-center justify-center rounded-xl transition",
             isOthersPath(pathname)

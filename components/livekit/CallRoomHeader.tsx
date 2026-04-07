@@ -98,7 +98,7 @@ export const CallRoomHeader = memo(function CallRoomHeader({
                 <span className="hidden h-4 w-px shrink-0 bg-zinc-200 sm:block" aria-hidden />
                 <div className="flex min-w-0 flex-wrap items-center gap-3 text-xs text-zinc-600 sm:text-sm">
                     <span className="inline-flex items-center gap-1.5 whitespace-nowrap font-medium">
-                        <Users className="h-4 w-4 shrink-0 text-blue-600" strokeWidth={2} aria-hidden />
+                        <Users className="h-4 w-4 shrink-0 text-zinc-500" strokeWidth={2} aria-hidden />
                         <span className="text-zinc-700">{peopleLabel}</span>
                     </span>
                     <span
@@ -114,7 +114,7 @@ export const CallRoomHeader = memo(function CallRoomHeader({
                 <button
                     type="button"
                     onClick={onToggleStageFullscreen}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-700 shadow-sm transition hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-700 shadow-sm transition hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/20"
                     aria-label={t("ariaToggleFullscreen")}
                     title={t("ariaToggleFullscreen")}
                 >

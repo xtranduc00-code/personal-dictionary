@@ -168,32 +168,32 @@ const surfaceCard =
 const innerPanel =
     "rounded-xl border border-[#E5E7EB]/80 bg-[#F6F7F9]/80 p-4 sm:p-6 dark:border-white/[0.08] dark:bg-zinc-900/40";
 const badgePill =
-    "mb-4 inline-flex items-center gap-2 rounded-full border border-blue-200/90 bg-blue-50/90 px-3.5 py-1.5 text-xs font-semibold text-blue-800 shadow-[0_1px_2px_rgba(59,130,246,0.12)] dark:border-sky-500/25 dark:bg-sky-950/40 dark:text-sky-200 dark:shadow-none";
+    "mb-4 inline-flex items-center gap-2 rounded-full border border-zinc-200/90 bg-zinc-50/90 px-3.5 py-1.5 text-xs font-semibold text-zinc-800 shadow-sm dark:border-zinc-500/25 dark:bg-zinc-900/40 dark:text-zinc-200 dark:shadow-none";
 const hintText = "text-xs leading-relaxed text-[#64748B] dark:text-zinc-400";
 const segWrap =
     "flex rounded-xl border border-[#E5E7EB] bg-[#EEF0F3] p-1 dark:border-white/10 dark:bg-white/[0.06]";
 const segBtn =
-    "relative flex-1 rounded-lg px-2 py-2.5 text-xs font-semibold transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 sm:px-3 sm:text-sm";
+    "relative flex-1 rounded-lg px-2 py-2.5 text-xs font-semibold transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/40 sm:px-3 sm:text-sm";
 const segBtnOn =
-    "z-[1] bg-white text-[#0f172a] shadow-[0_2px_10px_rgba(0,0,0,0.07)] ring-2 ring-blue-500/50 ring-offset-2 ring-offset-[#EEF0F3] dark:bg-zinc-800 dark:text-zinc-50 dark:ring-sky-400/50 dark:ring-offset-zinc-900/90";
+    "z-[1] bg-white text-[#0f172a] shadow-[0_2px_10px_rgba(0,0,0,0.07)] ring-2 ring-zinc-500/50 ring-offset-2 ring-offset-[#EEF0F3] dark:bg-zinc-800 dark:text-zinc-50 dark:ring-zinc-400/50 dark:ring-offset-zinc-900/90";
 const segBtnOff =
     "text-[#64748B] hover:text-[#0f172a] dark:text-zinc-400 dark:hover:text-zinc-100";
 const fieldClass =
-    "w-full rounded-xl border border-[#E5E7EB] bg-white px-4 py-3.5 text-sm text-[#111827] shadow-none outline-none ring-0 placeholder:text-[#9CA3AF] focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:border-white/15 dark:bg-black/30 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-white/25 dark:focus:ring-1 dark:focus:ring-white/20";
+    "w-full rounded-xl border border-[#E5E7EB] bg-white px-4 py-3.5 text-sm text-[#111827] shadow-none outline-none ring-0 placeholder:text-[#9CA3AF] focus:border-zinc-400 focus:ring-2 focus:ring-zinc-500/20 dark:border-white/15 dark:bg-black/30 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-white/25 dark:focus:ring-1 dark:focus:ring-white/20";
 const labelClass = "mb-2 block text-sm font-semibold text-[#0f172a] dark:text-zinc-100";
 const choiceBase =
-    "cursor-pointer rounded-xl border px-3.5 py-3 text-sm font-medium transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-blue-500/35";
+    "cursor-pointer rounded-xl border px-3.5 py-3 text-sm font-medium transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-zinc-500/35";
 const choiceOff =
-    "border-[#E5E7EB] bg-white hover:border-blue-200 hover:bg-blue-50/40 hover:shadow-[0_2px_8px_rgba(59,130,246,0.08)] dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-sky-500/30 dark:hover:bg-sky-950/25";
+    "border-[#E5E7EB] bg-white hover:border-zinc-300 hover:bg-zinc-50/40 hover:shadow-sm dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-zinc-500/30 dark:hover:bg-zinc-900/25";
 const choiceOn =
-    "border-blue-400 bg-blue-50/90 shadow-[0_2px_8px_rgba(59,130,246,0.12)] ring-2 ring-blue-500/20 dark:border-sky-500/50 dark:bg-sky-950/35 dark:ring-sky-500/25";
+    "border-zinc-400 bg-zinc-50/90 shadow-sm ring-2 ring-zinc-500/20 dark:border-zinc-500/50 dark:bg-zinc-900/35 dark:ring-zinc-500/25";
 const primaryCta =
-    "mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3.5 text-[15px] font-semibold text-white shadow-[0_6px_22px_-4px_rgba(59,130,246,0.55)] transition hover:bg-blue-500 hover:shadow-[0_8px_28px_-4px_rgba(59,130,246,0.52)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#F6F7F9] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 dark:bg-sky-600 dark:shadow-[0_6px_24px_-6px_rgba(14,165,233,0.5)] dark:hover:bg-sky-500 dark:focus-visible:ring-sky-400/50 dark:focus-visible:ring-offset-[#0a0a0b]";
+    "mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-900 px-6 py-3.5 text-[15px] font-semibold text-white shadow-[0_6px_22px_-4px_rgba(0,0,0,0.35)] transition hover:bg-zinc-800 hover:shadow-[0_8px_28px_-4px_rgba(0,0,0,0.32)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#F6F7F9] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 dark:bg-zinc-100 dark:text-zinc-900 dark:shadow-[0_6px_24px_-6px_rgba(0,0,0,0.5)] dark:hover:bg-zinc-200 dark:focus-visible:ring-zinc-400/50 dark:focus-visible:ring-offset-[#0a0a0b]";
 const sectionRule = "border-t border-[#E5E7EB] pt-8 mt-8 dark:border-white/10";
 const trayClass =
-    "mt-5 rounded-2xl border border-blue-200/85 bg-gradient-to-b from-blue-50/80 to-blue-50/25 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:border-sky-500/25 dark:from-sky-950/40 dark:to-sky-950/15 dark:shadow-none";
+    "mt-5 rounded-2xl border border-zinc-200/85 bg-gradient-to-b from-zinc-50/80 to-zinc-50/25 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:border-zinc-500/25 dark:from-zinc-900/40 dark:to-zinc-900/15 dark:shadow-none";
 const outputSectionShell =
-    "rounded-2xl border border-blue-200/80 bg-gradient-to-br from-blue-50/55 via-white to-white p-4 sm:p-5 dark:border-sky-500/25 dark:from-sky-950/30 dark:via-zinc-950/45 dark:to-zinc-950/25";
+    "rounded-2xl border border-zinc-200/80 bg-gradient-to-br from-zinc-50/55 via-white to-white p-4 sm:p-5 dark:border-zinc-500/25 dark:from-zinc-900/30 dark:via-zinc-950/45 dark:to-zinc-950/25";
 const sourceCardClass =
     "flex items-start gap-3 rounded-xl border border-zinc-200/80 bg-zinc-50/80 px-3 py-2.5 text-left dark:border-white/10 dark:bg-zinc-900/50";
 
@@ -589,7 +589,7 @@ function StudyKitPageInner() {
                 <header className="mb-8 text-center sm:text-left">
                     <div className={badgePill}>
                         <Sparkles
-                            className="h-3.5 w-3.5 text-blue-600 dark:text-sky-400"
+                            className="h-3.5 w-3.5 text-zinc-700 dark:text-zinc-400"
                             strokeWidth={2}
                             aria-hidden
                         />
@@ -605,13 +605,13 @@ function StudyKitPageInner() {
 
                 {!user ? (
                     <p
-                        className="mb-8 rounded-xl border border-blue-200/90 bg-blue-50/90 px-4 py-3 text-sm text-blue-950 dark:border-sky-500/25 dark:bg-sky-950/35 dark:text-sky-100"
+                        className="mb-8 rounded-xl border border-zinc-200/90 bg-zinc-50/90 px-4 py-3 text-sm text-zinc-900 dark:border-zinc-500/25 dark:bg-zinc-900/35 dark:text-zinc-100"
                     >
                         {t("studyKitSignInCta")}{" "}
                         <button
                             type="button"
                             onClick={() => openAuthModal()}
-                            className="font-semibold text-blue-800 underline decoration-blue-800/30 underline-offset-2 hover:no-underline dark:text-sky-200 dark:decoration-sky-200/30"
+                            className="font-semibold text-zinc-800 underline decoration-zinc-800/30 underline-offset-2 hover:no-underline dark:text-zinc-200 dark:decoration-zinc-200/30"
                         >
                             {t("logIn")}
                         </button>
@@ -655,17 +655,17 @@ function StudyKitPageInner() {
                                         <div
                                             {...getRootProps({
                                                 className: [
-                                                    "flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-10 text-center outline-none transition-[border-color,background-color,box-shadow] duration-200 focus-visible:ring-2 focus-visible:ring-blue-500/40",
+                                                    "flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-10 text-center outline-none transition-[border-color,background-color,box-shadow] duration-200 focus-visible:ring-2 focus-visible:ring-zinc-500/40",
                                                     isDragActive
-                                                        ? "border-blue-500 bg-blue-50/80 shadow-[0_0_0_3px_rgba(59,130,246,0.15)] dark:border-sky-400 dark:bg-sky-950/45 dark:shadow-[0_0_0_3px_rgba(14,165,233,0.2)]"
-                                                        : "border-[#94A3B8] bg-white hover:border-blue-400 hover:bg-blue-50/45 dark:border-white/30 dark:bg-white/[0.03] dark:hover:border-sky-500/55 dark:hover:bg-sky-950/25",
+                                                        ? "border-zinc-500 bg-zinc-50/80 shadow-[0_0_0_3px_rgba(0,0,0,0.1)] dark:border-zinc-400 dark:bg-zinc-900/45 dark:shadow-[0_0_0_3px_rgba(255,255,255,0.1)]"
+                                                        : "border-[#94A3B8] bg-white hover:border-zinc-400 hover:bg-zinc-50/45 dark:border-white/30 dark:bg-white/[0.03] dark:hover:border-zinc-500/55 dark:hover:bg-zinc-900/25",
                                                     !user || loading ? "pointer-events-none opacity-45" : "",
                                                 ].join(" "),
                                             })}
                                         >
                                             <input {...getInputProps()} />
                                             <UploadCloud
-                                                className={`h-11 w-11 shrink-0 transition-transform duration-200 ${isDragActive ? "scale-110 text-blue-600 dark:text-sky-300" : "text-blue-500 dark:text-sky-400"}`}
+                                                className={`h-11 w-11 shrink-0 transition-transform duration-200 ${isDragActive ? "scale-110 text-zinc-700 dark:text-zinc-300" : "text-zinc-600 dark:text-zinc-400"}`}
                                                 strokeWidth={1.65}
                                                 aria-hidden
                                             />
@@ -735,7 +735,7 @@ function StudyKitPageInner() {
                                             <li key={s.id} className={sourceCardClass}>
                                                 <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-zinc-200/80 dark:bg-zinc-800 dark:ring-white/10">
                                                     {s.kind === "file" ? (
-                                                        <FileUp className="h-4 w-4 text-blue-600 dark:text-sky-400" aria-hidden />
+                                                        <FileUp className="h-4 w-4 text-zinc-700 dark:text-zinc-400" aria-hidden />
                                                     ) : s.kind === "file_stub" ? (
                                                         <FileUp className="h-4 w-4 text-zinc-400 dark:text-zinc-500" aria-hidden />
                                                     ) : s.kind === "url" ? (
@@ -804,12 +804,12 @@ function StudyKitPageInner() {
                                                 >
                                                     <input
                                                         type="checkbox"
-                                                        className="mt-2 h-4 w-4 shrink-0 rounded border-[#CBD5E1] text-blue-600 focus:ring-blue-500 dark:border-white/20 dark:text-sky-500"
+                                                        className="mt-2 h-4 w-4 shrink-0 rounded border-[#CBD5E1] text-zinc-700 focus:ring-zinc-500 dark:border-white/20 dark:text-zinc-400"
                                                         checked={formats[preset]}
                                                         onChange={() => toggleFormat(preset)}
                                                     />
                                                     <span
-                                                        className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-blue-100/90 bg-blue-50/90 text-blue-700 dark:border-sky-500/25 dark:bg-sky-950/50 dark:text-sky-200"
+                                                        className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-200/90 bg-zinc-50/90 text-zinc-700 dark:border-zinc-500/25 dark:bg-zinc-900/50 dark:text-zinc-200"
                                                         aria-hidden
                                                     >
                                                         <Icon className="h-4 w-4" strokeWidth={2} />
@@ -822,7 +822,7 @@ function StudyKitPageInner() {
                                         })}
                                     </div>
                                     {formats.quiz ? (
-                                        <div className="mt-5 rounded-xl border border-blue-100/90 bg-blue-50/50 p-3.5 dark:border-sky-500/20 dark:bg-sky-950/25">
+                                        <div className="mt-5 rounded-xl border border-zinc-200/90 bg-zinc-50/50 p-3.5 dark:border-zinc-500/20 dark:bg-zinc-900/25">
                                             <span className="mb-1 block text-sm font-semibold text-[#0f172a] dark:text-zinc-100">
                                                 {t("studyKitQuizDepthLabel")}
                                             </span>

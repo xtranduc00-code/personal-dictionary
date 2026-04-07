@@ -81,7 +81,7 @@ export function StudyKitResultActions({
     }, [user, openAuthModal, summary, locale, t]);
 
     const btn =
-        "inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-200/90 bg-white px-3 py-2 text-xs font-semibold text-[#475569] shadow-sm transition hover:border-blue-200 hover:bg-blue-50/50 hover:text-[#334155] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-zinc-900/50 dark:text-zinc-300 dark:hover:border-sky-500/30 dark:hover:bg-sky-950/30";
+        "inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-200/90 bg-white px-3 py-2 text-xs font-semibold text-[#475569] shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50/50 hover:text-[#334155] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-zinc-900/50 dark:text-zinc-300 dark:hover:border-zinc-500/30 dark:hover:bg-zinc-900/30";
 
     return (
         <>

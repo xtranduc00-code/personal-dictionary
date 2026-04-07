@@ -94,10 +94,10 @@ export function StudyKitResultSheetWithChats({
                             className={[
                                 studyKitSheetSectionH2Class(isFirstH2),
                                 focusable
-                                    ? "cursor-pointer rounded-sm transition hover:bg-zinc-100/85 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 dark:hover:bg-zinc-800/55"
+                                    ? "cursor-pointer rounded-sm transition hover:bg-zinc-100/85 focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/30 dark:hover:bg-zinc-800/55"
                                     : "",
                                 isActive
-                                    ? "ring-1 ring-inset ring-blue-400/40 dark:ring-sky-500/40"
+                                    ? "ring-1 ring-inset ring-zinc-400/40 dark:ring-zinc-500/40"
                                     : "",
                             ].join(" ")}
                             tabIndex={focusable ? 0 : undefined}

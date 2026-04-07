@@ -67,6 +67,91 @@ ol.toc-list li { margin-bottom: 0.45rem; }
 
 const GUARDIAN_EPUB_IMAGE_API = "/api/guardian-epub-image";
 
+/** Max articles packed into one Kindle EPUB (each item = full HTML fetch + chapter). */
+export const GUARDIAN_KINDLE_EPUB_MAX_ARTICLES = 15;
+
+/**
+ * Strip obvious script/style blobs before DOM parse (parser quirks + escaped markup).
+ * Kindle chokes on large inline CSS/JS and interactive cruft.
+ */
+function scrubHtmlStringForKindleEpub(html: string): string {
+  return (
+    html
+      // Block-level executable / styling noise (body already sanitized server-side; this is defense in depth)
+      .replace(/<script\b[\s\S]*?<\/script>/gi, "")
+      .replace(/<noscript\b[\s\S]*?<\/noscript>/gi, "")
+      .replace(/<style\b[\s\S]*?<\/style>/gi, "")
+      .replace(/<template\b[\s\S]*?<\/template>/gi, "")
+      // Module / worker hints sometimes appear in article HTML
+      .replace(/<link\b[^>]*>/gi, "")
+  );
+}
+
+/** Tags to drop entirely (no <picture>/<source> here — handled below before img inlining). */
+const KINDLE_EPUB_REMOVE_TAGS = [
+  "script",
+  "noscript",
+  "style",
+  "link",
+  "template",
+  "object",
+  "embed",
+  "audio",
+  "canvas",
+  "svg",
+  "form",
+  "input",
+  "button",
+  "select",
+  "textarea",
+  "label",
+  "meta",
+  "base",
+  "iframe",
+  "video",
+].join(", ");
+
+function removeKindleForbiddenTags(root: HTMLElement): void {
+  root.querySelectorAll(KINDLE_EPUB_REMOVE_TAGS).forEach((el) => el.remove());
+}
+
+/** Strip attributes that bloat XHTML or trip e-readers (inline JS hooks, huge data-*, Guardian layout classes). */
+function stripKindleUnsafeAttributes(root: HTMLElement): void {
+  for (const el of root.querySelectorAll("*")) {
+    const attrs = Array.from(el.attributes);
+    for (const { name, value } of attrs) {
+      const n = name.toLowerCase();
+      if (n.startsWith("on")) {
+        el.removeAttribute(name);
+        continue;
+      }
+      if (n.startsWith("data-")) {
+        el.removeAttribute(name);
+        continue;
+      }
+      if (n === "style") {
+        el.removeAttribute(name);
+        continue;
+      }
+      if (n === "class" || n === "id") {
+        el.removeAttribute(name);
+        continue;
+      }
+      if (n === "href" && /^\s*javascript:/i.test(value)) {
+        el.removeAttribute(name);
+        continue;
+      }
+      if ((n === "src" || n === "href") && /\.js(\?|#|$)/i.test(value)) {
+        el.removeAttribute(name);
+        continue;
+      }
+      if (n === "type" && /\b(importmap|module)\b/i.test(value)) {
+        el.removeAttribute(name);
+      }
+    }
+  }
+}
+
 function plainParagraphsToXhtmlFragment(paragraphs: string[]): string {
   const bodyPs = paragraphs
     .filter((p) => p.trim().length > 0)
@@ -117,7 +202,9 @@ export type GuardianEpubArticle = {
 export async function fetchGuardianArticlesForKindleEpub(
   items: GuardianListItem[],
   concurrency = 3,
+  maxArticles: number = GUARDIAN_KINDLE_EPUB_MAX_ARTICLES,
 ): Promise<GuardianEpubArticle[]> {
+  const capped = items.slice(0, Math.max(0, maxArticles));
   const mapOne = async (item: GuardianListItem): Promise<GuardianEpubArticle> => {
     try {
       const res = await fetch(
@@ -189,8 +276,8 @@ export async function fetchGuardianArticlesForKindleEpub(
   };
 
   const out: GuardianEpubArticle[] = [];
-  for (let i = 0; i < items.length; i += concurrency) {
-    const chunk = items.slice(i, i + concurrency);
+  for (let i = 0; i < capped.length; i += concurrency) {
+    const chunk = capped.slice(i, i + concurrency);
     const part = await Promise.all(chunk.map(mapOne));
     out.push(...part);
   }
@@ -209,13 +296,16 @@ async function buildChapterBodyXhtml(
   manifestImageLines: string[],
   plainParagraphs: string[],
 ): Promise<string> {
-  const trimmed = bodyHtml.trim();
+  const trimmed = scrubHtmlStringForKindleEpub(bodyHtml.trim());
   if (!trimmed || typeof document === "undefined") {
     return plainParagraphsToXhtmlFragment(plainParagraphs);
   }
 
   const wrap = document.createElement("div");
   wrap.innerHTML = trimmed;
+
+  removeKindleForbiddenTags(wrap);
+  stripKindleUnsafeAttributes(wrap);
 
   wrap.querySelectorAll("iframe, video").forEach((el) => el.remove());
 
@@ -240,6 +330,9 @@ async function buildChapterBodyXhtml(
     }
     pic.remove();
   });
+
+  removeKindleForbiddenTags(wrap);
+  stripKindleUnsafeAttributes(wrap);
 
   const chapterPad = String(chapterIndex + 1).padStart(3, "0");
   const imgs = Array.from(wrap.querySelectorAll("img"));

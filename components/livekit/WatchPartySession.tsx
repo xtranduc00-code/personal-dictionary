@@ -1484,7 +1484,7 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
       <RoomAudioRenderer />
       <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-zinc-200 bg-white px-2 py-1.5 shadow-sm sm:gap-2 sm:px-3 sm:py-2">
         <Clapperboard
-          className="h-4 w-4 shrink-0 text-blue-600 sm:h-5 sm:w-5"
+          className="h-4 w-4 shrink-0 text-zinc-700 sm:h-5 sm:w-5"
           aria-hidden
         />
         <div className="min-w-0 flex-1">
@@ -1630,7 +1630,7 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="shrink-0 rounded-md bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700"
+              className="shrink-0 rounded-md bg-zinc-900 px-2.5 py-1 text-xs font-semibold text-white hover:bg-zinc-800"
             >
               {t("watchTogetherChooseFile")}
             </button>
@@ -1689,7 +1689,7 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
             <div className="mt-2 w-full max-w-md">
               <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-200">
                 <div
-                  className="h-full bg-blue-600 transition-[width]"
+                  className="h-full bg-zinc-900 transition-[width]"
                   style={{ width: `${uploadPct}%` }}
                 />
               </div>
@@ -1813,7 +1813,7 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
                     <div className="mt-2">
                       <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-200">
                         <div
-                          className="h-full bg-blue-600 transition-[width]"
+                          className="h-full bg-zinc-900 transition-[width]"
                           style={{ width: `${subtitlePct}%` }}
                         />
                       </div>
@@ -1836,7 +1836,7 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
                     type="button"
                     disabled={cloudSaving}
                     onClick={saveCloudClip}
-                    className="rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                    className="rounded-md bg-zinc-900 px-3 py-2 text-xs font-semibold text-white hover:bg-zinc-800 disabled:opacity-50"
                   >
                     {t("watchPlaylistSave")}
                   </button>
@@ -1851,7 +1851,7 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
                 ref={videoStageRef}
                 className={`watch-party-video-stage relative flex min-h-[38svh] flex-1 flex-col overflow-hidden rounded-lg border border-zinc-200/80 bg-zinc-950 shadow-none lg:min-h-0 ${
                   fileDropActive
-                    ? "ring-2 ring-blue-500 ring-offset-1 ring-offset-[#f9fafb]"
+                    ? "ring-2 ring-zinc-500 ring-offset-1 ring-offset-[#f9fafb]"
                     : ""
                 }`}
               >
@@ -1872,7 +1872,7 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
                     >
                       <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 ring-1 ring-white/10">
                         <Film
-                          className="h-7 w-7 text-blue-400"
+                          className="h-7 w-7 text-zinc-400"
                           strokeWidth={1.75}
                         />
                       </div>
@@ -2094,7 +2094,7 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
                         setScrubTime(x);
                         v.currentTime = x;
                       }}
-                      className="h-1.5 w-full min-w-[4rem] flex-1 cursor-pointer accent-sky-400 disabled:opacity-40 sm:h-2 sm:min-w-[6rem]"
+                      className="h-1.5 w-full min-w-[4rem] flex-1 cursor-pointer accent-zinc-400 disabled:opacity-40 sm:h-2 sm:min-w-[6rem]"
                     />
                   </label>
                   <label className="flex shrink-0 items-center">
@@ -2125,7 +2125,7 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
                         v.volume = x;
                         setVolume(x);
                       }}
-                      className="h-1.5 w-14 cursor-pointer accent-sky-400 sm:h-2 sm:w-20 disabled:opacity-40"
+                      className="h-1.5 w-14 cursor-pointer accent-zinc-400 sm:h-2 sm:w-20 disabled:opacity-40"
                     />
                   </label>
                   <button

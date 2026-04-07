@@ -56,17 +56,17 @@ export default function WatchHubPage() {
     const card =
         "rounded-2xl border border-[#E5E7EB] bg-white p-7 shadow-[0_4px_12px_rgba(0,0,0,0.08)] transition duration-200 ease-out hover:-translate-y-0.5 hover:border-[#D1D5DB] hover:shadow-[0_8px_24px_rgba(0,0,0,0.1)] sm:p-9 dark:border-white/10 dark:bg-white/[0.04] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] dark:hover:translate-y-0 dark:hover:border-white/15 dark:hover:shadow-none dark:backdrop-blur-sm";
     const inputClass =
-        "w-full rounded-xl border border-[#E5E7EB] bg-white px-4 py-3.5 text-sm text-[#111827] shadow-none outline-none ring-0 placeholder:text-[#9CA3AF] focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:border-white/15 dark:bg-black/30 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-white/25 dark:focus:ring-1 dark:focus:ring-white/20";
+        "w-full rounded-xl border border-[#E5E7EB] bg-white px-4 py-3.5 text-sm text-[#111827] shadow-none outline-none ring-0 placeholder:text-[#9CA3AF] focus:border-zinc-400 focus:ring-2 focus:ring-zinc-500/20 dark:border-white/15 dark:bg-black/30 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-white/25 dark:focus:ring-1 dark:focus:ring-white/20";
     const actionBtn =
-        "inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-blue-200 bg-white px-6 py-3 text-sm font-semibold text-blue-700 shadow-[0_1px_2px_rgba(59,130,246,0.08)] transition hover:border-blue-300 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/35 sm:w-auto sm:min-w-[10rem] dark:border-sky-500/35 dark:bg-white/10 dark:text-sky-100 dark:shadow-none dark:hover:border-sky-400/50 dark:hover:bg-sky-950/40 dark:focus-visible:ring-sky-400/40";
+        "inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-zinc-200 bg-white px-6 py-3 text-sm font-semibold text-zinc-700 shadow-[0_1px_2px_rgba(0,0,0,0.08)] transition hover:border-zinc-300 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/35 sm:w-auto sm:min-w-[10rem] dark:border-zinc-500/35 dark:bg-white/10 dark:text-zinc-100 dark:shadow-none dark:hover:border-zinc-400/50 dark:hover:bg-zinc-950/40 dark:focus-visible:ring-zinc-400/40";
     const createBtn =
-        "inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3.5 text-sm font-semibold text-white shadow-[0_4px_14px_-2px_rgba(59,130,246,0.55)] transition hover:bg-blue-500 hover:shadow-[0_6px_20px_-2px_rgba(59,130,246,0.5)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#F6F7F9] dark:bg-sky-600 dark:shadow-[0_4px_18px_-4px_rgba(14,165,233,0.45)] dark:hover:bg-sky-500 dark:focus-visible:ring-sky-400/50 dark:focus-visible:ring-offset-[#0a0a0b]";
+        "inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-900 px-6 py-3.5 text-sm font-semibold text-white shadow-[0_4px_14px_-2px_rgba(0,0,0,0.25)] transition hover:bg-zinc-800 hover:shadow-[0_6px_20px_-2px_rgba(0,0,0,0.2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#F6F7F9] dark:bg-zinc-100 dark:text-zinc-900 dark:shadow-none dark:hover:bg-zinc-200 dark:focus-visible:ring-zinc-400/50 dark:focus-visible:ring-offset-[#0a0a0b]";
 
     return (
         <div className="mx-auto flex w-full max-w-xl flex-col gap-12 pb-10 pt-2 sm:pt-4">
             <header className="text-center sm:text-left">
-                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-200/90 bg-blue-50/90 px-3.5 py-1.5 text-xs font-semibold text-blue-800 shadow-[0_1px_2px_rgba(59,130,246,0.12)] dark:border-sky-500/25 dark:bg-sky-950/40 dark:text-sky-200 dark:shadow-none">
-                    <Clapperboard className="h-3.5 w-3.5 text-blue-600 dark:text-sky-400" strokeWidth={2} aria-hidden />
+                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-zinc-200/90 bg-zinc-50/90 px-3.5 py-1.5 text-xs font-semibold text-zinc-800 shadow-[0_1px_2px_rgba(0,0,0,0.06)] dark:border-zinc-500/25 dark:bg-zinc-950/40 dark:text-zinc-200 dark:shadow-none">
+                    <Clapperboard className="h-3.5 w-3.5 text-zinc-700 dark:text-zinc-400" strokeWidth={2} aria-hidden />
                     {t("watchHubBadge")}
                 </div>
                 <h1 className="text-3xl font-bold tracking-tight text-[#0f172a] dark:text-white">
@@ -78,7 +78,7 @@ export default function WatchHubPage() {
                 <p className="mt-3 text-sm">
                     <Link
                         href="/call"
-                        className="font-medium text-sky-700 underline decoration-sky-700/30 hover:text-sky-800 dark:text-sky-400 dark:decoration-sky-400/30 dark:hover:text-sky-300"
+                        className="font-medium text-zinc-700 underline decoration-zinc-700/30 hover:text-zinc-800 dark:text-zinc-400 dark:decoration-zinc-400/30 dark:hover:text-zinc-300"
                     >
                         {t("meetsHubTitle")}
                     </Link>
@@ -159,7 +159,7 @@ export default function WatchHubPage() {
                                 <Link
                                     href={`/watch/${encodeURIComponent(entry.room)}`}
                                     onClick={() => rememberMeetRoom(entry.room)}
-                                    className="block rounded-xl border border-[#E5E7EB] bg-white px-4 py-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.05)] transition hover:border-blue-200 hover:bg-blue-50/40 dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-sky-500/30 dark:hover:bg-sky-950/25"
+                                    className="block rounded-xl border border-[#E5E7EB] bg-white px-4 py-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.05)] transition hover:border-zinc-200 hover:bg-zinc-50/40 dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-zinc-500/30 dark:hover:bg-zinc-950/25"
                                 >
                                     <span className="block truncate text-sm font-semibold text-[#0f172a] dark:text-zinc-100">
                                         {entry.label ?? entry.room}

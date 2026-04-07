@@ -11,6 +11,7 @@ import { formatRelativeDaysAgo } from "@/lib/format-relative-days-ago";
 import {
   buildGuardianListEpubBlob,
   fetchGuardianArticlesForKindleEpub,
+  GUARDIAN_KINDLE_EPUB_MAX_ARTICLES,
   triggerEpubDownload,
 } from "@/lib/guardian-kindle-epub";
 
@@ -267,6 +268,7 @@ export function GuardianDailyNewsPanel({
       const articles = await fetchGuardianArticlesForKindleEpub(
         filteredSport,
         3,
+        GUARDIAN_KINDLE_EPUB_MAX_ARTICLES,
       );
       const day = new Date().toISOString().slice(0, 10);
       const bookTitle = `Guardian Sport — ${day}`;
@@ -308,24 +310,29 @@ export function GuardianDailyNewsPanel({
               />
             </label>
             {tab === "sport" && !loading && !noKey && filteredSport.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => void downloadSportKindleEpub()}
-                disabled={kindleBusy}
-                className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl border border-rose-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-rose-900 shadow-sm transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-800/80 dark:bg-zinc-900 dark:text-rose-100 dark:hover:bg-rose-950/40 sm:w-auto sm:whitespace-nowrap"
-              >
-                {kindleBusy ? (
-                  <Loader2
-                    className="h-4 w-4 shrink-0 animate-spin"
-                    aria-hidden
-                  />
-                ) : (
-                  <BookDown className="h-4 w-4 shrink-0" aria-hidden />
-                )}
-                {kindleBusy
-                  ? t("dailyNewsSportKindleBuilding")
-                  : t("dailyNewsSportKindleDownload")}
-              </button>
+              <div className="flex w-full flex-col gap-1 sm:w-auto sm:shrink-0">
+                <button
+                  type="button"
+                  onClick={() => void downloadSportKindleEpub()}
+                  disabled={kindleBusy}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-rose-900 shadow-sm transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-800/80 dark:bg-zinc-900 dark:text-rose-100 dark:hover:bg-rose-950/40 sm:w-auto sm:whitespace-nowrap"
+                >
+                  {kindleBusy ? (
+                    <Loader2
+                      className="h-4 w-4 shrink-0 animate-spin"
+                      aria-hidden
+                    />
+                  ) : (
+                    <BookDown className="h-4 w-4 shrink-0" aria-hidden />
+                  )}
+                  {kindleBusy
+                    ? t("dailyNewsSportKindleBuilding")
+                    : t("dailyNewsSportKindleDownload")}
+                </button>
+                <p className="max-w-[min(100%,18rem)] text-center text-[11px] leading-snug text-zinc-500 dark:text-zinc-400 sm:max-w-[14rem] sm:text-left">
+                  {t("dailyNewsSportKindleDownloadHint")}
+                </p>
+              </div>
             ) : null}
           </div>
         </div>

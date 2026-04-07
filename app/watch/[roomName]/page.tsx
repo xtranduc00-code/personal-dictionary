@@ -87,7 +87,7 @@ export default function WatchRoomPage() {
                 {t("meetsInvalidRoom")}{" "}
                 <Link
                     href="/watch"
-                    className="font-medium text-sky-700 underline decoration-sky-700/30 hover:text-sky-800 dark:text-sky-400 dark:decoration-sky-400/30 dark:hover:text-sky-300"
+                    className="font-medium text-zinc-700 underline decoration-zinc-700/30 hover:text-zinc-800 dark:text-zinc-400 dark:decoration-zinc-400/30 dark:hover:text-zinc-300"
                 >
                     {t("watchTogetherNav")}
                 </Link>

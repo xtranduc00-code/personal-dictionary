@@ -189,7 +189,7 @@ export function NavLabelsProvider({ children }: { children: ReactNode }) {
                           <button type="button" onClick={closeRename} className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100">
                             {t("cancel")}
                           </button>
-                          <button type="button" onClick={() => setRenamePhase("edit")} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 dark:bg-sky-600 dark:hover:bg-sky-500">
+                          <button type="button" onClick={() => setRenamePhase("edit")} className="rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200">
                             {t("navRenameModalContinue")}
                           </button>
                         </div>
@@ -197,7 +197,7 @@ export function NavLabelsProvider({ children }: { children: ReactNode }) {
                         <label className="block text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400" htmlFor="nav-rename-input">
                           {t("navRenameModalEditTitle")}
                         </label>
-                        <input ref={renameInputRef} id="nav-rename-input" type="text" autoComplete="off" maxLength={NAV_LABEL_MAX_LEN} value={renameDraft} onChange={(e) => setRenameDraft(e.target.value)} className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 shadow-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-sky-500/40"/>
+                        <input ref={renameInputRef} id="nav-rename-input" type="text" autoComplete="off" maxLength={NAV_LABEL_MAX_LEN} value={renameDraft} onChange={(e) => setRenameDraft(e.target.value)} className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 shadow-sm focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-500/20 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-zinc-500/40"/>
                         <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
                           {t("navRenameModalEditHint")}
                         </p>
@@ -217,7 +217,7 @@ export function NavLabelsProvider({ children }: { children: ReactNode }) {
                                 setRenameSaving(false);
                                 if (ok)
                                     closeRename();
-                            }} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60 dark:bg-sky-600 dark:hover:bg-sky-500">
+                            }} className="rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200">
                             {renameSaving ? t("navRenameModalSaving") : t("navRenameModalSave")}
                           </button>
                         </div>
@@ -281,7 +281,7 @@ export function NavSectionHeader({
             <button
                 type="button"
                 onClick={onToggle}
-                className="flex shrink-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/35 dark:focus-visible:ring-sky-500/30"
+                className="flex shrink-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/35 dark:focus-visible:ring-zinc-500/30"
                 aria-label={toggleAria}
             >
                 <span className={iconBoxClass}>

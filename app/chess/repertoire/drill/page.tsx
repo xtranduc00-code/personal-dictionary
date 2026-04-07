@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useAuth, authFetch } from "@/lib/auth-context";
 import { type RepertoireLine, lineFromRow, movesToSan } from "../utils";
-import { KenChessboard } from "@/components/chess/ken-chessboard";
+import { ChessBoardWrapper } from "@/components/chess/ChessBoardWrapper";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -464,8 +464,9 @@ function DrillSession({
         )}
 
         {/* Board */}
-        <div className="mx-auto w-full max-w-sm">
-          <KenChessboard
+        <div className="mx-auto flex w-full justify-center">
+          <ChessBoardWrapper
+            className="overflow-hidden rounded-xl"
             options={{
               position: fen,
               onPieceDrop: ({ sourceSquare, targetSquare }) => handleDrop(sourceSquare, targetSquare ?? ""),

@@ -538,7 +538,7 @@ function EngooLessonBody({
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
                         <HighlightableSegment
                           id={`vocab-head-${idx}`}
-                          className="text-xl font-extrabold tracking-tight text-sky-600 dark:text-sky-400"
+                          className="text-xl font-extrabold tracking-tight text-zinc-600 dark:text-zinc-400"
                         >
                           {wordPlain}
                         </HighlightableSegment>
@@ -604,7 +604,7 @@ function EngooLessonBody({
           <section className={EXERCISE_SECTION_GAP}>
             <ExerciseHeading exerciseNum={2} title="Article" />
             {data.audio ? (
-              <div className="mt-2 overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-50/90 via-sky-50/40 to-white p-4 shadow-[0_2px_12px_-4px_rgba(16,185,129,0.15)] ring-1 ring-emerald-900/10 dark:from-emerald-950/30 dark:via-zinc-900 dark:to-zinc-900 dark:ring-emerald-800/25 sm:p-5">
+              <div className="mt-2 overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-50/90 via-zinc-50/40 to-white p-4 shadow-[0_2px_12px_-4px_rgba(16,185,129,0.15)] ring-1 ring-emerald-900/10 dark:from-emerald-950/30 dark:via-zinc-900 dark:to-zinc-900 dark:ring-emerald-800/25 sm:p-5">
                 <div className="mb-2 flex items-center gap-2">
                   <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/80 text-emerald-700 shadow-sm ring-1 ring-emerald-900/10 dark:bg-zinc-800 dark:text-emerald-300 dark:ring-white/10">
                     <Volume2 className="h-4 w-4" strokeWidth={2} aria-hidden />

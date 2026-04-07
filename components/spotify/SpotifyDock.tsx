@@ -1304,8 +1304,8 @@ function SpotifyDockInner({
 
   if (sessionState === "session_transient") {
     const transientCard = (
-      <div className="mx-auto w-full max-w-[440px] rounded-2xl border border-sky-200/90 bg-sky-50/90 px-6 py-8 text-center shadow-sm dark:border-sky-900/40 dark:bg-sky-950/25">
-        <p className="text-sm leading-relaxed text-sky-950 dark:text-sky-100">
+      <div className="mx-auto w-full max-w-[440px] rounded-2xl border border-zinc-200/90 bg-zinc-50/90 px-6 py-8 text-center shadow-sm dark:border-zinc-900/40 dark:bg-zinc-950/25">
+        <p className="text-sm leading-relaxed text-zinc-950 dark:text-zinc-100">
           {t("spotifySessionTransientHint")}
         </p>
         <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-center">

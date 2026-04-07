@@ -80,13 +80,13 @@ export function StudyKitChatTutorBubble({
                         onChange={(e) => setDraft(e.target.value)}
                         rows={rows}
                         spellCheck
-                        className="w-full resize-y rounded-lg border border-zinc-200/90 bg-white px-2.5 py-2 font-mono text-[12px] leading-relaxed text-[#0f172a] outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:border-white/15 dark:bg-zinc-900/70 dark:text-zinc-100 dark:focus:border-sky-500/50"
+                        className="w-full resize-y rounded-lg border border-zinc-200/90 bg-white px-2.5 py-2 font-mono text-[12px] leading-relaxed text-[#0f172a] outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-500/20 dark:border-white/15 dark:bg-zinc-900/70 dark:text-zinc-100 dark:focus:border-zinc-500/50"
                     />
                     <div className="flex flex-wrap gap-2">
                         <button
                             type="button"
                             onClick={save}
-                            className="rounded-lg bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-blue-500 dark:bg-sky-600 dark:hover:bg-sky-500"
+                            className="rounded-lg bg-zinc-900 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
                         >
                             {t("studyKitChatSaveReply")}
                         </button>

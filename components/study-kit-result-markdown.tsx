@@ -205,7 +205,7 @@ export function StudyKitResultMarkdown({
                 className={[
                   "mb-0 mt-12 scroll-mt-20 border-b border-zinc-400 pb-2.5 text-[12.5px] font-black uppercase tracking-[0.1em] text-[#0f172a] first:mt-4 dark:border-white/25 dark:text-zinc-50",
                   clickable
-                    ? "cursor-pointer rounded-sm transition hover:bg-zinc-100/90 hover:text-[#0f172a] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/35 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-50"
+                    ? "cursor-pointer rounded-sm transition hover:bg-zinc-100/90 hover:text-[#0f172a] focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/35 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-50"
                     : "",
                 ].join(" ")}
                 tabIndex={clickable ? 0 : undefined}

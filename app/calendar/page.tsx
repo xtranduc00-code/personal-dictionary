@@ -273,7 +273,7 @@ function DateTimeRow({
   };
 
   const baseCls =
-    "rounded-lg border border-zinc-300 bg-white px-2 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-blue-400";
+    "rounded-lg border border-zinc-300 bg-white px-2 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-zinc-400";
   const lbl =
     "text-[10px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400";
   return (
@@ -443,10 +443,10 @@ function EventModal({
     }
   };
   const inputCls =
-    "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-blue-400 dark:focus:ring-blue-900/30";
+    "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-zinc-400 dark:focus:ring-zinc-200/30";
   const errorCls = "mt-1 text-xs text-red-500";
   const dateOnlyCls =
-    "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100";
+    "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100";
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
@@ -492,7 +492,7 @@ function EventModal({
               type="checkbox"
               checked={allDay}
               onChange={(e) => toggleAllDay(e.target.checked)}
-              className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+              className="h-4 w-4 rounded border-zinc-300 text-zinc-700 focus:ring-zinc-500"
             />
             <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
               {t("calendarAllDay")}
@@ -619,7 +619,7 @@ function EventModal({
             <button
               type="submit"
               disabled={!title.trim()}
-              className="flex-[1.15] rounded-xl bg-blue-700 py-3 text-sm font-bold text-white shadow-lg shadow-blue-700/35 transition hover:bg-blue-800 hover:shadow-xl hover:shadow-blue-800/30 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:font-semibold disabled:text-zinc-500 disabled:shadow-none dark:disabled:bg-zinc-600 dark:disabled:text-zinc-400"
+              className="flex-[1.15] rounded-xl bg-zinc-900 py-3 text-sm font-bold text-white shadow-lg shadow-zinc-900/20 transition hover:bg-zinc-800 hover:shadow-xl hover:shadow-zinc-800/30 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:font-semibold disabled:text-zinc-500 disabled:shadow-none dark:disabled:bg-zinc-600 dark:disabled:text-zinc-400"
             >
               {t("calendarSave")}
             </button>
@@ -866,7 +866,7 @@ function AllEventsModal({
             placeholder={t("calendarSearchPlaceholder")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
             autoFocus
           />
           <div className="flex flex-wrap items-center gap-1.5">
@@ -1743,7 +1743,7 @@ export default function CalendarPage() {
                 value={quickTitle}
                 onChange={(e) => setQuickTitle(e.target.value)}
                 autoFocus
-                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
               />
               <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
                 {t("calendarAllDay")}

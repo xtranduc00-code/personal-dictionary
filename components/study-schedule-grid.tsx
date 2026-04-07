@@ -891,9 +891,9 @@ export function StudyScheduleGrid() {
   const selectCls =
     "h-9 appearance-none rounded-lg border border-zinc-200 bg-zinc-50 pl-3 pr-8 text-sm font-medium text-zinc-800 outline-none focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100";
   const dateInputCls =
-    "h-9 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-blue-400 dark:focus:ring-blue-900/30";
+    "h-9 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-100 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-zinc-400 dark:focus:ring-zinc-900/30";
   const thInputCls =
-    "mx-auto w-[min(100%,7.5rem)] rounded-lg border border-zinc-300 bg-white px-2 py-1 text-center text-xs font-medium text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-blue-400 dark:focus:ring-blue-900/30";
+    "mx-auto w-[min(100%,7.5rem)] rounded-lg border border-zinc-300 bg-white px-2 py-1 text-center text-xs font-medium text-zinc-900 outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-100 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-zinc-400 dark:focus:ring-zinc-900/30";
 
   return (
     <div className="mx-auto max-w-[1400px] space-y-4 px-4 py-6">
@@ -1036,7 +1036,7 @@ export function StudyScheduleGrid() {
           type="button"
           onClick={exportCSV}
           disabled={boot !== "ok"}
-          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:pointer-events-none disabled:opacity-50 dark:focus-visible:ring-offset-zinc-900"
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-zinc-900 px-3 text-sm font-medium text-white hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:pointer-events-none disabled:opacity-50 dark:focus-visible:ring-offset-zinc-900"
         >
           <Download className="h-4 w-4 shrink-0" aria-hidden />
           <span className="hidden sm:inline">{t("studyScheduleExportCsv")}</span>
@@ -1197,7 +1197,7 @@ export function StudyScheduleGrid() {
                       const disabled = past || blockedGroup;
 
                       const paintBtnBase =
-                        "touch-none cursor-crosshair border border-transparent text-left text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/70 disabled:cursor-not-allowed disabled:opacity-45 dark:focus-visible:ring-blue-400/70";
+                        "touch-none cursor-crosshair border border-transparent text-left text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-zinc-500/70 disabled:cursor-not-allowed disabled:opacity-45 dark:focus-visible:ring-zinc-400/70";
 
                       const blockTimeLabel = formatMergedBlockTimeLabel(
                         gridRows,
