@@ -427,11 +427,10 @@ async function runVocabReminderSweepImpl(
     });
   }
 
-  const ieltsWords = await loadAllIeltsTopicVocab(db);
   const subscribedUserIds = [...subsByUser.keys()];
   const flashByUser = await loadUserFlashcardVocabByUserId(db, subscribedUserIds);
   const anyUserCards = [...flashByUser.values()].some((a) => a.length > 0);
-  if (ieltsWords.length === 0 && !anyUserCards) {
+  if (!anyUserCards) {
     return { sent: 0, errors: 0, skipped: "no vocab items" };
   }
 
@@ -442,7 +441,7 @@ async function runVocabReminderSweepImpl(
 
   for (const [userId, userSubs] of subsByUser) {
     const userWords = flashByUser.get(userId) ?? [];
-    const payloads = pickVocabPayloadsForUser(ieltsWords, userWords, bucket, siteUrl);
+    const payloads = pickVocabPayloadsForUser([], userWords, bucket, siteUrl);
     if (payloads.length === 0) continue;
 
     const shouldSend = await tryLogVocabSent(db, userId, bucket);
