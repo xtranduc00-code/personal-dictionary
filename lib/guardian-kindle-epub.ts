@@ -59,7 +59,6 @@ img {
 }
 figure { margin: 1rem 0; }
 figcaption { font-size: 0.92rem; margin-top: 0.35em; color: #63615c; }
-a { word-break: break-word; color: #1a5680; }
 .meta { color: #63615c; font-size: 0.92rem; line-height: 1.5; }
 ol.toc-list { padding-left: 1.4rem; margin: 0.5em 0 1em; }
 ol.toc-list li { margin-bottom: 0.45rem; }
@@ -308,6 +307,13 @@ async function buildChapterBodyXhtml(
   stripKindleUnsafeAttributes(wrap);
 
   wrap.querySelectorAll("iframe, video").forEach((el) => el.remove());
+
+  // Strip all hyperlinks but keep visible text — Kindle chokes on large link maps
+  wrap.querySelectorAll("a").forEach((a) => {
+    const frag = document.createDocumentFragment();
+    while (a.firstChild) frag.appendChild(a.firstChild);
+    a.replaceWith(frag);
+  });
 
   wrap.querySelectorAll("picture").forEach((pic) => {
     const im = pic.querySelector("img");
