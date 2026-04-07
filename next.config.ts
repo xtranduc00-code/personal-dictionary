@@ -1,8 +1,18 @@
 import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
-    /** Smaller serverless traces / faster uploads (Stockfish is loaded from CDN at runtime) */
+    /** Ensure JSON under `data/` is bundled for API routes that read from disk. */
+    outputFileTracingIncludes: {
+        "/api/chess/puzzles/library": ["./data/chess-puzzles.json"],
+        "/api/search-suggestions": ["./data/common-words.json"],
+    },
+    /**
+     * Keep serverless traces small on Netlify (faster packaging + less upload).
+     * Static assets under `public/` are deployed separately; puzzle JSON lives in `data/`.
+     */
     outputFileTracingExcludes: {
         "*": [
+            "**/public/**",
+            "**/.next/cache/**",
             "**/public/stockfish.js",
             "**/stockfish.js",
             "**/stockfish.wasm",

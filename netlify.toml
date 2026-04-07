@@ -17,6 +17,10 @@
 # and ensure outbound HTTPS to the Guardian is not blocked.
 # Optional env: GUARDIAN_READ_TOTAL_MS (e.g. 25000), GUARDIAN_READ_FETCH_TIMEOUT_MS, GUARDIAN_READ_SERVERLESS_SAFE=0
 # for long-running local/self-hosted. Defaults target ~9.5s on Netlify/Vercel to return JSON before hard timeouts.
+# Restore/save Next.js webpack cache between builds (often 1GB+; avoids ~15min cold compiles).
+[[plugins]]
+  package = "./netlify/plugins/cache-next-cache"
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
@@ -26,6 +30,7 @@
 [build.environment]
   # pdf-parse declares: node >=20.16 <21 || >=22.3
   NODE_VERSION = "22"
+  NEXT_TELEMETRY_DISABLED = "1"
 
 # Native addons for PDF text + screenshot OCR — keep out of the JS bundle where possible
 [functions]

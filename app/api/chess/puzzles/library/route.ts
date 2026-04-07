@@ -18,7 +18,7 @@ const _byLevel = new Map<string, LibraryPuzzle[]>();
 
 async function loadPuzzles(): Promise<LibraryPuzzle[]> {
   if (!_allPromise) {
-    const path = join(process.cwd(), "public", "chess-puzzles.json");
+    const path = join(process.cwd(), "data", "chess-puzzles.json");
     _allPromise = readFile(path, "utf-8").then((raw) => JSON.parse(raw) as LibraryPuzzle[]);
   }
   return _allPromise;
