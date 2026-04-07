@@ -1210,10 +1210,10 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
     };
   }, []);
 
-  // Timers — unlimited = 0 means ∞
+  // Timers — unlimited = 0 means ∞; prefer server values if available (refresh-safe)
   const initMs = tc.mins * 60 * 1000;
-  const [whiteMs, setWhiteMs] = useState(initMs);
-  const [blackMs, setBlackMs] = useState(initMs);
+  const [whiteMs, setWhiteMs] = useState(initialGame.whiteTimeMs ?? initMs);
+  const [blackMs, setBlackMs] = useState(initialGame.blackTimeMs ?? initMs);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastTickRef = useRef(Date.now());
   const chessRef = useRef(chess);
@@ -1281,6 +1281,10 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
           blackUserId:  row.black_user_id ? String(row.black_user_id) : prev.blackUserId,
           updatedAt:    String(row.updated_at ?? prev.updatedAt),
         }));
+
+        // Sync clocks from Realtime
+        if (row.white_time_ms != null) setWhiteMs(Number(row.white_time_ms));
+        if (row.black_time_ms != null) setBlackMs(Number(row.black_time_ms));
 
         if (typeof row.fen === "string") {
           const newChess = new Chess();
@@ -1404,10 +1408,14 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
           return;
         }
 
-        // Opponent made a move — sync board
+        // Opponent made a move — sync board + clocks
         try { chess.loadPgn(g.pgn); } catch { return; }
         const newFen = chess.fen();
         setFen(newFen);
+
+        // Sync clocks from server
+        if (g.whiteTimeMs != null) setWhiteMs(g.whiteTimeMs);
+        if (g.blackTimeMs != null) setBlackMs(g.blackTimeMs);
 
         const last = serverHist[serverHist.length - 1];
         if (last) {
@@ -1514,7 +1522,19 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
     else if (chess.isDraw() || chess.isStalemate() || chess.isThreefoldRepetition()) { newStatus = "draw"; winner = "draw"; }
 
     const extra = isTerminal ? endMeta() : {};
-    updateChessGame(gameState.roomCode, { fen: newFen, pgn: chess.pgn(), turn: chess.turn(), status: newStatus, winner, ...extra })
+    // Include clock times so opponent can sync
+    const clockPatch: { white_time_ms?: number; black_time_ms?: number } = {};
+    if (initMs > 0) {
+      // Read the latest values after increment
+      if (myColor === "white") {
+        clockPatch.white_time_ms = whiteMs + tc.inc * 1000;
+        clockPatch.black_time_ms = blackMs;
+      } else {
+        clockPatch.white_time_ms = whiteMs;
+        clockPatch.black_time_ms = blackMs + tc.inc * 1000;
+      }
+    }
+    updateChessGame(gameState.roomCode, { fen: newFen, pgn: chess.pgn(), turn: chess.turn(), status: newStatus, winner, ...clockPatch, ...extra })
       .catch(() => { chess.undo(); setFen(chess.fen()); toast.error("Failed to sync move"); });
 
     return true;

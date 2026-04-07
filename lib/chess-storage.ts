@@ -18,6 +18,8 @@ export type ChessGame = {
   blackAccuracy: number | null;
   timeControl: string | null;
   durationSeconds: number | null;
+  whiteTimeMs: number | null;
+  blackTimeMs: number | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -64,6 +66,8 @@ function gameFromRow(r: Record<string, unknown>): ChessGame {
     blackAccuracy: r.black_accuracy != null ? Number(r.black_accuracy) : null,
     timeControl: r.time_control ? String(r.time_control) : null,
     durationSeconds: r.duration_seconds != null ? Number(r.duration_seconds) : null,
+    whiteTimeMs: r.white_time_ms != null ? Number(r.white_time_ms) : null,
+    blackTimeMs: r.black_time_ms != null ? Number(r.black_time_ms) : null,
     createdAt: String(r.created_at),
     updatedAt: String(r.updated_at),
   };
@@ -118,6 +122,8 @@ export async function updateChessGame(
     black_player?: string;
     time_control?: string;
     duration_seconds?: number;
+    white_time_ms?: number;
+    black_time_ms?: number;
   },
 ): Promise<ChessGame> {
   const res = await authFetch(`${BASE}/games/${encodeURIComponent(roomCode)}`, {
