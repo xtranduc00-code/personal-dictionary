@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode, } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode, } from "react";
 export type AuthUser = {
     id: string;
     username: string;
@@ -247,7 +247,7 @@ export function AuthProvider({ children }: {
         setSessionExpiredHandler(handleSessionExpired);
         return () => setSessionExpiredHandler(null);
     }, [handleSessionExpired]);
-    const value: AuthContextValue = {
+    const value: AuthContextValue = useMemo(() => ({
         user,
         isLoading,
         refreshUser,
@@ -263,7 +263,7 @@ export function AuthProvider({ children }: {
         closeAuthModal,
         avatarDisplayRev,
         bumpAvatarDisplay,
-    };
+    }), [user, isLoading, refreshUser, signIn, signUp, signOut, authModalOpen, authModalStartMode, authModalBlocking, openAuthModal, openAuthModalForgotPassword, forgotPasswordPrefillEmail, closeAuthModal, avatarDisplayRev, bumpAvatarDisplay]);
     return (<AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>);

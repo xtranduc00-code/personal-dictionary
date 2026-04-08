@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Chess } from "chess.js";
-import { Heart, Loader2, RefreshCw, Zap } from "lucide-react";
+import { ArrowLeft, Heart, Loader2, RefreshCw, Star, Timer, Trophy } from "lucide-react";
 import { ChessBoardWrapper } from "@/components/chess/ChessBoardWrapper";
 import { squareStylesForLastMove } from "@/components/chess/move-highlight-styles";
 import { useChessLegalMoves } from "@/hooks/use-chess-legal-moves";
@@ -107,7 +107,7 @@ async function fetchPuzzleBatch(level: PuzzleLevel, count = 20): Promise<Library
 
 // ─── Root Component ───────────────────────────────────────────────────────────
 
-export function PuzzleRush() {
+export function PuzzleRush({ onBack }: { onBack?: () => void }) {
   const [phase, setPhase] = useState<RushPhase>("select");
   const [rushConfig, setRushConfig] = useState<RushConfig | null>(null);
   const [finalScore, setFinalScore] = useState(0);
@@ -150,7 +150,7 @@ export function PuzzleRush() {
   }
 
   if (phase === "playing" && rushConfig) {
-    return <RushGame key={gameKey} config={rushConfig} onGameOver={handleGameOver} />;
+    return <RushGame key={gameKey} config={rushConfig} onGameOver={handleGameOver} onBack={onBack} />;
   }
 
   return (
@@ -262,118 +262,28 @@ function ModeSelect({ onStart }: { onStart: (c: RushConfig) => void }) {
 
 // ─── Rush Game ────────────────────────────────────────────────────────────────
 
-/** Presentation-only status bar: score (secondary) · timer (primary) · lives (secondary). */
-function RushGameHud({
-  score,
-  timerMain,
-  timerSubtitle,
-  isLow,
-  isCritical,
-  isSurvival,
-  heartFilled,
-}: {
-  score: number;
-  timerMain: string;
-  timerSubtitle: string;
-  isLow: boolean;
-  isCritical: boolean;
-  isSurvival: boolean;
-  heartFilled: (i: number) => boolean;
-}) {
-  return (
-    <header className="shrink-0 border-b border-zinc-200/90 bg-gradient-to-b from-white via-zinc-50/98 to-zinc-100/90 shadow-[0_1px_0_rgba(0,0,0,0.04)] dark:border-zinc-800 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900/95">
-      <div className="mx-auto flex w-full max-w-5xl items-stretch gap-2 px-3 py-2.5 sm:gap-4 sm:px-4 sm:py-3">
-        <div className="flex min-w-0 flex-1 flex-col justify-center">
-          <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">
-            Score
-          </span>
-          <span className="mt-0.5 text-2xl font-black tabular-nums leading-none text-zinc-800 dark:text-zinc-100 sm:text-3xl">
-            {score}
-          </span>
-        </div>
-
-        <div
-          className={`flex min-w-0 shrink-0 flex-col items-center justify-center rounded-2xl border-2 px-3 py-2 shadow-md transition-[box-shadow,border-color,background-color] sm:px-5 sm:py-2.5 ${
-            isCritical
-              ? "border-red-500 bg-red-50/95 shadow-red-500/25 dark:border-red-500 dark:bg-red-950/50"
-              : isLow
-                ? "border-amber-400/90 bg-amber-50/90 shadow-amber-500/15 dark:border-amber-500/70 dark:bg-amber-950/35"
-                : "border-zinc-200/95 bg-white shadow-zinc-900/5 dark:border-zinc-600 dark:bg-zinc-900/90 dark:shadow-black/20"
-          } ${isCritical ? "animate-pulse" : ""}`}
-        >
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <Zap
-              className={`h-4 w-4 shrink-0 sm:h-5 sm:w-5 ${
-                isCritical ? "text-red-500" : isLow ? "text-amber-500" : "text-violet-500 dark:text-violet-400"
-              }`}
-              aria-hidden
-            />
-            <span
-              className={`text-[1.65rem] font-black tabular-nums leading-none tracking-tight sm:text-4xl ${
-                isCritical
-                  ? "text-red-600 dark:text-red-400"
-                  : isLow
-                    ? "text-amber-800 dark:text-amber-200"
-                    : "text-zinc-900 dark:text-zinc-50"
-              }`}
-            >
-              {timerMain}
-            </span>
-          </div>
-          <p className="mt-1 max-w-[16rem] text-center text-[9px] font-medium leading-snug text-zinc-500 dark:text-zinc-400 sm:max-w-[20rem] sm:text-[10px]">
-            {timerSubtitle}
-          </p>
-        </div>
-
-        <div
-          className="flex flex-1 flex-col items-end justify-center gap-0.5"
-          aria-label={isSurvival ? "Lives remaining this puzzle" : "Unlimited lives"}
-        >
-          <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">
-            {isSurvival ? "Lives" : "Mode"}
-          </span>
-          <div className="flex items-center gap-0.5 sm:gap-1">
-            {isSurvival ? (
-              Array.from({ length: LIVES }).map((_, i) => (
-                <Heart
-                  key={i}
-                  className={`h-[1.15rem] w-[1.15rem] shrink-0 transition sm:h-6 sm:w-6 ${
-                    heartFilled(i)
-                      ? "fill-red-500 text-red-500 drop-shadow-sm"
-                      : "fill-none text-zinc-300 opacity-[0.22] dark:text-zinc-600"
-                  }`}
-                  strokeWidth={2.25}
-                  aria-hidden
-                />
-              ))
-            ) : (
-              <span className="text-lg font-black tabular-nums text-emerald-600 dark:text-emerald-400 sm:text-xl">
-                ∞
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-    </header>
-  );
-}
+/** Flat single-line status bar: ← Puzzle Rush · your move · score · timer · lives. */
 
 type RushLoadStatus = "loading" | "ready" | "error";
 
 function RushGame({
   config,
   onGameOver,
+  onBack,
 }: {
   config: RushConfig;
   onGameOver: (score: number, correct: number, attempts: number) => void;
+  onBack?: () => void;
 }) {
   const initMs = timeChoiceToMs(config.timeChoice);
   const isSurvival = config.playStyle === "survival";
 
   const [lives, setLives] = useState(LIVES);
   const [score, setScore] = useState(0);
+  const [scoreAnim, setScoreAnim] = useState(false);
   const [timeMs, setTimeMs] = useState(initMs);
   const [fen, setFen] = useState("");
+  const [playerOrientation, setPlayerOrientation] = useState<"white" | "black">("white");
   const [loadStatus, setLoadStatus] = useState<RushLoadStatus>("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
@@ -449,6 +359,7 @@ function RushGame({
     setLastMoveHighlight(null);
     setPuzzleRating(p.rating);
     setFen(nextFen);
+    setPlayerOrientation(chess.turn() === "w" ? "white" : "black");
     resetLivesForNewPuzzle();
 
     if (queueRef.current.length < 5 && !fetchingRef.current) {
@@ -600,6 +511,8 @@ function RushGame({
         scoreRef.current++;
         correctRef.current++;
         setScore(scoreRef.current);
+        setScoreAnim(true);
+        setTimeout(() => setScoreAnim(false), 400);
 
         flash("green");
         transitionRef.current = true;
@@ -667,25 +580,18 @@ function RushGame({
   const isLow = isFinite(timeMs) && timeMs < 30000;
   const isCritical = isFinite(timeMs) && timeMs < 10000;
   const timerMain = config.timeChoice === "unlimited" ? "∞" : formatTime(timeMs);
-  const timeBit = config.timeChoice === "unlimited" ? "Unlimited time" : TIME_LABELS[config.timeChoice];
-  const timerSubtitle =
-    config.playStyle === "survival"
-      ? `Survival · ${timeBit} · 3 lives per puzzle · no hints`
-      : `Relaxed · ${timeBit} · unlimited lives · no hints`;
 
-  const { boardOrientation, sideToMoveLabel } = useMemo(() => {
-    if (!fen) return { boardOrientation: "white" as const, sideToMoveLabel: "…" };
+  const sideToMoveLabel = useMemo(() => {
+    if (!fen) return "…";
     try {
-      const c = new Chess(fen);
-      const t = c.turn();
-      return {
-        boardOrientation: t === "w" ? ("white" as const) : ("black" as const),
-        sideToMoveLabel: t === "b" ? "Black" : "White",
-      };
+      return new Chess(fen).turn() === "b" ? "Black" : "White";
     } catch {
-      return { boardOrientation: "white" as const, sideToMoveLabel: "…" };
+      return "…";
     }
   }, [fen]);
+
+  // boardOrientation is fixed per puzzle (player's color), not recalculated on every move
+  const boardOrientation = playerOrientation;
 
   const heartFilled = (i: number) => {
     if (!isSurvival) return true;
@@ -695,114 +601,146 @@ function RushGame({
   const sideIsBlack = sideToMoveLabel === "Black";
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col bg-zinc-100/80 dark:bg-zinc-950">
-      <RushGameHud
-        score={score}
-        timerMain={timerMain}
-        timerSubtitle={timerSubtitle}
-        isLow={isLow}
-        isCritical={isCritical}
-        isSurvival={isSurvival}
-        heartFilled={heartFilled}
-      />
+    <div className="flex h-full min-h-0 flex-1 flex-row bg-white dark:bg-zinc-950">
+      {/* ── Left sidebar ── */}
+      <div className="flex w-32 shrink-0 flex-col gap-4 border-r border-zinc-100 bg-zinc-50/80 px-3 py-3 dark:border-zinc-800 dark:bg-zinc-900/60 sm:w-44 sm:px-5">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1 text-[11px] font-medium text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+          >
+            <ArrowLeft className="h-3 w-3" aria-hidden />
+            Back
+          </button>
+        )}
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
-        <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-2 pb-2 pt-2 sm:px-4 sm:pb-3 sm:pt-3">
-          {loadStatus === "loading" && (
-            <div
-              className="mx-auto flex aspect-square w-full max-w-lg flex-col items-center justify-center gap-3 rounded-2xl border border-zinc-200/90 bg-white/90 shadow-inner dark:border-zinc-700 dark:bg-zinc-900/60"
-              role="status"
-              aria-live="polite"
-              aria-label="Loading puzzle"
-            >
-              <Loader2 className="h-10 w-10 animate-spin text-violet-500/80" />
-              <p className="text-xs font-semibold text-zinc-500">Loading puzzle…</p>
-            </div>
-          )}
-
-          {loadStatus === "error" && (
-            <div className="mx-auto flex w-full max-w-md flex-col items-center justify-center gap-4 rounded-2xl border border-red-200/90 bg-red-50/90 p-6 text-center shadow-sm dark:border-red-900/50 dark:bg-red-950/40">
-              <p className="text-sm font-semibold text-red-800 dark:text-red-200">
-                {loadError ?? "Failed to load puzzle"}
-              </p>
-              <button
-                type="button"
-                onClick={() => setRetryNonce((n) => n + 1)}
-                className="flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-              >
-                <RefreshCw className="h-4 w-4" />
-                Retry
-              </button>
-            </div>
-          )}
-
-          {loadStatus === "ready" && fen && (
-            /* justify-start: avoids vertical “jump” when hint/rating height changes (flex-center recenters every render). */
-            <div className="flex min-h-0 w-full flex-1 flex-col items-center justify-start gap-2.5 pt-1 sm:gap-3 sm:pt-2">
-              <div className="flex w-full max-w-md shrink-0 flex-col items-center justify-start gap-1.5">
-                <div className="inline-flex items-center gap-2 rounded-full border border-zinc-200/90 bg-white px-3 py-1.5 shadow-sm dark:border-zinc-600 dark:bg-zinc-900/90 sm:px-4 sm:py-2">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-500">
-                    Your move
-                  </span>
-                  <span
-                    className={`min-w-[5.5rem] rounded-full px-2.5 py-0.5 text-center text-xs font-extrabold tabular-nums shadow-sm sm:min-w-[6rem] sm:text-sm ${
-                      sideIsBlack
-                        ? "bg-zinc-900 text-amber-100 dark:bg-zinc-950 dark:text-amber-50"
-                        : "bg-zinc-100 text-zinc-900 ring-1 ring-zinc-200 dark:bg-zinc-100 dark:text-zinc-950 dark:ring-zinc-600"
-                    }`}
-                  >
-                    {sideIsBlack ? "♚ Black" : "♔ White"}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex w-full shrink-0 justify-center px-0.5">
-                <ChessBoardWrapper
-                  sizePreset="rush"
-                  className="overflow-hidden rounded-2xl shadow-xl ring-1 ring-black/[0.06] dark:ring-white/10"
-                  fixedEdgeNotation={false}
-                  options={{
-                    position: fen,
-                    onPieceDrop: ({ sourceSquare, targetSquare }) => {
-                      clearSelection();
-                      return handleDrop(sourceSquare, targetSquare ?? "");
-                    },
-                    boardOrientation,
-                    allowDragging: !gameEndedRef.current,
-                    boardStyle: flashStyle,
-                    squareStyles: {
-                      ...(lastMoveHighlight
-                        ? squareStylesForLastMove(
-                            lastMoveHighlight.from,
-                            lastMoveHighlight.to,
-                            lastMoveHighlight.side,
-                          )
-                        : {}),
-                      ...legalMoveStyles,
-                    },
-                    ...legalMoveHandlers,
-                  }}
-                />
-              </div>
-
-              {/* Always reserve rating row height so puzzle swap / async queue doesn’t collapse and shift layout. */}
-              <div className="flex min-h-[2.75rem] w-full shrink-0 items-start justify-center sm:min-h-[3rem]">
-                {puzzleRating != null ? (
-                  <div className="inline-flex items-center gap-2 rounded-full border border-amber-200/90 bg-gradient-to-r from-amber-50 to-orange-50/90 px-3 py-1.5 shadow-sm dark:border-amber-800/60 dark:from-amber-950/50 dark:to-orange-950/40 sm:px-4 sm:py-2">
-                    <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-amber-800/80 dark:text-amber-400/90">
-                      Puzzle rating
-                    </span>
-                    <span className="min-w-[2.5rem] text-center text-base font-black tabular-nums text-amber-950 dark:text-amber-100 sm:text-lg">
-                      {puzzleRating}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="h-9 w-full max-w-xs rounded-full border border-transparent opacity-0 sm:h-10" aria-hidden />
-                )}
-              </div>
-            </div>
-          )}
+        {/* TIME — most prominent */}
+        <div>
+          <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+            <Timer className="h-3 w-3" aria-hidden /> Time
+          </p>
+          <p
+            className={`mt-1 text-4xl font-black tabular-nums leading-none sm:text-5xl ${
+              isCritical
+                ? "animate-pulse text-red-600 dark:text-red-400"
+                : isLow
+                  ? "text-amber-500 dark:text-amber-400"
+                  : "text-zinc-900 dark:text-zinc-100"
+            }`}
+          >
+            {timerMain}
+          </p>
         </div>
+
+        {/* SCORE */}
+        <div>
+          <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+            <Trophy className="h-3 w-3" aria-hidden /> Score
+          </p>
+          <p
+            className={`mt-1 text-3xl font-black tabular-nums leading-none transition-colors duration-150 sm:text-4xl ${
+              scoreAnim ? "text-emerald-500" : "text-zinc-800 dark:text-zinc-100"
+            }`}
+          >
+            {score}
+          </p>
+        </div>
+
+        {/* LIVES / MODE */}
+        <div>
+          <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+            <Heart className="h-3 w-3" aria-hidden /> {isSurvival ? "Lives" : "Mode"}
+          </p>
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {isSurvival ? (
+              Array.from({ length: LIVES }).map((_, i) => (
+                <Heart
+                  key={i}
+                  className={`h-5 w-5 shrink-0 transition-opacity duration-200 ${
+                    heartFilled(i) ? "fill-red-500 text-red-500" : "fill-none text-zinc-200 opacity-40 dark:text-zinc-700"
+                  }`}
+                  strokeWidth={2.5}
+                  aria-hidden
+                />
+              ))
+            ) : (
+              <span className="text-2xl font-black text-zinc-400 dark:text-zinc-500">∞</span>
+            )}
+          </div>
+        </div>
+
+        {/* PLAY AS */}
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Play as</p>
+          <p className="mt-0.5 text-base font-bold text-zinc-700 dark:text-zinc-300">
+            {sideIsBlack ? "♚ Black" : "♔ White"}
+          </p>
+        </div>
+
+        {/* RATING */}
+        {puzzleRating != null && (
+          <div>
+            <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+              <Star className="h-3 w-3" aria-hidden /> Rating
+            </p>
+            <p className="mt-0.5 text-2xl font-black tabular-nums text-amber-500 dark:text-amber-400">{puzzleRating}</p>
+          </div>
+        )}
+      </div>
+
+      {/* ── Board area ── */}
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-1">
+        {loadStatus === "loading" && (
+          <div className="flex flex-col items-center gap-3" role="status" aria-live="polite">
+            <Loader2 className="h-10 w-10 animate-spin text-violet-500/80" />
+            <p className="text-xs font-semibold text-zinc-500">Loading puzzle…</p>
+          </div>
+        )}
+
+        {loadStatus === "error" && (
+          <div className="flex w-full max-w-xs flex-col items-center gap-4 rounded-2xl border border-red-200/90 bg-red-50/90 p-6 text-center shadow-sm dark:border-red-900/50 dark:bg-red-950/40">
+            <p className="text-sm font-semibold text-red-800 dark:text-red-200">
+              {loadError ?? "Failed to load puzzle"}
+            </p>
+            <button
+              type="button"
+              onClick={() => setRetryNonce((n) => n + 1)}
+              className="flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-zinc-700"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </button>
+          </div>
+        )}
+
+        {loadStatus === "ready" && fen && (
+          <ChessBoardWrapper
+            sizePreset="rush"
+            className="overflow-hidden rounded-2xl shadow-xl ring-1 ring-black/[0.06] dark:ring-white/10"
+            fixedEdgeNotation={false}
+            options={{
+              position: fen,
+              onPieceDrop: ({ sourceSquare, targetSquare }) => {
+                clearSelection();
+                return handleDrop(sourceSquare, targetSquare ?? "");
+              },
+              boardOrientation,
+              allowDragging: !gameEndedRef.current,
+              boardStyle: flashStyle,
+              squareStyles: {
+                ...(lastMoveHighlight
+                  ? squareStylesForLastMove(
+                      lastMoveHighlight.from,
+                      lastMoveHighlight.to,
+                      lastMoveHighlight.side,
+                    )
+                  : {}),
+                ...legalMoveStyles,
+              },
+              ...legalMoveHandlers,
+            }}
+          />
+        )}
       </div>
     </div>
   );

@@ -135,6 +135,8 @@ function GuardianReadInner() {
         setTitle(data.title ?? "Article");
         setHtml(data.html ?? "");
         setSourceUrl(data.url ?? urlParam);
+        // Auto-detect daily task
+        import("@/components/daily-tasks/daily-tasks-auto-detect").then(({ markDailyTask }) => markDailyTask("read_guardian")).catch(() => {});
       } catch {
         if (!cancelled) setError(t("networkErrorTryAgain"));
       } finally {

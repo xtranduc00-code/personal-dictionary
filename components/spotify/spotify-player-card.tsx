@@ -76,102 +76,108 @@ type FloatingProps = {
   onNext: () => void;
   showInitializingHint: boolean;
   className?: string;
+  progressSlider?: React.ReactNode;
 };
 
 function FloatingMiniPlayer({
-  t, artUrl, trackName, subtitleLine, deviceId, paused, onTogglePlay, onPrev, onNext, showInitializingHint, className,
+  t, artUrl, trackName, subtitleLine, deviceId, paused, onTogglePlay, onPrev, onNext, showInitializingHint, className, progressSlider,
 }: FloatingProps) {
   const [expanded, setExpanded] = useState(false);
 
   return (
     <div
-      className={`flex items-center justify-end ${className ?? ""}`}
+      className={`flex flex-col items-end rounded-2xl border border-zinc-200/90 bg-white/95 shadow-[0_8px_30px_-8px_rgba(0,0,0,0.15)] backdrop-blur-md ring-1 ring-zinc-900/[0.04] dark:border-zinc-700/90 dark:bg-zinc-950/95 dark:ring-white/[0.06] ${className ?? ""}`}
       onMouseEnter={() => setExpanded(true)}
       onMouseLeave={() => setExpanded(false)}
     >
-      {/* ── Expanded panel (slides in from the right) ── */}
-      <div
-        className={`overflow-hidden transition-all duration-200 ease-out ${
-          expanded ? "max-w-[300px] opacity-100 pr-2" : "max-w-0 opacity-0 pr-0"
-        }`}
-        style={{ minWidth: 0 }}
-      >
-        <div className="flex items-center gap-2.5 rounded-2xl border border-zinc-200/90 bg-white/95 px-3 py-2.5 shadow-[0_8px_30px_-8px_rgba(0,0,0,0.15)] backdrop-blur-md ring-1 ring-zinc-900/[0.04] dark:border-zinc-700/90 dark:bg-zinc-950/95 dark:ring-white/[0.06]">
-          {/* Track info */}
-          <div className="w-32 min-w-0 shrink-0">
-            <p className="truncate text-sm font-semibold leading-tight text-zinc-900 dark:text-zinc-50">
-              {trackName ?? t("spotifyNoTrack")}
-            </p>
-            <p className="truncate text-xs leading-tight text-zinc-500 dark:text-zinc-400">
-              {showInitializingHint ? (
-                <span className="flex items-center gap-1">
-                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-                  {subtitleLine}
-                </span>
-              ) : subtitleLine}
-            </p>
-          </div>
+      <div className="flex items-center">
+        {/* ── Expanded panel (slides in from the right) ── */}
+        <div
+          className={`overflow-hidden transition-all duration-200 ease-out ${
+            expanded ? "max-w-[300px] opacity-100" : "max-w-0 opacity-0"
+          }`}
+          style={{ minWidth: 0 }}
+        >
+          <div className="flex items-center gap-2.5 px-3 py-2.5">
+            {/* Track info */}
+            <div className="w-32 min-w-0 shrink-0">
+              <p className="truncate text-sm font-semibold leading-tight text-zinc-900 dark:text-zinc-50">
+                {trackName ?? t("spotifyNoTrack")}
+              </p>
+              <p className="truncate text-xs leading-tight text-zinc-500 dark:text-zinc-400">
+                {showInitializingHint ? (
+                  <span className="flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                    {subtitleLine}
+                  </span>
+                ) : subtitleLine}
+              </p>
+            </div>
 
-          {/* Controls: prev | play/pause | next */}
-          <div className="flex shrink-0 items-center gap-0.5">
-            <button
-              type="button"
-              onClick={onPrev}
-              disabled={!deviceId}
-              className="rounded-full p-1.5 text-zinc-600 transition duration-200 hover:bg-zinc-100 disabled:opacity-40 dark:text-zinc-300 dark:hover:bg-zinc-800"
-            >
-              <SkipBack className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={onTogglePlay}
-              disabled={!deviceId}
-              className="rounded-full bg-zinc-900 p-2 text-white shadow-sm transition duration-200 hover:scale-[1.06] hover:bg-zinc-800 disabled:opacity-40 disabled:hover:scale-100 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
-            >
-              {paused
-                ? <Play className="h-[15px] w-[15px]" fill="currentColor" />
-                : <Pause className="h-[15px] w-[15px]" fill="currentColor" />}
-            </button>
-            <button
-              type="button"
-              onClick={onNext}
-              disabled={!deviceId}
-              className="rounded-full p-1.5 text-zinc-600 transition duration-200 hover:bg-zinc-100 disabled:opacity-40 dark:text-zinc-300 dark:hover:bg-zinc-800"
-            >
-              <SkipForward className="h-4 w-4" />
-            </button>
+            {/* Controls: prev | play/pause | next */}
+            <div className="flex shrink-0 items-center gap-0.5">
+              <button
+                type="button"
+                onClick={onPrev}
+                disabled={!deviceId}
+                className="rounded-full p-1.5 text-zinc-600 transition duration-200 hover:bg-zinc-100 disabled:opacity-40 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                <SkipBack className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={onTogglePlay}
+                disabled={!deviceId}
+                className="rounded-full bg-zinc-900 p-2 text-white shadow-sm transition duration-200 hover:scale-[1.06] hover:bg-zinc-800 disabled:opacity-40 disabled:hover:scale-100 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+              >
+                {paused
+                  ? <Play className="h-[15px] w-[15px]" fill="currentColor" />
+                  : <Pause className="h-[15px] w-[15px]" fill="currentColor" />}
+              </button>
+              <button
+                type="button"
+                onClick={onNext}
+                disabled={!deviceId}
+                className="rounded-full p-1.5 text-zinc-600 transition duration-200 hover:bg-zinc-100 disabled:opacity-40 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                <SkipForward className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* ── Album art (always visible) — click to play/pause ── */}
+        <button
+          type="button"
+          onClick={onTogglePlay}
+          disabled={!deviceId}
+          aria-label={paused ? "Play" : "Pause"}
+          className="relative m-1 h-10 w-10 shrink-0 overflow-hidden rounded-xl bg-zinc-200 shadow-sm transition-all duration-200 hover:scale-105 disabled:opacity-50 dark:bg-zinc-700"
+        >
+          {artUrl ? (
+            <Image src={artUrl} alt="" fill className="object-cover" sizes="40px" unoptimized />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-900">
+              <Music2 className="h-5 w-5 text-zinc-400" aria-hidden />
+            </div>
+          )}
+
+          {/* Paused overlay: play icon */}
+          {paused && !expanded ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+              <Play className="h-4 w-4 text-white drop-shadow-md" fill="currentColor" />
+            </div>
+          ) : null}
+
+          {/* Playing indicator: green dot at top-right */}
+          {!paused ? (
+            <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-emerald-400 shadow ring-1 ring-white dark:ring-zinc-800" aria-hidden />
+          ) : null}
+        </button>
       </div>
 
-      {/* ── Album art (always visible) — click to play/pause ── */}
-      <button
-        type="button"
-        onClick={onTogglePlay}
-        disabled={!deviceId}
-        aria-label={paused ? "Play" : "Pause"}
-        className="relative h-12 w-12 shrink-0 overflow-hidden rounded-2xl bg-zinc-200 shadow-md transition-all duration-200 hover:scale-105 hover:shadow-lg disabled:opacity-50 dark:bg-zinc-700"
-      >
-        {artUrl ? (
-          <Image src={artUrl} alt="" fill className="object-cover" sizes="48px" unoptimized />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-900">
-            <Music2 className="h-6 w-6 text-zinc-400" aria-hidden />
-          </div>
-        )}
-
-        {/* Paused overlay: play icon */}
-        {paused && !expanded ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-            <Play className="h-5 w-5 text-white drop-shadow-md" fill="currentColor" />
-          </div>
-        ) : null}
-
-        {/* Playing indicator: green dot at top-right */}
-        {!paused ? (
-          <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-emerald-400 shadow ring-[1.5px] ring-white dark:ring-zinc-800" aria-hidden />
-        ) : null}
-      </button>
+      {/* ── Progress bar (always visible, full width) ── */}
+      {progressSlider}
     </div>
   );
 }
@@ -203,8 +209,7 @@ export const SpotifyPlayerCard = memo(function SpotifyPlayerCard({
   showDisconnect = true,
 }: SpotifyPlayerCardProps) {
   /* ── Progress slider — keyed by track so it resets on track change ── */
-  /* Only for card and bar layouts; mini/floating layouts have no progress bar. */
-  const progressSlider = layout !== "mini" && layout !== "floating" ? (
+  const progressSlider = (
     <SpotifyProgressSlider
       key={`${trackName ?? "none"}:${durationMs}`}
       playerRef={playerRef}
@@ -214,9 +219,9 @@ export const SpotifyPlayerCard = memo(function SpotifyPlayerCard({
       onSeekCommit={onSeekCommit}
       formatMs={formatMs}
       t={t}
-      layout={layout}
+      layout={layout === "floating" ? "mini" : layout}
     />
-  ) : null;
+  );
 
   if (layout === "floating") {
     return (
@@ -232,88 +237,94 @@ export const SpotifyPlayerCard = memo(function SpotifyPlayerCard({
         onNext={onNext}
         showInitializingHint={showInitializingHint}
         className={className}
+        progressSlider={progressSlider}
       />
     );
   }
 
   if (layout === "mini") {
     return (
-      <div className={`flex items-center gap-2.5 rounded-2xl border border-zinc-200/90 bg-white/95 px-3 py-2.5 shadow-[0_8px_30px_-8px_rgba(0,0,0,0.15)] backdrop-blur-md ring-1 ring-zinc-900/[0.04] dark:border-zinc-700/90 dark:bg-zinc-950/95 dark:ring-white/[0.06] ${className ?? ""}`}>
-        {/* Album art */}
-        <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-zinc-200 shadow-sm dark:bg-zinc-700">
-          {artUrl ? (
-            <Image src={artUrl} alt="" fill className="object-cover" sizes="40px" unoptimized />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-900">
-              <Music2 className="h-5 w-5 text-zinc-400" aria-hidden />
-            </div>
-          )}
+      <div className={`flex flex-col rounded-2xl border border-zinc-200/90 bg-white/95 shadow-[0_8px_30px_-8px_rgba(0,0,0,0.15)] backdrop-blur-md ring-1 ring-zinc-900/[0.04] dark:border-zinc-700/90 dark:bg-zinc-950/95 dark:ring-white/[0.06] ${className ?? ""}`}>
+        <div className="flex items-center gap-2.5 px-3 pt-2.5 pb-1.5">
+          {/* Album art */}
+          <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-zinc-200 shadow-sm dark:bg-zinc-700">
+            {artUrl ? (
+              <Image src={artUrl} alt="" fill className="object-cover" sizes="40px" unoptimized />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-900">
+                <Music2 className="h-5 w-5 text-zinc-400" aria-hidden />
+              </div>
+            )}
+          </div>
+
+          {/* Track info */}
+          <div className="w-28 min-w-0 shrink-0">
+            <p className="truncate text-sm font-semibold leading-tight text-zinc-900 dark:text-zinc-50">
+              {trackName ?? t("spotifyNoTrack")}
+            </p>
+            <p className="truncate text-xs leading-tight text-zinc-500 dark:text-zinc-400">
+              {showInitializingHint ? (
+                <span className="flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                  {subtitleLine}
+                </span>
+              ) : subtitleLine}
+            </p>
+          </div>
+
+          {/* Controls: shuffle, prev, play, next, repeat */}
+          <div className="flex shrink-0 items-center gap-0.5">
+            <button
+              type="button"
+              onClick={onToggleShuffle}
+              disabled={!deviceId}
+              title={t("spotifyPlayerShuffle")}
+              className={`rounded-full p-2 transition duration-200 hover:bg-zinc-100 disabled:opacity-40 dark:hover:bg-zinc-800 ${
+                shuffleOn ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-400 dark:text-zinc-500"
+              }`}
+            >
+              <Shuffle className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onPrev}
+              disabled={!deviceId}
+              className="rounded-full p-2 text-zinc-600 transition duration-200 hover:bg-zinc-100 disabled:opacity-40 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              <SkipBack className="h-[18px] w-[18px]" />
+            </button>
+            <button
+              type="button"
+              onClick={onTogglePlay}
+              disabled={!deviceId}
+              className="rounded-full bg-zinc-900 p-2.5 text-white shadow-sm transition duration-200 hover:scale-[1.04] hover:bg-zinc-800 disabled:opacity-40 disabled:hover:scale-100 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+            >
+              {paused ? <Play className="h-[18px] w-[18px]" fill="currentColor" /> : <Pause className="h-[18px] w-[18px]" fill="currentColor" />}
+            </button>
+            <button
+              type="button"
+              onClick={onNext}
+              disabled={!deviceId}
+              className="rounded-full p-2 text-zinc-600 transition duration-200 hover:bg-zinc-100 disabled:opacity-40 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              <SkipForward className="h-[18px] w-[18px]" />
+            </button>
+            <button
+              type="button"
+              onClick={onCycleRepeat}
+              disabled={!deviceId}
+              title={t("spotifyPlayerRepeat")}
+              className={`rounded-full p-2 transition duration-200 hover:bg-zinc-100 disabled:opacity-40 dark:hover:bg-zinc-800 ${
+                repeatMode > 0 ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-400 dark:text-zinc-500"
+              }`}
+            >
+              {repeatMode === 2 ? <Repeat1 className="h-4 w-4" /> : <Repeat className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
 
-        {/* Track info */}
-        <div className="w-28 min-w-0 shrink-0">
-          <p className="truncate text-sm font-semibold leading-tight text-zinc-900 dark:text-zinc-50">
-            {trackName ?? t("spotifyNoTrack")}
-          </p>
-          <p className="truncate text-xs leading-tight text-zinc-500 dark:text-zinc-400">
-            {showInitializingHint ? (
-              <span className="flex items-center gap-1">
-                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-                {subtitleLine}
-              </span>
-            ) : subtitleLine}
-          </p>
-        </div>
-
-        {/* Controls: shuffle, prev, play, next, repeat */}
-        <div className="flex shrink-0 items-center gap-0.5">
-          <button
-            type="button"
-            onClick={onToggleShuffle}
-            disabled={!deviceId}
-            title={t("spotifyPlayerShuffle")}
-            className={`rounded-full p-2 transition duration-200 hover:bg-zinc-100 disabled:opacity-40 dark:hover:bg-zinc-800 ${
-              shuffleOn ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-400 dark:text-zinc-500"
-            }`}
-          >
-            <Shuffle className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={onPrev}
-            disabled={!deviceId}
-            className="rounded-full p-2 text-zinc-600 transition duration-200 hover:bg-zinc-100 disabled:opacity-40 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          >
-            <SkipBack className="h-[18px] w-[18px]" />
-          </button>
-          <button
-            type="button"
-            onClick={onTogglePlay}
-            disabled={!deviceId}
-            className="rounded-full bg-zinc-900 p-2.5 text-white shadow-sm transition duration-200 hover:scale-[1.04] hover:bg-zinc-800 disabled:opacity-40 disabled:hover:scale-100 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
-          >
-            {paused ? <Play className="h-[18px] w-[18px]" fill="currentColor" /> : <Pause className="h-[18px] w-[18px]" fill="currentColor" />}
-          </button>
-          <button
-            type="button"
-            onClick={onNext}
-            disabled={!deviceId}
-            className="rounded-full p-2 text-zinc-600 transition duration-200 hover:bg-zinc-100 disabled:opacity-40 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          >
-            <SkipForward className="h-[18px] w-[18px]" />
-          </button>
-          <button
-            type="button"
-            onClick={onCycleRepeat}
-            disabled={!deviceId}
-            title={t("spotifyPlayerRepeat")}
-            className={`rounded-full p-2 transition duration-200 hover:bg-zinc-100 disabled:opacity-40 dark:hover:bg-zinc-800 ${
-              repeatMode > 0 ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-400 dark:text-zinc-500"
-            }`}
-          >
-            {repeatMode === 2 ? <Repeat1 className="h-4 w-4" /> : <Repeat className="h-4 w-4" />}
-          </button>
-        </div>
+        {/* Progress bar */}
+        {progressSlider}
       </div>
     );
   }

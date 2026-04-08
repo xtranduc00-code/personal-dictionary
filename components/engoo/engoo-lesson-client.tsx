@@ -801,6 +801,12 @@ export function EngooLessonClient({ masterId }: { masterId: string }) {
     void load();
   }, [load]);
 
+  // Auto-detect daily task: mark "Read Engoo" when article loads
+  useEffect(() => {
+    if (!data) return;
+    import("@/components/daily-tasks/daily-tasks-auto-detect").then(({ markDailyTask }) => markDailyTask("read_engoo")).catch(() => {});
+  }, [data]);
+
   const openReadingTutor = useCallback(() => {
     if (data) storeEngooCallContext(masterId, data);
     setTutorOpen(true);

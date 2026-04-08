@@ -31,7 +31,7 @@ interface Props {
   onSeekCommit: (ms: number) => void;
   formatMs: (ms: number) => string;
   t: T;
-  layout?: "card" | "bar";
+  layout?: "card" | "bar" | "mini";
 }
 
 export const SpotifyProgressSlider = memo(function SpotifyProgressSlider({
@@ -144,6 +144,9 @@ export const SpotifyProgressSlider = memo(function SpotifyProgressSlider({
     if (layout === "bar") {
       return <div className="absolute inset-x-0 top-0 h-[2px] bg-zinc-100 dark:bg-zinc-800 md:hidden" aria-hidden />;
     }
+    if (layout === "mini") {
+      return <div className="mx-3 mb-1.5 h-1.5 rounded-full bg-zinc-300 dark:bg-zinc-700" aria-hidden />;
+    }
     return null;
   }
 
@@ -204,6 +207,23 @@ export const SpotifyProgressSlider = memo(function SpotifyProgressSlider({
           </span>
         </div>
       </>
+    );
+  }
+
+  /* ── Mini layout: thin seekable bar, no time labels ─────────────────── */
+  if (layout === "mini") {
+    return (
+      <div className="px-3 pb-2">
+        <div className="relative flex h-4 w-full cursor-pointer items-center" style={{ touchAction: "none" }}>
+          <div className="absolute inset-x-0 h-1.5 rounded-full bg-zinc-300 dark:bg-zinc-700" />
+          <div
+            ref={fillBarRef}
+            className="pointer-events-none absolute inset-y-0 left-0 my-auto h-1.5 rounded-full bg-zinc-900 dark:bg-zinc-100"
+            style={{ width: "0%", willChange: "width" }}
+          />
+          {rangeInput}
+        </div>
+      </div>
     );
   }
 

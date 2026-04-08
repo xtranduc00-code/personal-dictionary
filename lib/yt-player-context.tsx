@@ -1,5 +1,6 @@
 "use client";
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import type { YtPlayerApi } from "./youtube-watch";
 
 export type YTQueueItem = {
   videoId: string;
@@ -7,6 +8,22 @@ export type YTQueueItem = {
   thumbnail: string;
   channelTitle: string;
   publishedAt?: string;
+};
+
+export type PlaybackState = {
+  currentTime: number;
+  duration: number;
+  playing: boolean;
+  isLive: boolean;
+  ready: boolean;
+};
+
+const defaultPlayback: PlaybackState = {
+  currentTime: 0,
+  duration: 0,
+  playing: false,
+  isLive: false,
+  ready: false,
 };
 
 type YTPlayerCtx = {
@@ -21,6 +38,19 @@ type YTPlayerCtx = {
   /** True while an inline player on the page owns the audio — dock mutes itself. */
   muteAudio: boolean;
   setMuteAudio: (v: boolean) => void;
+  /** Single source of truth for playback — updated by whoever currently owns the player. */
+  playbackState: PlaybackState;
+  updatePlaybackState: (patch: Partial<PlaybackState>) => void;
+  /**
+   * Always-current currentTime ref — safe to read in effect cleanups / closures
+   * without stale-closure issues (does NOT trigger re-renders).
+   */
+  latestCurrentTimeRef: React.MutableRefObject<number>;
+  /** Points to the currently active YT.Player instance (dock or inline player). */
+  activePlayerRef: React.MutableRefObject<YtPlayerApi | null>;
+  /** True when the inline YouTubePlayer component is mounted and owns the player. */
+  mainPlayerActive: boolean;
+  setMainPlayerActive: (v: boolean) => void;
 };
 
 const Ctx = createContext<YTPlayerCtx | null>(null);
@@ -30,6 +60,15 @@ export function YTPlayerProvider({ children }: { children: React.ReactNode }) {
   const [queue, setQueue] = useState<YTQueueItem[]>([]);
   const [queueIdx, setQueueIdx] = useState(0);
   const [muteAudio, setMuteAudio] = useState(false);
+  const [playbackState, setPlaybackState] = useState<PlaybackState>(defaultPlayback);
+  const latestCurrentTimeRef = useRef(0);
+  const activePlayerRef = useRef<YtPlayerApi | null>(null);
+  const [mainPlayerActive, setMainPlayerActive] = useState(false);
+
+  const updatePlaybackState = useCallback((patch: Partial<PlaybackState>) => {
+    if (patch.currentTime !== undefined) latestCurrentTimeRef.current = patch.currentTime;
+    setPlaybackState((prev) => ({ ...prev, ...patch }));
+  }, []);
 
   const play = useCallback((video: YTQueueItem, q?: YTQueueItem[], idx?: number) => {
     const newQueue = q ?? [video];
@@ -37,6 +76,9 @@ export function YTPlayerProvider({ children }: { children: React.ReactNode }) {
     setQueue(newQueue);
     setQueueIdx(newIdx);
     setCurrent(newQueue[newIdx] ?? video);
+    // Reset playback state for the new video
+    setPlaybackState(defaultPlayback);
+    latestCurrentTimeRef.current = 0;
   }, []);
 
   const next = useCallback(() => {
@@ -66,10 +108,20 @@ export function YTPlayerProvider({ children }: { children: React.ReactNode }) {
     setCurrent(null);
     setQueue([]);
     setQueueIdx(0);
+    setPlaybackState(defaultPlayback);
+    latestCurrentTimeRef.current = 0;
   }, []);
 
+  const value = useMemo(() => ({
+    current, queue, queueIdx, play, playAt, next, prev, close,
+    muteAudio, setMuteAudio,
+    playbackState, updatePlaybackState, latestCurrentTimeRef,
+    activePlayerRef,
+    mainPlayerActive, setMainPlayerActive,
+  }), [current, queue, queueIdx, play, playAt, next, prev, close, muteAudio, playbackState, updatePlaybackState, mainPlayerActive]);
+
   return (
-    <Ctx.Provider value={{ current, queue, queueIdx, play, playAt, next, prev, close, muteAudio, setMuteAudio }}>
+    <Ctx.Provider value={value}>
       {children}
     </Ctx.Provider>
   );

@@ -10,12 +10,9 @@ import {
   YT_STATE_PLAYING,
   type YtPlayerApi,
 } from "@/lib/youtube-watch";
+import { useYTPlayer } from "@/lib/yt-player-context";
 
 const SPEED_OPTIONS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
-const QUALITY_LABELS: Record<string, string> = {
-  highres: "4K", hd1080: "1080p", hd720: "720p", large: "480p",
-  medium: "360p", small: "240p", tiny: "144p", auto: "Auto", default: "Auto",
-};
 
 function fmt(s: number) {
   if (!isFinite(s) || s < 0) return "0:00";
@@ -36,6 +33,14 @@ type Props = {
 };
 
 export function YouTubePlayer({ videoId, title, channelTitle, onClose, onAddToPlaylist }: Props) {
+  const {
+    playbackState,
+    updatePlaybackState,
+    latestCurrentTimeRef,
+    activePlayerRef,
+    setMainPlayerActive,
+  } = useYTPlayer();
+
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<YtPlayerApi | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -50,17 +55,33 @@ export function YouTubePlayer({ videoId, title, channelTitle, onClose, onAddToPl
   const [fullscreen, setFullscreen] = useState(false);
   const [isLive, setIsLive] = useState(false);
   const [speed, setSpeed] = useState(1);
-  const [quality, setQuality] = useState("default");
-  const [availableQualities, setAvailableQualities] = useState<string[]>([]);
   const [ccEnabled, setCcEnabled] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // Build player
+  // Register as the active player owner for the lifetime of this component
+  useEffect(() => {
+    setMainPlayerActive(true);
+    return () => {
+      // Save final position to context before handing back to dock
+      try {
+        const finalTime = playerRef.current?.getCurrentTime() ?? latestCurrentTimeRef.current;
+        updatePlaybackState({ currentTime: finalTime, playing: false, ready: false });
+      } catch { /* ignore */ }
+      activePlayerRef.current = null;
+      setMainPlayerActive(false);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Build player — seek to where the dock (or previous instance) left off
   useEffect(() => {
     let cancelled = false;
     const host = containerRef.current;
     if (!host) return;
+
+    // Capture the resume position at effect-run time using the always-current ref
+    const resumeTime = latestCurrentTimeRef.current;
 
     loadYoutubeIframeApi().then(() => {
       if (cancelled || !window.YT?.Player) return;
@@ -82,17 +103,22 @@ export function YouTubePlayer({ videoId, title, channelTitle, onClose, onAddToPl
           onReady: (e) => {
             if (cancelled) return;
             playerRef.current = e.target;
-            const d = e.target.getDuration();
-            if (isFinite(d) && d > 0) {
-              setDuration(d);
-            } else {
-              setIsLive(true);
+            activePlayerRef.current = e.target; // This player now owns the activePlayerRef
+
+            // Seamless handoff: seek to where the dock was playing
+            if (resumeTime > 2) {
+              try { e.target.seekTo(resumeTime, true); } catch { /* ignore */ }
             }
-            // Load available qualities
-            try {
-              const qs = e.target.getAvailableQualityLevels();
-              if (qs?.length) setAvailableQualities(qs);
-            } catch { /* ignore */ }
+
+            const d = e.target.getDuration();
+            const live = !isFinite(d) || d <= 0;
+            setIsLive(live);
+            if (!live) {
+              setDuration(d);
+              updatePlaybackState({ ready: true, isLive: false, duration: d });
+            } else {
+              updatePlaybackState({ ready: true, isLive: true });
+            }
             setReady(true);
             e.target.playVideo();
           },
@@ -100,13 +126,17 @@ export function YouTubePlayer({ videoId, title, channelTitle, onClose, onAddToPl
             if (cancelled) return;
             const isPlaying = e.data === YT_STATE_PLAYING || e.data === YT_STATE_BUFFERING;
             setPlaying(isPlaying);
+            updatePlaybackState({ playing: isPlaying });
             try {
               const d = e.target.getDuration();
-              if (isFinite(d) && d > 0) { setDuration(d); setIsLive(false); }
-              else setIsLive(true);
-              const qs = e.target.getAvailableQualityLevels();
-              if (qs?.length) setAvailableQualities(qs);
-              setQuality(e.target.getPlaybackQuality());
+              if (isFinite(d) && d > 0) {
+                setDuration(d);
+                setIsLive(false);
+                updatePlaybackState({ duration: d, isLive: false });
+              } else {
+                setIsLive(true);
+                updatePlaybackState({ isLive: true });
+              }
             } catch { /* ignore */ }
           },
         },
@@ -123,20 +153,37 @@ export function YouTubePlayer({ videoId, title, channelTitle, onClose, onAddToPl
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId]);
 
-  // Tick to update progress
+  // Tick: push currentTime to shared context so dock seek bar stays in sync
   useEffect(() => {
     tickRef.current = setInterval(() => {
       if (scrubRef.current) return;
       const p = playerRef.current;
       if (!p) return;
       try {
-        setCurrentTime(p.getCurrentTime());
+        const t = p.getCurrentTime();
+        setCurrentTime(t);
+        updatePlaybackState({ currentTime: t });
         const d = p.getDuration();
-        if (isFinite(d) && d > 0) setDuration(d);
+        if (isFinite(d) && d > 0) {
+          setDuration(d);
+          updatePlaybackState({ duration: d });
+        }
       } catch { /* ignore */ }
     }, 250);
     return () => { if (tickRef.current) clearInterval(tickRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Keep local currentTime in sync with shared state (e.g. dock sought while main is playing)
+  useEffect(() => {
+    if (scrubRef.current) return;
+    const diff = Math.abs(playbackState.currentTime - currentTime);
+    // Only snap if dock sought more than 2 s away (avoid fighting the ticker)
+    if (diff > 2) {
+      setCurrentTime(playbackState.currentTime);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playbackState.currentTime]);
 
   const togglePlay = useCallback(() => {
     const p = playerRef.current;
@@ -171,21 +218,14 @@ export function YouTubePlayer({ videoId, title, channelTitle, onClose, onAddToPl
     try { playerRef.current?.setPlaybackRate(rate); } catch { /* ignore */ }
   }, []);
 
-  const handleQualityChange = useCallback((q: string) => {
-    setQuality(q);
-    setShowSettings(false);
-    try { playerRef.current?.setPlaybackQuality(q); } catch { /* ignore */ }
-  }, []);
-
   const toggleCc = useCallback(() => {
     const p = playerRef.current;
     if (!p) return;
     try {
       if (ccEnabled) {
-        p.unloadModule("cc");
         p.unloadModule("captions");
       } else {
-        p.loadModule("cc");
+        p.loadModule("captions");
         p.setOption("captions", "track", { languageCode: "en" });
       }
       setCcEnabled((v) => !v);
@@ -277,6 +317,7 @@ export function YouTubePlayer({ videoId, title, channelTitle, onClose, onAddToPl
                 scrubRef.current = false;
                 try { playerRef.current?.seekTo(t, true); } catch { /* ignore */ }
                 setCurrentTime(t);
+                updatePlaybackState({ currentTime: t }); // sync dock immediately
               }}
               disabled={!ready || durationSafe <= 1}
             />
@@ -366,7 +407,7 @@ export function YouTubePlayer({ videoId, title, channelTitle, onClose, onAddToPl
             <Subtitles className="h-3.5 w-3.5" />
           </button>
 
-          {/* Settings (speed + quality) */}
+          {/* Settings (speed) */}
           <div className="relative">
             <button
               onClick={() => setShowSettings((v) => !v)}
@@ -382,7 +423,6 @@ export function YouTubePlayer({ videoId, title, channelTitle, onClose, onAddToPl
                 className="absolute bottom-9 right-0 z-30 w-52 rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl overflow-hidden"
                 onMouseLeave={() => setShowSettings(false)}
               >
-                {/* Speed */}
                 <div className="px-3 py-2 border-b border-zinc-700">
                   <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wide mb-1.5">Speed</p>
                   <div className="flex flex-wrap gap-1">
@@ -401,29 +441,6 @@ export function YouTubePlayer({ videoId, title, channelTitle, onClose, onAddToPl
                     ))}
                   </div>
                 </div>
-
-                {/* Quality */}
-                {availableQualities.length > 0 && (
-                  <div className="px-3 py-2">
-                    <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wide mb-1.5">Quality</p>
-                    <div className="flex flex-col gap-0.5">
-                      {availableQualities.map((q) => (
-                        <button
-                          key={q}
-                          onClick={() => handleQualityChange(q)}
-                          className={`flex items-center justify-between rounded px-2 py-1 text-[11px] transition-colors ${
-                            quality === q
-                              ? "bg-white text-zinc-900 font-medium"
-                              : "text-zinc-300 hover:bg-zinc-800"
-                          }`}
-                        >
-                          <span>{QUALITY_LABELS[q] ?? q}</span>
-                          {quality === q && <span className="text-[9px] opacity-60">✓</span>}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             )}
           </div>

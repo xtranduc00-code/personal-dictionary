@@ -15,6 +15,7 @@ import { ProfileModal } from "@/components/profile-modal";
 import { SecurityModal } from "@/components/security-modal";
 import { BookHeart, BookOpen, BookMarked, BookText, Bot, CalendarClock, CalendarDays, ChessKing, ChevronLeft, ChevronRight, Clapperboard, Cloud, FileText, FolderOpen, GraduationCap, Headphones, Image as LucideImage, History, Home, Languages, LayoutDashboard, LayoutGrid, LibraryBig, LogIn, LogOut, Mail, Menu, Mic, Moon, Newspaper, NotebookText, PartyPopper, PenLine, PhoneCall, Search, Sparkles, Star, Sun, Table2, UserCircle, Video, X, Youtube, type LucideIcon, } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { DailyTasksSidebar } from "@/components/daily-tasks/daily-tasks-sidebar";
 import { useMeetCallOptional } from "@/lib/meet-call-context";
 import { CLEAR_NAV_QUICK_SEARCH_EVENT } from "@/lib/nav-quick-search-events";
 import { useI18n } from "@/components/i18n-provider";
@@ -457,6 +458,7 @@ function SiteNavInner() {
     const [dictionaryOpen, setDictionaryOpen] = useState(true);
     const [portfolioOpen, setPortfolioOpen] = useState(true);
     const [othersOpen, setOthersOpen] = useState(true);
+    const [dailyTasksOpen, setDailyTasksOpen] = useState(true);
     const [navSearch, setNavSearch] = useState("");
     const clearQuickSearch = useCallback(() => setNavSearch(""), []);
     const navFilter = useMemo(() => {
@@ -623,6 +625,9 @@ function SiteNavInner() {
         const saved = window.localStorage.getItem("ieltsSectionOpen");
         if (saved !== null)
             setIeltsOpen(saved === "true");
+        const savedDailyTasks = window.localStorage.getItem("dailyTasksSectionOpen");
+        if (savedDailyTasks !== null)
+            setDailyTasksOpen(savedDailyTasks === "true");
     }, []);
     useEffect(() => {
         const saved = window.localStorage.getItem("dictionarySectionOpen");
@@ -712,6 +717,11 @@ function SiteNavInner() {
         setDictionaryOpen(next);
         window.localStorage.setItem("dictionarySectionOpen", String(next));
     }
+    function toggleDailyTasksSection() {
+        const next = !dailyTasksOpen;
+        setDailyTasksOpen(next);
+        window.localStorage.setItem("dailyTasksSectionOpen", String(next));
+    }
     function togglePortfolioSection() {
         const next = !portfolioOpen;
         setPortfolioOpen(next);
@@ -790,6 +800,12 @@ function SiteNavInner() {
               </div>
             </div>
             <nav className="flex flex-1 flex-col gap-1 pb-6">
+              {!navFilter.fq && (
+                <>
+                  <DailyTasksSidebar isOpen={dailyTasksOpen} onToggle={toggleDailyTasksSection} locale={locale} onLinkClick={() => { clearQuickSearch(); setMobileOpen(false); }} />
+                  <div className="my-1 shrink-0 border-t border-zinc-200 dark:border-zinc-700" />
+                </>
+              )}
               {navFilter.fq && !navFilter.anyShown ? (<p className="px-2 py-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
                 {t("navSearchNoResults")}
               </p>) : null}
@@ -1009,6 +1025,12 @@ function SiteNavInner() {
           </div>
 
           <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+            {!navFilter.fq && (
+              <>
+                <DailyTasksSidebar isOpen={dailyTasksOpen} onToggle={toggleDailyTasksSection} locale={locale} onLinkClick={clearQuickSearch} />
+                <div className="my-1 shrink-0 border-t border-zinc-200 dark:border-zinc-700" />
+              </>
+            )}
             {navFilter.fq && !navFilter.anyShown ? (<p className="px-3 py-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
               {t("navSearchNoResults")}
             </p>) : null}

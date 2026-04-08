@@ -39,9 +39,11 @@ function relativeTime(iso: string) {
 }
 
 function isVideoUrl(s: string) {
-  return /youtu\.?be/.test(s) && (/watch\?v=/.test(s) || /youtu\.be\//.test(s)) && !/list=/.test(s);
+  return /youtu\.?be/.test(s) && (/watch\?v=/.test(s) || /youtu\.be\//.test(s));
 }
 function isPlaylistUrl(s: string) {
+  // Don't treat "watch?v=...&list=..." as a playlist — that's a video with playlist context
+  if (/watch\?v=/.test(s) || /youtu\.be\//.test(s)) return false;
   return /list=/.test(s) || /^(PL|OL|UU|FL|RD|LL|WL)[\w-]+$/.test(s.trim());
 }
 
@@ -249,6 +251,7 @@ export default function VideosPage() {
   const [addToPlModal, setAddToPlModal] = useState<(YTVideo | YTSavedVideo | YTLiveVideo) | null>(null);
   const [newPlName, setNewPlName] = useState("");
 
+  const [feedVersion, setFeedVersion] = useState(0);
   const [libCollapsed, setLibCollapsed] = useState(false);
   const [queueCollapsed, setQueueCollapsed] = useState(false);
   const [playerMinimized, setPlayerMinimized] = useState(false);
@@ -320,7 +323,7 @@ export default function VideosPage() {
 
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(view)]);
+  }, [JSON.stringify(view), feedVersion]);
 
   async function handleAdd(input: string) {
     try {
@@ -392,10 +395,25 @@ export default function VideosPage() {
 
   async function handleSearch(q: string) {
     if (!q.trim()) return;
+    const trimmed = q.trim();
+
+    // Detect YouTube URLs and route through handleAdd instead of search
+    if (isVideoUrl(trimmed) || isPlaylistUrl(trimmed) || /youtube\.com\/(channel\/|@|c\/)/.test(trimmed)) {
+      setSearchLoading(true);
+      try {
+        await handleAdd(trimmed);
+        setSearchQuery("");
+        setSearchResults([]);
+        setShowSearch(false);
+      } catch { /* handleAdd already toasts */ }
+      finally { setSearchLoading(false); }
+      return;
+    }
+
     setSearchLoading(true);
     setSearchResults([]);
     try {
-      const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(q.trim())}`, {
+      const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(trimmed)}`, {
         headers: { Authorization: `Bearer ${(await import("@/lib/auth-context")).getAuthToken()}` },
       });
       const data = await res.json();
@@ -539,11 +557,7 @@ export default function VideosPage() {
 
         {/* New playlist */}
         <button
-          onClick={async () => {
-            const name = prompt("Playlist name:");
-            if (!name?.trim()) return;
-            await handleCreateMyPlaylist(name.trim());
-          }}
+          onClick={() => setShowAddDialog(true)}
           className="w-full flex items-center gap-2 px-4 py-1.5 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
         >
           <Plus className="h-3.5 w-3.5" /> New playlist
@@ -579,6 +593,7 @@ export default function VideosPage() {
                   await removeYTChannel(ch.channelId).catch(() => toast.error("Failed"));
                   setChannels((p) => p.filter((c) => c.channelId !== ch.channelId));
                   if (view.type === "channel" && view.id === ch.channelId) setView({ type: "all" });
+                  setFeedVersion((v) => v + 1);
                 }}
                 className="mr-2 rounded p-1 text-zinc-300 dark:text-zinc-600 opacity-0 group-hover:opacity-100 hover:text-red-500 transition-all"
               >
@@ -923,7 +938,7 @@ export default function VideosPage() {
                     handleSearch(searchQuery);
                   }
                 }}
-                placeholder="Search YouTube…"
+                placeholder="Search or paste YouTube URL…"
                 className="flex-1 bg-transparent text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none"
               />
               {searchQuery && (
