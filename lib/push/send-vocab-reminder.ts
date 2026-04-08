@@ -41,6 +41,7 @@ function posAbbrev(pos: string): string {
   if (p === "determiner" || p === "det") return "Det";
   if (p === "phrase") return "Phrase";
   if (p === "idiom") return "Idiom";
+  if (p === "other" || p === "") return "";
   // Already abbreviated or unknown — capitalize first letter
   return pos.charAt(0).toUpperCase() + pos.slice(1).toLowerCase();
 }
@@ -87,10 +88,6 @@ function examplePoolForItem(item: VocabItem): string[] {
   add(item.example);
   if (Array.isArray(item.examples)) {
     for (const ex of item.examples) add(ex);
-  }
-  if (typeof item.explanation === "string") {
-    const plain = htmlToPlainPushText(item.explanation);
-    if (plain) add(plain);
   }
   return pool;
 }
@@ -272,20 +269,19 @@ function htmlToPlainPushText(html: string): string {
     .trim();
 }
 
-function flashcardRowToVocabItem(word: string, definition: string, partOfSpeech?: string, shortDefinition?: string): VocabItem | null {
+function flashcardRowToVocabItem(word: string, definition: string, example: string, partOfSpeech?: string, shortDefinition?: string): VocabItem | null {
   const w = typeof word === "string" ? word.trim() : "";
   if (!w) return null;
-  const plain = htmlToPlainPushText(typeof definition === "string" ? definition : "");
   const item: VocabItem = {
     word: w,
     pushOpenFlashcards: true,
-    partOfSpeech: partOfSpeech || undefined,
+    partOfSpeech: (partOfSpeech && partOfSpeech !== "other") ? partOfSpeech : undefined,
     shortDefinition: shortDefinition || undefined,
   };
-  if (plain.length >= 12 && /\s/.test(plain) && /[.?!]/.test(plain)) {
-    item.sentences = [plain.length > 800 ? `${plain.slice(0, 797)}…` : plain];
-  } else if (plain.length > 0) {
-    item.example = plain.length > 500 ? `${plain.slice(0, 497)}…` : plain;
+  // Use the dedicated example field for push body
+  const ex = typeof example === "string" ? example.trim() : "";
+  if (ex) {
+    item.example = ex.length > 500 ? `${ex.slice(0, 497)}…` : ex;
   }
   return item;
 }
@@ -305,7 +301,7 @@ async function loadUserFlashcardVocabByUserId(
     const chunk = userIds.slice(i, i + FLASHCARD_USER_CHUNK);
     const { data, error } = await db
       .from("flashcard_cards")
-      .select("user_id,word,definition,part_of_speech,short_definition")
+      .select("user_id,word,definition,example,part_of_speech,short_definition")
       .in("user_id", chunk);
     if (error) throw error;
     for (const row of data ?? []) {
@@ -313,6 +309,7 @@ async function loadUserFlashcardVocabByUserId(
       const item = flashcardRowToVocabItem(
         row.word as string,
         (row.definition as string) ?? "",
+        (row.example as string) ?? "",
         (row.part_of_speech as string) ?? undefined,
         (row.short_definition as string) ?? undefined,
       );
@@ -362,12 +359,13 @@ function pickVocabPayloadsForUser(
     const path = w.pushOpenFlashcards ? "/flashcards" : "/ielts-speaking";
 
     // Title: word only (one line)
-    const posLabel = w.partOfSpeech ? ` (${posAbbrev(w.partOfSpeech)})` : "";
+    const posAbbr = w.partOfSpeech ? posAbbrev(w.partOfSpeech) : "";
+    const posLabel = posAbbr ? ` (${posAbbr})` : "";
     const title = `${w.word}${posLabel}`;
 
     // Body: example sentence (second line)
     const ex = pickExampleForPushBody(w, bucket).trim();
-    const body = ex ? clampPushBody(ex) : "Open to review.";
+    const body = ex ? clampPushBody(ex) : "";
 
     return JSON.stringify({
       title,

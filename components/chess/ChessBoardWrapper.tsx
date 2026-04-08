@@ -13,7 +13,7 @@ export function computeChessBoardSize(): number {
   const fromWidth = window.innerWidth >= 1024
     ? window.innerWidth - 320 - 32
     : window.innerWidth - 24;
-  return Math.max(200, Math.floor(Math.min(fromHeight, fromWidth, 560)));
+  return Math.max(200, Math.floor(Math.min(fromHeight, fromWidth, 480)));
 }
 
 /**
@@ -24,7 +24,7 @@ export function computePuzzleSolveChessBoardSize(): number {
   const sidebarW = window.innerWidth < 640 ? 192 : 224;
   const fromHeight = window.innerHeight - 48;
   const fromWidth = window.innerWidth - sidebarW - 24;
-  return Math.max(200, Math.floor(Math.min(fromHeight, fromWidth, 560)));
+  return Math.max(200, Math.floor(Math.min(fromHeight, fromWidth, 480)));
 }
 
 /** Puzzle Rush: left sidebar ~180px, board fills rest. */
@@ -33,7 +33,7 @@ export function computeRushChessBoardSize(): number {
   const sidebarW = window.innerWidth < 640 ? 128 : 180;
   const fromHeight = window.innerHeight - 48;
   const fromWidth = window.innerWidth - sidebarW - 24;
-  return Math.max(220, Math.floor(Math.min(fromHeight, fromWidth, 560)));
+  return Math.max(220, Math.floor(Math.min(fromHeight, fromWidth, 480)));
 }
 
 /**
@@ -41,21 +41,21 @@ export function computeRushChessBoardSize(): number {
  */
 export function computeEndgameChessBoardSize(): number {
   if (typeof window === "undefined") return 440;
-  const sidebarW = window.innerWidth < 640 ? 160 : 200;
+  const sidebarW = window.innerWidth < 640 ? 208 : 256;
   const fromHeight = window.innerHeight - 48;
   const fromWidth = window.innerWidth - sidebarW - 24;
-  return Math.max(300, Math.floor(Math.min(fromHeight, fromWidth, 560)));
+  return Math.max(300, Math.floor(Math.min(fromHeight, fromWidth, 480)));
 }
 
 /**
- * Opening trainer practice: left sidebar ~192px, board fills rest.
+ * Opening trainer practice: left sidebar ~256px, board fills rest.
  */
 export function computeOpeningChessBoardSize(): number {
   if (typeof window === "undefined") return 360;
-  const sidebarW = window.innerWidth < 640 ? 160 : 192;
+  const sidebarW = window.innerWidth < 640 ? 208 : 256;
   const fromHeight = window.innerHeight - 48;
   const fromWidth = window.innerWidth - sidebarW - 24;
-  return Math.max(200, Math.floor(Math.min(fromHeight, fromWidth, 540)));
+  return Math.max(200, Math.floor(Math.min(fromHeight, fromWidth, 480)));
 }
 
 /** Kept for backward compat — same as opening. */

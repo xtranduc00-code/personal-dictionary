@@ -33,7 +33,9 @@ import {
 } from "@livekit/components-react";
 import {
   ConnectionState,
+  LocalAudioTrack,
   RoomEvent,
+  Track,
   type RemoteParticipant,
 } from "livekit-client";
 import { toast } from "react-toastify";
@@ -179,6 +181,11 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
   const { localParticipant, isMicrophoneEnabled } = useLocalParticipant();
   const [, bumpParticipantList] = useReducer((n: number) => n + 1, 0);
   const micLevel = useMeetsLocalMicLevel(isMicrophoneEnabled);
+  const [micGain, setMicGain] = useState(1);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
+  const rawMicStreamRef = useRef<MediaStream | null>(null);
+  const customMicTrackRef = useRef<LocalAudioTrack | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [desktopChatOpen, setDesktopChatOpen] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -1322,13 +1329,53 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
     }
   }, [cloudDraft, cloudFolder, cloudSaving, cloudTitle, subtitleDraft, t]);
 
+  useEffect(() => {
+    if (gainNodeRef.current) {
+      gainNodeRef.current.gain.value = micGain;
+    }
+  }, [micGain]);
+
   const toggleMic = useCallback(async () => {
     try {
-      await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled);
+      if (isMicrophoneEnabled) {
+        if (customMicTrackRef.current) {
+          await localParticipant.unpublishTrack(customMicTrackRef.current);
+          customMicTrackRef.current.stop();
+          customMicTrackRef.current = null;
+        } else {
+          await localParticipant.setMicrophoneEnabled(false);
+        }
+        if (audioCtxRef.current) {
+          audioCtxRef.current.close().catch(() => {});
+          audioCtxRef.current = null;
+          gainNodeRef.current = null;
+        }
+        if (rawMicStreamRef.current) {
+          rawMicStreamRef.current.getTracks().forEach((t) => t.stop());
+          rawMicStreamRef.current = null;
+        }
+      } else {
+        const rawStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        rawMicStreamRef.current = rawStream;
+        const ctx = new AudioContext();
+        audioCtxRef.current = ctx;
+        const source = ctx.createMediaStreamSource(rawStream);
+        const gain = ctx.createGain();
+        gain.gain.value = micGain;
+        gainNodeRef.current = gain;
+        const dest = ctx.createMediaStreamDestination();
+        source.connect(gain);
+        gain.connect(dest);
+        const processedTrack = dest.stream.getAudioTracks()[0];
+        if (!processedTrack) throw new Error("no processed track");
+        const localTrack = new LocalAudioTrack(processedTrack, undefined, false, ctx);
+        customMicTrackRef.current = localTrack;
+        await localParticipant.publishTrack(localTrack, { source: Track.Source.Microphone });
+      }
     } catch {
       toast.error(t("meetsMicToggleFailed"));
     }
-  }, [localParticipant, isMicrophoneEnabled, t]);
+  }, [localParticipant, isMicrophoneEnabled, micGain, t]);
 
   const connected = room.state === ConnectionState.Connected;
 
@@ -1624,6 +1671,19 @@ function WatchPartyInner({ roomDisplayName }: { roomDisplayName: string }) {
               />
             ) : null}
           </button>
+          {isMicrophoneEnabled && (
+            <input
+              type="range"
+              aria-label="Mic volume"
+              min={0}
+              max={2}
+              step={0.05}
+              value={micGain}
+              onChange={(e) => setMicGain(Number(e.target.value))}
+              className="w-14 h-1 accent-emerald-500 cursor-pointer sm:w-16"
+              title={`Mic volume: ${Math.round(micGain * 100)}%`}
+            />
+          )}
           <button
             type="button"
             onClick={() => setChatOpen(true)}

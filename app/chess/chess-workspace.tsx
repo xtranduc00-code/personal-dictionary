@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { authFetch, useAuth } from "@/lib/auth-context";
+import { markDailyTask } from "@/components/daily-tasks/daily-tasks-auto-detect";
 import { supabase } from "@/lib/supabase";
 import { createChessGame, getChessGame, joinChessGame, updateChessGame, type ChessGame } from "@/lib/chess-storage";
 import { useMeetCall } from "@/lib/meet-call-context";
@@ -411,26 +412,19 @@ export function ChessWorkspace({ initialLibraryPuzzleId, initialRoom }: { initia
     Boolean(activePuzzle) &&
     (!initialLibraryPuzzleId || (!puzzleRouteLoading && !puzzleRouteError));
 
+  // All board-showing modes use overflow-hidden (they handle scroll internally)
+  const boardModeActive =
+    playGameActive ||
+    puzzleSolveFill ||
+    mode === "opening-trainer" ||
+    mode === "endgame-trainer" ||
+    mode === "puzzle-rush";
+
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       <div
         className={
-          playGameActive || puzzleSolveFill
-            ? "relative z-10 flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white px-4 py-3 sm:px-5 dark:border-zinc-800 dark:bg-zinc-950"
-            : "sticky top-0 z-10 flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur sm:px-5 dark:border-zinc-800 dark:bg-zinc-950/90"
-        }
-      >
-        {mode !== "home" && (
-          <button onClick={goHome} className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200">
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-        )}
-        <span className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{headerTitle}</span>
-      </div>
-
-      <div
-        className={
-          playGameActive || puzzleSolveFill
+          boardModeActive
             ? "flex min-h-0 flex-1 flex-col overflow-hidden"
             : "flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-y-contain"
         }
@@ -474,6 +468,7 @@ export function ChessWorkspace({ initialLibraryPuzzleId, initialRoom }: { initia
         )}
         {mode === "puzzles" && (
           <PuzzleLibrary
+            onBack={goHome}
             onSolve={(p, nav) => {
               writePuzzleLibraryNav(nav);
               router.push(`/chess/puzzles/${encodeURIComponent(p.id)}`);
@@ -511,11 +506,11 @@ export function ChessWorkspace({ initialLibraryPuzzleId, initialRoom }: { initia
             onNextPuzzle={puzzleNav ? advanceToNextLibraryPuzzle : undefined}
           />
         )}
-        {mode === "opening-trainer" && <OpeningTrainer />}
-        {mode === "endgame-trainer" && <EndgameTrainer />}
+        {mode === "opening-trainer" && <OpeningTrainer onBack={goHome} />}
+        {mode === "endgame-trainer" && <EndgameTrainer onBack={goHome} />}
         {mode === "puzzle-rush" && (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <PuzzleRush />
+            <PuzzleRush onBack={goHome} />
           </div>
         )}
       </div>
@@ -1968,7 +1963,7 @@ function puzzleVisiblePages(current: number, total: number): (number | "gap")[] 
 
 type PuzzleProgressFilter = "all" | "unsolved" | "solved";
 
-function PuzzleLibrary({ onSolve }: { onSolve: (p: LibraryPuzzle, nav: LibraryPuzzleNav) => void }) {
+function PuzzleLibrary({ onBack, onSolve }: { onBack: () => void; onSolve: (p: LibraryPuzzle, nav: LibraryPuzzleNav) => void }) {
   const { user } = useAuth();
   const levels: PuzzleLevel[]  = ["beginner", "intermediate", "hard", "expert"];
   const [activeLevel, setActiveLevel] = useState<PuzzleLevel>("beginner");
@@ -2107,8 +2102,11 @@ function PuzzleLibrary({ onSolve }: { onSolve: (p: LibraryPuzzle, nav: LibraryPu
 
   return (
     <div className="flex flex-1 flex-col">
-      {/* Level tabs */}
-      <div className="flex border-b border-zinc-200 px-4 dark:border-zinc-800 overflow-x-auto">
+      {/* Back + Level tabs */}
+      <div className="flex items-center border-b border-zinc-200 dark:border-zinc-800 overflow-x-auto">
+        <button type="button" onClick={onBack} className="shrink-0 pl-4 pr-2 py-3 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100">
+          <ArrowLeft className="h-5 w-5" />
+        </button>
         {levels.map((lvl) => (
           <button
             key={lvl}
@@ -2726,6 +2724,7 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
       playSound("notify", muted);
       fetchExplanation();
       void recordLibraryProgressIfNeeded(libraryWrongAttemptsRef.current + 1);
+      markDailyTask("chess_puzzles_5");
       return true;
     }
 
@@ -2869,69 +2868,43 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
       : puzzlePresetMax;
 
   return (
-    <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden p-3 sm:p-4 lg:min-h-0 lg:p-4">
-      {/*
-        Stable puzzle shell: one grid row fills the viewport below the workspace header.
-        Board column width caps the square (fixes width/height mismatch that clipped under the bar).
-        Right column is full-height with its own scroll so feedback blocks never move the board.
-      */}
-      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-1 overflow-hidden rounded-2xl border border-zinc-200/90 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900/90 lg:grid-cols-[minmax(0,1fr)_minmax(19rem,22rem)]">
-        <div
-          ref={boardColRef}
-          className="flex min-h-0 min-w-0 flex-col items-center justify-start gap-2 overflow-x-hidden overflow-y-auto overscroll-y-contain px-2 py-3 sm:px-3 sm:py-4 lg:h-full lg:max-h-full lg:justify-center lg:overflow-hidden lg:border-r lg:border-zinc-200/80 lg:bg-zinc-50/80 dark:lg:border-zinc-800 dark:lg:bg-zinc-950/50"
+    <div className="flex h-full min-h-0 w-full flex-1 overflow-hidden">
+      {/* ── Left info sidebar ── */}
+      <div className="flex w-48 shrink-0 flex-col gap-3 overflow-y-auto overflow-x-hidden border-r border-zinc-200/90 bg-white px-3 py-3 dark:border-zinc-800 dark:bg-zinc-900/90 sm:w-56 lg:w-64 sm:px-4">
+        {/* Back */}
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center gap-1 text-[11px] font-medium text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
         >
-          <ChessBoardWrapper
-            sizePreset="puzzleSolve"
-            forcedBoardWidth={cappedBoardEdge > 0 ? cappedBoardEdge : undefined}
-            className={`shrink-0 overflow-hidden rounded-xl ${boardShake ? "puzzle-board-shake" : ""} ${
-              result === "solved" ? "puzzle-board-solved-ring" : ""
-            }`}
-            options={{
-              position: fen,
-              onPieceDrop: ({ sourceSquare, targetSquare }) => { clearPuzzleSelection(); return onDrop(sourceSquare, targetSquare ?? ""); },
-              boardOrientation: playerColor,
-              allowDragging: result !== "solved",
-              allowDrawingArrows: false,
-              clearArrowsOnPositionChange: false,
-              arrows: moveArrows,
-              boardStyle: { boxShadow: innerBoardShadow, transition: "box-shadow 0.2s" },
-              squareStyles: { ...squareStyles, ...puzzleLegalStyles },
-              ...puzzleLegalHandlers,
-            }}
-          />
-          <div className="flex min-h-[2rem] w-full max-w-full shrink-0 justify-center">
-            <ChessMoveAnnounceChip text={moveAnnounceChip} />
-          </div>
-        </div>
+          <ArrowLeft className="h-3 w-3" aria-hidden />
+          Back
+        </button>
 
-        <div className="flex min-h-0 min-w-0 flex-col overflow-hidden border-t border-zinc-200/80 dark:border-zinc-800 lg:h-full lg:border-t-0">
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden overscroll-y-contain px-2 py-3 pr-1 sm:px-3 sm:py-4 lg:px-4">
         {/* Puzzle info */}
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <h2 className="font-semibold text-zinc-900 dark:text-zinc-100">{title}</h2>
-              <div className="mt-1 flex items-center gap-2">
-                <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${LEVEL_COLORS[level as PuzzleLevel]}`}>
-                  {LEVEL_LABELS[level as PuzzleLevel]}
-                </span>
-                {isLibrary && (
-                  <span className="font-mono text-xs text-zinc-400">{(puzzle as LibraryPuzzle).rating}</span>
-                )}
-              </div>
-            </div>
-            <button onClick={() => setMuted((m) => !m)} className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-              {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+        <div>
+          <div className="flex items-start justify-between gap-1">
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 leading-snug">{title}</h2>
+            <button onClick={() => setMuted((m) => !m)} className="shrink-0 rounded-lg p-0.5 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+              {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
             </button>
           </div>
-          <p className="mt-2 text-sm text-zinc-500">
-            Find the best move for <strong>{playerColor}</strong>.
+          <div className="mt-1 flex flex-wrap items-center gap-1">
+            <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${LEVEL_COLORS[level as PuzzleLevel]}`}>
+              {LEVEL_LABELS[level as PuzzleLevel]}
+            </span>
+            {isLibrary && (
+              <span className="font-mono text-[10px] text-zinc-400">{(puzzle as LibraryPuzzle).rating}</span>
+            )}
+          </div>
+          <p className="mt-2 text-xs text-zinc-500">
+            Find best move for <strong>{playerColor}</strong>.
           </p>
 
           {/* Progress bar */}
-          <div className="mt-3">
-            <div className="mb-1 flex items-center justify-between text-xs text-zinc-400">
-              <span>Move {currentPlayerMove} of {totalPlayerMoves}</span>
+          <div className="mt-2">
+            <div className="mb-1 flex items-center justify-between text-[10px] text-zinc-400">
+              <span>Move {currentPlayerMove}/{totalPlayerMoves}</span>
               <span>{progressPct}%</span>
             </div>
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
@@ -2945,26 +2918,26 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
 
         {/* Feedback */}
         {result === "solved" && (
-          <div className="flex items-center gap-2 rounded-xl bg-emerald-50 p-3 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">
-            <Crown className="h-5 w-5 shrink-0" />
-            <span className="font-semibold">Brilliant! Puzzle solved.</span>
+          <div className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2 py-1.5 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">
+            <Crown className="h-4 w-4 shrink-0" />
+            <span className="text-xs font-semibold">Solved!</span>
           </div>
         )}
         {(result === "wrong" || (wrongExpl && result === "idle")) && (
-          <div className="rounded-xl border border-red-200 bg-red-50/80 px-3.5 py-2.5 dark:border-red-900/50 dark:bg-red-950/30">
-            <div className="flex items-center gap-1.5 text-red-700 dark:text-red-400">
-              <X className="h-3.5 w-3.5 shrink-0" />
-              <span className="text-[13px] font-semibold">Not the best move.</span>
+          <div className="rounded-lg border border-red-200 bg-red-50/80 px-2 py-1.5 dark:border-red-900/50 dark:bg-red-950/30">
+            <div className="flex items-center gap-1 text-red-700 dark:text-red-400">
+              <X className="h-3 w-3 shrink-0" />
+              <span className="text-[11px] font-semibold">Not the best move.</span>
             </div>
-            <div className="mt-1.5 text-[13px] leading-[1.5] text-red-600/90 dark:text-red-400/90">
+            <div className="mt-1 text-[11px] leading-snug text-red-600/90 dark:text-red-400/90">
               {loadingWrong ? (
-                <span className="flex items-center gap-1.5 text-xs text-red-400">
+                <span className="flex items-center gap-1 text-[10px] text-red-400">
                   <Loader2 className="h-3 w-3 animate-spin" /> Analyzing…
                 </span>
               ) : wrongExpl ? (
                 <p>{wrongExpl}</p>
               ) : (
-                <p className="text-xs text-red-400">Try looking for a stronger threat.</p>
+                <p className="text-[10px] text-red-400">Try a stronger threat.</p>
               )}
             </div>
           </div>
@@ -2973,26 +2946,26 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
         {/* Hint */}
         {!showHint && result !== "solved" && (
           <button onClick={() => setShowHint(true)}
-            className="flex w-full items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-[13px] font-medium text-amber-700 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-400">
-            <Lightbulb className="h-3.5 w-3.5 shrink-0" /> Show hint
+            className="flex w-full items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-left text-[11px] font-medium text-amber-700 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-400">
+            <Lightbulb className="h-3 w-3 shrink-0" /> Show hint
           </button>
         )}
         {showHint && (
-          <div className="rounded-xl border border-amber-200/80 bg-amber-50/60 px-3.5 py-2.5 text-[13px] leading-[1.5] text-amber-700 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-400">
-            <p className="flex items-start gap-1.5">
-              <Lightbulb className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <div className="rounded-lg border border-amber-200/80 bg-amber-50/60 px-2 py-1.5 text-[11px] leading-snug text-amber-700 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-400">
+            <p className="flex items-start gap-1">
+              <Lightbulb className="mt-0.5 h-3 w-3 shrink-0" />
               {loadingHint && isLibrary && !builtInHint ? (
-                <span className="flex items-center gap-1.5 text-xs text-amber-600/90">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" /> Generating hint…
+                <span className="flex items-center gap-1 text-[10px] text-amber-600/90">
+                  <Loader2 className="h-3 w-3 animate-spin shrink-0" /> Generating…
                 </span>
               ) : (
                 hintText || themeToHint(themes)
               )}
             </p>
             {themes.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
+              <div className="mt-1.5 flex flex-wrap gap-1">
                 {themes.map((t) => (
-                  <span key={t} className="rounded-full bg-amber-100/60 px-2 py-0.5 text-[9px] font-medium text-amber-500 dark:bg-amber-900/20 dark:text-amber-500">{t}</span>
+                  <span key={t} className="rounded-full bg-amber-100/60 px-1.5 py-0.5 text-[9px] font-medium text-amber-500 dark:bg-amber-900/20 dark:text-amber-500">{t}</span>
                 ))}
               </div>
             )}
@@ -3001,60 +2974,44 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
 
         {/* AI Explanation (after solve) */}
         {result === "solved" && (
-          <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-            <div className="mb-2 flex items-center gap-1.5">
+          <div className="rounded-lg border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-900">
+            <div className="mb-1.5 flex items-center gap-1">
               <BookOpen className="h-3 w-3 text-zinc-400" />
-              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Why this works</p>
-              {/* TTS controls */}
-              <div className="ml-auto flex items-center gap-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Why this works</p>
+              <div className="ml-auto flex items-center gap-0.5">
                 {speaking ? (
                   <>
-                    <button
-                      onClick={pauseResumeSpeech}
-                      title={paused ? "Resume" : "Pause"}
-                      className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
-                    >
-                      {paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
+                    <button onClick={pauseResumeSpeech} title={paused ? "Resume" : "Pause"} className="rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800">
+                      {paused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
                     </button>
-                    <button
-                      onClick={stopSpeech}
-                      title="Stop"
-                      className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-red-500 dark:hover:bg-zinc-800"
-                    >
-                      <Square className="h-3.5 w-3.5" />
+                    <button onClick={stopSpeech} title="Stop" className="rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-red-500 dark:hover:bg-zinc-800">
+                      <Square className="h-3 w-3" />
                     </button>
                   </>
                 ) : explanation && !loadingExpl ? (
-                  <button
-                    onClick={() => speakText(explanation)}
-                    title="Read aloud"
-                    className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
-                  >
-                    <Volume2 className="h-3.5 w-3.5" />
+                  <button onClick={() => speakText(explanation)} title="Read aloud" className="rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800">
+                    <Volume2 className="h-3 w-3" />
                   </button>
                 ) : null}
               </div>
             </div>
             {loadingExpl ? (
-              <div className="flex items-center gap-2 text-sm text-zinc-400">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyzing…
+              <div className="flex items-center gap-1.5 text-xs text-zinc-400">
+                <Loader2 className="h-3 w-3 animate-spin" /> Analyzing…
               </div>
             ) : explanation ? (
-              <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{explanation}</p>
+              <p className="text-[11px] leading-relaxed text-zinc-700 dark:text-zinc-300">{explanation}</p>
             ) : (
-              <p className="text-xs text-zinc-400">Solution: <span className="font-mono">{solMoves.join(" ")}</span></p>
+              <p className="text-[10px] text-zinc-400">Solution: <span className="font-mono">{solMoves.join(" ")}</span></p>
             )}
           </div>
         )}
 
-        {/* Show solution — after 3+ wrong attempts */}
+        {/* Show solution */}
         {result === "wrong" && wrongAttempts >= 3 && !showSolution && (
-          <button
-            type="button"
-            onClick={() => setShowSolution(true)}
-            className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50/80 py-2 text-[13px] font-medium text-violet-700 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-300 dark:hover:bg-violet-950/50"
-          >
-            <Lightbulb className="h-3.5 w-3.5" /> Show the solution
+          <button type="button" onClick={() => setShowSolution(true)}
+            className="flex w-full items-center justify-center gap-1 rounded-lg border border-violet-200 bg-violet-50/80 py-1.5 text-[11px] font-medium text-violet-700 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-300">
+            <Lightbulb className="h-3 w-3" /> Show solution
           </button>
         )}
         {showSolution && (() => {
@@ -3065,10 +3022,10 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
             const m = solChess.move({ from: expectedUci.slice(0, 2), to: expectedUci.slice(2, 4), promotion: expectedUci[4] ?? "q" });
             if (!m) return null;
             return (
-              <div className="rounded-xl border border-violet-200 bg-violet-50/60 px-3.5 py-2.5 dark:border-violet-800 dark:bg-violet-950/25">
-                <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-violet-500 dark:text-violet-400">Solution</p>
-                <p className="text-[13px] leading-[1.5] text-violet-900 dark:text-violet-100">
-                  The correct move is <span className="font-mono font-bold">{m.san}</span>.
+              <div className="rounded-lg border border-violet-200 bg-violet-50/60 px-2 py-1.5 dark:border-violet-800 dark:bg-violet-950/25">
+                <p className="mb-0.5 text-[9px] font-bold uppercase tracking-wider text-violet-500">Solution</p>
+                <p className="text-[11px] leading-snug text-violet-900 dark:text-violet-100">
+                  Play <span className="font-mono font-bold">{m.san}</span>.
                 </p>
               </div>
             );
@@ -3076,60 +3033,68 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
         })()}
 
         {/* Actions */}
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-1.5">
           {result === "wrong" && (
-            <button
-              type="button"
-              onClick={handleTryAgain}
-              className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-zinc-900 py-2.5 text-sm font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-            >
-              <Undo2 className="h-3.5 w-3.5" /> Try again
+            <button type="button" onClick={handleTryAgain}
+              className="flex w-full items-center justify-center gap-1 rounded-lg bg-zinc-900 py-2 text-xs font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300">
+              <Undo2 className="h-3 w-3" /> Try again
             </button>
           )}
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={handleReset}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-zinc-300 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
-            >
-              <RefreshCw className="h-3.5 w-3.5" /> Reset
+          <div className="flex gap-1.5">
+            <button type="button" onClick={handleReset}
+              className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-zinc-300 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800">
+              <RefreshCw className="h-3 w-3" /> Reset
             </button>
             {result === "solved" && (
-              <button
-                type="button"
-                disabled={nextPuzzleLoading}
+              <button type="button" disabled={nextPuzzleLoading}
                 onClick={async () => {
                   stopSpeech();
                   if (onNextPuzzle) {
                     setNextPuzzleLoading(true);
-                    try {
-                      await onNextPuzzle();
-                    } finally {
-                      setNextPuzzleLoading(false);
-                    }
-                  } else {
-                    onBack();
-                  }
+                    try { await onNextPuzzle(); } finally { setNextPuzzleLoading(false); }
+                  } else { onBack(); }
                 }}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-amber-500 py-2 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-60"
-              >
-                {nextPuzzleLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Check className="h-3.5 w-3.5" />
-                )}
-                Next puzzle
+                className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-amber-500 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 disabled:opacity-60">
+                {nextPuzzleLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                Next
               </button>
             )}
           </div>
         </div>
 
-            <ChessMoveHistoryPanel
-              historyVerbose={puzzleMoveHistoryVerbose}
-              userSide={playerColor}
-              emptyLabel="Play a move to see the sequence here."
-            />
-          </div>
+        <ChessMoveHistoryPanel
+          historyVerbose={puzzleMoveHistoryVerbose}
+          userSide={playerColor}
+          emptyLabel="Play a move to see the sequence here."
+        />
+      </div>
+
+      {/* ── Board area ── */}
+      <div
+        ref={boardColRef}
+        className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden bg-zinc-50/80 p-2 dark:bg-zinc-950/50"
+      >
+        <ChessBoardWrapper
+          sizePreset="puzzleSolve"
+          forcedBoardWidth={cappedBoardEdge > 0 ? cappedBoardEdge : undefined}
+          className={`shrink-0 overflow-hidden rounded-xl ${boardShake ? "puzzle-board-shake" : ""} ${
+            result === "solved" ? "puzzle-board-solved-ring" : ""
+          }`}
+          options={{
+            position: fen,
+            onPieceDrop: ({ sourceSquare, targetSquare }) => { clearPuzzleSelection(); return onDrop(sourceSquare, targetSquare ?? ""); },
+            boardOrientation: playerColor,
+            allowDragging: result !== "solved",
+            allowDrawingArrows: false,
+            clearArrowsOnPositionChange: false,
+            arrows: moveArrows,
+            boardStyle: { boxShadow: innerBoardShadow, transition: "box-shadow 0.2s" },
+            squareStyles: { ...squareStyles, ...puzzleLegalStyles },
+            ...puzzleLegalHandlers,
+          }}
+        />
+        <div className="flex min-h-[2rem] w-full max-w-full shrink-0 justify-center">
+          <ChessMoveAnnounceChip text={moveAnnounceChip} />
         </div>
       </div>
     </div>

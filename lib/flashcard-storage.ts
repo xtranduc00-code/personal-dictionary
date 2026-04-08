@@ -11,6 +11,7 @@ export type Flashcard = {
     setId: string;
     word: string;
     definition: string;
+    example: string;
     createdAt: string;
 };
 const API = "/api/flashcards";
@@ -39,6 +40,7 @@ export async function getFlashcardsBySet(setId: string): Promise<Flashcard[]> {
         set_id: string;
         word: string;
         definition: string;
+        example: string;
         created_at: string;
     }>>(res);
     return data.map((r) => ({
@@ -46,6 +48,7 @@ export async function getFlashcardsBySet(setId: string): Promise<Flashcard[]> {
         setId: r.set_id,
         word: r.word,
         definition: r.definition ?? "",
+        example: r.example ?? "",
         createdAt: r.created_at,
     }));
 }
@@ -99,17 +102,18 @@ export async function deleteFlashcardSet(setId: string): Promise<void> {
     const res = await authFetch(`${API}/sets/${setId}`, { method: "DELETE" });
     await getJson(res);
 }
-export async function addFlashcard(setId: string, word: string, definition: string): Promise<Flashcard> {
+export async function addFlashcard(setId: string, word: string, definition: string, example: string = ""): Promise<Flashcard> {
     const res = await authFetch(`${API}/sets/${setId}/cards`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ word: word.trim(), definition: definition.trim() }),
+        body: JSON.stringify({ word: word.trim(), definition: definition.trim(), example: example.trim() }),
     });
     const r = await getJson<{
         id: string;
         set_id: string;
         word: string;
         definition: string;
+        example: string;
         created_at: string;
     }>(res);
     return {
@@ -117,6 +121,7 @@ export async function addFlashcard(setId: string, word: string, definition: stri
         setId: r.set_id,
         word: r.word,
         definition: r.definition ?? "",
+        example: r.example ?? "",
         createdAt: r.created_at,
     };
 }
@@ -124,11 +129,11 @@ export async function deleteFlashcard(id: string): Promise<void> {
     const res = await authFetch(`${API}/cards/${id}`, { method: "DELETE" });
     await getJson(res);
 }
-export async function updateFlashcard(id: string, word: string, definition: string): Promise<Flashcard | null> {
+export async function updateFlashcard(id: string, word: string, definition: string, example: string = ""): Promise<Flashcard | null> {
     const res = await authFetch(`${API}/cards/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ word: word.trim(), definition: definition.trim() }),
+        body: JSON.stringify({ word: word.trim(), definition: definition.trim(), example: example.trim() }),
     });
     if (res.status === 404)
         return null;
@@ -137,6 +142,7 @@ export async function updateFlashcard(id: string, word: string, definition: stri
         set_id: string;
         word: string;
         definition: string;
+        example: string;
         created_at: string;
     }>(res);
     return {
@@ -144,6 +150,7 @@ export async function updateFlashcard(id: string, word: string, definition: stri
         setId: r.set_id,
         word: r.word,
         definition: r.definition ?? "",
+        example: r.example ?? "",
         createdAt: r.created_at,
     };
 }

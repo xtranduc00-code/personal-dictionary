@@ -13,7 +13,7 @@ export async function GET(req: Request, { params }: {
     try {
         const { data, error } = await supabaseServer
             .from("flashcard_cards")
-            .select("id,set_id,word,definition,created_at")
+            .select("id,set_id,word,definition,example,created_at")
             .eq("set_id", setId)
             .eq("user_id", user.id)
             .order("created_at", { ascending: false });
@@ -24,6 +24,7 @@ export async function GET(req: Request, { params }: {
             setId: r.set_id,
             word: r.word,
             definition: r.definition ?? "",
+            example: r.example ?? "",
             createdAt: r.created_at,
         }));
         return NextResponse.json(cards);
@@ -46,10 +47,11 @@ export async function POST(req: Request, { params }: {
         const body = await req.json();
         const word = typeof body?.word === "string" ? body.word.trim() : "";
         const definition = typeof body?.definition === "string" ? body.definition.trim() : "";
+        const example = typeof body?.example === "string" ? body.example.trim() : "";
         const { data, error } = await supabaseServer
             .from("flashcard_cards")
-            .insert({ user_id: user.id, set_id: setId, word, definition })
-            .select("id,set_id,word,definition,created_at")
+            .insert({ user_id: user.id, set_id: setId, word, definition, example })
+            .select("id,set_id,word,definition,example,created_at")
             .single();
         if (error)
             throw error;
@@ -58,6 +60,7 @@ export async function POST(req: Request, { params }: {
             setId: data.set_id,
             word: data.word,
             definition: data.definition ?? "",
+            example: data.example ?? "",
             createdAt: data.created_at,
         });
     }

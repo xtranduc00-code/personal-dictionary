@@ -132,11 +132,11 @@ function OpeningTrainerBoard({
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function OpeningTrainer() {
+export function OpeningTrainer({ onBack }: { onBack?: () => void }) {
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-zinc-50 dark:bg-zinc-950">
       <div className="min-h-0 flex-1 overflow-hidden">
-        <PracticeMode />
+        <PracticeMode onBack={onBack} />
       </div>
     </div>
   );
@@ -144,13 +144,23 @@ export function OpeningTrainer() {
 
 // ─── Practice Mode ────────────────────────────────────────────────────────────
 
-function PracticeMode() {
+function PracticeMode({ onBack }: { onBack?: () => void }) {
   const [selected, setSelected] = useState<QuickStart | null>(null);
 
   if (!selected) {
     return (
       <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto px-3 pb-3 pt-2 sm:px-4 sm:pb-4">
         <div className="mx-auto w-full max-w-xl">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="mb-3 flex items-center gap-1.5 text-sm font-medium text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden />
+              Back
+            </button>
+          )}
           <div className="rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-sm dark:border-zinc-700/80 dark:bg-zinc-900 dark:shadow-black/20 sm:p-5">
             <h2 className="text-base font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
               Choose a line
@@ -397,135 +407,117 @@ function PracticeBoard({
       : null;
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden px-3 pb-3 pt-2 sm:px-4 sm:pb-4">
-      <div className="mx-auto flex h-full min-h-0 w-full max-w-2xl flex-1 flex-col overflow-hidden rounded-2xl border border-zinc-200/90 bg-white shadow-sm dark:border-zinc-700/80 dark:bg-zinc-900 dark:shadow-black/25">
-        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-zinc-200/90 bg-zinc-50/90 px-3 py-2.5 dark:border-zinc-800 dark:bg-zinc-950/60 sm:px-4">
-          <button
-            type="button"
-            onClick={onBack}
-            className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-semibold text-zinc-600 hover:bg-white dark:text-zinc-300 dark:hover:bg-zinc-800"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden />
-            <span className="hidden sm:inline">All lines</span>
-          </button>
-          <div className="min-w-0 flex-1 text-center">
-            <p className="truncate text-xs font-bold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
-              Practice
-            </p>
-            <p className="min-w-0 truncate text-sm font-bold text-zinc-900 dark:text-zinc-50">
-              {quickStart.name}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={reset}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-800 sm:text-sm"
-          >
-            <RefreshCw className="h-3.5 w-3.5" aria-hidden />
-            Restart
-          </button>
-        </header>
+    <div className="flex h-full min-h-0 flex-1 flex-row overflow-hidden bg-white dark:bg-zinc-950">
+      {/* ── Left sidebar ── */}
+      <div className="flex w-52 shrink-0 flex-col gap-4 overflow-y-auto border-r border-zinc-100 bg-zinc-50/80 px-3 py-3 dark:border-zinc-800 dark:bg-zinc-900/60 sm:w-64 sm:px-4">
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center gap-1 text-[11px] font-medium text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+        >
+          <ArrowLeft className="h-3 w-3" aria-hidden />
+          All lines
+        </button>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
-          <div className="flex flex-col items-stretch gap-3 px-3 py-4 sm:px-4">
-            {openingName ? (
-              <div className="flex items-center gap-2 rounded-xl border border-violet-200/80 bg-violet-50/90 px-3 py-2 dark:border-violet-800/50 dark:bg-violet-950/35">
-                <BookOpen className="h-4 w-4 shrink-0 text-violet-600 dark:text-violet-400" aria-hidden />
-                <span className="text-xs font-semibold text-violet-900 dark:text-violet-100">{openingName}</span>
-              </div>
-            ) : null}
-
-            <div className="flex justify-center">
-              <OpeningTrainerBoard
-                fen={fen}
-                boardOrientation={playAs}
-                squareStyles={squareStyles}
-                sizePreset="opening"
-                onPieceDrop={({ sourceSquare, targetSquare }) => {
-                  clearSelection();
-                  return handleUserDrop(sourceSquare, targetSquare ?? "");
-                }}
-                extraOptions={legalMoveHandlers}
-              />
-            </div>
-
-            {result !== "idle" && (
-              <div
-                className={`w-full rounded-xl border px-3 py-2.5 text-sm font-medium sm:px-4 ${
-                  result === "wrong"
-                    ? "border-red-200/80 bg-red-50 text-red-800 dark:border-red-900/50 dark:bg-red-950/35 dark:text-red-300"
-                    : result === "correct"
-                      ? "border-emerald-200/80 bg-emerald-50 text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/35 dark:text-emerald-300"
-                      : "border-amber-200/80 bg-amber-50 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/35 dark:text-amber-200"
-                }`}
-              >
-                {resultMsg}
-                {result === "wrong" && correctSan && (
-                  <p className="mt-1 text-xs opacity-90">
-                    Book move: <strong className="font-mono">{correctSan}</strong>
-                  </p>
-                )}
-              </div>
-            )}
-
-            {phase === "auto" && !finished && (
-              <p className="text-center text-xs font-medium text-zinc-500 animate-pulse dark:text-zinc-400">
-                Opponent is thinking…
-              </p>
-            )}
-
-            {finished && (
-              <div className="w-full rounded-xl border border-violet-200/80 bg-violet-50/90 px-4 py-3 text-center dark:border-violet-800/50 dark:bg-violet-950/35">
-                <p className="text-sm font-semibold text-violet-900 dark:text-violet-100">
-                  Out of book — line complete.
-                </p>
-                <button
-                  type="button"
-                  onClick={reset}
-                  className="mt-2 text-sm font-semibold text-violet-700 underline decoration-violet-400 underline-offset-2 dark:text-violet-300"
-                >
-                  Practice again
-                </button>
-              </div>
-            )}
-
-            {score.correct + score.wrong > 0 && (
-              <div className="grid w-full grid-cols-3 gap-2 rounded-xl border border-zinc-200/90 bg-zinc-50/95 p-3 dark:border-zinc-700 dark:bg-zinc-800/40">
-                <div className="text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Correct</p>
-                  <p className="mt-1 text-xl font-black tabular-nums text-emerald-600 dark:text-emerald-400">{score.correct}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Accuracy</p>
-                  <p className="mt-1 text-xl font-black tabular-nums text-zinc-800 dark:text-zinc-100">
-                    {accuracy ?? "—"}%
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Wrong</p>
-                  <p className="mt-1 text-xl font-black tabular-nums text-red-500">{score.wrong}</p>
-                </div>
-              </div>
-            )}
-
-            {history.length > 0 && (
-              <div className="w-full rounded-xl border border-zinc-200/90 bg-zinc-50/80 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/50">
-                <p className="mb-1.5 px-0.5 text-[10px] font-bold uppercase tracking-wider text-zinc-400">Moves</p>
-                <div className="flex max-h-24 flex-wrap gap-1 overflow-y-auto">
-                  {history.map((san, i) => (
-                    <span
-                      key={i}
-                      className="rounded-md bg-white px-1.5 py-0.5 font-mono text-[11px] text-zinc-700 shadow-sm dark:bg-zinc-800 dark:text-zinc-300"
-                    >
-                      {i % 2 === 0 && <span className="mr-0.5 text-zinc-400">{Math.floor(i / 2) + 1}.</span>}
-                      {san}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+        {/* Opening name */}
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Opening</p>
+          <p className="mt-0.5 text-xs font-semibold text-violet-700 dark:text-violet-300 leading-snug">
+            {openingName || quickStart.name}
+          </p>
+          <p className="mt-1 text-[10px] text-zinc-400">{quickStart.subtext}</p>
+          <p className="mt-1 text-[10px] font-medium text-zinc-500 dark:text-zinc-400">
+            You: <span className="text-violet-600 dark:text-violet-400 font-semibold capitalize">{playAs}</span>
+          </p>
         </div>
+
+        {/* Score */}
+        {score.correct + score.wrong > 0 && (
+          <div className="space-y-2">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Score</p>
+            <div className="flex gap-2">
+              <div className="flex-1 rounded-lg bg-emerald-50 p-1.5 text-center dark:bg-emerald-950/30">
+                <p className="text-[9px] font-bold uppercase text-emerald-600 dark:text-emerald-400">✓</p>
+                <p className="text-lg font-black tabular-nums text-emerald-600 dark:text-emerald-400">{score.correct}</p>
+              </div>
+              <div className="flex-1 rounded-lg bg-red-50 p-1.5 text-center dark:bg-red-950/30">
+                <p className="text-[9px] font-bold uppercase text-red-500">✗</p>
+                <p className="text-lg font-black tabular-nums text-red-500">{score.wrong}</p>
+              </div>
+            </div>
+            {accuracy !== null && (
+              <p className="text-center text-xs font-bold text-zinc-600 dark:text-zinc-300">{accuracy}%</p>
+            )}
+          </div>
+        )}
+
+        {/* Status / feedback */}
+        {phase === "auto" && !finished && (
+          <p className="text-[11px] font-medium text-zinc-400 animate-pulse">Opponent is thinking…</p>
+        )}
+        {result !== "idle" && (
+          <div className={`rounded-lg border px-2 py-1.5 text-[11px] font-medium leading-snug ${
+            result === "wrong"
+              ? "border-red-200/80 bg-red-50 text-red-800 dark:border-red-900/50 dark:bg-red-950/35 dark:text-red-300"
+              : result === "correct"
+                ? "border-emerald-200/80 bg-emerald-50 text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/35 dark:text-emerald-300"
+                : "border-amber-200/80 bg-amber-50 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/35 dark:text-amber-200"
+          }`}>
+            {resultMsg}
+            {result === "wrong" && correctSan && (
+              <p className="mt-0.5 text-[10px] opacity-90">Best: <strong className="font-mono">{correctSan}</strong></p>
+            )}
+          </div>
+        )}
+
+        {finished && (
+          <div className="rounded-lg border border-violet-200/80 bg-violet-50/90 px-2 py-2 text-center dark:border-violet-800/50 dark:bg-violet-950/35">
+            <p className="text-[11px] font-semibold text-violet-900 dark:text-violet-100">Line complete!</p>
+            <button type="button" onClick={reset} className="mt-1 text-[11px] font-semibold text-violet-700 underline dark:text-violet-300">
+              Restart
+            </button>
+          </div>
+        )}
+
+        {/* Move list */}
+        {history.length > 0 && (
+          <div>
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Moves</p>
+            <div className="flex flex-wrap gap-1">
+              {history.map((san, i) => (
+                <span key={i} className="rounded bg-white px-1 py-0.5 font-mono text-[10px] text-zinc-700 shadow-sm dark:bg-zinc-800 dark:text-zinc-300">
+                  {i % 2 === 0 && <span className="mr-0.5 text-zinc-400">{Math.floor(i / 2) + 1}.</span>}
+                  {san}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Restart button */}
+        <button
+          type="button"
+          onClick={reset}
+          className="mt-auto flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+        >
+          <RefreshCw className="h-3 w-3" aria-hidden />
+          Restart
+        </button>
+      </div>
+
+      {/* ── Board area ── */}
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-2">
+        <OpeningTrainerBoard
+          fen={fen}
+          boardOrientation={playAs}
+          squareStyles={squareStyles}
+          sizePreset="opening"
+          onPieceDrop={({ sourceSquare, targetSquare }) => {
+            clearSelection();
+            return handleUserDrop(sourceSquare, targetSquare ?? "");
+          }}
+          extraOptions={legalMoveHandlers}
+        />
       </div>
     </div>
   );

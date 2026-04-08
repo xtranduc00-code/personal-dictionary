@@ -242,7 +242,7 @@ function saveProgress(p: Record<string, LessonProgress>) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function EndgameTrainer() {
+export function EndgameTrainer({ onBack }: { onBack?: () => void }) {
   const [selected, setSelected] = useState<Lesson | null>(null);
   const [progress, setProgress] = useState<Record<string, LessonProgress>>({});
 
@@ -278,7 +278,17 @@ export function EndgameTrainer() {
   const completed = Object.values(progress).filter((p) => p.completed).length;
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-4">
+    <div className="flex flex-1 flex-col gap-4 p-4 overflow-y-auto">
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center gap-1.5 text-sm font-medium text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 self-start"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden />
+          Back
+        </button>
+      )}
       {/* Progress summary */}
       <div className="flex items-center justify-between rounded-xl bg-zinc-50 px-4 py-3 dark:bg-zinc-800/50">
         <div>
@@ -656,107 +666,107 @@ function LessonBoard({
     ) : null;
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-zinc-50 dark:bg-zinc-950">
-      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-zinc-200/90 bg-white px-3 py-2.5 dark:border-zinc-800 dark:bg-zinc-900 sm:px-4">
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-row overflow-hidden bg-white dark:bg-zinc-950">
+      {/* ── Left sidebar ── */}
+      <div className="flex w-52 shrink-0 flex-col gap-3 overflow-y-auto border-r border-zinc-100 bg-zinc-50/80 px-3 py-3 dark:border-zinc-800 dark:bg-zinc-900/60 sm:w-64 sm:px-4">
         <button
           type="button"
           onClick={onBack}
-          className="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+          className="flex items-center gap-1 text-[11px] font-medium text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
         >
-          <ArrowLeft className="h-4 w-4" />
-          <span className="hidden sm:inline">Lessons</span>
+          <ArrowLeft className="h-3 w-3" aria-hidden />
+          Lessons
         </button>
-        <div className="flex min-w-0 flex-1 items-center justify-center gap-2 sm:justify-center">
-          <span className="text-lg sm:text-xl" aria-hidden>
-            {lesson.icon}
+
+        {/* Lesson identity */}
+        <div>
+          <p className="text-2xl leading-none" aria-hidden>{lesson.icon}</p>
+          <p className="mt-1.5 text-xs font-bold leading-snug text-zinc-900 dark:text-zinc-100">{lesson.title}</p>
+          <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${DIFFICULTY_COLORS[lesson.difficulty]}`}>
+            {lesson.difficulty}
           </span>
-          <div className="min-w-0 text-center sm:text-left">
-            <p className="truncate text-sm font-bold text-zinc-900 dark:text-zinc-100">{lesson.title}</p>
-            <span
-              className={`inline-flex rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${DIFFICULTY_COLORS[lesson.difficulty]}`}
-            >
-              {lesson.difficulty}
-            </span>
+        </div>
+
+        {/* Objective */}
+        <div className="rounded-lg border border-violet-100 bg-violet-50/80 px-2 py-2 dark:border-violet-900/40 dark:bg-violet-950/25">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-violet-500 dark:text-violet-400">Goal</p>
+          <p className="mt-0.5 text-[11px] font-semibold leading-snug text-violet-900 dark:text-violet-100">{lesson.goal}</p>
+          <p className="mt-1 text-[10px] leading-snug text-violet-700/80 dark:text-violet-300/70">{lesson.concept}</p>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-1 rounded-lg border border-zinc-200/90 bg-zinc-50/90 p-1.5 dark:border-zinc-700 dark:bg-zinc-800/50">
+          <div className="rounded bg-white/80 px-1 py-1.5 text-center dark:bg-zinc-900/50">
+            <p className="text-[8px] font-bold uppercase text-zinc-400">DTM</p>
+            <p className="mt-0.5 text-sm font-bold tabular-nums text-zinc-900 dark:text-zinc-50">{dtmDisplay}</p>
+          </div>
+          <div className="rounded bg-white/80 px-1 py-1.5 text-center dark:bg-zinc-900/50">
+            <p className="text-[8px] font-bold uppercase text-zinc-400">Eval</p>
+            <p className={`mt-0.5 text-[10px] font-semibold leading-tight ${loading ? "text-zinc-400" : positionValueClass}`}>{positionValue}</p>
+          </div>
+          <div className="rounded bg-white/80 px-1 py-1.5 text-center dark:bg-zinc-900/50">
+            <p className="text-[8px] font-bold uppercase text-zinc-400">Moves</p>
+            <p className="mt-0.5 text-sm font-bold tabular-nums text-zinc-900 dark:text-zinc-50">{moveCount}</p>
           </div>
         </div>
+
+        <ChessMoveAnnounceChip text={moveAnnounceChip} />
+
+        {/* Feedback */}
+        {feedback && (
+          <div className={`rounded-lg border px-2 py-1.5 text-[11px] font-medium leading-snug ${
+            feedback.result === "optimal"
+              ? "border-emerald-200/80 bg-emerald-50 text-emerald-800 dark:border-emerald-800/50 dark:bg-emerald-950/35 dark:text-emerald-300"
+              : feedback.result === "suboptimal"
+                ? "border-amber-200/80 bg-amber-50 text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/35 dark:text-amber-200"
+                : "border-red-200/80 bg-red-50 text-red-800 dark:border-red-900/50 dark:bg-red-950/35 dark:text-red-300"
+          }`}>
+            {feedback.msg}
+          </div>
+        )}
+
+        {finished && (
+          <div className="rounded-lg border border-emerald-200/80 bg-emerald-50/90 p-2 text-center dark:border-emerald-800/40 dark:bg-emerald-950/30">
+            <Trophy className="mx-auto mb-1 h-5 w-5 text-amber-500" />
+            <p className="text-xs font-bold text-emerald-900 dark:text-emerald-200">Complete!</p>
+            <p className="text-[10px] text-emerald-700 dark:text-emerald-400">{moveCount} moves</p>
+            <button type="button" onClick={resetLesson} className="mt-1.5 w-full rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700">
+              Retry
+            </button>
+          </div>
+        )}
+
+        {isOpponentTurn && !finished && (
+          <p className="text-[11px] font-medium text-zinc-400 animate-pulse">Opponent thinking…</p>
+        )}
+
+        {/* Move list */}
+        {moveListBlock}
+
+        {/* Reset */}
         <button
           type="button"
           onClick={resetLesson}
-          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200 px-2.5 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          className="mt-auto flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
         >
-          <RefreshCw className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Reset</span>
+          <RefreshCw className="h-3 w-3" aria-hidden />
+          Reset
         </button>
-      </header>
+      </div>
 
-      {/*
-        Board-first training layout: primary column is the board with minimal padding (no nested “lesson card”).
-        Objective + stats + list live in a secondary column on large screens; on small screens, board stays on top.
-      */}
-      <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col overflow-y-auto overflow-x-hidden px-2 py-2 sm:px-3 sm:py-3 lg:flex-row lg:items-start lg:gap-4 lg:px-4 lg:py-3">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-start lg:justify-start lg:self-stretch">
-          <div className="flex w-full justify-center px-0 pt-1 pb-2 lg:pt-1 lg:pb-2">
-            <ChessBoardWrapper
-              sizePreset="endgame"
-              className="overflow-hidden rounded-xl shadow-md ring-1 ring-black/[0.06] dark:ring-white/10"
-              options={{
-                position: fen,
-                onPieceDrop: ({ sourceSquare, targetSquare }) => { clearSelection(); return handleDrop(sourceSquare, targetSquare ?? ""); },
-                boardOrientation: orientation,
-                squareStyles,
-                ...legalMoveHandlers,
-              }}
-            />
-          </div>
-          <div className="flex w-full max-w-md justify-center lg:hidden">
-            <ChessMoveAnnounceChip text={moveAnnounceChip} />
-          </div>
-        </div>
-
-        <aside className="flex w-full shrink-0 flex-col gap-2.5 pb-3 lg:mt-0 lg:w-[min(100%,19rem)] lg:pb-0 xl:w-80">
-          {objectiveBlock}
-          {statsBlock}
-          <div className="hidden justify-center lg:flex">
-            <ChessMoveAnnounceChip text={moveAnnounceChip} />
-          </div>
-
-          {feedback && (
-            <div
-              className={`rounded-xl border px-3 py-2 text-sm font-medium ${
-                feedback.result === "optimal"
-                  ? "border-emerald-200/80 bg-emerald-50 text-emerald-800 dark:border-emerald-800/50 dark:bg-emerald-950/35 dark:text-emerald-300"
-                  : feedback.result === "suboptimal"
-                    ? "border-amber-200/80 bg-amber-50 text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/35 dark:text-amber-200"
-                    : "border-red-200/80 bg-red-50 text-red-800 dark:border-red-900/50 dark:bg-red-950/35 dark:text-red-300"
-              }`}
-            >
-              {feedback.msg}
-            </div>
-          )}
-
-          {finished && (
-            <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/90 p-3 text-center dark:border-emerald-800/40 dark:bg-emerald-950/30">
-              <Trophy className="mx-auto mb-1.5 h-7 w-7 text-amber-500" />
-              <p className="text-sm font-bold text-emerald-900 dark:text-emerald-200">Lesson complete</p>
-              <p className="mt-0.5 text-xs text-emerald-700 dark:text-emerald-400">{moveCount} moves</p>
-              <button
-                type="button"
-                onClick={resetLesson}
-                className="mt-2 w-full rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-              >
-                Practice again
-              </button>
-            </div>
-          )}
-
-          {isOpponentTurn && !finished && (
-            <p className="text-center text-xs font-medium text-zinc-500 animate-pulse dark:text-zinc-400">
-              Opponent is thinking…
-            </p>
-          )}
-
-          {moveListBlock}
-        </aside>
+      {/* ── Board area ── */}
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-2">
+        <ChessBoardWrapper
+          sizePreset="endgame"
+          className="overflow-hidden rounded-xl shadow-md ring-1 ring-black/[0.06] dark:ring-white/10"
+          options={{
+            position: fen,
+            onPieceDrop: ({ sourceSquare, targetSquare }) => { clearSelection(); return handleDrop(sourceSquare, targetSquare ?? ""); },
+            boardOrientation: orientation,
+            squareStyles,
+            ...legalMoveHandlers,
+          }}
+        />
       </div>
     </div>
   );

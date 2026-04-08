@@ -24,6 +24,7 @@ export default function FlashcardsPage() {
         id: string;
         word: string;
         definition: string;
+        example: string;
     } | null>(null);
     const [savingCard, setSavingCard] = useState(false);
     const [showKindleImport, setShowKindleImport] = useState(false);
@@ -138,7 +139,7 @@ export default function FlashcardsPage() {
             return;
         setSavingCard(true);
         try {
-            await updateFlashcard(editingCard.id, editingCard.word, editingCard.definition);
+            await updateFlashcard(editingCard.id, editingCard.word, editingCard.definition, editingCard.example);
             if (selectedSetId) {
                 const next = await getFlashcardsBySet(selectedSetId);
                 setCards(next);
@@ -324,7 +325,8 @@ export default function FlashcardsPage() {
                         return (<li key={c.id} className="rounded-xl border border-zinc-200 bg-white p-4 transition hover:shadow-md hover:-translate-y-0.5 dark:border-zinc-700 dark:bg-zinc-900">
                             {isEditing ? (<div className="space-y-3">
                                 <input type="text" value={editingCard.word} onChange={(e) => setEditingCard((prev) => prev ? { ...prev, word: e.target.value } : prev)} placeholder={t("wordLabel")} className="w-full rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm font-semibold text-zinc-900 focus:border-zinc-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"/>
-                                <RichTextEditor value={editingCard.definition} onChange={(html) => setEditingCard((prev) => prev ? { ...prev, definition: html } : prev)} placeholder={t("definitionLabel")} minHeightClassName="min-h-[120px]"/>
+                                <input type="text" value={editingCard.definition} onChange={(e) => setEditingCard((prev) => prev ? { ...prev, definition: e.target.value } : prev)} placeholder={t("definitionLabel")} className="w-full rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 focus:border-zinc-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"/>
+                                <RichTextEditor value={editingCard.example} onChange={(html) => setEditingCard((prev) => prev ? { ...prev, example: html } : prev)} placeholder="Example…" minHeightClassName="min-h-[80px]"/>
                                 <div className="flex justify-end gap-2">
                                   <button type="button" onClick={() => setEditingCard(null)} className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800">
                                     <X className="h-3.5 w-3.5"/>
@@ -340,15 +342,17 @@ export default function FlashcardsPage() {
                                   <p className="font-semibold text-zinc-900 dark:text-zinc-100">
                                     {c.word}
                                   </p>
-                                  {c.definition ? (<div className="mt-1 prose prose-sm prose-zinc max-w-none text-zinc-600 dark:prose-invert dark:text-zinc-400" dangerouslySetInnerHTML={{
-                                        __html: sanitizeFlashcardDefinitionHtml(c.definition),
-                                    }}/>) : (<p className="mt-1 text-sm text-zinc-400">—</p>)}
+                                  {c.definition ? (<p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{c.definition}</p>) : (<p className="mt-1 text-sm text-zinc-400">—</p>)}
+                                  {c.example && (<div className="mt-1 prose prose-sm prose-zinc max-w-none italic text-zinc-500 dark:prose-invert dark:text-zinc-400" dangerouslySetInnerHTML={{
+                                        __html: sanitizeFlashcardDefinitionHtml(c.example),
+                                    }}/>)}
                                 </div>
                                 <div className="flex shrink-0 items-center gap-1">
                                   <button type="button" onClick={() => setEditingCard({
                                     id: c.id,
                                     word: c.word,
                                     definition: c.definition,
+                                    example: c.example,
                                 })} className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200" title={t("editCardTitle")}>
                                     <Pencil className="h-4 w-4"/>
                                   </button>

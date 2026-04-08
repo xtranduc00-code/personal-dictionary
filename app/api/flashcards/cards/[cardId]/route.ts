@@ -14,23 +14,27 @@ export async function PATCH(req: Request, { params }: {
         const body = await req.json();
         const word = typeof body?.word === "string" ? body.word.trim() : undefined;
         const definition = typeof body?.definition === "string" ? body.definition.trim() : undefined;
-        if (word === undefined && definition === undefined) {
-            return NextResponse.json({ error: "word or definition required" }, { status: 400 });
+        const example = typeof body?.example === "string" ? body.example.trim() : undefined;
+        if (word === undefined && definition === undefined && example === undefined) {
+            return NextResponse.json({ error: "word, definition, or example required" }, { status: 400 });
         }
         const updates: {
             word?: string;
             definition?: string;
+            example?: string;
         } = {};
         if (word !== undefined)
             updates.word = word;
         if (definition !== undefined)
             updates.definition = definition;
+        if (example !== undefined)
+            updates.example = example;
         const { data, error } = await supabaseServer
             .from("flashcard_cards")
             .update(updates)
             .eq("id", cardId)
             .eq("user_id", user.id)
-            .select("id,set_id,word,definition,created_at")
+            .select("id,set_id,word,definition,example,created_at")
             .single();
         if (error)
             throw error;
@@ -39,6 +43,7 @@ export async function PATCH(req: Request, { params }: {
             setId: data.set_id,
             word: data.word,
             definition: data.definition ?? "",
+            example: data.example ?? "",
             createdAt: data.created_at,
         });
     }

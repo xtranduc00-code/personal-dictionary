@@ -16,6 +16,7 @@ export function AddFlashcardModal({ initialWord, onClose, onSaved, }: Props) {
     const [sets, setSets] = useState<FlashcardSet[]>([]);
     const [selectedSetId, setSelectedSetId] = useState<string>("");
     const [word, setWord] = useState(initialWord);
+    const [example, setExample] = useState("");
     const [definition, setDefinition] = useState("");
     const [showCreateSet, setShowCreateSet] = useState(false);
     const [newSetName, setNewSetName] = useState("");
@@ -58,7 +59,7 @@ export function AddFlashcardModal({ initialWord, onClose, onSaved, }: Props) {
         }
         setSaving(true);
         try {
-            await addFlashcard(setId, word, definition);
+            await addFlashcard(setId, word, definition, example);
             onSaved?.();
             onClose();
         }
@@ -118,7 +119,14 @@ export function AddFlashcardModal({ initialWord, onClose, onSaved, }: Props) {
             <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
               {t("definitionLabel")}
             </label>
-            <RichTextEditor value={definition} onChange={setDefinition} placeholder={t("definitionPlaceholder")} className="mt-1" minHeightClassName="min-h-[160px]"/>
+            <input type="text" value={definition} onChange={(e) => setDefinition(e.target.value)} className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100" placeholder={t("definitionPlaceholder")}/>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              Example
+            </label>
+            <RichTextEditor value={example} onChange={setExample} placeholder="Example…" className="mt-1" minHeightClassName="min-h-[80px]"/>
           </div>
         </div>
 
