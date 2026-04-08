@@ -1,14 +1,22 @@
 "use client";
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { toast } from "react-toastify";
 import { createFlashcardSet, deleteFlashcard, deleteFlashcardSet, getFlashcardSets, getFlashcardsBySet, setFlashcardPinned, updateFlashcard, updateFlashcardSet, type Flashcard, type FlashcardSet, } from "@/lib/flashcard-storage";
 import { Check, Layers, MoreHorizontal, NotebookText, Pencil, Pin, Plus, Trash2, X } from "lucide-react";
 import { useI18n } from "@/components/i18n-provider";
 import { AddFlashcardModal } from "@/components/ielts";
-import { RichTextEditor } from "@/components/RichTextEditor";
 import { sanitizeFlashcardDefinitionHtml } from "@/lib/sanitize-html-app";
-import { KindleImportModal } from "@/components/kindle-import-modal";
+const KindleImportModal = dynamic(
+  () => import("@/components/kindle-import-modal").then((m) => m.KindleImportModal),
+  { ssr: false },
+);
+
+const RichTextEditor = dynamic(
+  () => import("@/components/RichTextEditor").then((m) => m.RichTextEditor),
+  { ssr: false, loading: () => <div className="min-h-[80px] animate-pulse rounded-xl bg-zinc-100 dark:bg-zinc-800" /> },
+);
 export default function FlashcardsPage() {
     const { t } = useI18n();
     const [sets, setSets] = useState<FlashcardSet[]>([]);

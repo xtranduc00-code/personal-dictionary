@@ -41,7 +41,7 @@ function posAbbrev(pos: string): string {
   if (p === "determiner" || p === "det") return "Det";
   if (p === "phrase") return "Phrase";
   if (p === "idiom") return "Idiom";
-  if (p === "other" || p === "") return "";
+  if (p === "other" || p === "others" || p === "") return "";
   // Already abbreviated or unknown — capitalize first letter
   return pos.charAt(0).toUpperCase() + pos.slice(1).toLowerCase();
 }
@@ -114,7 +114,8 @@ function clampPushBody(s: string): string {
  * Prefer example/sentences, then explanation, then a short default.
  */
 function pickBodyForPush(item: VocabItem, bucket: string): string {
-  const fromPool = pickExampleForPushBody(item, bucket).trim();
+  const fromPoolRaw = pickExampleForPushBody(item, bucket).trim();
+  const fromPool = fromPoolRaw ? htmlToPlainPushText(fromPoolRaw) : "";
   if (fromPool) return clampPushBody(fromPool);
   const expl =
     typeof item.explanation === "string"
@@ -275,7 +276,7 @@ function flashcardRowToVocabItem(word: string, definition: string, example: stri
   const item: VocabItem = {
     word: w,
     pushOpenFlashcards: true,
-    partOfSpeech: (partOfSpeech && partOfSpeech !== "other") ? partOfSpeech : undefined,
+    partOfSpeech: (partOfSpeech && partOfSpeech.toLowerCase() !== "other" && partOfSpeech.toLowerCase() !== "others") ? partOfSpeech : undefined,
     shortDefinition: shortDefinition || undefined,
   };
   // Use the dedicated example field for push body
@@ -363,8 +364,9 @@ function pickVocabPayloadsForUser(
     const posLabel = posAbbr ? ` (${posAbbr})` : "";
     const title = `${w.word}${posLabel}`;
 
-    // Body: example sentence (second line)
-    const ex = pickExampleForPushBody(w, bucket).trim();
+    // Body: example sentence (second line) — strip HTML from rich-text examples
+    const exRaw = pickExampleForPushBody(w, bucket).trim();
+    const ex = exRaw ? htmlToPlainPushText(exRaw) : "";
     const body = ex ? clampPushBody(ex) : "";
 
     return JSON.stringify({

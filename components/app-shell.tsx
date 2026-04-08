@@ -1,12 +1,20 @@
 "use client";
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { SiteNav } from "@/components/site-nav";
 import { MainScrollShell } from "@/components/main-scroll-shell";
 import { AuthGate } from "@/components/auth-gate";
-import { MeetPersistentLayer } from "@/components/meet/MeetPersistentLayer";
-import { YouTubeDock } from "@/components/youtube-dock";
 import { useMeetCall } from "@/lib/meet-call-context";
 import { meetPathMatchesRoom } from "@/lib/meet-call-path";
+
+const MeetPersistentLayer = dynamic(
+  () => import("@/components/meet/MeetPersistentLayer").then((m) => m.MeetPersistentLayer),
+  { ssr: false },
+);
+const YouTubeDock = dynamic(
+  () => import("@/components/youtube-dock").then((m) => m.YouTubeDock),
+  { ssr: false },
+);
 
 /** Password reset from email: no sidebar / minimal chrome — same idea as `AUTH_FLOW_PUBLIC` in auth-gate. */
 const STANDALONE_AUTH_PATHS = new Set(["/reset-password"]);

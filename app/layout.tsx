@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Nunito } from "next/font/google";
-import "@xyflow/react/dist/style.css";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { I18nProvider } from "@/components/i18n-provider";

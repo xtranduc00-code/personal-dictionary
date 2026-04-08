@@ -1,11 +1,16 @@
 "use client";
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { toast } from "react-toastify";
 import { X } from "lucide-react";
 import { addFlashcard, createFlashcardSet, getFlashcardSets, type FlashcardSet, } from "@/lib/flashcard-storage";
 import { useI18n } from "@/components/i18n-provider";
-import { RichTextEditor } from "@/components/RichTextEditor";
+
+const RichTextEditor = dynamic(
+  () => import("@/components/RichTextEditor").then((m) => m.RichTextEditor),
+  { ssr: false, loading: () => <div className="min-h-[80px] animate-pulse rounded-xl bg-zinc-100 dark:bg-zinc-800" /> },
+);
 type Props = {
     initialWord: string;
     onClose: () => void;

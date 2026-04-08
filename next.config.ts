@@ -70,6 +70,12 @@ const nextConfig: NextConfig = {
             "@radix-ui/react-select",
             "@radix-ui/react-icons",
             "lucide-react",
+            "date-fns",
+            "date-fns-tz",
+            "react-toastify",
+            "@tiptap/react",
+            "@tiptap/starter-kit",
+            "@tiptap/pm",
         ],
     },
 };
