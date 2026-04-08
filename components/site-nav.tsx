@@ -2,7 +2,6 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { toast } from "react-toastify";
-import { DriveIntegrationNavBlock } from "@/components/drive-integration-nav";
 import {
     NavLabelsProvider,
     NavSectionEditableTitle,
@@ -13,7 +12,7 @@ import {
 import { NavAccountFooter } from "@/components/nav-account-footer";
 import { ProfileModal } from "@/components/profile-modal";
 import { SecurityModal } from "@/components/security-modal";
-import { BookHeart, BookOpen, BookMarked, BookText, Bot, CalendarClock, CalendarDays, ChessKing, ChevronLeft, ChevronRight, Clapperboard, Cloud, FileText, FolderOpen, GraduationCap, Headphones, Image as LucideImage, History, Home, Languages, LayoutDashboard, LayoutGrid, LibraryBig, LogIn, LogOut, Mail, Menu, Mic, Moon, Newspaper, NotebookText, PartyPopper, PenLine, PhoneCall, Search, Sparkles, Star, Sun, Table2, UserCircle, Video, X, Youtube, type LucideIcon, } from "lucide-react";
+import { BookHeart, BookOpen, BookMarked, BookText, Bot, CalendarClock, CalendarDays, ChessKing, ChevronLeft, ChevronRight, Clapperboard, FileText, FolderOpen, GraduationCap, Headphones, History, Home, Languages, LayoutDashboard, LibraryBig, LogIn, LogOut, Mail, Menu, Mic, Moon, Newspaper, NotebookText, PartyPopper, PenLine, PhoneCall, Search, Sparkles, Sun, Table2, UserCircle, X, Youtube, type LucideIcon, } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { DailyTasksSidebar } from "@/components/daily-tasks/daily-tasks-sidebar";
 import { useMeetCallOptional } from "@/lib/meet-call-context";
@@ -105,19 +104,6 @@ const portfolioSectionLinks: {
     { href: "/profile", labelKey: "portfolioProfile", icon: UserCircle },
     { href: "/contact", labelKey: "portfolioContact", icon: Mail },
 ];
-const othersDriveChildLinks: {
-    href: string;
-    labelKey: TranslationKey;
-    icon: typeof Cloud;
-    dashboard?: boolean;
-}[] = [
-    { href: "/drive", labelKey: "navDriveDashboard", icon: LayoutGrid, dashboard: true },
-    { href: "/drive/folders", labelKey: "navDriveFolders", icon: FolderOpen },
-    { href: "/drive/documents", labelKey: "navDriveDocuments", icon: FileText },
-    { href: "/drive/images", labelKey: "navDriveImages", icon: LucideImage },
-    { href: "/drive/media", labelKey: "navDriveMedia", icon: Video },
-    { href: "/drive/starred", labelKey: "navDriveStarred", icon: Star },
-];
 const dictionarySectionLinks: {
     href: string;
     labelKey: TranslationKey;
@@ -137,10 +123,6 @@ const NAV_LINK_ROW_IDLE =
 const NAV_LINK_SUB_ACTIVE =
     "border-l-2 border-zinc-900 bg-zinc-100 pl-[38px] font-semibold text-[#111827] dark:border-zinc-400 dark:bg-zinc-800 dark:text-white";
 const NAV_LINK_SUB_IDLE =
-    "border-l-2 border-transparent pl-11 font-medium text-zinc-600 hover:border-zinc-200 hover:bg-zinc-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:border-zinc-500/25 dark:hover:bg-zinc-800 dark:hover:text-zinc-100";
-const NAV_LINK_DRIVE_ACTIVE =
-    "border-l-2 border-zinc-900 bg-zinc-100 pl-[42px] font-semibold text-[#111827] dark:border-zinc-400 dark:bg-zinc-800 dark:text-white";
-const NAV_LINK_DRIVE_IDLE =
     "border-l-2 border-transparent pl-11 font-medium text-zinc-600 hover:border-zinc-200 hover:bg-zinc-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:border-zinc-500/25 dark:hover:bg-zinc-800 dark:hover:text-zinc-100";
 /** Meets đang trong cuộc gọi — nổi bật cả khi đang ở route khác (Calendar, …). */
 const NAV_LINK_ROW_MEETS_LIVE =
@@ -176,19 +158,6 @@ function isPortfolioPath(pathname: string) {
     if (pathname === "/" || pathname === "/portfolio")
         return true;
     return ["/profile", "/contact"].includes(pathname);
-}
-function isOthersPath(pathname: string) {
-    return pathname === "/drive" || pathname.startsWith("/drive/");
-}
-function isOthersDriveLinkActive(pathname: string, href: string, dashboard?: boolean) {
-    if (dashboard || href === "/drive") {
-        return pathname === "/drive" || pathname === "/drive/";
-    }
-    if (href === "/drive/folders") {
-        return (pathname.startsWith("/drive/folders") ||
-            pathname.startsWith("/drive/folder/"));
-    }
-    return pathname === href || pathname.startsWith(`${href}/`);
 }
 function isIeltsPath(pathname: string) {
     if (pathname.startsWith("/real-time-call"))
@@ -393,47 +362,6 @@ function StudyExpandedNavLinks({ pathname, t, filterQuery = "", onLinkClick, lin
         })}
     </>);
 }
-function OthersExpandedNavLinks({ pathname, t, filterQuery = "", onLinkClick, }: {
-    pathname: string;
-    t: (key: TranslationKey) => string;
-    filterQuery?: string;
-    onLinkClick?: () => void;
-}) {
-    const rowBase = "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200";
-    const rowActive = NAV_LINK_ROW_ACTIVE;
-    const rowIdle = NAV_LINK_ROW_IDLE;
-    const driveChildActive = NAV_LINK_DRIVE_ACTIVE;
-    const driveChildIdle = NAV_LINK_DRIVE_IDLE;
-    const q = filterQuery.trim();
-    const othersHit =
-        !q ||
-        navMatches(t("others"), filterQuery) ||
-        navMatches(t("portfolioGoogleDrive"), filterQuery);
-    const matchDriveKey = (key: TranslationKey) =>
-        !q || othersHit || navMatches(t(key), filterQuery);
-    const driveLinksToShow = othersDriveChildLinks.filter((link) => matchDriveKey(link.labelKey));
-    const showGdriveHeader =
-        !q ||
-        othersHit ||
-        driveLinksToShow.length > 0 ||
-        navMatches(t("driveIntegrationTitle"), filterQuery);
-    const showDriveIntegration =
-        !q ||
-        navMatches(t("driveIntegrationTitle"), filterQuery) ||
-        driveLinksToShow.length > 0;
-    return (<>
-      {showGdriveHeader ? (<div className={`${rowBase} border-l-2 border-transparent pl-8 font-medium text-zinc-500 dark:text-zinc-400`} role="presentation">
-        <Cloud className="h-4 w-4 shrink-0 opacity-70"/>
-        <NavSectionEditableTitle labelKey="portfolioGoogleDrive" className="text-base font-medium text-zinc-500 dark:text-zinc-400"/>
-      </div>) : null}
-      {driveLinksToShow.map((link) => {
-            const active = isOthersDriveLinkActive(pathname, link.href, link.dashboard);
-            const Icon = link.icon;
-            return (<NavSidebarRow key={link.href} href={link.href} labelKey={link.labelKey} onLinkClick={onLinkClick} className={[rowBase, active ? driveChildActive : driveChildIdle].join(" ")} active={active} icon={Icon}/>);
-        })}
-      {showDriveIntegration ? <DriveIntegrationNavBlock onLinkClick={onLinkClick}/> : null}
-    </>);
-}
 export function SiteNav() {
     return (<NavLabelsProvider>
       <SiteNavInner />
@@ -457,7 +385,6 @@ function SiteNavInner() {
     const [entertainmentOpen, setEntertainmentOpen] = useState(true);
     const [dictionaryOpen, setDictionaryOpen] = useState(true);
     const [portfolioOpen, setPortfolioOpen] = useState(true);
-    const [othersOpen, setOthersOpen] = useState(true);
     const [dailyTasksOpen, setDailyTasksOpen] = useState(true);
     const [navSearch, setNavSearch] = useState("");
     const clearQuickSearch = useCallback(() => setNavSearch(""), []);
@@ -551,23 +478,13 @@ function SiteNavInner() {
             ieltsAiSpeakingLink,
         ].some((l) => match(navT(l.labelKey)));
         const showIelts = !fq || match(navT("ielts")) || ieltsLinksMatch;
-        const othersLinksMatch = othersDriveChildLinks.some((l) =>
-            match(navT(l.labelKey)),
-        );
-        const showOthers =
-            !fq ||
-            match(navT("others")) ||
-            match(navT("portfolioGoogleDrive")) ||
-            match(t("driveIntegrationTitle")) ||
-            othersLinksMatch;
         const anyShown =
             showPortfolio ||
             showDictionary ||
             showIelts ||
             showStudy ||
             showEntertainment ||
-            showSchedule ||
-            showOthers;
+            showSchedule;
         return {
             fq,
             plinks,
@@ -582,7 +499,6 @@ function SiteNavInner() {
             showStudy,
             showEntertainment,
             showSchedule,
-            showOthers,
             anyShown,
         };
     }, [navSearch, navT, t, locale]);
@@ -596,7 +512,6 @@ function SiteNavInner() {
         setStudyOpen(true);
         setEntertainmentOpen(true);
         setScheduleOpen(true);
-        setOthersOpen(true);
     }, [navSearch]);
     useEffect(() => {
         const onClear = () => setNavSearch("");
@@ -660,11 +575,6 @@ function SiteNavInner() {
             setEntertainmentOpen(savedEntertainment === "true");
     }, []);
     useEffect(() => {
-        const saved = window.localStorage.getItem("othersSectionOpen");
-        if (saved !== null)
-            setOthersOpen(saved === "true");
-    }, []);
-    useEffect(() => {
         if (isIeltsPath(pathname))
             setIeltsOpen(true);
     }, [pathname]);
@@ -687,10 +597,6 @@ function SiteNavInner() {
     useEffect(() => {
         if (isPortfolioPath(pathname))
             setPortfolioOpen(true);
-    }, [pathname]);
-    useEffect(() => {
-        if (isOthersPath(pathname))
-            setOthersOpen(true);
     }, [pathname]);
     function toggleIeltsSection() {
         const next = !ieltsOpen;
@@ -726,11 +632,6 @@ function SiteNavInner() {
         const next = !portfolioOpen;
         setPortfolioOpen(next);
         window.localStorage.setItem("portfolioSectionOpen", String(next));
-    }
-    function toggleOthersSection() {
-        const next = !othersOpen;
-        setOthersOpen(next);
-        window.localStorage.setItem("othersSectionOpen", String(next));
     }
     function toggleSidebar() {
         const next = !sidebarOpen;
@@ -958,22 +859,6 @@ function SiteNavInner() {
                 })}
               </div>) : null}
 
-              {navFilter.showSchedule && navFilter.showOthers ? (<div className="my-2 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
-
-              {navFilter.showOthers ? (<div className="flex flex-col gap-0.5">
-                <NavSectionHeader isOpen={othersOpen} onToggle={toggleOthersSection} icon={Cloud} labelKey="others" outerClass={[
-                "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
-                isOthersPath(pathname)
-                    ? "bg-zinc-100 text-zinc-900 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
-                    : "text-zinc-500 hover:bg-zinc-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
-            ].join(" ")} iconBoxClass={[
-                "flex h-10 w-10 items-center justify-center rounded-xl transition",
-                isOthersPath(pathname)
-                    ? "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900"
-                    : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
-            ].join(" ")}/>
-                {othersOpen && (<OthersExpandedNavLinks pathname={pathname} t={navT} filterQuery={navSearch} onLinkClick={clearQuickSearch}/>)}
-              </div>) : null}
             </nav>
             <NavAccountFooter variant="drawer" onOpenProfile={() => setProfileOpen(true)} onOpenSecurity={() => setSecurityOpen(true)}/>
           </aside>
@@ -1183,22 +1068,6 @@ function SiteNavInner() {
             })}
             </div>) : null}
 
-            {navFilter.showSchedule && navFilter.showOthers ? (<div className="my-2 shrink-0 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
-
-            {navFilter.showOthers ? (<div className="flex shrink-0 flex-col gap-0.5">
-              <NavSectionHeader isOpen={othersOpen} onToggle={toggleOthersSection} icon={Cloud} labelKey="others" outerClass={[
-            "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
-            isOthersPath(pathname)
-                ? "bg-white text-zinc-900 shadow-sm ring-1 ring-zinc-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
-                : "text-zinc-500 hover:bg-zinc-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
-        ].join(" ")} iconBoxClass={[
-            "flex h-10 w-10 items-center justify-center rounded-xl transition",
-            isOthersPath(pathname)
-                ? "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900"
-                : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
-        ].join(" ")}/>
-              {othersOpen && (<OthersExpandedNavLinks pathname={pathname} t={navT} filterQuery={navSearch} onLinkClick={clearQuickSearch}/>)}
-            </div>) : null}
             </nav>
 
             <NavAccountFooter variant="sidebar" onOpenProfile={() => setProfileOpen(true)} onOpenSecurity={() => setSecurityOpen(true)}/>

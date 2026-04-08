@@ -10,7 +10,6 @@ export const NAV_LABEL_KEYS = [
     "navNewsSection",
     "navEntertainmentSection",
     "navScheduleSection",
-    "others",
     "portfolioHome",
     "portfolioProfile",
     "portfolioContact",
@@ -36,13 +35,6 @@ export const NAV_LABEL_KEYS = [
     "dailyNewsSourceGuardian",
     "watchTogetherNav",
     "spotifyNav",
-    "navDriveDashboard",
-    "navDriveFolders",
-    "navDriveDocuments",
-    "navDriveImages",
-    "navDriveMedia",
-    "navDriveStarred",
-    "portfolioGoogleDrive",
 ] as const satisfies readonly TranslationKey[];
 
 export type NavLabelKey = (typeof NAV_LABEL_KEYS)[number];

@@ -3,8 +3,8 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import {
-  ChevronDown, ChevronRight, Circle, CheckCircle2, Flame, Loader2,
-  Settings2, Plus, Trash2, Check, X,
+  ChevronDown, Circle, CheckCircle2, Flame, Loader2,
+  Settings2, Plus, Trash2, Check, X, ListChecks,
 } from "lucide-react";
 import { useDailyTasks, type TaskTemplate } from "./daily-tasks-context";
 import { useAuth } from "@/lib/auth-context";
@@ -28,10 +28,6 @@ const FEATURE_OPTIONS: { label: string; labelVi: string; href: string }[] = [
   { label: "Diary", labelVi: "Nhật ký", href: "/notes/diary" },
   { label: "Calendar", labelVi: "Lịch", href: "/calendar" },
 ];
-
-function genId() {
-  return `task_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
-}
 
 /** Derive a stable task ID from a feature href */
 function hrefToId(href: string): string {
@@ -86,96 +82,143 @@ export function DailyTasksSidebar({
 
   function addFeature(feat: { label: string; labelVi: string; href: string }) {
     const id = hrefToId(feat.href);
-    // Don't add duplicates
     if (editDraft.some((t) => t.id === id)) return;
     setEditDraft((prev) => [...prev, { id, label: isVi ? feat.labelVi : feat.label, href: feat.href }]);
     setShowAdd(false);
   }
 
-  // Features not yet in the draft
   const availableFeatures = FEATURE_OPTIONS.filter(
     (f) => !editDraft.some((t) => t.id === hrefToId(f.href))
   );
 
+  /* ── Row style tokens (matching other nav sections) ── */
+  const rowBase = "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200";
+  const rowIdle = "border-l-2 border-transparent pl-8 font-medium text-zinc-600 hover:border-zinc-200 hover:bg-zinc-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:border-zinc-500/25 dark:hover:bg-zinc-800 dark:hover:text-zinc-100";
+  const rowDone = "border-l-2 border-transparent pl-8 font-medium text-zinc-400 hover:border-zinc-200 hover:bg-zinc-50/90 hover:text-zinc-500 dark:text-zinc-500 dark:hover:border-zinc-500/25 dark:hover:bg-zinc-800 dark:hover:text-zinc-400";
+
   return (
     <div className="flex shrink-0 flex-col gap-0.5">
-      {/* Header */}
-      <div className="flex items-center">
+      {/* ── Section header — matches NavSectionHeader pattern ── */}
+      <div className={[
+        "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
+        "text-zinc-500 hover:bg-zinc-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+      ].join(" ")}>
         <button
           type="button"
           onClick={onToggle}
-          className="group flex flex-1 items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-zinc-500 transition hover:bg-zinc-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          className="flex shrink-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/35 dark:focus-visible:ring-zinc-500/30"
         >
-          {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-          <span className="flex-1 text-left">{isVi ? "Nhiệm vụ hôm nay" : "Daily Tasks"}</span>
-          {!editing && (
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+          <span className={[
+            "flex h-10 w-10 items-center justify-center rounded-xl transition",
+            "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
+          ].join(" ")}>
+            <ListChecks className="h-5 w-5" />
+          </span>
+        </button>
+
+        <span className="min-w-0 flex-1 select-none text-left text-base font-medium">
+          {isVi ? "Nhiệm vụ hôm nay" : "Daily Tasks"}
+        </span>
+
+        {/* Progress + streak badges */}
+        {!editing && (
+          <div className="flex items-center gap-1.5">
+            {streak > 0 && (
+              <span className="flex items-center gap-0.5 text-[11px] font-bold text-orange-500">
+                <Flame className="h-3.5 w-3.5" />
+                {streak}
+              </span>
+            )}
+            <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${
               allDone
                 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
                 : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
             }`}>
               {doneCount}/{total}
             </span>
-          )}
-          {streak > 0 && !editing && (
-            <span className="flex items-center gap-0.5 text-[10px] font-bold text-orange-500">
-              <Flame className="h-3 w-3" />
-              {streak}
-            </span>
-          )}
-        </button>
+          </div>
+        )}
+
+        {/* Edit / Save / Cancel buttons */}
         {isOpen && !editing && (
           <button
             type="button"
             onClick={startEditing}
             title={isVi ? "Chỉnh sửa" : "Edit tasks"}
-            className="mr-1 shrink-0 rounded-lg p-1.5 text-zinc-300 transition hover:text-zinc-500 dark:text-zinc-600 dark:hover:text-zinc-400"
+            className="shrink-0 rounded-lg p-1.5 text-zinc-300 transition hover:text-zinc-500 dark:text-zinc-600 dark:hover:text-zinc-400"
           >
-            <Settings2 className="h-3.5 w-3.5" />
+            <Settings2 className="h-4 w-4" />
           </button>
         )}
         {isOpen && editing && (
-          <div className="mr-1 flex shrink-0 gap-0.5">
+          <div className="flex shrink-0 gap-0.5">
             <button type="button" onClick={doSave} title="Save" className="rounded-lg p-1.5 text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
-              <Check className="h-3.5 w-3.5" />
+              <Check className="h-4 w-4" />
             </button>
             <button type="button" onClick={doCancel} title="Cancel" className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-              <X className="h-3.5 w-3.5" />
+              <X className="h-4 w-4" />
             </button>
           </div>
         )}
+
+        <button
+          type="button"
+          onClick={onToggle}
+          className="shrink-0 rounded-lg p-0.5 text-zinc-400 transition hover:text-zinc-600 dark:hover:text-zinc-300"
+        >
+          <ChevronDown className={`h-5 w-5 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+        </button>
       </div>
+
+      {/* ── Progress bar ── */}
+      {isOpen && !editing && total > 0 && (
+        <div className="mx-4 mb-1 h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${
+              allDone
+                ? "bg-emerald-500"
+                : progressPct >= 70
+                  ? "bg-emerald-500"
+                  : progressPct >= 30
+                    ? "bg-amber-400 dark:bg-amber-500"
+                    : progressPct > 0
+                      ? "bg-orange-400 dark:bg-orange-500"
+                      : "bg-zinc-300 dark:bg-zinc-600"
+            }`}
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+      )}
 
       {/* ── Edit mode ── */}
       {isOpen && editing && (
-        <div className="space-y-0.5 pl-1">
+        <div className="space-y-0.5 pl-2">
           {editDraft.map((t) => (
-            <div key={t.id} className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
-              <span className="flex-1 truncate text-[13px] text-zinc-700 dark:text-zinc-300">{t.label}</span>
+            <div key={t.id} className={`${rowBase} border-l-2 border-transparent pl-8 justify-between`}>
+              <span className="flex-1 truncate text-zinc-700 dark:text-zinc-300">{t.label}</span>
               <button
                 type="button"
                 onClick={() => removeDraft(t.id)}
-                className="shrink-0 rounded p-0.5 text-zinc-300 hover:text-red-500 dark:text-zinc-600 dark:hover:text-red-400"
+                className="shrink-0 rounded-lg p-1 text-zinc-300 transition hover:text-red-500 dark:text-zinc-600 dark:hover:text-red-400"
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 className="h-4 w-4" />
               </button>
             </div>
           ))}
 
-          {/* Add from dropdown */}
           {showAdd ? (
-            <div className="mx-1 max-h-48 overflow-y-auto rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+            <div className="mx-4 max-h-48 overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
               {availableFeatures.length === 0 ? (
-                <p className="px-3 py-2 text-xs text-zinc-400">{isVi ? "Đã thêm hết" : "All added"}</p>
+                <p className="px-3 py-2 text-sm text-zinc-400">{isVi ? "Đã thêm hết" : "All added"}</p>
               ) : (
                 availableFeatures.map((f) => (
                   <button
                     key={f.href}
                     type="button"
                     onClick={() => addFeature(f)}
-                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-zinc-700 transition hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 transition hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
                   >
-                    <Plus className="h-3 w-3 shrink-0 text-zinc-400" />
+                    <Plus className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
                     {isVi ? f.labelVi : f.label}
                   </button>
                 ))
@@ -185,35 +228,24 @@ export function DailyTasksSidebar({
             <button
               type="button"
               onClick={() => setShowAdd(true)}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-xs text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+              className={`${rowBase} border-l-2 border-transparent pl-8 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300`}
             >
-              <Plus className="h-3.5 w-3.5" />
-              {isVi ? "Thêm nhiệm vụ" : "Add task"}
+              <Plus className="h-4 w-4 shrink-0" />
+              <span>{isVi ? "Thêm nhiệm vụ" : "Add task"}</span>
             </button>
           )}
         </div>
       )}
 
-      {/* ── Normal mode ── */}
+      {/* ── Normal mode — task list ── */}
       {isOpen && !editing && (
-        <div className="space-y-0.5 pl-1">
-          {total > 0 && (
-            <div className="mx-2 mb-1 h-1 rounded-full bg-zinc-200 dark:bg-zinc-700">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${
-                  allDone ? "bg-emerald-500" : "bg-zinc-900 dark:bg-zinc-100"
-                }`}
-                style={{ width: `${progressPct}%` }}
-              />
-            </div>
-          )}
-
+        <div className="space-y-0.5 pl-2">
           {loading ? (
-            <div className="flex justify-center py-3">
+            <div className="flex justify-center py-4">
               <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
             </div>
           ) : total === 0 ? (
-            <p className="px-3 py-2 text-xs text-zinc-400 dark:text-zinc-500">
+            <p className="px-8 py-3 text-sm text-zinc-400 dark:text-zinc-500">
               {isVi ? "Bấm ⚙ để thêm nhiệm vụ" : "Tap ⚙ to add tasks"}
             </p>
           ) : (
@@ -222,11 +254,11 @@ export function DailyTasksSidebar({
               const done = !!task?.completedAt;
 
               return (
-                <div key={tmpl.id} className="group flex items-center gap-0.5">
+                <div key={tmpl.id} className={`${rowBase} ${done ? rowDone : rowIdle}`}>
                   <button
                     type="button"
                     onClick={() => (done ? unmarkTask(tmpl.id) : markTask(tmpl.id))}
-                    className={`shrink-0 rounded-md p-1 transition ${
+                    className={`shrink-0 rounded-md p-0.5 transition ${
                       done
                         ? "text-emerald-500 hover:text-emerald-600"
                         : "text-zinc-300 hover:text-zinc-500 dark:text-zinc-600 dark:hover:text-zinc-400"
@@ -238,10 +270,8 @@ export function DailyTasksSidebar({
                   <Link
                     href={tmpl.href || "/"}
                     onClick={onLinkClick}
-                    className={`flex flex-1 items-center truncate rounded-lg px-2 py-1.5 text-[13px] transition hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
-                      done
-                        ? "text-zinc-400 line-through decoration-zinc-300 dark:text-zinc-500 dark:decoration-zinc-600"
-                        : "text-zinc-700 dark:text-zinc-300"
+                    className={`min-w-0 flex-1 truncate transition ${
+                      done ? "line-through decoration-zinc-300 dark:decoration-zinc-600" : ""
                     }`}
                   >
                     {tmpl.label}
