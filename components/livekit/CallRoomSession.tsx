@@ -9,7 +9,7 @@ import {
     type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useRouter } from "next/navigation";
-import { Clock, LogOut, Maximize2, Users } from "lucide-react";
+import { ChevronDown, ChevronUp, Clock, LogOut, Maximize2, Mic, MicOff, PhoneOff, Users } from "lucide-react";
 import {
     LiveKitRoom,
     RoomAudioRenderer,
@@ -99,6 +99,231 @@ function useMeetRoomElapsedSec() {
     return elapsedSec;
 }
 
+/* ── Compact floating pill + expandable mini panel ── */
+const AUTO_COLLAPSE_MS = 4000;
+
+function MiniCallWidget({
+    roomDisplayName,
+    count,
+    peopleLabel,
+    elapsedSec,
+    stageRef,
+    miniDragHandle,
+    recordingUi,
+    expandToFullRoute,
+    requestLeave,
+    meetingEndedOpen,
+    finishLeaveToHub,
+    pendingRecording,
+    leaveConfirmOpen,
+    setLeaveConfirmOpen,
+    confirmLeave,
+}: {
+    roomDisplayName: string;
+    count: number;
+    peopleLabel: string;
+    elapsedSec: number;
+    stageRef: React.RefObject<HTMLDivElement | null>;
+    miniDragHandle?: MeetMiniDragHandleProps;
+    recordingUi: import("@/components/livekit/CallControls").CallRecordingUiProps;
+    expandToFullRoute: () => void;
+    requestLeave: () => void;
+    meetingEndedOpen: boolean;
+    finishLeaveToHub: () => void;
+    pendingRecording: import("@/lib/use-meets-local-recording").PendingMeetRecording | null;
+    leaveConfirmOpen: boolean;
+    setLeaveConfirmOpen: (v: boolean) => void;
+    confirmLeave: () => void;
+}) {
+    const { t } = useI18n();
+    const { localParticipant, isMicrophoneEnabled } = useLocalParticipant();
+    const [isExpanded, setIsExpanded] = useState(true);
+
+    // Auto-collapse into compact pill after a few seconds
+    useEffect(() => {
+        const id = window.setTimeout(() => setIsExpanded(false), AUTO_COLLAPSE_MS);
+        return () => window.clearTimeout(id);
+    }, []);
+
+    const toggleMic = useCallback(async () => {
+        try {
+            await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled);
+        } catch { /* ignore */ }
+    }, [localParticipant, isMicrophoneEnabled]);
+
+    // ── Compact pill ──
+    if (!isExpanded) {
+        return (
+            <>
+                <div
+                    className="flex items-center gap-1.5 rounded-full border border-zinc-200/80 bg-white/90 py-1 pl-2.5 pr-1 shadow-lg backdrop-blur-md dark:border-white/10 dark:bg-zinc-900/90"
+                    role="status"
+                >
+                    {/* Drag handle + status */}
+                    <div
+                        className={`flex min-w-0 items-center gap-1.5 ${miniDragHandle ? "touch-none cursor-grab select-none active:cursor-grabbing" : ""}`}
+                        onPointerDown={miniDragHandle?.onPointerDown}
+                        title={miniDragHandle ? t("meetsMiniDragHint") : undefined}
+                    >
+                        <span className="relative flex h-2 w-2 shrink-0">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                        </span>
+                        {count > 1 && (
+                            <span className="text-[10px] tabular-nums text-zinc-500 dark:text-zinc-400">
+                                <Users className="mr-0.5 inline h-2.5 w-2.5" />{count}
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Mic toggle */}
+                    <button
+                        type="button"
+                        onClick={() => void toggleMic()}
+                        className={`inline-flex h-7 w-7 items-center justify-center rounded-full transition ${
+                            isMicrophoneEnabled
+                                ? "bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200"
+                                : "bg-red-500 text-white hover:bg-red-600"
+                        }`}
+                        aria-label={isMicrophoneEnabled ? t("meetsMuteMic") : t("meetsUnmuteMic")}
+                    >
+                        {isMicrophoneEnabled
+                            ? <Mic className="h-3 w-3" strokeWidth={2.5} />
+                            : <MicOff className="h-3 w-3" strokeWidth={2.5} />}
+                    </button>
+
+                    {/* Leave */}
+                    <button
+                        type="button"
+                        onClick={requestLeave}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white transition hover:bg-red-500"
+                        aria-label={t("meetsEndCall")}
+                    >
+                        <PhoneOff className="h-3 w-3" strokeWidth={2.5} />
+                    </button>
+
+                    {/* Expand */}
+                    <button
+                        type="button"
+                        onClick={() => setIsExpanded(true)}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                        aria-label={t("meetsExpandCall")}
+                    >
+                        <ChevronUp className="h-3.5 w-3.5" strokeWidth={2} />
+                    </button>
+                </div>
+
+                {/* Audio must keep playing even in compact mode */}
+                <RoomAudioRenderer />
+
+                <MeetingEndedModal
+                    roomDisplayName={roomDisplayName}
+                    open={meetingEndedOpen}
+                    onDismiss={finishLeaveToHub}
+                    pendingRecording={pendingRecording}
+                />
+                <MeetLeaveConfirmModal
+                    open={leaveConfirmOpen}
+                    onCancel={() => setLeaveConfirmOpen(false)}
+                    onConfirm={confirmLeave}
+                />
+            </>
+        );
+    }
+
+    // ── Expanded panel ──
+    return (
+        <>
+        <div className="flex min-h-0 w-full flex-col overflow-hidden rounded-2xl border border-zinc-200/80 bg-[#0a0a0b] shadow-[0_12px_36px_rgba(0,0,0,0.3)] dark:border-white/10">
+            <header className="flex shrink-0 items-center justify-between gap-2 border-b border-zinc-200 bg-white px-2.5 py-1.5">
+                <div
+                    className={`min-w-0 flex-1 ${miniDragHandle ? "touch-none cursor-grab select-none active:cursor-grabbing" : ""}`}
+                    onPointerDown={miniDragHandle?.onPointerDown}
+                    title={miniDragHandle ? t("meetsMiniDragHint") : undefined}
+                >
+                    <p className="truncate font-mono text-[11px] font-semibold text-zinc-900">
+                        {roomDisplayName}
+                    </p>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[10px] text-zinc-600">
+                        <span className="inline-flex items-center gap-1">
+                            <Users className="h-3 w-3 shrink-0 opacity-80" aria-hidden />
+                            {peopleLabel}
+                        </span>
+                        <span className="inline-flex items-center gap-1 tabular-nums" title={t("meetsCallTimerHint")}>
+                            <Clock className="h-3 w-3 shrink-0 opacity-80" aria-hidden />
+                            {formatMmSs(elapsedSec)}
+                        </span>
+                    </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                    <button
+                        type="button"
+                        onClick={expandToFullRoute}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-700 shadow-sm transition hover:bg-zinc-50"
+                        title={t("meetsExpandCall")}
+                        aria-label={t("meetsExpandCall")}
+                    >
+                        <Maximize2 className="h-3 w-3" strokeWidth={2} />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setIsExpanded(false)}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-100"
+                        aria-label="Collapse"
+                    >
+                        <ChevronDown className="h-3.5 w-3.5" strokeWidth={2} />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={requestLeave}
+                        className="inline-flex h-7 items-center justify-center gap-1 rounded-full bg-red-600 px-2 text-[10px] font-semibold text-white shadow-sm hover:bg-red-500"
+                    >
+                        <LogOut className="h-3 w-3 shrink-0" strokeWidth={2} aria-hidden />
+                        <span className="hidden sm:inline">{t("meetsLeaveRoom")}</span>
+                    </button>
+                </div>
+            </header>
+
+            <div
+                ref={stageRef}
+                className="relative flex min-h-[120px] max-h-[200px] min-w-0 shrink-0 flex-col overflow-hidden bg-zinc-950"
+            >
+                <RoomAudioRenderer />
+                <div className="absolute right-1.5 top-1.5 z-30">
+                    <StartAudio label={t("meetsStartAudioLabel")} className={START_AUDIO_BTN_MINI} />
+                </div>
+                <div className="relative z-0 flex min-h-0 flex-1 flex-col">
+                    <CallVideoGrid />
+                </div>
+                <div
+                    className="pointer-events-none absolute left-0 right-0 z-50 flex justify-center px-2 pb-1.5"
+                    style={{ bottom: "max(0.25rem, env(safe-area-inset-bottom, 0px))" }}
+                >
+                    <CallControls
+                        variant="mini"
+                        toolbarSurface="default"
+                        recording={recordingUi}
+                        onLeave={requestLeave}
+                    />
+                </div>
+            </div>
+
+            <MeetingEndedModal
+                roomDisplayName={roomDisplayName}
+                open={meetingEndedOpen}
+                onDismiss={finishLeaveToHub}
+                pendingRecording={pendingRecording}
+            />
+        </div>
+        <MeetLeaveConfirmModal
+            open={leaveConfirmOpen}
+            onCancel={() => setLeaveConfirmOpen(false)}
+            onConfirm={confirmLeave}
+        />
+        </>
+    );
+}
+
 function CallRoomInner({
     roomDisplayName,
     layout,
@@ -129,7 +354,7 @@ function CallRoomInner({
         stopRecording,
         pendingRecording,
         clearPendingRecording,
-    } = useMeetsLocalRecording();
+    } = useMeetsLocalRecording(roomDisplayName);
 
     useMeetsCamera1080Resolution();
 
@@ -206,7 +431,7 @@ function CallRoomInner({
             void stopRecording();
         }
         else {
-            startRecording();
+            void startRecording();
         }
     }, [isRecording, startRecording, stopRecording]);
 
@@ -231,89 +456,23 @@ function CallRoomInner({
 
     if (layout === "mini") {
         return (
-            <>
-            <div className="flex min-h-0 w-full flex-col text-zinc-900">
-                <header className="flex shrink-0 items-center justify-between gap-2 border-b border-zinc-200 bg-white px-2.5 py-2 shadow-sm">
-                    <div
-                        className={`min-w-0 flex-1 ${miniDragHandle ? "touch-none cursor-grab select-none active:cursor-grabbing" : ""}`}
-                        onPointerDown={miniDragHandle?.onPointerDown}
-                        title={miniDragHandle ? t("meetsMiniDragHint") : undefined}
-                    >
-                        <p className="truncate font-mono text-[11px] font-semibold text-zinc-900">
-                            {roomDisplayName}
-                        </p>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[10px] text-zinc-600">
-                            <span className="inline-flex items-center gap-1">
-                                <Users className="h-3 w-3 shrink-0 opacity-80" aria-hidden />
-                                {peopleLabel}
-                            </span>
-                            <span
-                                className="inline-flex items-center gap-1 tabular-nums"
-                                title={t("meetsCallTimerHint")}
-                            >
-                                <Clock className="h-3 w-3 shrink-0 opacity-80" aria-hidden />
-                                {formatMmSs(elapsedSec)}
-                            </span>
-                        </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                        <button
-                            type="button"
-                            onClick={expandToFullRoute}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-700 shadow-sm transition hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/20"
-                            title={t("meetsExpandCall")}
-                            aria-label={t("meetsExpandCall")}
-                        >
-                            <Maximize2 className="h-3.5 w-3.5" strokeWidth={2} />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={requestLeave}
-                            className="inline-flex h-8 items-center justify-center gap-1 rounded-full bg-red-600 px-2 text-[11px] font-semibold text-white shadow-sm hover:bg-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50"
-                        >
-                            <LogOut className="h-3.5 w-3.5 shrink-0" strokeWidth={2} aria-hidden />
-                            <span className="hidden sm:inline">{t("meetsLeaveRoom")}</span>
-                        </button>
-                    </div>
-                </header>
-
-                <div
-                    ref={stageRef}
-                    className="relative flex min-h-[140px] max-h-[220px] min-w-0 shrink-0 flex-col overflow-hidden rounded-b-xl border-x border-b border-zinc-200 bg-zinc-950"
-                >
-                    <RoomAudioRenderer />
-                    <div className="absolute right-1.5 top-1.5 z-30">
-                        <StartAudio label={t("meetsStartAudioLabel")} className={START_AUDIO_BTN_MINI} />
-                    </div>
-                    <div className="relative z-0 flex min-h-0 flex-1 flex-col">
-                        <CallVideoGrid />
-                    </div>
-                <div
-                    className="pointer-events-none absolute left-0 right-0 z-50 flex justify-center px-2 pb-2"
-                    style={{ bottom: "max(0.5rem, env(safe-area-inset-bottom, 0px))" }}
-                >
-                    <CallControls
-                        variant="mini"
-                        toolbarSurface="default"
-                        recording={recordingUi}
-                        onLeave={requestLeave}
-                    />
-                </div>
-                </div>
-
-                <MeetingEndedModal
-                    roomDisplayName={roomDisplayName}
-                    open={meetingEndedOpen}
-                    onDismiss={finishLeaveToHub}
-                    pendingRecording={pendingRecording}
-                />
-            </div>
-            <MeetLeaveConfirmModal
-                open={leaveConfirmOpen}
-                onCancel={() => setLeaveConfirmOpen(false)}
-                onConfirm={confirmLeave}
+            <MiniCallWidget
+                roomDisplayName={roomDisplayName}
+                count={count}
+                peopleLabel={peopleLabel}
+                elapsedSec={elapsedSec}
+                stageRef={stageRef}
+                miniDragHandle={miniDragHandle}
+                recordingUi={recordingUi}
+                expandToFullRoute={expandToFullRoute}
+                requestLeave={requestLeave}
+                meetingEndedOpen={meetingEndedOpen}
+                finishLeaveToHub={finishLeaveToHub}
+                pendingRecording={pendingRecording}
+                leaveConfirmOpen={leaveConfirmOpen}
+                setLeaveConfirmOpen={setLeaveConfirmOpen}
+                confirmLeave={confirmLeave}
             />
-            </>
         );
     }
 
@@ -332,6 +491,16 @@ function CallRoomInner({
                     className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm"
                 >
                     <RoomAudioRenderer />
+                    {isRecording ? (
+                        <div
+                            className="pointer-events-none absolute left-2.5 top-2.5 z-40 flex items-center gap-1.5 rounded-md bg-red-600/90 px-2 py-1 text-[11px] font-semibold text-white shadow-sm backdrop-blur-sm sm:left-3 sm:top-3"
+                            role="status"
+                            aria-live="polite"
+                        >
+                            <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-white" />
+                            <span className="font-mono tabular-nums">REC {formatMmSs(recordingElapsedSec)}</span>
+                        </div>
+                    ) : null}
                     <div className={STAGE_VIGNETTE}>
                         <div className="absolute right-2 top-2 z-30 sm:right-3 sm:top-3">
                             <StartAudio label={t("meetsStartAudioLabel")} className={START_AUDIO_BTN_CLASS} />
@@ -342,15 +511,13 @@ function CallRoomInner({
                     </div>
                     <div
                         className="pointer-events-none absolute left-0 right-0 z-50 flex justify-center px-3"
-                        style={{ bottom: "max(1.5rem, env(safe-area-inset-bottom, 0px))" }}
+                        style={{ bottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))" }}
                     >
                         <CallControls
                             recording={recordingUi}
                             chatOpen={chatOpen}
                             onToggleChat={toggleChat}
                             onLeave={requestLeave}
-                            onToggleStageFullscreen={toggleStageFullscreen}
-                            isStageFullscreen={isStageFullscreen}
                         />
                     </div>
                 </div>

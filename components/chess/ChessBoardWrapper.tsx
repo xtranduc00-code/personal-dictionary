@@ -16,15 +16,16 @@ export function computeChessBoardSize(): number {
   return Math.max(200, Math.floor(Math.min(fromHeight, fromWidth, 480)));
 }
 
-/**
- * Puzzle solve: info sidebar on LEFT (~224px), board fills the rest on the right.
- */
+/** Puzzle solve: matches compact sidebar + gap-3/4 + max-w-6xl shell (skeleton / fallback only). */
 export function computePuzzleSolveChessBoardSize(): number {
   if (typeof window === "undefined") return 400;
-  const sidebarW = window.innerWidth < 640 ? 192 : 224;
-  const fromHeight = window.innerHeight - 48;
-  const fromWidth = window.innerWidth - sidebarW - 24;
-  return Math.max(200, Math.floor(Math.min(fromHeight, fromWidth, 480)));
+  const sidebarW = window.innerWidth < 640 ? 184 : window.innerWidth >= 1024 ? 224 : 208;
+  const shellW = Math.min(window.innerWidth, 1152);
+  const gap = 14;
+  const hPad = 22;
+  const fromHeight = window.innerHeight - 40;
+  const fromWidth = shellW - sidebarW - gap - hPad;
+  return Math.max(200, Math.floor(Math.min(fromHeight, fromWidth, 560)));
 }
 
 /** Puzzle Rush: left sidebar ~180px, board fills rest. */
@@ -110,10 +111,15 @@ type ChessBoardWrapperProps = {
   sizePreset?: ChessBoardSizePreset;
   /** Square edge length; caps preset when the board must fit a narrow column. */
   forcedBoardWidth?: number;
+  /**
+   * When false, size uses only `forcedBoardWidth` (>0); otherwise shows skeleton until set.
+   * Use for layouts that measure the board stage (e.g. puzzle solve) instead of the window preset.
+   */
+  useViewportSizeFallback?: boolean;
 };
 
 /**
- * Single shared board shell: size from viewport formula only (mount + window resize).
+ * Single shared board shell: size from viewport preset and/or forced width.
  */
 export function ChessBoardWrapper({
   options,
@@ -121,12 +127,15 @@ export function ChessBoardWrapper({
   fixedEdgeNotation = true,
   sizePreset = "default",
   forcedBoardWidth,
+  useViewportSizeFallback = true,
 }: ChessBoardWrapperProps) {
   const presetSize = useChessBoardSize(sizePreset);
   const boardSize =
     typeof forcedBoardWidth === "number" && forcedBoardWidth > 0
       ? Math.floor(forcedBoardWidth)
-      : presetSize;
+      : useViewportSizeFallback
+        ? presetSize
+        : 0;
 
   if (boardSize <= 0) {
     return <KenChessboardSkeleton className={className ?? "rounded-xl"} />;
@@ -140,7 +149,7 @@ export function ChessBoardWrapper({
   return (
     <div
       className={className}
-      style={{ width: boardSize, height: boardSize, maxWidth: "100%", maxHeight: "100%" }}
+      style={{ width: boardSize, height: boardSize, maxWidth: "100%", maxHeight: "100%", flexShrink: 1 }}
     >
       <KenChessboard
         className="h-full w-full"

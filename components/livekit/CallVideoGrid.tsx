@@ -31,12 +31,14 @@ const VideoCell = memo(function VideoCell({
     minHeightClass,
     fillStage,
     subscriptionProfile,
+    hideLabel,
 }: {
     trackRef: TrackReferenceOrPlaceholder;
     fit: "cover" | "contain";
     minHeightClass?: string;
     fillStage?: boolean;
     subscriptionProfile: MeetsVideoSubscriptionProfile;
+    hideLabel?: boolean;
 }) {
     useMeetsTrackSubscriptionProfile(trackRef, subscriptionProfile);
 
@@ -61,10 +63,12 @@ const VideoCell = memo(function VideoCell({
                     <ParticipantPlaceholder className="h-16 w-16 text-zinc-500 sm:h-20 sm:w-20" />
                 </div>
             )}
-            <div className="pointer-events-none absolute bottom-3 left-3 max-w-[calc(100%-24px)] truncate rounded-md bg-black/55 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm dark:rounded-lg dark:bg-black/60">
-                {trackRef.participant.name || trackRef.participant.identity}
-                {isScreen ? " · screen" : ""}
-            </div>
+            {!hideLabel && (
+                <div className="pointer-events-none absolute bottom-3 left-3 max-w-[calc(100%-24px)] truncate rounded-md bg-black/55 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                    {trackRef.participant.name || trackRef.participant.identity}
+                    {isScreen ? " · screen" : ""}
+                </div>
+            )}
         </div>
     );
 });
@@ -155,13 +159,13 @@ const LocalSelfPip = memo(function LocalSelfPip({
     const positionClass = draggable
         ? dragPos
             ? ""
-            : "bottom-3 right-3 sm:bottom-4 sm:right-4"
-        : "bottom-[5.75rem] right-4 sm:bottom-[6rem] sm:right-5";
+            : "bottom-4 right-4"
+        : "bottom-16 right-4";
 
     return (
         <div
             ref={pipOuterRef}
-            className={`absolute z-[38] w-[min(42vw,200px)] max-w-[220px] touch-none ${positionClass} ${draggable ? "cursor-grab active:cursor-grabbing" : "pointer-events-none"}`}
+            className={`group/pip absolute z-[38] w-[min(24vw,180px)] touch-none ${positionClass} ${draggable ? "cursor-grab active:cursor-grabbing" : "pointer-events-none"}`}
             style={
                 dragPos && draggable
                     ? {
@@ -179,7 +183,7 @@ const LocalSelfPip = memo(function LocalSelfPip({
             onPointerCancel={draggable ? endDrag : undefined}
         >
             <div
-                className={`relative aspect-video w-full overflow-hidden rounded-xl border border-zinc-200 bg-zinc-900 shadow-lg ring-2 ring-zinc-200 ${draggable ? "" : "pointer-events-auto"}`}
+                className={`relative aspect-video w-full overflow-hidden rounded-lg border-2 border-white/15 bg-zinc-900 shadow-lg ${draggable ? "" : "pointer-events-auto"}`}
                 title={draggable ? t("meetsSelfPipDragHint") : undefined}
             >
                 {isTrackReference(trackRef) ? (
@@ -191,10 +195,10 @@ const LocalSelfPip = memo(function LocalSelfPip({
                     />
                 ) : (
                     <div className="flex h-full w-full items-center justify-center bg-zinc-800">
-                        <ParticipantPlaceholder className="h-12 w-12 text-zinc-500" />
+                        <ParticipantPlaceholder className="h-10 w-10 text-zinc-500" />
                     </div>
                 )}
-                <div className="pointer-events-none absolute bottom-1.5 left-1.5 max-w-[calc(100%-12px)] truncate rounded-md bg-black/65 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white backdrop-blur-sm">
+                <div className="pointer-events-none absolute bottom-1 left-1 max-w-[calc(100%-8px)] truncate rounded bg-black/60 px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-white opacity-0 backdrop-blur-sm transition-opacity group-hover/pip:opacity-100">
                     {t("meetsChatYou")}
                 </div>
             </div>
@@ -211,6 +215,7 @@ const VideoTile = memo(function VideoTile({
     pinnedKey,
     onPinToggle,
     compact,
+    hideLabel,
 }: {
     trackRef: TrackReferenceOrPlaceholder;
     fit: "cover" | "contain";
@@ -220,13 +225,14 @@ const VideoTile = memo(function VideoTile({
     pinnedKey: string | null;
     onPinToggle: (key: string) => void;
     compact?: boolean;
+    hideLabel?: boolean;
 }) {
     const { t } = useI18n();
     const isPinned = pinnedKey === tileKey;
     const subscriptionProfile: MeetsVideoSubscriptionProfile = compact ? "thumbnail" : "main";
     return (
         <div
-            className={`group relative min-h-0 ${compact ? "aspect-video w-[min(44vw,200px)] shrink-0 sm:w-52" : "h-full w-full"}`}
+            className={`group relative min-h-0 ${compact ? "aspect-video w-full shrink-0 overflow-hidden rounded-lg" : "h-full w-full"}`}
         >
             <VideoCell
                 trackRef={trackRef}
@@ -234,6 +240,7 @@ const VideoTile = memo(function VideoTile({
                 fillStage={fillStage}
                 minHeightClass={minHeightClass}
                 subscriptionProfile={subscriptionProfile}
+                hideLabel={hideLabel}
             />
             <div
                 className={`pointer-events-none absolute inset-x-0 top-0 flex justify-end p-2 ${compact ? "opacity-100 sm:opacity-0 sm:group-hover:opacity-100" : "opacity-0 group-hover:opacity-100"} transition-opacity`}
@@ -348,19 +355,22 @@ export const CallVideoGrid = memo(function CallVideoGrid() {
 
     if (useFocusLayout && focusTrack) {
         return (
-            <div className="relative flex h-full min-h-0 w-full flex-1 flex-col gap-2 p-2 sm:gap-3 sm:p-3">
+            <div className="relative flex h-full min-h-0 w-full flex-1 flex-row overflow-hidden bg-[#1a1a1a]">
+                {/* Main screen share — fills all available space */}
                 <div
                     ref={focusStageRef}
-                    className="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-950"
+                    className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
                 >
                     <VideoTile
                         trackRef={focusTrack}
                         fit={fitForTrack(focusTrack)}
                         fillStage
+                        hideLabel
                         tileKey={focusKey}
                         pinnedKey={pinnedKey}
                         onPinToggle={onPinToggle}
                     />
+                    {/* Self-view overlay — bottom-right, above controls */}
                     {localCameraTrack ? (
                         <LocalSelfPip
                             trackRef={localCameraTrack}
@@ -368,24 +378,27 @@ export const CallVideoGrid = memo(function CallVideoGrid() {
                         />
                     ) : null}
                 </div>
+                {/* Right sidebar strip for other participants */}
                 {stripTracks.length > 0 ? (
                     <div
-                        className="flex max-h-[min(30vh,220px)] shrink-0 gap-2 overflow-x-auto overflow-y-hidden py-1 [-webkit-overflow-scrolling:touch]"
+                        className="flex shrink-0 flex-col gap-2 overflow-y-auto overflow-x-hidden p-2"
+                        style={{ width: 168 }}
                         role="region"
                         aria-label={t("meetsFilmstripLabel")}
                     >
                         {stripTracks.map((tr) => {
                             const k = trackKey(tr);
                             return (
-                                <VideoTile
-                                    key={k}
-                                    trackRef={tr}
-                                    fit={fitForTrack(tr)}
-                                    compact
-                                    tileKey={k}
-                                    pinnedKey={pinnedKey}
-                                    onPinToggle={onPinToggle}
-                                />
+                                <div key={k} className="shrink-0" style={{ width: 152, height: 86 }}>
+                                    <VideoTile
+                                        trackRef={tr}
+                                        fit="cover"
+                                        compact
+                                        tileKey={k}
+                                        pinnedKey={pinnedKey}
+                                        onPinToggle={onPinToggle}
+                                    />
+                                </div>
                             );
                         })}
                     </div>

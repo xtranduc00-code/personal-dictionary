@@ -22,8 +22,7 @@ const SHELL_MINI_OUTER_BASE =
 const SHELL_MINI_OUTER_DEFAULT_POS = "bottom-4 right-4 md:bottom-6 md:right-6";
 
 const SHELL_FULL_INNER = "flex min-h-0 flex-1 flex-col";
-const SHELL_MINI_INNER =
-    "pointer-events-auto max-h-[min(52vh,420px)] overflow-hidden rounded-2xl border border-zinc-200/80 bg-[#0a0a0b] shadow-[0_16px_48px_rgba(0,0,0,0.35)] dark:border-white/10 dark:shadow-black/60";
+const SHELL_MINI_INNER = "pointer-events-auto";
 
 export function MeetPersistentLayer() {
     const pathname = usePathname();

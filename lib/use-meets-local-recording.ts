@@ -1,24 +1,33 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useLocalParticipant } from "@livekit/components-react";
+import { useRoomContext } from "@livekit/components-react";
 import { toast } from "react-toastify";
 import { useI18n } from "@/components/i18n-provider";
-import { buildLocalParticipantMediaStream, chooseWebmMimeType } from "@/lib/meets-local-recording";
+import {
+    buildRoomRecordingStream,
+    chooseWebmMimeType,
+    type ComposedRecordingHandle,
+} from "@/lib/meets-local-recording";
+import { MEETS_SCREEN_SHARE_CAPTURE } from "@/lib/meets-livekit-options";
+import { downloadBlobAsFile } from "@/lib/meets-download-chat";
+import { safeMeetFileBase } from "@/lib/meets-format";
 
 export type PendingMeetRecording = {
     blob: Blob;
     mimeType: string;
 };
 
-/**
- * Local MediaRecorder: in-call REC timer + toasts; blob kept for post-call download (not auto-saved on stop).
- */
-export function useMeetsLocalRecording() {
+function makeRecordingFilename(roomDisplayName: string): string {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const ts = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`;
+    return `meeting-${safeMeetFileBase(roomDisplayName)}-${ts}.webm`;
+}
+
+export function useMeetsLocalRecording(roomDisplayName?: string) {
     const { t } = useI18n();
-    const { localParticipant } = useLocalParticipant();
-    const localParticipantRef = useRef(localParticipant);
-    localParticipantRef.current = localParticipant;
+    const room = useRoomContext();
 
     const [isRecording, setIsRecording] = useState(false);
     const [recordingElapsedSec, setRecordingElapsedSec] = useState(0);
@@ -26,8 +35,10 @@ export function useMeetsLocalRecording() {
     const [pendingRecording, setPendingRecording] = useState<PendingMeetRecording | null>(null);
     const recorderRef = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<Blob[]>([]);
-    /** Resolved after MediaRecorder `stop` → `onstop` (so Leave can await finalize). */
+    const composedHandleRef = useRef<ComposedRecordingHandle | null>(null);
     const onStopWaitersRef = useRef<Array<() => void>>([]);
+    const roomDisplayNameRef = useRef(roomDisplayName ?? "");
+    roomDisplayNameRef.current = roomDisplayName ?? "";
 
     const flushStopWaiters = useCallback(() => {
         const waiters = onStopWaitersRef.current;
@@ -36,9 +47,7 @@ export function useMeetsLocalRecording() {
     }, []);
 
     useEffect(() => {
-        if (!isRecording) {
-            return;
-        }
+        if (!isRecording) return;
         setRecordingElapsedSec(0);
         const id = window.setInterval(() => {
             setRecordingElapsedSec((s) => s + 1);
@@ -50,40 +59,60 @@ export function useMeetsLocalRecording() {
         setPendingRecording(null);
     }, []);
 
-    const startRecording = useCallback(() => {
+    const cleanupComposed = useCallback(() => {
+        const handle = composedHandleRef.current;
+        if (!handle) return;
+        handle.cleanup();
+        // If we started screen share for recording, stop it
+        if (handle.ownsScreenShare) {
+            try {
+                void room.localParticipant.setScreenShareEnabled(false);
+            } catch { /* */ }
+        }
+        composedHandleRef.current = null;
+    }, [room]);
+
+    const startRecording = useCallback(async () => {
         setBusyRec("start");
         try {
-            const stream = buildLocalParticipantMediaStream(localParticipantRef.current);
-            if (!stream) {
+            const handle = await buildRoomRecordingStream(room, MEETS_SCREEN_SHARE_CAPTURE);
+            if (!handle) {
                 toast.error(t("meetsRecordingNeedMedia"));
                 return;
             }
+
+            composedHandleRef.current = handle;
+
             const mimeType = chooseWebmMimeType();
             let mr: MediaRecorder;
             try {
-                mr = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-            }
-            catch {
+                mr = mimeType
+                    ? new MediaRecorder(handle.stream, { mimeType })
+                    : new MediaRecorder(handle.stream);
+            } catch {
+                cleanupComposed();
                 toast.error(t("meetsRecordingStartFailed"));
                 return;
             }
+
             chunksRef.current = [];
             mr.ondataavailable = (ev) => {
-                if (ev.data.size > 0) {
-                    chunksRef.current.push(ev.data);
-                }
+                if (ev.data.size > 0) chunksRef.current.push(ev.data);
             };
             mr.onstop = () => {
                 const type = mr.mimeType || mimeType || "video/webm";
                 const blob = new Blob(chunksRef.current, { type });
                 chunksRef.current = [];
                 recorderRef.current = null;
+                cleanupComposed();
                 setIsRecording(false);
                 setBusyRec(null);
+
                 if (blob.size < 1) {
                     toast.warning(t("meetsRecordingEmpty"));
-                }
-                else {
+                } else {
+                    const filename = makeRecordingFilename(roomDisplayNameRef.current);
+                    downloadBlobAsFile(blob, filename);
                     setPendingRecording({ blob, mimeType: type });
                     toast.success(t("meetsToastRecordingStopped"));
                 }
@@ -92,23 +121,25 @@ export function useMeetsLocalRecording() {
             mr.onerror = () => {
                 toast.error(t("meetsRecordingStartFailed"));
                 recorderRef.current = null;
+                cleanupComposed();
                 setIsRecording(false);
                 setBusyRec(null);
                 flushStopWaiters();
             };
+
             mr.start(1000);
             recorderRef.current = mr;
             setIsRecording(true);
             toast.success(t("meetsToastRecordingStarted"));
-        }
-        finally {
+        } finally {
             setBusyRec(null);
         }
-    }, [flushStopWaiters, t]);
+    }, [room, flushStopWaiters, cleanupComposed, t]);
 
     const stopRecording = useCallback((): Promise<void> => {
         const mr = recorderRef.current;
         if (!mr || mr.state !== "recording") {
+            cleanupComposed();
             setIsRecording(false);
             return Promise.resolve();
         }
@@ -121,26 +152,23 @@ export function useMeetsLocalRecording() {
             onStopWaitersRef.current.push(done);
             try {
                 mr.stop();
-            }
-            catch {
+            } catch {
                 onStopWaitersRef.current = onStopWaitersRef.current.filter((f) => f !== done);
+                cleanupComposed();
                 setBusyRec(null);
                 resolve();
             }
         });
-    }, []);
+    }, [cleanupComposed]);
 
     useEffect(() => {
         return () => {
             const mr = recorderRef.current;
             if (mr && mr.state === "recording") {
-                try {
-                    mr.stop();
-                }
-                catch {
-                    /* ignore */
-                }
+                try { mr.stop(); } catch { /* */ }
             }
+            composedHandleRef.current?.cleanup();
+            composedHandleRef.current = null;
         };
     }, []);
 

@@ -1679,7 +1679,7 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
 
   // ── Active game / game over ─────────────────────────────────────────
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2 sm:gap-3 sm:p-3 md:flex-row md:items-stretch md:justify-center md:gap-4">
+    <div className="flex h-full min-h-0 flex-1 flex-col gap-2 overflow-hidden bg-zinc-100 p-2 dark:bg-zinc-950 sm:gap-3 sm:p-3 md:flex-row md:items-stretch md:justify-center md:gap-4">
       {/* ── Board column (opponent above, you below) ─────────────────────── */}
       <div
         className={
@@ -2826,11 +2826,9 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
   }
 
   const innerBoardShadow =
-    result === "solved"
-      ? "0 4px 24px rgba(0,0,0,0.12)"
-      : result === "wrong"
-        ? "0 0 0 4px rgb(239 68 68)"
-        : "0 4px 24px rgba(0,0,0,0.12)";
+    result === "wrong"
+      ? "0 0 0 2px rgba(239, 68, 68, 0.4)"
+      : "0 0 0 1px rgba(0,0,0,0.08)";
 
   const title   = "title" in puzzle ? puzzle.title : `Puzzle #${(puzzle as LibraryPuzzle).id}`;
   const level   = puzzle.level;
@@ -2847,254 +2845,302 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
     [fen],
   );
 
-  const puzzlePresetMax = useChessBoardSize("puzzleSolve");
-  const boardColRef = useRef<HTMLDivElement>(null);
-  const [boardColWidth, setBoardColWidth] = useState(0);
+  const boardStageRef = useRef<HTMLDivElement>(null);
+  const [boardStageSize, setBoardStageSize] = useState({ w: 0, h: 0 });
 
   useLayoutEffect(() => {
-    const el = boardColRef.current;
+    const el = boardStageRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(() => {
-      setBoardColWidth(el.clientWidth);
+    const sync = () => {
+      setBoardStageSize({ w: el.clientWidth, h: el.clientHeight });
+    };
+    const ro = new ResizeObserver((entries) => {
+      const e = entries[0];
+      if (e?.contentRect) {
+        setBoardStageSize({ w: e.contentRect.width, h: e.contentRect.height });
+      } else {
+        sync();
+      }
     });
     ro.observe(el);
-    setBoardColWidth(el.clientWidth);
+    sync();
     return () => ro.disconnect();
   }, []);
 
-  const cappedBoardEdge =
-    puzzlePresetMax > 0 && boardColWidth > 0
-      ? Math.min(puzzlePresetMax, boardColWidth)
-      : puzzlePresetMax;
+  const puzzleBoardEdge = useMemo(() => {
+    const { w, h } = boardStageSize;
+    if (w <= 0 || h <= 0) return 0;
+    // Leave some breathing room so the board never overflows
+    const available = Math.min(w - 8, h - 8);
+    const edge = Math.min(Math.floor(available), 560);
+    return edge > 0 ? edge : 0;
+  }, [boardStageSize]);
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 overflow-hidden">
-      {/* ── Left info sidebar ── */}
-      <div className="flex w-48 shrink-0 flex-col gap-3 overflow-y-auto overflow-x-hidden border-r border-zinc-200/90 bg-white px-3 py-3 dark:border-zinc-800 dark:bg-zinc-900/90 sm:w-56 lg:w-64 sm:px-4">
-        {/* Back */}
-        <button
-          type="button"
-          onClick={onBack}
-          className="flex items-center gap-1 text-[11px] font-medium text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
-        >
-          <ArrowLeft className="h-3 w-3" aria-hidden />
-          Back
-        </button>
+    <div className="flex h-full min-h-0 w-full flex-1 justify-center overflow-hidden bg-zinc-100 dark:bg-zinc-950">
+      <div className="flex h-full min-h-0 w-full max-w-6xl items-stretch gap-2.5 overflow-hidden px-2 py-2 sm:gap-3 sm:px-3 sm:py-2.5">
+        <aside className="flex h-full min-h-0 w-[12rem] shrink-0 flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:w-52 lg:w-56">
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex shrink-0 items-center gap-1 px-2.5 pb-1 pt-2 text-[11px] font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 sm:px-3"
+          >
+            <ArrowLeft className="h-3 w-3 shrink-0" aria-hidden />
+            Back
+          </button>
 
-        {/* Puzzle info */}
-        <div>
-          <div className="flex items-start justify-between gap-1">
-            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 leading-snug">{title}</h2>
-            <button onClick={() => setMuted((m) => !m)} className="shrink-0 rounded-lg p-0.5 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-              {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
-            </button>
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-1">
-            <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${LEVEL_COLORS[level as PuzzleLevel]}`}>
-              {LEVEL_LABELS[level as PuzzleLevel]}
-            </span>
-            {isLibrary && (
-              <span className="font-mono text-[10px] text-zinc-400">{(puzzle as LibraryPuzzle).rating}</span>
-            )}
-          </div>
-          <p className="mt-2 text-xs text-zinc-500">
-            Find best move for <strong>{playerColor}</strong>.
-          </p>
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain px-2.5 sm:px-3">
+              <div className="flex flex-col gap-1.5 py-1.5">
+                <div>
+                  <h2 className="truncate text-xs font-semibold leading-tight text-zinc-900 dark:text-zinc-100 sm:text-[13px]">
+                    {title}
+                  </h2>
+                  <p className="mt-0.5 text-[10px] leading-snug text-zinc-600 dark:text-zinc-400">
+                    Find best move for{" "}
+                    <strong className="font-semibold text-zinc-800 dark:text-zinc-200">{playerColor}</strong>.
+                  </p>
+                </div>
 
-          {/* Progress bar */}
-          <div className="mt-2">
-            <div className="mb-1 flex items-center justify-between text-[10px] text-zinc-400">
-              <span>Move {currentPlayerMove}/{totalPlayerMoves}</span>
-              <span>{progressPct}%</span>
+                <div>
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span className={`inline-block rounded-full px-1.5 py-px text-[10px] font-medium ${LEVEL_COLORS[level as PuzzleLevel]}`}>
+                      {LEVEL_LABELS[level as PuzzleLevel]}
+                    </span>
+                    {isLibrary && (
+                      <span className="font-mono text-[10px] text-zinc-500 dark:text-zinc-400">{(puzzle as LibraryPuzzle).rating}</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setMuted((m) => !m)}
+                      className="ml-auto shrink-0 rounded p-0.5 text-zinc-500 hover:bg-zinc-200/50 dark:text-zinc-400 dark:hover:bg-zinc-700/50"
+                      title={muted ? "Unmute" : "Mute"}
+                    >
+                      {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+                  <div className="mt-1">
+                    <div className="mb-px flex items-center justify-between text-[10px] text-zinc-500 dark:text-zinc-400">
+                      <span>Move {currentPlayerMove}/{totalPlayerMoves}</span>
+                      <span>{progressPct}%</span>
+                    </div>
+                    <div className="h-1 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700/60">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${result === "solved" ? "bg-emerald-500" : "bg-amber-400"}`}
+                        style={{ width: `${progressPct}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {result === "solved" && (
+                  <div className="flex items-center gap-1 rounded-md bg-emerald-50 px-1.5 py-1 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400">
+                    <Crown className="h-3.5 w-3.5 shrink-0" />
+                    <span className="text-[11px] font-semibold">Solved!</span>
+                  </div>
+                )}
+                {(result === "wrong" || (wrongExpl && result === "idle")) && (
+                  <div className="rounded-md border border-red-200/90 bg-red-50/90 px-1.5 py-1 dark:border-red-900/50 dark:bg-red-950/30">
+                    <div className="flex items-center gap-1 text-red-700 dark:text-red-400">
+                      <X className="h-3 w-3 shrink-0" />
+                      <span className="text-[10px] font-semibold sm:text-[11px]">Not the best move.</span>
+                    </div>
+                    <div className="mt-0.5 text-[10px] leading-snug text-red-600/90 dark:text-red-400/90 sm:text-[11px]">
+                      {loadingWrong ? (
+                        <span className="flex items-center gap-1 text-red-400">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Analyzing…
+                        </span>
+                      ) : wrongExpl ? (
+                        <p>{wrongExpl}</p>
+                      ) : (
+                        <p className="text-red-400">Try a stronger threat.</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {result === "solved" && (
+                  <div className="rounded-md border border-zinc-200/90 bg-white px-1.5 py-1 dark:border-zinc-700 dark:bg-zinc-900">
+                    <div className="mb-1 flex items-center gap-1">
+                      <BookOpen className="h-3 w-3 text-zinc-400" />
+                      <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400">Why this works</p>
+                      <div className="ml-auto flex items-center gap-px">
+                        {speaking ? (
+                          <>
+                            <button onClick={pauseResumeSpeech} title={paused ? "Resume" : "Pause"} className="rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800">
+                              {paused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
+                            </button>
+                            <button onClick={stopSpeech} title="Stop" className="rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-red-500 dark:hover:bg-zinc-800">
+                              <Square className="h-3 w-3" />
+                            </button>
+                          </>
+                        ) : explanation && !loadingExpl ? (
+                          <button onClick={() => speakText(explanation)} title="Read aloud" className="rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800">
+                            <Volume2 className="h-3 w-3" />
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                    {loadingExpl ? (
+                      <div className="flex items-center gap-1 text-[11px] text-zinc-400">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Analyzing…
+                      </div>
+                    ) : explanation ? (
+                      <p className="text-[10px] leading-snug text-zinc-700 dark:text-zinc-300 sm:text-[11px] sm:leading-relaxed">{explanation}</p>
+                    ) : (
+                      <p className="text-[10px] text-zinc-400">Solution: <span className="font-mono">{solMoves.join(" ")}</span></p>
+                    )}
+                  </div>
+                )}
+
+                {result === "wrong" && wrongAttempts >= 3 && !showSolution && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSolution(true)}
+                    className="flex w-full items-center justify-center gap-1 rounded-md border border-violet-200 bg-violet-50/90 py-1 text-[10px] font-medium text-violet-800 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-300 sm:text-[11px]"
+                  >
+                    <Lightbulb className="h-3 w-3" /> Show solution
+                  </button>
+                )}
+                {showSolution && (() => {
+                  const solChess = new Chess(fenBeforeDropRef.current);
+                  const expectedUci = solMoves[moveIdx];
+                  if (!expectedUci) return null;
+                  try {
+                    const m = solChess.move({ from: expectedUci.slice(0, 2), to: expectedUci.slice(2, 4), promotion: expectedUci[4] ?? "q" });
+                    if (!m) return null;
+                    return (
+                      <div className="rounded-md border border-violet-200 bg-violet-50/70 px-1.5 py-1 dark:border-violet-800 dark:bg-violet-950/25">
+                        <p className="mb-px text-[9px] font-bold uppercase tracking-wider text-violet-500">Solution</p>
+                        <p className="text-[10px] leading-snug text-violet-900 dark:text-violet-100 sm:text-[11px]">
+                          Play <span className="font-mono font-bold">{m.san}</span>.
+                        </p>
+                      </div>
+                    );
+                  } catch {
+                    return null;
+                  }
+                })()}
+              </div>
             </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${result === "solved" ? "bg-emerald-500" : "bg-amber-400"}`}
-                style={{ width: `${progressPct}%` }}
+
+            <div className="shrink-0 border-t border-zinc-200/80 px-2.5 pb-1.5 pt-1 dark:border-zinc-700/50 sm:px-3">
+              <div className="flex flex-col gap-1">
+                {!showHint && result !== "solved" && (
+                  <button
+                    type="button"
+                    onClick={() => setShowHint(true)}
+                    className="flex w-full items-center gap-1 rounded-md border border-amber-300/80 bg-amber-50/90 px-1.5 py-1 text-left text-[10px] font-medium text-amber-800 hover:bg-amber-100/90 dark:border-amber-800/80 dark:bg-amber-950/25 dark:text-amber-400 dark:hover:bg-amber-950/40 sm:text-[11px]"
+                  >
+                    <Lightbulb className="h-3 w-3 shrink-0" /> Show hint
+                  </button>
+                )}
+                {showHint && (
+                  <div className="rounded-md border border-amber-200/80 bg-amber-50/70 px-1.5 py-1 text-[10px] leading-snug text-amber-800 dark:border-amber-800 dark:bg-amber-950/25 dark:text-amber-400 sm:text-[11px]">
+                    <p className="flex items-start gap-1">
+                      <Lightbulb className="mt-0.5 h-3 w-3 shrink-0" />
+                      {loadingHint && isLibrary && !builtInHint ? (
+                        <span className="flex items-center gap-1 text-[10px] text-amber-600/90">
+                          <Loader2 className="h-3 w-3 shrink-0 animate-spin" /> Generating…
+                        </span>
+                      ) : (
+                        hintText || themeToHint(themes)
+                      )}
+                    </p>
+                    {themes.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {themes.map((t) => (
+                          <span key={t} className="rounded-full bg-amber-100/60 px-1.5 py-px text-[9px] font-medium text-amber-600 dark:bg-amber-900/30 dark:text-amber-500">{t}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {result === "wrong" && (
+                  <button
+                    type="button"
+                    onClick={handleTryAgain}
+                    className="flex w-full items-center justify-center gap-1 rounded-md bg-zinc-800 py-1 text-[11px] font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-200 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                  >
+                    <Undo2 className="h-3 w-3" /> Try again
+                  </button>
+                )}
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={handleReset}
+                    className="flex flex-1 items-center justify-center gap-1 rounded-md border border-zinc-300/60 bg-zinc-100/80 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-200/80 dark:border-zinc-600 dark:bg-zinc-800/80 dark:text-zinc-200 dark:hover:bg-zinc-700"
+                  >
+                    <RefreshCw className="h-3 w-3" /> Reset
+                  </button>
+                  {result === "solved" && (
+                    <button
+                      type="button"
+                      disabled={nextPuzzleLoading}
+                      onClick={async () => {
+                        stopSpeech();
+                        if (onNextPuzzle) {
+                          setNextPuzzleLoading(true);
+                          try {
+                            await onNextPuzzle();
+                          } finally {
+                            setNextPuzzleLoading(false);
+                          }
+                        } else {
+                          onBack();
+                        }
+                      }}
+                      className="flex flex-1 items-center justify-center gap-1 rounded-md bg-amber-500 py-1 text-[11px] font-semibold text-white hover:bg-amber-600 disabled:opacity-60"
+                    >
+                      {nextPuzzleLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                      Next
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <ChessMoveHistoryPanel
+                historyVerbose={puzzleMoveHistoryVerbose}
+                userSide={playerColor}
+                emptyLabel="Play a move to see the sequence here."
+                className="mt-1"
               />
             </div>
           </div>
-        </div>
+        </aside>
 
-        {/* Feedback */}
-        {result === "solved" && (
-          <div className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2 py-1.5 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">
-            <Crown className="h-4 w-4 shrink-0" />
-            <span className="text-xs font-semibold">Solved!</span>
-          </div>
-        )}
-        {(result === "wrong" || (wrongExpl && result === "idle")) && (
-          <div className="rounded-lg border border-red-200 bg-red-50/80 px-2 py-1.5 dark:border-red-900/50 dark:bg-red-950/30">
-            <div className="flex items-center gap-1 text-red-700 dark:text-red-400">
-              <X className="h-3 w-3 shrink-0" />
-              <span className="text-[11px] font-semibold">Not the best move.</span>
-            </div>
-            <div className="mt-1 text-[11px] leading-snug text-red-600/90 dark:text-red-400/90">
-              {loadingWrong ? (
-                <span className="flex items-center gap-1 text-[10px] text-red-400">
-                  <Loader2 className="h-3 w-3 animate-spin" /> Analyzing…
-                </span>
-              ) : wrongExpl ? (
-                <p>{wrongExpl}</p>
-              ) : (
-                <p className="text-[10px] text-red-400">Try a stronger threat.</p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Hint */}
-        {!showHint && result !== "solved" && (
-          <button onClick={() => setShowHint(true)}
-            className="flex w-full items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-left text-[11px] font-medium text-amber-700 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-400">
-            <Lightbulb className="h-3 w-3 shrink-0" /> Show hint
-          </button>
-        )}
-        {showHint && (
-          <div className="rounded-lg border border-amber-200/80 bg-amber-50/60 px-2 py-1.5 text-[11px] leading-snug text-amber-700 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-400">
-            <p className="flex items-start gap-1">
-              <Lightbulb className="mt-0.5 h-3 w-3 shrink-0" />
-              {loadingHint && isLibrary && !builtInHint ? (
-                <span className="flex items-center gap-1 text-[10px] text-amber-600/90">
-                  <Loader2 className="h-3 w-3 animate-spin shrink-0" /> Generating…
-                </span>
-              ) : (
-                hintText || themeToHint(themes)
-              )}
-            </p>
-            {themes.length > 0 && (
-              <div className="mt-1.5 flex flex-wrap gap-1">
-                {themes.map((t) => (
-                  <span key={t} className="rounded-full bg-amber-100/60 px-1.5 py-0.5 text-[9px] font-medium text-amber-500 dark:bg-amber-900/20 dark:text-amber-500">{t}</span>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* AI Explanation (after solve) */}
-        {result === "solved" && (
-          <div className="rounded-lg border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-900">
-            <div className="mb-1.5 flex items-center gap-1">
-              <BookOpen className="h-3 w-3 text-zinc-400" />
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Why this works</p>
-              <div className="ml-auto flex items-center gap-0.5">
-                {speaking ? (
-                  <>
-                    <button onClick={pauseResumeSpeech} title={paused ? "Resume" : "Pause"} className="rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800">
-                      {paused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
-                    </button>
-                    <button onClick={stopSpeech} title="Stop" className="rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-red-500 dark:hover:bg-zinc-800">
-                      <Square className="h-3 w-3" />
-                    </button>
-                  </>
-                ) : explanation && !loadingExpl ? (
-                  <button onClick={() => speakText(explanation)} title="Read aloud" className="rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800">
-                    <Volume2 className="h-3 w-3" />
-                  </button>
-                ) : null}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden py-1 sm:py-1.5">
+          <div
+            ref={boardStageRef}
+            className="relative flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden p-1"
+          >
+            <ChessBoardWrapper
+              sizePreset="puzzleSolve"
+              useViewportSizeFallback={false}
+              forcedBoardWidth={puzzleBoardEdge > 0 ? puzzleBoardEdge : undefined}
+              className={`max-h-full max-w-full overflow-hidden rounded-lg ${boardShake ? "puzzle-board-shake" : ""}`}
+              options={{
+                position: fen,
+                onPieceDrop: ({ sourceSquare, targetSquare }) => {
+                  clearPuzzleSelection();
+                  return onDrop(sourceSquare, targetSquare ?? "");
+                },
+                boardOrientation: playerColor,
+                allowDragging: result !== "solved",
+                allowDrawingArrows: false,
+                clearArrowsOnPositionChange: false,
+                arrows: moveArrows,
+                boardStyle: { boxShadow: innerBoardShadow, transition: "box-shadow 0.2s" },
+                squareStyles: { ...squareStyles, ...puzzleLegalStyles },
+                ...puzzleLegalHandlers,
+              }}
+            />
+            <div className="pointer-events-none absolute bottom-1 left-1/2 z-10 max-w-[min(100%,24rem)] -translate-x-1/2 px-2 sm:bottom-2">
+              <div className="pointer-events-auto flex justify-center">
+                <ChessMoveAnnounceChip text={moveAnnounceChip} />
               </div>
             </div>
-            {loadingExpl ? (
-              <div className="flex items-center gap-1.5 text-xs text-zinc-400">
-                <Loader2 className="h-3 w-3 animate-spin" /> Analyzing…
-              </div>
-            ) : explanation ? (
-              <p className="text-[11px] leading-relaxed text-zinc-700 dark:text-zinc-300">{explanation}</p>
-            ) : (
-              <p className="text-[10px] text-zinc-400">Solution: <span className="font-mono">{solMoves.join(" ")}</span></p>
-            )}
           </div>
-        )}
-
-        {/* Show solution */}
-        {result === "wrong" && wrongAttempts >= 3 && !showSolution && (
-          <button type="button" onClick={() => setShowSolution(true)}
-            className="flex w-full items-center justify-center gap-1 rounded-lg border border-violet-200 bg-violet-50/80 py-1.5 text-[11px] font-medium text-violet-700 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-300">
-            <Lightbulb className="h-3 w-3" /> Show solution
-          </button>
-        )}
-        {showSolution && (() => {
-          const solChess = new Chess(fenBeforeDropRef.current);
-          const expectedUci = solMoves[moveIdx];
-          if (!expectedUci) return null;
-          try {
-            const m = solChess.move({ from: expectedUci.slice(0, 2), to: expectedUci.slice(2, 4), promotion: expectedUci[4] ?? "q" });
-            if (!m) return null;
-            return (
-              <div className="rounded-lg border border-violet-200 bg-violet-50/60 px-2 py-1.5 dark:border-violet-800 dark:bg-violet-950/25">
-                <p className="mb-0.5 text-[9px] font-bold uppercase tracking-wider text-violet-500">Solution</p>
-                <p className="text-[11px] leading-snug text-violet-900 dark:text-violet-100">
-                  Play <span className="font-mono font-bold">{m.san}</span>.
-                </p>
-              </div>
-            );
-          } catch { return null; }
-        })()}
-
-        {/* Actions */}
-        <div className="flex flex-col gap-1.5">
-          {result === "wrong" && (
-            <button type="button" onClick={handleTryAgain}
-              className="flex w-full items-center justify-center gap-1 rounded-lg bg-zinc-900 py-2 text-xs font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300">
-              <Undo2 className="h-3 w-3" /> Try again
-            </button>
-          )}
-          <div className="flex gap-1.5">
-            <button type="button" onClick={handleReset}
-              className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-zinc-300 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800">
-              <RefreshCw className="h-3 w-3" /> Reset
-            </button>
-            {result === "solved" && (
-              <button type="button" disabled={nextPuzzleLoading}
-                onClick={async () => {
-                  stopSpeech();
-                  if (onNextPuzzle) {
-                    setNextPuzzleLoading(true);
-                    try { await onNextPuzzle(); } finally { setNextPuzzleLoading(false); }
-                  } else { onBack(); }
-                }}
-                className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-amber-500 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 disabled:opacity-60">
-                {nextPuzzleLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-                Next
-              </button>
-            )}
-          </div>
-        </div>
-
-        <ChessMoveHistoryPanel
-          historyVerbose={puzzleMoveHistoryVerbose}
-          userSide={playerColor}
-          emptyLabel="Play a move to see the sequence here."
-        />
-      </div>
-
-      {/* ── Board area ── */}
-      <div
-        ref={boardColRef}
-        className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden bg-zinc-50/80 p-2 dark:bg-zinc-950/50"
-      >
-        <ChessBoardWrapper
-          sizePreset="puzzleSolve"
-          forcedBoardWidth={cappedBoardEdge > 0 ? cappedBoardEdge : undefined}
-          className={`shrink-0 overflow-hidden rounded-xl ${boardShake ? "puzzle-board-shake" : ""} ${
-            result === "solved" ? "puzzle-board-solved-ring" : ""
-          }`}
-          options={{
-            position: fen,
-            onPieceDrop: ({ sourceSquare, targetSquare }) => { clearPuzzleSelection(); return onDrop(sourceSquare, targetSquare ?? ""); },
-            boardOrientation: playerColor,
-            allowDragging: result !== "solved",
-            allowDrawingArrows: false,
-            clearArrowsOnPositionChange: false,
-            arrows: moveArrows,
-            boardStyle: { boxShadow: innerBoardShadow, transition: "box-shadow 0.2s" },
-            squareStyles: { ...squareStyles, ...puzzleLegalStyles },
-            ...puzzleLegalHandlers,
-          }}
-        />
-        <div className="flex min-h-[2rem] w-full max-w-full shrink-0 justify-center">
-          <ChessMoveAnnounceChip text={moveAnnounceChip} />
         </div>
       </div>
     </div>

@@ -329,8 +329,7 @@ export const translations = {
     notesDiaryWriteToday: "Write today",
     notesDiaryEmpty: "No diary entries yet.",
     notesDiaryBackToNotes: "Back to notes",
-    notesDiaryMigrationHint:
-        "Diary needs a database update. Apply scripts/sql/notes_diary_columns.sql, then try again.",
+    notesDiaryMigrationHint: "Diary needs a database update. Please try again later.",
     notesDiaryToday: "Today",
     notesDiaryNoTodayYet:
         "No entry for today yet. Use “Write today” when you want to journal, or pick another day in the list.",
@@ -416,8 +415,7 @@ export const translations = {
     meetsConnecting: "Connecting…",
     meetsInvalidRoom:
       "Use 1–128 characters: letters, numbers, underscores, or hyphens only.",
-    meetsMissingPublicUrl:
-      "LiveKit is not configured. Set NEXT_PUBLIC_LIVEKIT_URL in your environment.",
+    meetsMissingPublicUrl: "Video calling is not configured.",
     meetsTokenError: "Could not join the call.",
     meetsStartAudioLabel: "Tap to enable sound",
     meetsMicPrecheckTitle: "Check your microphone",
@@ -459,8 +457,7 @@ export const translations = {
     meetsRoomConnected: "Connected",
     meetsShareRoomLink: "Share invite",
     meetsChatTitle: "Chat",
-    meetsChatHint:
-      "LiveKit shows messages only to people in the room. We also save each message you send to the server so you can export .txt (needs Supabase + service role).",
+    meetsChatHint: "Messages are visible only to people in this call.",
     meetsChatEmpty: "No messages yet.",
     meetsChatStartConversation: "Start the conversation",
     meetsChatStartHint: "Say hi to everyone in the room.",
@@ -1261,8 +1258,7 @@ export const translations = {
       "No microphone detected. On Mac: System Settings → Sound → Input — choose a device (e.g. MacBook Microphone). Plug in a headset if the built-in mic is disabled.",
     micPermissionDenied:
       "Microphone access blocked. Click the lock icon in the address bar and allow the microphone, or check System Settings → Privacy → Microphone for your browser.",
-    transcriptionFailed:
-      "Could not turn speech into text (transcribe failed). Check your connection, API key, and the browser console (F12) for details.",
+    transcriptionFailed: "Could not turn speech into text. Please check your connection and try again.",
     recordOrTypeFirst: "Record or type your answer first.",
     couldNotGetScore: "Could not get score.",
     networkErrorTryAgain: "Network error. Try again.",
@@ -1766,8 +1762,7 @@ export const translations = {
     notesDiaryWriteToday: "Viết hôm nay",
     notesDiaryEmpty: "Chưa có mục nhật ký.",
     notesDiaryBackToNotes: "Về ghi chú",
-    notesDiaryMigrationHint:
-        "Nhật ký cần cập nhật CSDL. Chạy scripts/sql/notes_diary_columns.sql rồi thử lại.",
+    notesDiaryMigrationHint: "Nhật ký cần cập nhật CSDL. Vui lòng thử lại sau.",
     notesDiaryToday: "Hôm nay",
     notesDiaryNoTodayYet:
         "Hôm nay chưa có bài nhật ký. Bấm “Viết hôm nay” khi muốn ghi, hoặc chọn ngày khác trong danh sách.",
@@ -1852,7 +1847,7 @@ export const translations = {
     meetsConnecting: "Đang kết nối…",
     meetsInvalidRoom: "Dùng 1–128 ký tự: chữ, số, gạch dưới hoặc gạch ngang.",
     meetsMissingPublicUrl:
-      "Chưa cấu hình LiveKit. Thêm NEXT_PUBLIC_LIVEKIT_URL vào môi trường.",
+      "Gọi video chưa được cấu hình.",
     meetsTokenError: "Không vào được cuộc gọi.",
     meetsStartAudioLabel: "Bấm để bật âm thanh",
     meetsMicPrecheckTitle: "Kiểm tra micro",
@@ -1894,8 +1889,7 @@ export const translations = {
     meetsRoomConnected: "Đã kết nối",
     meetsShareRoomLink: "Chia sẻ lời mời",
     meetsChatTitle: "Chat",
-    meetsChatHint:
-      "LiveKit chỉ hiện tin cho người đang trong phòng. App còn lưu mỗi tin bạn gửi lên server để xuất file .txt (cần Supabase + service role).",
+    meetsChatHint: "Tin nhắn chỉ hiển thị cho người trong cuộc gọi.",
     meetsChatEmpty: "Chưa có tin nhắn.",
     meetsChatStartConversation: "Bắt đầu trò chuyện",
     meetsChatStartHint: "Chào mọi người trong phòng nhé.",
@@ -2690,7 +2684,7 @@ export const translations = {
     micPermissionDenied:
       "Trình duyệt chưa được dùng mic. Bấm biểu tượng khóa trên thanh địa chỉ → Cho phép mic, hoặc Cài đặt → Quyền riêng tư → Microphone → bật cho trình duyệt.",
     transcriptionFailed:
-      "Không chuyển giọng nói thành chữ được (lỗi transcribe). Kiểm tra mạng, API key, và Console trình duyệt (F12).",
+      "Không chuyển giọng nói thành chữ được. Vui lòng kiểm tra kết nối và thử lại.",
     recordOrTypeFirst: "Hãy ghi âm hoặc nhập câu trả lời trước.",
     couldNotGetScore: "Không thể lấy điểm.",
     networkErrorTryAgain: "Lỗi mạng. Thử lại.",

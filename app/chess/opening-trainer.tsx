@@ -407,9 +407,9 @@ function PracticeBoard({
       : null;
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-row overflow-hidden bg-white dark:bg-zinc-950">
+    <div className="flex h-full min-h-0 flex-1 flex-row gap-2.5 overflow-hidden bg-zinc-100 px-2 py-2 dark:bg-zinc-950 sm:gap-3 sm:px-3 sm:py-2.5">
       {/* ── Left sidebar ── */}
-      <div className="flex w-52 shrink-0 flex-col gap-4 overflow-y-auto border-r border-zinc-100 bg-zinc-50/80 px-3 py-3 dark:border-zinc-800 dark:bg-zinc-900/60 sm:w-64 sm:px-4">
+      <div className="flex w-52 shrink-0 flex-col gap-4 overflow-y-auto rounded-xl border border-zinc-200 bg-white px-3 py-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:w-64 sm:px-4">
         <button
           type="button"
           onClick={onBack}

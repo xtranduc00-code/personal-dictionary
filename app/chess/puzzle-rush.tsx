@@ -601,9 +601,9 @@ function RushGame({
   const sideIsBlack = sideToMoveLabel === "Black";
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-row bg-white dark:bg-zinc-950">
+    <div className="flex h-full min-h-0 flex-1 flex-row gap-2.5 bg-zinc-100 px-2 py-2 dark:bg-zinc-950 sm:gap-3 sm:px-3 sm:py-2.5">
       {/* ── Left sidebar ── */}
-      <div className="flex w-32 shrink-0 flex-col gap-4 border-r border-zinc-100 bg-zinc-50/80 px-3 py-3 dark:border-zinc-800 dark:bg-zinc-900/60 sm:w-44 sm:px-5">
+      <div className="flex w-32 shrink-0 flex-col gap-4 rounded-xl border border-zinc-200 bg-white px-3 py-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:w-44 sm:px-5">
         {onBack && (
           <button
             onClick={onBack}
