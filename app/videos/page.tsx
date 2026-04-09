@@ -12,7 +12,7 @@ import { toast } from "react-toastify";
 import {
   addToMyPlaylist, addYTChannel, addYTPlaylist, createMyPlaylist, deleteMyPlaylist,
   getChannelPlaylists, getMyPlaylistItems, getMyPlaylists, getYTChannels, getYTFeed,
-  getYTLiveVideos, getYTPlaylists, getYTSavedVideos, removeYTChannel, removeYTPlaylist,
+  getYTLiveVideos, getYTPlaylists, getYTSavedVideos, removeFromMyPlaylist, removeYTChannel, removeYTPlaylist,
   removeYTSavedVideo, saveYTVideo,
   type MyPlaylist, type MyPlaylistItem, type YTChannel, type YTChannelPlaylist,
   type YTLiveVideo, type YTPlaylist, type YTSavedVideo, type YTVideo,
@@ -57,7 +57,7 @@ type View =
 // ─── VideoCard ─────────────────────────────────────────────────────────────────
 
 function VideoCard({
-  video, saved, onPlay, onSave, onUnsave, onAddToPlaylist,
+  video, saved, onPlay, onSave, onUnsave, onAddToPlaylist, onRemoveFromPlaylist,
 }: {
   video: YTVideo | YTSavedVideo | MyPlaylistItem;
   saved: boolean;
@@ -65,6 +65,7 @@ function VideoCard({
   onSave: (v: YTVideo | YTSavedVideo | MyPlaylistItem) => void;
   onUnsave: (videoId: string) => void;
   onAddToPlaylist: (v: YTVideo | YTSavedVideo | MyPlaylistItem) => void;
+  onRemoveFromPlaylist?: (videoId: string) => void;
 }) {
   const publishedAt = video.publishedAt;
   return (
@@ -116,6 +117,15 @@ function VideoCard({
         >
           <Plus className="h-3.5 w-3.5" />
         </button>
+        {onRemoveFromPlaylist && (
+          <button
+            onClick={() => onRemoveFromPlaylist(video.videoId)}
+            className="rounded-full bg-black/50 p-1.5 text-white hover:bg-red-600/80"
+            title="Remove from playlist"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -453,6 +463,17 @@ export default function VideosPage() {
       const msg = (e as Error).message ?? "Failed to add";
       if (msg === "Already in playlist") toast.warn("Already in this playlist");
       else toast.error(msg);
+    }
+  }
+
+  async function handleRemoveFromPlaylist(videoId: string) {
+    if (view.type !== "myPlaylist") return;
+    try {
+      await removeFromMyPlaylist(view.id, videoId);
+      setMyPlaylistItems((prev) => prev.filter((v) => v.videoId !== videoId));
+      toast.success("Removed from playlist");
+    } catch {
+      toast.error("Failed to remove");
     }
   }
 
@@ -885,6 +906,7 @@ export default function VideosPage() {
                             onSave={handleSaveVideo}
                             onUnsave={handleUnsaveVideo}
                             onAddToPlaylist={setAddToPlModal}
+                            onRemoveFromPlaylist={view.type === "myPlaylist" ? handleRemoveFromPlaylist : undefined}
                           />
                         ))}
                       </div>

@@ -10,8 +10,9 @@ import {
     useState,
     type ReactNode,
 } from "react";
-import { authFetch } from "@/lib/auth-context";
+import { authFetch, getAuthToken } from "@/lib/auth-context";
 import { MEETS_ROOM_NAME_RE, rememberMeetRoom } from "@/lib/meets-recent-rooms";
+import { getOrCreateGuestIdentity } from "@/lib/guest-identity";
 
 export type MeetSession = {
     token: string;
@@ -25,7 +26,7 @@ type MeetCallContextValue = {
     setMicPrecheckDone: (v: boolean) => void;
     connecting: boolean;
     error: string | null;
-    requestJoin: (roomNameEncoded: string) => void;
+    requestJoin: (roomNameEncoded: string, guestDisplayName?: string) => void;
     clearSession: () => void;
 };
 
@@ -60,7 +61,7 @@ export function MeetCallProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const requestJoin = useCallback(
-        (roomNameEncoded: string) => {
+        (roomNameEncoded: string, guestDisplayName?: string) => {
             const decoded = decodeRoomSegment(roomNameEncoded);
 
             if (!MEETS_ROOM_NAME_RE.test(decoded)) {
@@ -94,9 +95,21 @@ export function MeetCallProvider({ children }: { children: ReactNode }) {
             const gen = ++fetchGen.current;
             void (async () => {
                 try {
-                    const res = await authFetch(
-                        `/api/livekit-token?room=${encodeURIComponent(decoded)}`,
-                    );
+                    const roomParam = encodeURIComponent(decoded);
+                    let res: Response;
+
+                    if (getAuthToken()) {
+                        // Logged-in user: use authFetch (identity from session)
+                        res = await authFetch(`/api/livekit-token?room=${roomParam}`);
+                    } else {
+                        // Guest: pass identity via query params
+                        const guestId = getOrCreateGuestIdentity();
+                        const guestName = guestDisplayName?.trim() || `Guest · ${guestId.slice(-6)}`;
+                        res = await fetch(
+                            `/api/livekit-token?room=${roomParam}&identity=${encodeURIComponent(guestId)}&displayName=${encodeURIComponent(guestName)}`,
+                        );
+                    }
+
                     const data = (await res.json()) as { token?: string; error?: string };
                     if (gen !== fetchGen.current) {
                         return;

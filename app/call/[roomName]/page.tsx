@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { UserRound } from "lucide-react";
 import { useI18n } from "@/components/i18n-provider";
+import { useAuth } from "@/lib/auth-context";
 import { useMeetCall } from "@/lib/meet-call-context";
 
 export default function CallRoomPage() {
@@ -11,13 +13,23 @@ export default function CallRoomPage() {
     const params = useParams();
     const roomName = typeof params.roomName === "string" ? params.roomName : "";
     const { requestJoin, connecting, error, session } = useMeetCall();
+    const { user } = useAuth();
 
+    // Guest name entry state
+    const [guestName, setGuestName] = useState("");
+    const [nameConfirmed, setNameConfirmed] = useState(false);
+
+    // Auto-join for logged-in users
     useEffect(() => {
-        if (!roomName) {
-            return;
-        }
+        if (!roomName || !user) return;
         requestJoin(roomName);
-    }, [roomName, requestJoin]);
+    }, [roomName, user, requestJoin]);
+
+    // Join after guest confirms name
+    useEffect(() => {
+        if (!roomName || user || !nameConfirmed) return;
+        requestJoin(roomName, guestName || undefined);
+    }, [roomName, user, nameConfirmed, guestName, requestJoin]);
 
     if (!roomName) {
         return (
@@ -30,6 +42,45 @@ export default function CallRoomPage() {
                     {t("meetsBackToHub")}
                 </Link>
             </p>
+        );
+    }
+
+    // Guest name entry screen (only for non-logged-in users who haven't confirmed)
+    if (!user && !nameConfirmed) {
+        return (
+            <div className="flex flex-1 flex-col items-center justify-center px-4 py-16">
+                <div className="w-full max-w-sm space-y-6">
+                    <div className="flex flex-col items-center gap-3 text-center">
+                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-800">
+                            <UserRound className="h-8 w-8 text-zinc-400 dark:text-zinc-500" strokeWidth={1.5} />
+                        </div>
+                        <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">
+                            {t("meetsGuestNameTitle")}
+                        </h2>
+                        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                            {t("meetsGuestNameHint")}
+                        </p>
+                    </div>
+                    <input
+                        type="text"
+                        autoComplete="off"
+                        placeholder={t("meetsGuestNamePlaceholder")}
+                        value={guestName}
+                        onChange={(e) => setGuestName(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && setNameConfirmed(true)}
+                        className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-zinc-400 focus:ring-2 focus:ring-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-zinc-600 dark:focus:ring-1 dark:focus:ring-white/15"
+                    />
+                    <div className="flex flex-col gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setNameConfirmed(true)}
+                            className="w-full rounded-xl bg-zinc-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                        >
+                            {guestName.trim() ? t("meetsGuestJoinWithName") : t("meetsGuestJoinAnonymous")}
+                        </button>
+                    </div>
+                </div>
+            </div>
         );
     }
 

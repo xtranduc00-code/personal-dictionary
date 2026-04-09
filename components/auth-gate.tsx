@@ -25,6 +25,8 @@ function isPublicPath(pathname: string | null) {
         return true;
     if (isDailyNewsPublicPath(pathname))
         return true;
+    if (pathname === "/call" || pathname.startsWith("/call/"))
+        return true;
     return false;
 }
 export function AuthGate({ children }: {
