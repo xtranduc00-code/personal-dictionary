@@ -22,6 +22,7 @@ import {
 import { formatRelativeDaysAgo } from "@/lib/format-relative-days-ago";
 import { parseResponseJson } from "@/lib/read-response-json";
 import { useI18n } from "@/components/i18n-provider";
+import { Pagination } from "@/components/pagination";
 
 const NEW_BADGE_MAX_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -380,16 +381,18 @@ export function EngooDailyNewsHomeInner({
   // Server pre-fetched data is only valid for the "all" tab (default).
   const hasServerData = isAllTab && Array.isArray(initialData?.items) && (initialData!.items.length > 0);
 
-  const [items, setItems] = useState<EngooListCard[]>(
+  const [allItems, setAllItems] = useState<EngooListCard[]>(
     hasServerData ? initialData!.items : [],
   );
-  const [nextCursor, setNextCursor] = useState<string | null>(
-    hasServerData ? (initialData!.nextCursor ?? null) : null,
-  );
   const [listLoading, setListLoading] = useState(!hasServerData);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const PAGE_SIZE = isAllTab ? 18 : 9;
+  /** Max pages to show — caps how many articles we fetch. */
+  const MAX_PAGES = 10;
+  const MAX_ARTICLES = PAGE_SIZE * MAX_PAGES;
 
   const setCategorySlug = useCallback(
     (slug: string) => {
@@ -404,26 +407,58 @@ export function EngooDailyNewsHomeInner({
     [pathname, router, searchParams],
   );
 
-  const resetAndLoad = useCallback(async () => {
+  // Fetch a bounded window of articles (up to MAX_ARTICLES) then stop.
+  const crawlAbortRef = useRef<AbortController | null>(null);
+  const fetchBoundedItems = useCallback(async (slug: string, limit: number) => {
+    crawlAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    crawlAbortRef.current = ctrl;
+
     setError(null);
     setListLoading(true);
-    setItems([]);
-    setNextCursor(null);
+    setAllItems([]);
+    setCurrentPage(1);
+
+    const accumulated: EngooListCard[] = [];
+    let cursor: string | null = null;
+    let firstPageDone = false;
+
     try {
-      const res = await fetch(listQuery(activeCategory.slug));
-      const parsed = await parseResponseJson<EngooListApiResponse>(res);
-      if (!parsed.ok) {
-        setError(parsed.message);
-        return;
+      while (!ctrl.signal.aborted && accumulated.length < limit) {
+        const batchSize = Math.min(30, limit - accumulated.length);
+        const res: Response = await fetch(
+          listQuery(slug, { cursor, pageSize: batchSize }),
+          { signal: ctrl.signal },
+        );
+        const parsed = await parseResponseJson<EngooListApiResponse>(res);
+        if (!parsed.ok) {
+          setError(parsed.message);
+          break;
+        }
+        if (ctrl.signal.aborted) break;
+        const batch = parsed.data.items ?? [];
+        accumulated.push(...batch);
+        if (ctrl.signal.aborted) break;
+        // Show first batch immediately while fetching rest
+        if (!firstPageDone) {
+          setAllItems([...accumulated]);
+          setListLoading(false);
+          firstPageDone = true;
+        } else {
+          setAllItems([...accumulated]);
+        }
+        cursor = parsed.data.nextCursor ?? null;
+        if (!cursor || accumulated.length >= limit) break;
       }
-      setItems(parsed.data.items ?? []);
-      setNextCursor(parsed.data.nextCursor ?? null);
     } catch {
-      setError("Network error");
+      if (!ctrl.signal.aborted) setError("Network error");
     } finally {
-      setListLoading(false);
+      if (!ctrl.signal.aborted) {
+        setAllItems([...accumulated.slice(0, limit)]);
+        setListLoading(false);
+      }
     }
-  }, [activeCategory.slug]);
+  }, []);
 
   // Skip the initial "all" category fetch when the server already pre-fetched the data.
   const skipInitialRef = useRef(hasServerData);
@@ -431,62 +466,71 @@ export function EngooDailyNewsHomeInner({
   useEffect(() => {
     if (skipInitialRef.current) {
       skipInitialRef.current = false;
-      return;
-    }
-    void resetAndLoad();
-  }, [resetAndLoad]);
-
-  const loadMore = useCallback(async () => {
-    if (!nextCursor || loadingMore || listLoading) return;
-    setLoadingMore(true);
-    setError(null);
-    try {
-      const morePageSize = activeCategory.slug === "all" ? 18 : 9;
-      const res = await fetch(
-        listQuery(activeCategory.slug, {
-          cursor: nextCursor,
-          pageSize: morePageSize,
-        }),
-      );
-      const parsed = await parseResponseJson<EngooListApiResponse>(res);
-      if (!parsed.ok) {
-        setError(parsed.message);
-        return;
+      // Load remaining pages in background if server data had a nextCursor.
+      // Uses fetchBoundedItems via the shared abort ref so category switches
+      // properly cancel this background work.
+      if (initialData?.nextCursor) {
+        const ctrl = new AbortController();
+        crawlAbortRef.current = ctrl;
+        void (async () => {
+          const accumulated: EngooListCard[] = [...(initialData?.items ?? [])];
+          let cursor: string | null = initialData?.nextCursor ?? null;
+          try {
+            while (cursor && !ctrl.signal.aborted && accumulated.length < MAX_ARTICLES) {
+              const batchSize = Math.min(30, MAX_ARTICLES - accumulated.length);
+              const res = await fetch(
+                listQuery(activeCategory.slug, { cursor, pageSize: batchSize }),
+                { signal: ctrl.signal },
+              );
+              if (ctrl.signal.aborted) break;
+              const parsed = await parseResponseJson<EngooListApiResponse>(res);
+              if (!parsed.ok || ctrl.signal.aborted) break;
+              accumulated.push(...(parsed.data.items ?? []));
+              if (ctrl.signal.aborted) break;
+              setAllItems([...accumulated.slice(0, MAX_ARTICLES)]);
+              cursor = parsed.data.nextCursor ?? null;
+            }
+          } catch { /* abort or network error */ }
+        })();
       }
-      const more = parsed.data.items ?? [];
-      setItems((prev) => {
-        const seen = new Set(prev.map((c) => c.masterId));
-        const merged = [...prev];
-        for (const c of more) {
-          if (!seen.has(c.masterId)) {
-            seen.add(c.masterId);
-            merged.push(c);
-          }
-        }
-        return merged;
-      });
-      setNextCursor(parsed.data.nextCursor ?? null);
-    } catch {
-      setError("Network error");
-    } finally {
-      setLoadingMore(false);
+    } else {
+      void fetchBoundedItems(activeCategory.slug, MAX_ARTICLES);
     }
-  }, [
-    activeCategory.slug,
-    nextCursor,
-    loadingMore,
-    listLoading,
-  ]);
+    return () => { crawlAbortRef.current?.abort(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCategory.slug, fetchBoundedItems]);
+
+  // Deduplicate by masterId — the API can return the same article more than once
+  const dedupedItems = useMemo(() => {
+    const seen = new Set<string>();
+    return allItems.filter((c) => {
+      if (seen.has(c.masterId)) return false;
+      seen.add(c.masterId);
+      return true;
+    });
+  }, [allItems]);
 
   const filteredForSearch = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((c) => c.title.toLowerCase().includes(q));
-  }, [items, searchQuery]);
+    if (!q) return dedupedItems;
+    return dedupedItems.filter((c) => c.title.toLowerCase().includes(q));
+  }, [dedupedItems, searchQuery]);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredForSearch.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageItems = filteredForSearch.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE,
+  );
 
   const { featured, spotlights, gridItems } = useMemo(() => {
-    const list = filteredForSearch as EngooListCard[];
-    const useFeatured = isAllTab && !searchQuery.trim() && list.length > 0;
+    const list = pageItems;
+    const useFeatured = isAllTab && safePage === 1 && !searchQuery.trim() && list.length > 0;
     if (!useFeatured) {
       return {
         featured: null as EngooListCard | null,
@@ -499,11 +543,11 @@ export function EngooDailyNewsHomeInner({
       spotlights: list.slice(1, 3),
       gridItems: list.length > 3 ? list.slice(3) : [],
     };
-  }, [filteredForSearch, isAllTab, searchQuery]);
+  }, [pageItems, isAllTab, searchQuery, safePage]);
 
-  const emptyAfterLoad = !listLoading && !error && items.length === 0;
+  const emptyAfterLoad = !listLoading && !error && allItems.length === 0;
   const listHadDataButNoneVisible =
-    !listLoading && filteredForSearch.length === 0 && items.length > 0;
+    !listLoading && filteredForSearch.length === 0 && allItems.length > 0;
   const emptySearch = listHadDataButNoneVisible;
 
   const showMoreStoriesBand =
@@ -664,18 +708,11 @@ export function EngooDailyNewsHomeInner({
               </section>
             ) : null}
 
-            {nextCursor ? (
-              <div className="mt-14 flex justify-center">
-                <button
-                  type="button"
-                  onClick={() => void loadMore()}
-                  disabled={loadingMore}
-                  className="rounded-full border border-rose-200/90 bg-white px-8 py-2.5 text-sm font-semibold text-rose-950 shadow-sm transition hover:bg-rose-50 hover:shadow-md disabled:opacity-50 dark:border-rose-900/50 dark:bg-zinc-900 dark:text-rose-100 dark:hover:bg-rose-950/40"
-                >
-                  {loadingMore ? "Loading…" : "Load more"}
-                </button>
-              </div>
-            ) : null}
+            <Pagination
+              currentPage={safePage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
           </>
         )}
       </main>

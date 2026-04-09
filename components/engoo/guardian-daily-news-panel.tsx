@@ -8,6 +8,7 @@ import { BookDown, LayoutGrid, Loader2, Newspaper, Search } from "lucide-react";
 import type { GuardianListItem } from "@/lib/guardian-content-types";
 import { useI18n } from "@/components/i18n-provider";
 import { formatRelativeDaysAgo } from "@/lib/format-relative-days-ago";
+import { Pagination } from "@/components/pagination";
 import {
   buildGuardianListEpubBlob,
   fetchGuardianArticlesForKindleEpub,
@@ -154,6 +155,8 @@ export function GuardianDailyNewsPanel({
   const [searchQuery, setSearchQuery] = useState("");
   const [kindleBusy, setKindleBusy] = useState(false);
   const [kindleError, setKindleError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const GUARDIAN_PAGE_SIZE = 9;
 
   const loadList = useCallback(
     async (section: "world" | "sport") => {
@@ -250,9 +253,20 @@ export function GuardianDailyNewsPanel({
     return sportItems.filter((x) => x.webTitle.toLowerCase().includes(q));
   }, [sportItems, searchQuery]);
 
+  // Reset page when tab or search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [tab, searchQuery]);
+
   const loading = tab === "news" ? loadingNews : loadingSport;
   const error = tab === "news" ? newsError : sportError;
-  const filtered = tab === "news" ? filteredNews : filteredSport;
+  const allFiltered = tab === "news" ? filteredNews : filteredSport;
+  const totalPages = Math.max(1, Math.ceil(allFiltered.length / GUARDIAN_PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const filtered = allFiltered.slice(
+    (safePage - 1) * GUARDIAN_PAGE_SIZE,
+    safePage * GUARDIAN_PAGE_SIZE,
+  );
   const emptyMessage =
     tab === "news"
       ? t("dailyNewsGuardianEmpty")
@@ -399,12 +413,19 @@ export function GuardianDailyNewsPanel({
         ) : null}
         {loading ? (
           <GuardianListSkeleton />
-        ) : !noKey && filtered.length === 0 ? (
+        ) : !noKey && allFiltered.length === 0 ? (
           <p className="py-20 text-center text-zinc-500 dark:text-zinc-400">
             {emptyMessage}
           </p>
         ) : (
-          <GuardianStoryGrid items={filtered} returnTo={listReturnTo} />
+          <>
+            <GuardianStoryGrid items={filtered} returnTo={listReturnTo} />
+            <Pagination
+              currentPage={safePage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
+          </>
         )}
       </main>
     </div>
