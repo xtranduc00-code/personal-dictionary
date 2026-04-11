@@ -160,22 +160,39 @@ FORBIDDEN: "decisive advantage", "winning move", "crushing", "material advantage
 
     const firstSan = sanMoves[1] ?? sanMoves[0] ?? "";
 
-    const prompt = `You are a chess coach. ${level} puzzle${ratingText}. Themes: ${themeList}
+    const prompt = `You are a friendly chess coach talking to a student. ${level} puzzle${ratingText}. Themes: ${themeList}
 Starting FEN: ${fen}
 Full solution line (SAN): ${solutionMoves}
+Key move: ${firstSan}
 
-Write EXACTLY 2 sentences. Total under 30 words. No bullet points.
+Explain why this works like you're sitting next to them at the board.
 
-Sentence 1: Why ${firstSan} works mechanically (fork, check, capture threat, deflection, etc.) — name pieces/squares when helpful.
-Sentence 2: One sharp pattern to remember (general lesson only).
+STYLE RULES (strict):
+- Write EXACTLY 2 or 3 short sentences. Never more.
+- Each sentence MAX 15 words. Count them.
+- Active voice only. Subject does the action.
+- Use "you", "your", "notice", "see" — speak directly to the student.
+- Plain everyday words. No textbook tone, no engine jargon.
+- Walk through the move, then the consequence, then the payoff.
 
-FORBIDDEN: "Great job", "Keep practicing", "You're doing great", "well done", "congratulations", filler praise, or a third sentence. Do not exceed 30 words total.`;
+GOOD example (copy this rhythm):
+"Rxh8+ forces the king to move away. That removes the rook's only defender. Now Rxe8 is checkmate."
+
+GOOD example:
+"You play Nf7+, forking the king and queen. The king must move to safety. Then you grab the queen for free."
+
+BAD example (do NOT write like this):
+"Rxh8+ works by delivering a check that forces the black king to e7, removing its defense of the e8 rook. Always look for forcing moves that deflect key defenders to enable mating threats."
+
+FORBIDDEN words and phrases: "works by", "always look for", "in order to", "thereby", "thus", "decisive", "key squares", "winning move", "great job", "well done", "keep practicing", any praise or filler. No bullet points. No third-person passive. No general lesson at the end — only describe THIS move.
+
+Now write the explanation for ${firstSan}.`;
 
     const completion = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 80,
-      temperature: 0.4,
+      max_tokens: 90,
+      temperature: 0.5,
     });
 
     return NextResponse.json({

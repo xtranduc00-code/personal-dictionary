@@ -54,7 +54,7 @@ export default function DrillPage() {
     if (!user) return;
     try {
       const res = await authFetch("/api/chess/repertoire");
-      const data = await res.json() as Record<string, unknown>[];
+      const data = (await res.json()) as Record<string, unknown>[];
       setAllLines(data.map(lineFromRow));
     } catch { /* ignore */ }
     finally { setLoading(false); }
@@ -194,7 +194,7 @@ function DrillSelect({ lines, onStart }: { lines: RepertoireLine[]; onStart: (li
                   </button>
                 ))}
               </div>
-              <button onClick={toggleAll} className="text-xs text-violet-600 dark:text-violet-400">
+              <button onClick={toggleAll} className="text-xs text-emerald-600 dark:text-emerald-400">
                 {filtered.every((l) => selected.has(l.id)) ? "Deselect all" : "Select all"}
               </button>
             </div>
@@ -215,12 +215,12 @@ function DrillSelect({ lines, onStart }: { lines: RepertoireLine[]; onStart: (li
                     })}
                     className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition ${
                       on
-                        ? "border-violet-300 bg-violet-50 dark:border-violet-700 dark:bg-violet-900/20"
+                        ? "border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/20"
                         : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900"
                     }`}
                   >
                     <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${
-                      on ? "border-violet-500 bg-violet-500" : "border-zinc-300 dark:border-zinc-600"
+                      on ? "border-emerald-500 bg-emerald-500" : "border-zinc-300 dark:border-zinc-600"
                     }`}>
                       {on && <div className="h-2 w-2 rounded-full bg-white" />}
                     </div>
@@ -450,7 +450,7 @@ function DrillSession({
         {/* Progress bar for this line */}
         <div className="relative h-1.5 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
           <div
-            className="absolute left-0 top-0 h-full rounded-full bg-violet-500 transition-all"
+            className="absolute left-0 top-0 h-full rounded-full bg-emerald-500 transition-all"
             style={{ width: userMoves > 0 ? `${(doneUserMoves / userMoves) * 100}%` : "0%" }}
           />
         </div>
@@ -561,9 +561,9 @@ function DrillSummary({
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden overscroll-y-contain p-4 pb-8">
         {/* Accuracy card */}
-        <div className="rounded-2xl border border-violet-200 bg-violet-50 p-5 text-center dark:border-violet-800 dark:bg-violet-900/20">
-          <p className="text-5xl font-black text-violet-700 dark:text-violet-300">{accuracy}%</p>
-          <p className="mt-1 text-sm text-violet-600 dark:text-violet-400">
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-center dark:border-emerald-800 dark:bg-emerald-900/20">
+          <p className="text-5xl font-black text-emerald-700 dark:text-emerald-300">{accuracy}%</p>
+          <p className="mt-1 text-sm text-emerald-600 dark:text-emerald-400">
             {totalCorrect}/{totalMoves} moves correct · {results.length} line{results.length !== 1 ? "s" : ""} drilled
           </p>
         </div>

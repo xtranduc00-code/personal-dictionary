@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useAuth, authFetch } from "@/lib/auth-context";
 import { ChessBoardWrapper } from "@/components/chess/ChessBoardWrapper";
+import { ChessPageHeader } from "@/components/chess/chess-page-header";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -38,6 +39,102 @@ function drillScoreLabel(correct: number, total: number): string {
 function pct(n: number, total: number): string {
   return total === 0 ? "0%" : `${Math.round((n / total) * 100)}%`;
 }
+
+// ─── Mini board preview ──────────────────────────────────────────────────────
+//
+// Tiny FEN-driven CSS-grid board (no chessboard chunk). Same look as the puzzle
+// list mini boards so the design language matches across pages.
+
+const REPERTOIRE_PIECE_GLYPH: Record<string, string> = {
+  K: "♔", Q: "♕", R: "♖", B: "♗", N: "♘", P: "♙",
+  k: "♚", q: "♛", r: "♜", b: "♝", n: "♞", p: "♟",
+};
+
+function fenFromUciMoves(uciMoves: string[]): string {
+  const c = new Chess();
+  for (const uci of uciMoves) {
+    try {
+      c.move({
+        from: uci.slice(0, 2) as never,
+        to: uci.slice(2, 4) as never,
+        promotion: uci[4] ?? "q",
+      });
+    } catch {
+      break;
+    }
+  }
+  return c.fen();
+}
+
+const RepertoireMiniBoard = React.memo(function RepertoireMiniBoard({
+  fen,
+  size = 100,
+  flip = false,
+}: {
+  fen: string;
+  size?: number;
+  flip?: boolean;
+}) {
+  const board: (string | null)[][] = [];
+  const boardField = fen.split(" ")[0] ?? "";
+  for (const row of boardField.split("/")) {
+    const r: (string | null)[] = [];
+    for (const ch of row) {
+      if (/[1-8]/.test(ch)) {
+        for (let i = 0; i < parseInt(ch, 10); i++) r.push(null);
+      } else {
+        r.push(ch);
+      }
+    }
+    while (r.length < 8) r.push(null);
+    board.push(r);
+  }
+  while (board.length < 8) board.push(Array(8).fill(null));
+  if (flip) {
+    board.reverse();
+    for (const row of board) row.reverse();
+  }
+
+  const cellPx = size / 8;
+  return (
+    <div
+      className="overflow-hidden rounded shadow-sm ring-1 ring-zinc-900/70 dark:ring-zinc-700"
+      style={{ width: size, height: size }}
+    >
+      <div
+        className="grid grid-cols-8 grid-rows-8"
+        style={{ width: size, height: size }}
+        aria-hidden
+      >
+        {board.flatMap((row, r) =>
+          row.map((piece, f) => {
+            const isLight = (r + f) % 2 === 0;
+            const isWhite = piece && piece === piece.toUpperCase();
+            return (
+              <div
+                key={`${r}-${f}`}
+                style={{
+                  backgroundColor: isLight ? "#EEEED2" : "#4a7c3f",
+                  fontSize: cellPx * 0.95,
+                  lineHeight: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: isWhite ? "#fafafa" : "#1a1a1a",
+                  textShadow: isWhite
+                    ? "0 1px 1px rgba(0,0,0,0.55)"
+                    : "0 1px 1px rgba(255,255,255,0.35)",
+                }}
+              >
+                {piece ? REPERTOIRE_PIECE_GLYPH[piece] ?? "" : ""}
+              </div>
+            );
+          }),
+        )}
+      </div>
+    </div>
+  );
+});
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
@@ -97,40 +194,48 @@ export default function RepertoirePage() {
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-      {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-10 flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur sm:px-5 dark:border-zinc-800 dark:bg-zinc-950/90">
-        <Link href="/chess" className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <span className="text-lg font-bold text-zinc-900 dark:text-zinc-100">My Repertoire</span>
-        <div className="ml-auto flex items-center gap-2">
-          {lines.length > 0 && (
-            <Link
-              href="/chess/repertoire/drill"
-              className="flex items-center gap-1.5 rounded-xl border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300"
-            >
-              ⚡ Drill
-            </Link>
-          )}
-          <button
-            onClick={() => openForm(null)}
-            className="flex items-center gap-1.5 rounded-xl bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
-          >
-            <Plus className="h-3.5 w-3.5" /> Add Line
-          </button>
-        </div>
-      </div>
+      <div className="mx-auto flex w-full min-h-0 max-w-[900px] flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-y-contain px-4 pb-8 sm:px-6">
+        {/* Page header — sits inside the same container as the body */}
+        <ChessPageHeader
+          title="My Repertoire"
+          back="/chess"
+          actions={
+            <>
+              {lines.length > 0 && (
+                <Link
+                  href="/chess/repertoire/drill"
+                  className="flex items-center gap-1.5 rounded-xl border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300"
+                >
+                  ⚡ Drill
+                </Link>
+              )}
+              <button
+                onClick={() => openForm(null)}
+                style={{ backgroundColor: "#769656" }}
+                className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-95"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add Line
+              </button>
+            </>
+          }
+          className="pt-4"
+        />
 
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden overscroll-y-contain p-4 pb-8">
+        <div className="flex flex-1 flex-col gap-4 pt-4">
         {/* ── Color filter tabs ────────────────────────────────────────────── */}
         <div className="flex overflow-hidden rounded-xl border border-zinc-200 bg-white text-xs dark:border-zinc-700 dark:bg-zinc-900">
           {(["all", "white", "black"] as const).map((c) => (
             <button
               key={c}
               onClick={() => setColorFilter(c)}
+              style={
+                colorFilter === c
+                  ? { backgroundColor: "#769656", color: "#ffffff" }
+                  : undefined
+              }
               className={`flex-1 py-2 transition ${
                 colorFilter === c
-                  ? "bg-zinc-900 font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
+                  ? "font-semibold"
                   : "text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
               }`}
             >
@@ -147,15 +252,38 @@ export default function RepertoirePage() {
         ) : filtered.length === 0 ? (
           <EmptyState onAdd={() => openForm(null)} />
         ) : (
-          <div className="space-y-5">
-            {colorFilter !== "black" && white.length > 0 && (
-              <LineGroup title="White Opening Lines" icon="♔" lines={white} onEdit={openForm} onDelete={handleDelete} />
+          <>
+            <div className="space-y-5">
+              {colorFilter !== "black" && white.length > 0 && (
+                <LineGroup title="White Opening Lines" icon="♔" lines={white} onEdit={openForm} onDelete={handleDelete} />
+              )}
+              {colorFilter !== "white" && black.length > 0 && (
+                <LineGroup title="Black Opening Lines" icon="♚" lines={black} onEdit={openForm} onDelete={handleDelete} />
+              )}
+            </div>
+
+            {/* Encouraging "add more" CTA when the user only has 1-2 lines */}
+            {filtered.length > 0 && filtered.length < 3 && (
+              <div className="mt-6 flex flex-col items-center gap-3 rounded-2xl border border-dashed border-zinc-200 bg-zinc-50/40 px-6 py-8 text-center dark:border-zinc-700 dark:bg-zinc-900/30">
+                <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">
+                  Add more lines to build a complete repertoire
+                </p>
+                <p className="max-w-sm text-xs text-zinc-500 dark:text-zinc-400">
+                  A solid repertoire usually has 5–10 lines per color. Add a few more so you can drill any opening you face.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => openForm(null)}
+                  style={{ backgroundColor: "#769656" }}
+                  className="mt-1 inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-95"
+                >
+                  <Plus className="h-4 w-4" /> Add Line
+                </button>
+              </div>
             )}
-            {colorFilter !== "white" && black.length > 0 && (
-              <LineGroup title="Black Opening Lines" icon="♚" lines={black} onEdit={openForm} onDelete={handleDelete} />
-            )}
-          </div>
+          </>
         )}
+        </div>
       </div>
     </div>
   );
@@ -193,41 +321,86 @@ function LineCard({ line, onEdit, onDelete }: {
   onDelete: (id: string) => void;
 }) {
   const score = line.drillTotal > 0 ? Math.round((line.drillCorrect / line.drillTotal) * 100) : null;
-  const scoreColor = score == null ? "text-zinc-400"
-    : score >= 80 ? "text-emerald-600 dark:text-emerald-400"
-    : score >= 50 ? "text-amber-600 dark:text-amber-400"
-    : "text-red-600 dark:text-red-400";
+
+  // Display name fallback: use the saved name; otherwise show the SAN move
+  // sequence as a label; otherwise "Unnamed line".
+  const displayName =
+    line.name && line.name.trim().length > 0
+      ? line.name.trim()
+      : line.moves.length > 0
+        ? movesToSan(line.moves).split(" ").slice(0, 3).join(" ") || "Unnamed line"
+        : "Unnamed line";
+
+  // Mini board FEN — replay the moves to get the resulting position.
+  const previewFen = fenFromUciMoves(line.moves);
+
+  // Drill score badge color
+  const drillBadgeClass =
+    score == null
+      ? "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+      : score >= 80
+        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+        : score >= 50
+          ? "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+          : "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300";
 
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">{line.name}</p>
-          <p className="mt-0.5 font-mono text-xs text-zinc-500 line-clamp-2">
-            {movesToSan(line.moves)}
-          </p>
-          {line.notes && (
-            <p className="mt-1.5 flex items-start gap-1 text-xs text-amber-700 dark:text-amber-400">
-              <StickyNote className="mt-0.5 h-3 w-3 shrink-0" />
-              <span className="line-clamp-1">{line.notes}</span>
-            </p>
-          )}
-        </div>
-        <div className="flex shrink-0 gap-1">
-          <button onClick={() => onEdit(line)} className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-            <Edit2 className="h-3.5 w-3.5" />
-          </button>
-          <button onClick={() => onDelete(line.id)} className="rounded-lg p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20">
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
+    <div className="group flex gap-4 rounded-xl border border-zinc-200 bg-white p-4 transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900">
+      {/* Mini board */}
+      <div className="shrink-0">
+        <RepertoireMiniBoard fen={previewFen} size={120} flip={line.color === "black"} />
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-zinc-400">
-        <span className={`font-medium ${scoreColor}`}>
-          {drillScoreLabel(line.drillCorrect, line.drillTotal)}
-        </span>
-        <span>Last drilled: {relativeDate(line.lastDrilledAt)}</span>
-        <span>{line.moves.length} half-moves</span>
+
+      {/* Info column */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-lg font-black tracking-tight text-zinc-900 dark:text-zinc-50 leading-tight">
+              {displayName}
+            </p>
+            <p className="mt-1 font-mono text-[13px] leading-snug text-zinc-500 dark:text-zinc-400 line-clamp-2">
+              {movesToSan(line.moves)}
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-1">
+            <button
+              onClick={() => onEdit(line)}
+              title="Edit line"
+              className="rounded-lg p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            >
+              <Edit2 className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => onDelete(line.id)}
+              title="Delete line"
+              className="rounded-lg p-1.5 text-zinc-400 transition hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {line.notes && (
+          <p className="mt-2 flex items-start gap-1.5 text-[13px] text-zinc-600 dark:text-zinc-400">
+            <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0 text-zinc-400" />
+            <span className="line-clamp-1">{line.notes}</span>
+          </p>
+        )}
+
+        {/* Stats row — stronger pill badges with clearer labels */}
+        <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-3">
+          <span
+            className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${drillBadgeClass}`}
+          >
+            {drillScoreLabel(line.drillCorrect, line.drillTotal)}
+          </span>
+          <span className="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+            ⏱ {relativeDate(line.lastDrilledAt)}
+          </span>
+          <span className="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+            {line.moves.length} half-moves
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -237,15 +410,29 @@ function LineCard({ line, onEdit, onDelete }: {
 
 function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-100 text-3xl dark:bg-zinc-800">
-        📚
+    <div className="flex flex-1 flex-col items-center justify-center gap-4 py-20 text-center">
+      <div
+        className="flex items-center justify-center rounded-full"
+        style={{
+          width: 64,
+          height: 64,
+          backgroundColor: "rgba(118,150,86,0.12)",
+          fontSize: 38,
+          color: "#769656",
+          lineHeight: 1,
+        }}
+        aria-hidden
+      >
+        ♞
       </div>
-      <p className="text-base font-semibold text-zinc-700 dark:text-zinc-300">No lines yet</p>
-      <p className="text-sm text-zinc-400">Build your opening repertoire to drill and memorize</p>
+      <p className="text-lg font-bold text-zinc-800 dark:text-zinc-200">No lines yet</p>
+      <p className="max-w-xs text-sm text-zinc-500 dark:text-zinc-400">
+        Build your opening repertoire to drill and memorize
+      </p>
       <button
         onClick={onAdd}
-        className="mt-1 flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+        style={{ backgroundColor: "#769656" }}
+        className="mt-2 flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-95"
       >
         <Plus className="h-4 w-4" /> Add First Line
       </button>
@@ -350,27 +537,28 @@ function LineForm({ line, onDone }: {
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-      {/* Header */}
-      <div className="sticky top-0 z-10 flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur sm:px-5 dark:border-zinc-800 dark:bg-zinc-950/90">
-        <button onClick={() => onDone()} className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-          <ArrowLeft className="h-4 w-4" />
-        </button>
-        <span className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-          {line ? "Edit Line" : "Add New Line"}
-        </span>
-        <button
-          onClick={handleSave}
-          disabled={saving || !name.trim()}
-          className="ml-auto flex items-center gap-1.5 rounded-xl bg-zinc-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
-        >
-          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-          {line ? "Save Changes" : "Save Line"}
-        </button>
-      </div>
+      <div className="mx-auto flex w-full min-h-0 max-w-[1200px] flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-y-contain px-6 pb-12 lg:px-8">
+        {/* Page header — same container as the workspace below */}
+        <ChessPageHeader
+          title={line ? "Edit Line" : "Add New Line"}
+          back={() => onDone()}
+          actions={
+            <button
+              onClick={handleSave}
+              disabled={saving || !name.trim()}
+              style={{ backgroundColor: "#769656" }}
+              className="flex items-center gap-1.5 rounded-xl px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-95 disabled:cursor-not-allowed disabled:brightness-90"
+            >
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+              {line ? "Save Changes" : "Save Line"}
+            </button>
+          }
+          className="pt-4"
+        />
 
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden overscroll-y-contain p-4 pb-8">
+        <div className="flex flex-1 flex-col gap-6 pt-6">
         {inputMode === "board" ? (
-          <div className="grid min-h-0 grid-cols-1 gap-6 lg:grid-cols-[2fr_3fr] lg:items-start lg:gap-8">
+          <div className="mx-auto grid min-h-0 w-full max-w-[1200px] grid-cols-1 gap-8 lg:grid-cols-[minmax(320px,420px)_1fr] lg:items-start lg:gap-10">
             <div className="flex min-w-0 flex-col gap-4">
               <div>
                 <label className="mb-1 block text-xs font-semibold text-zinc-500">Line Name</label>
@@ -378,7 +566,7 @@ function LineForm({ line, onDone }: {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Italian Game — Giuoco Piano"
-                  className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
               <div>
@@ -388,9 +576,14 @@ function LineForm({ line, onDone }: {
                     <button
                       key={c}
                       onClick={() => setColor(c)}
+                      style={
+                        color === c
+                          ? { backgroundColor: "#769656", color: "#ffffff" }
+                          : undefined
+                      }
                       className={`flex-1 py-2.5 text-sm font-medium transition ${
                         color === c
-                          ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                          ? "font-semibold"
                           : "bg-white text-zinc-500 hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                       }`}
                     >
@@ -405,9 +598,14 @@ function LineForm({ line, onDone }: {
                   <div className="flex rounded-lg border border-zinc-200 text-xs dark:border-zinc-700">
                     {(["board", "pgn"] as const).map((m) => (
                       <button key={m} onClick={() => setInputMode(m)}
+                        style={
+                          inputMode === m
+                            ? { backgroundColor: "#769656", color: "#ffffff" }
+                            : undefined
+                        }
                         className={`px-2.5 py-1 transition first:rounded-l-lg last:rounded-r-lg ${
                           inputMode === m
-                            ? "bg-zinc-900 font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
+                            ? "font-semibold"
                             : "text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
                         }`}
                       >
@@ -452,14 +650,15 @@ function LineForm({ line, onDone }: {
               )}
               <div>
                 <label className="mb-1 flex items-center gap-1 text-xs font-semibold text-zinc-500">
-                  <StickyNote className="h-3 w-3 text-amber-500" /> Coach Notes
+                  <StickyNote className="h-3 w-3 text-zinc-400" /> Coach Notes
                 </label>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder='e.g. "Always play h3 here to prevent Bg4 pin"'
                   rows={3}
-                  className="w-full rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 placeholder-amber-400 dark:border-amber-800 dark:bg-amber-900/10 dark:text-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                  style={{ outlineColor: "#769656" }}
                 />
               </div>
             </div>
@@ -481,7 +680,7 @@ function LineForm({ line, onDone }: {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Italian Game — Giuoco Piano"
-                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
             <div>
@@ -529,12 +728,13 @@ function LineForm({ line, onDone }: {
                   onChange={(e) => setPgnText(e.target.value)}
                   placeholder="Paste PGN here, e.g.: 1.e4 e5 2.Nf3 Nc6 3.Bc4"
                   rows={5}
-                  className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 font-mono text-xs text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 font-mono text-xs text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
                 {pgnError && <p className="text-xs text-red-500">{pgnError}</p>}
                 <button
                   onClick={parsePgn}
-                  className="rounded-xl bg-zinc-900 px-4 py-2 text-xs font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+                  style={{ backgroundColor: "#769656" }}
+                  className="rounded-xl px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:brightness-95"
                 >
                   Import Moves
                 </button>
@@ -582,6 +782,7 @@ function LineForm({ line, onDone }: {
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );
@@ -696,7 +897,7 @@ function BoardBuilderControls({
               key={m.uci}
               type="button"
               onClick={() => clickExplorerMove(m.uci)}
-              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 font-mono text-xs text-zinc-700 hover:border-violet-300 hover:bg-violet-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-violet-700"
+              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 font-mono text-xs text-zinc-700 hover:border-emerald-300 hover:bg-emerald-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-emerald-700"
             >
               {m.san}
             </button>

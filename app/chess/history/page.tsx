@@ -4,10 +4,11 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Calendar, ChevronLeft, ChevronRight, Clock,
-  Filter, Loader2, RefreshCw, Trophy,
+  Filter, Gamepad2, Loader2, RefreshCw, Target, Trophy,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { getGameHistory, type GameHistoryItem } from "@/lib/chess-storage";
+import { ChessListPage } from "@/components/chess/chess-list-page";
 import { GameReview } from "../game-review";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -131,30 +132,35 @@ export default function ChessHistoryPage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+    <ChessListPage>
+      <div className="flex flex-col gap-4 py-4">
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-10 flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur sm:px-5 dark:border-zinc-800 dark:bg-zinc-950/90">
-        <Link href="/chess" className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200">
+      <div className="flex shrink-0 items-center gap-3 border-b border-zinc-200 pb-3 dark:border-zinc-800">
+        <Link
+          href="/chess"
+          className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+        >
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <span className="text-lg font-bold text-zinc-900 dark:text-zinc-100">Game History</span>
         <button
           onClick={() => load(page, resultFilter, tcFilter)}
-          className="ml-auto rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          style={{ color: "#769656" }}
+          className="ml-auto rounded-lg p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800"
           title="Refresh"
         >
           <RefreshCw className="h-4 w-4" />
         </button>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden overscroll-y-contain p-4 pb-8">
         {loadError && (
           <div className="flex flex-col items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-center dark:border-red-900/40 dark:bg-red-950/30">
             <p className="text-sm font-medium text-red-800 dark:text-red-200">{loadError}</p>
             <button
               type="button"
               onClick={() => user && load(page, resultFilter, tcFilter)}
-              className="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+              style={{ backgroundColor: "#769656" }}
+              className="rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-95"
             >
               Retry
             </button>
@@ -164,13 +170,41 @@ export default function ChessHistoryPage() {
         {/* ── Summary stats ─────────────────────────────────────────────────── */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: "Games", value: total > 0 ? String(total) : "0" },
-            { label: "Win Rate", value: winRate != null ? `${winRate}%` : "–" },
-            { label: "Avg Accuracy", value: avgAccuracy != null ? `${avgAccuracy}%` : "–" },
-          ].map(({ label, value }) => (
-            <div key={label} className="rounded-xl border border-zinc-200 bg-white p-3 text-center dark:border-zinc-700 dark:bg-zinc-900">
-              <p className="text-xl font-bold text-zinc-900 dark:text-zinc-100">{value}</p>
-              <p className="text-[10px] text-zinc-400">{label}</p>
+            {
+              label: "Games",
+              value: total > 0 ? String(total) : "0",
+              Icon: Gamepad2,
+            },
+            {
+              label: "Win Rate",
+              value: winRate != null ? `${winRate}%` : "–",
+              Icon: Trophy,
+            },
+            {
+              label: "Avg Accuracy",
+              value: avgAccuracy != null ? `${avgAccuracy}%` : "–",
+              Icon: Target,
+            },
+          ].map(({ label, value, Icon }) => (
+            <div
+              key={label}
+              className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
+              style={{ borderLeft: "3px solid #769656" }}
+            >
+              <div
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+                style={{ backgroundColor: "rgba(118,150,86,0.12)" }}
+              >
+                <Icon className="h-5 w-5" style={{ color: "#769656" }} aria-hidden />
+              </div>
+              <div className="min-w-0">
+                <p className="text-2xl font-black tabular-nums leading-none text-zinc-900 dark:text-zinc-100">
+                  {value}
+                </p>
+                <p className="mt-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                  {label}
+                </p>
+              </div>
             </div>
           ))}
         </div>
@@ -197,9 +231,14 @@ export default function ChessHistoryPage() {
               <button
                 key={r}
                 onClick={() => { setResultFilter(r); setPage(0); }}
+                style={
+                  resultFilter === r
+                    ? { backgroundColor: "#769656", color: "#ffffff" }
+                    : undefined
+                }
                 className={`px-2.5 py-1.5 capitalize transition first:rounded-l-lg last:rounded-r-lg ${
                   resultFilter === r
-                    ? "bg-zinc-900 font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
+                    ? "font-semibold"
                     : "text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
                 }`}
               >
@@ -275,7 +314,7 @@ export default function ChessHistoryPage() {
           </div>
         )}
       </div>
-    </div>
+    </ChessListPage>
   );
 }
 
@@ -352,30 +391,43 @@ function EmptyState({
   onClearFilters: () => void;
 }) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-100 text-3xl dark:bg-zinc-800">
+    <div className="flex flex-1 flex-col items-center justify-center gap-4 py-20 text-center">
+      <div
+        className="flex items-center justify-center rounded-full"
+        style={{
+          width: 64,
+          height: 64,
+          backgroundColor: "rgba(118,150,86,0.12)",
+          fontSize: 38,
+          color: "#769656",
+          lineHeight: 1,
+        }}
+        aria-hidden
+      >
         ♟
       </div>
-      <p className="text-base font-semibold text-zinc-700 dark:text-zinc-300">
+      <p className="text-lg font-bold text-zinc-800 dark:text-zinc-200">
         {filtered ? "No games match your filters" : "No games yet"}
       </p>
-      <p className="text-sm text-zinc-400">
+      <p className="max-w-xs text-sm text-zinc-500 dark:text-zinc-400">
         {filtered
           ? "Try adjusting your filters or reset them below."
-          : "Play your first game to see history here"}
+          : "Play your first game to start tracking your progress"}
       </p>
       {filtered ? (
         <button
           type="button"
           onClick={onClearFilters}
-          className="mt-1 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+          style={{ backgroundColor: "#769656" }}
+          className="mt-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-95"
         >
           Clear filters
         </button>
       ) : (
         <Link
           href="/chess"
-          className="mt-1 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+          style={{ backgroundColor: "#769656" }}
+          className="mt-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-95"
         >
           Play a game
         </Link>

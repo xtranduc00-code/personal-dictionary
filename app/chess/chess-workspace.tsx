@@ -7,7 +7,7 @@ import { toast } from "react-toastify";
 import {
   ArrowLeft, BookOpen, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Crown, Flag,
   History, LibraryBig, Lightbulb, Loader2, MessageSquare, Mic, MicOff, Pause, Play,
-  RefreshCw, Send, Square, Swords, Trophy, Undo2, Users, Volume2, VolumeX, X, Zap,
+  RefreshCw, Send, Square, Star, Swords, Trophy, Undo2, Users, Volume2, VolumeX, X, Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -46,7 +46,18 @@ import { ChessMoveAnnounceChip } from "@/components/chess-move-announce-chip";
 import { useChessMoveAnnouncement } from "@/hooks/use-chess-move-announcement";
 import type { Move } from "chess.js";
 import type { Arrow as ChessboardArrow } from "react-chessboard";
+import { defaultArrowOptions } from "react-chessboard";
 import { ChessBoardWrapper, computeChessBoardSize, useChessBoardSize } from "@/components/chess/ChessBoardWrapper";
+import { BoardLayoutShell } from "@/components/chess/board-layout-shell";
+import {
+  FeedbackPanel,
+  SidebarTitle,
+  SidebarState,
+  SidebarStatGrid,
+  SidebarStat,
+  SidebarDominant,
+  SidebarButton,
+} from "@/components/chess/board-workspace";
 import { ChessMoveHistoryPanel, historyFromPgn } from "@/components/chess/chess-move-history-panel";
 import { squareStylesForLastMove } from "@/components/chess/move-highlight-styles";
 import { useChessLegalMoves } from "@/hooks/use-chess-legal-moves";
@@ -140,7 +151,7 @@ function clearPuzzleLibraryNav() {
   } catch { /* ignore */ }
 }
 
-type TimeControl = { label: string; mins: number; inc: number };
+export type TimeControl = { label: string; mins: number; inc: number };
 
 type ChatMsg = { id: string; sender: "white" | "black"; text: string; ts: number };
 
@@ -156,7 +167,98 @@ const LEVEL_LABELS: Record<PuzzleLevel, string> = {
   beginner: "Beginner", intermediate: "Intermediate", hard: "Hard", expert: "Expert",
 };
 
-const TIME_CONTROLS_POPULAR: TimeControl[] = [
+// ─── Puzzle library card visuals ──────────────────────────────────────────────
+
+/**
+ * Tag pill styling for puzzle cards.
+ * Default: a single neutral pill — keeps cards quiet even with 3 tags.
+ * Exception: anything mate-related stays subtle red so the mate hint stands out.
+ */
+function puzzleTagAccentClasses(theme: string): string {
+  const t = theme.toLowerCase();
+  if (t.includes("mate")) {
+    return "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300";
+  }
+  return "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400";
+}
+
+const PUZZLE_PIECE_GLYPH: Record<string, string> = {
+  K: "♔", Q: "♕", R: "♖", B: "♗", N: "♘", P: "♙",
+  k: "♚", q: "♛", r: "♜", b: "♝", n: "♞", p: "♟",
+};
+
+/**
+ * Static FEN preview rendered as a CSS grid — lightweight (no chessboard chunk).
+ *
+ * Memoized: a typical puzzle library page renders 20 of these (1280 cells), so
+ * any parent re-render (filter / search / hover / sort) without memoization would
+ * rebuild the entire grid. The component is purely a function of `fen` + `size`.
+ */
+const PuzzleMiniBoard = React.memo(function PuzzleMiniBoard({
+  fen,
+  size = 120,
+}: {
+  fen: string;
+  size?: number;
+}) {
+  const board: (string | null)[][] = [];
+  const boardField = fen.split(" ")[0] ?? "";
+  for (const row of boardField.split("/")) {
+    const r: (string | null)[] = [];
+    for (const ch of row) {
+      if (/[1-8]/.test(ch)) {
+        for (let i = 0; i < parseInt(ch, 10); i++) r.push(null);
+      } else {
+        r.push(ch);
+      }
+    }
+    while (r.length < 8) r.push(null);
+    board.push(r);
+  }
+  while (board.length < 8) board.push(Array(8).fill(null));
+
+  const cellPx = size / 8;
+  return (
+    <div
+      className="overflow-hidden rounded shadow-sm ring-1 ring-zinc-900/70 dark:ring-zinc-700"
+      style={{ width: size, height: size }}
+    >
+      <div
+        className="grid grid-cols-8 grid-rows-8"
+        style={{ width: size, height: size }}
+        aria-hidden
+      >
+        {board.flatMap((row, r) =>
+          row.map((piece, f) => {
+            const isLight = (r + f) % 2 === 0;
+            const isWhite = piece && piece === piece.toUpperCase();
+            return (
+              <div
+                key={`${r}-${f}`}
+                style={{
+                  backgroundColor: isLight ? "#EEEED2" : "#4a7c3f",
+                  fontSize: cellPx * 0.95,
+                  lineHeight: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: isWhite ? "#fafafa" : "#1a1a1a",
+                  textShadow: isWhite
+                    ? "0 1px 1px rgba(0,0,0,0.55)"
+                    : "0 1px 1px rgba(255,255,255,0.35)",
+                }}
+              >
+                {piece ? PUZZLE_PIECE_GLYPH[piece] ?? "" : ""}
+              </div>
+            );
+          }),
+        )}
+      </div>
+    </div>
+  );
+});
+
+export const TIME_CONTROLS_POPULAR: TimeControl[] = [
   { label: "Bullet 1+0",  mins: 1,  inc: 0 },
   { label: "Blitz 3+2",   mins: 3,  inc: 2 },
   { label: "Blitz 5+0",   mins: 5,  inc: 0 },
@@ -412,10 +514,12 @@ export function ChessWorkspace({ initialLibraryPuzzleId, initialRoom }: { initia
     Boolean(activePuzzle) &&
     (!initialLibraryPuzzleId || (!puzzleRouteLoading && !puzzleRouteError));
 
-  // All board-showing modes use overflow-hidden (they handle scroll internally)
+  // All board-showing modes use overflow-hidden (they handle scroll internally).
+  // The home view is also self-contained — it sizes itself to fit the viewport.
   const boardModeActive =
     playGameActive ||
     puzzleSolveFill ||
+    mode === "home" ||
     mode === "opening-trainer" ||
     mode === "endgame-trainer" ||
     mode === "puzzle-rush";
@@ -431,9 +535,9 @@ export function ChessWorkspace({ initialLibraryPuzzleId, initialRoom }: { initia
       >
         {mode === "home" && (
           <HomeView
-            onPlay={() => setMode("play-lobby")}
+            onPlay={() => router.push("/chess/play")}
             onPuzzles={() => setMode("puzzles")}
-            onOpenings={() => setMode("opening-trainer")}
+            onOpenings={() => router.push("/chess/openings")}
             onEndgames={() => setMode("endgame-trainer")}
             onRush={() => setMode("puzzle-rush")}
           />
@@ -448,6 +552,7 @@ export function ChessWorkspace({ initialLibraryPuzzleId, initialRoom }: { initia
             onCreate={handleCreateGame}
             onEnterGame={handleEnterGame}
             onJoin={handleJoinGame}
+            onBack={goHome}
           />
         )}
         {mode === "play-game" && game && user && (
@@ -522,7 +627,7 @@ export function ChessWorkspace({ initialLibraryPuzzleId, initialRoom }: { initia
 
 /** Tailwind-safe accent maps (dynamic `bg-${color}-100` classes are purged and never applied). */
 const HOME_ICON_SHELL: Record<
-  "amber" | "orange" | "emerald" | "violet" | "rose" | "teal" | "sky",
+  "amber" | "orange" | "emerald" | "rose" | "teal" | "sky",
   { shell: string; icon: string }
 > = {
   amber: {
@@ -536,10 +641,6 @@ const HOME_ICON_SHELL: Record<
   emerald: {
     shell: "bg-emerald-100 dark:bg-emerald-950/45",
     icon: "text-emerald-700 dark:text-emerald-400",
-  },
-  violet: {
-    shell: "bg-violet-100 dark:bg-violet-950/45",
-    icon: "text-violet-700 dark:text-violet-400",
   },
   rose: {
     shell: "bg-rose-100 dark:bg-rose-950/45",
@@ -648,7 +749,7 @@ function HomeView({
       label: "Opening Trainer",
       sub: "Lichess tree · explore & practice",
       icon: Crown,
-      accent: "violet" as const,
+      accent: "emerald" as const,
       onClick: onOpenings,
     },
     {
@@ -683,13 +784,17 @@ function HomeView({
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {/*
         Single inset panel: matches sidebar “card row” language (border, white surface, soft shadow)
         instead of a full-bleed marketing background + grid texture.
+        Sized to fit the viewport in one screen — no inner scroll.
       */}
-      <div className="mx-auto w-full max-w-5xl pb-4 pt-0 sm:pb-6">
-        <div className="rounded-2xl border border-zinc-200/90 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-4">
+      <div
+        className="mx-auto flex w-full flex-1 min-h-0 flex-col pb-3 pt-0 sm:pb-4"
+        style={{ maxWidth: 1200 }}
+      >
+        <div className="flex min-h-0 flex-1 flex-col gap-4 rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-5">
           {resumePuzzleId || (showResumeSession && lastActivity) ? (
             <section>
               <HomeSectionLabel>Pick up</HomeSectionLabel>
@@ -698,10 +803,10 @@ function HomeView({
                   <button
                     type="button"
                     onClick={() => router.push(`/chess/puzzles/${encodeURIComponent(resumePuzzleId)}`)}
-                    className="group flex w-full items-center justify-between gap-3 rounded-xl border border-violet-200 bg-violet-50/90 px-3.5 py-3 text-left transition hover:border-violet-300 hover:bg-violet-50 dark:border-violet-800/60 dark:bg-violet-950/35 dark:hover:border-violet-700 sm:w-auto sm:min-w-[240px]"
+                    className="group flex w-full items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/90 px-3.5 py-3 text-left transition hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-800/60 dark:bg-emerald-950/35 dark:hover:border-emerald-700 sm:w-auto sm:min-w-[240px]"
                   >
                     <span className="flex items-center gap-2.5">
-                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-600 text-white dark:bg-violet-500">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600 text-white dark:bg-emerald-500">
                         <Play className="h-3.5 w-3.5" fill="currentColor" aria-hidden />
                       </span>
                       <span>
@@ -711,7 +816,7 @@ function HomeView({
                         <span className="text-[11px] text-zinc-500 dark:text-zinc-400">Same list · filters</span>
                       </span>
                     </span>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-violet-500 transition group-hover:translate-x-0.5 dark:text-violet-400" aria-hidden />
+                    <ChevronRight className="h-4 w-4 shrink-0 text-emerald-500 transition group-hover:translate-x-0.5 dark:text-emerald-400" aria-hidden />
                   </button>
                 ) : null}
                 {showResumeSession && lastActivity ? (
@@ -738,30 +843,30 @@ function HomeView({
             </section>
           ) : null}
 
-          <section className={resumePuzzleId || (showResumeSession && lastActivity) ? "mt-3.5" : ""}>
+          <section className="flex min-h-0 flex-[2] flex-col">
             <HomeSectionLabel>Main</HomeSectionLabel>
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
+            <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row lg:items-stretch">
               <button
                 type="button"
                 onClick={onPuzzles}
-                className="group flex min-h-[7rem] flex-1 flex-col justify-between rounded-xl border border-zinc-200 border-l-[3px] border-l-amber-500 bg-gradient-to-br from-amber-50/80 via-white to-white p-3 text-left shadow-sm transition hover:border-zinc-300 hover:shadow-md dark:border-zinc-700 dark:border-l-amber-500 dark:from-amber-950/25 dark:via-zinc-900 dark:to-zinc-900 sm:min-h-[7.5rem] sm:p-4"
+                className="group flex flex-1 flex-col justify-between rounded-xl border border-zinc-200 border-l-[3px] border-l-amber-500 bg-gradient-to-br from-amber-50/80 via-white to-white p-5 text-left shadow-sm transition hover:border-zinc-300 hover:shadow-md dark:border-zinc-700 dark:border-l-amber-500 dark:from-amber-950/25 dark:via-zinc-900 dark:to-zinc-900"
               >
                 <div className="flex w-full items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-lg font-bold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-xl">
+                    <p className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-2xl">
                       Puzzles
                     </p>
-                    <p className="mt-1.5 max-w-md text-sm leading-snug text-zinc-600 dark:text-zinc-400">
+                    <p className="mt-2 max-w-md text-sm leading-snug text-zinc-600 dark:text-zinc-400">
                       Lichess library — levels, themes, thousands of positions.
                     </p>
                   </div>
                   <div
-                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${HOME_ICON_SHELL.amber.shell}`}
+                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ${HOME_ICON_SHELL.amber.shell}`}
                   >
                     <BookOpen className={`h-5 w-5 ${HOME_ICON_SHELL.amber.icon}`} aria-hidden />
                   </div>
                 </div>
-                <span className="mt-2.5 inline-flex items-center gap-1.5 text-sm font-semibold text-amber-800 dark:text-amber-300">
+                <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-amber-800 dark:text-amber-300">
                   Open library
                   <ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5" aria-hidden />
                 </span>
@@ -770,17 +875,17 @@ function HomeView({
               <button
                 type="button"
                 onClick={onRush}
-                className="group flex w-full shrink-0 flex-col justify-between rounded-xl border border-zinc-200 bg-zinc-50/50 px-3 py-2.5 text-left shadow-sm transition hover:border-zinc-300 hover:bg-white dark:border-zinc-700 dark:bg-zinc-800/40 dark:hover:border-zinc-600 dark:hover:bg-zinc-800/80 lg:w-[min(100%,240px)]"
+                className="group flex w-full shrink-0 flex-col justify-between rounded-xl border border-zinc-200 bg-zinc-50/50 px-4 py-4 text-left shadow-sm transition hover:border-zinc-300 hover:bg-white dark:border-zinc-700 dark:bg-zinc-800/40 dark:hover:border-zinc-600 dark:hover:bg-zinc-800/80 lg:w-[min(100%,260px)]"
               >
                 <div className="flex items-center gap-3">
                   <div
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${HOME_ICON_SHELL.orange.shell}`}
+                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${HOME_ICON_SHELL.orange.shell}`}
                   >
                     <Zap className={`h-5 w-5 ${HOME_ICON_SHELL.orange.icon}`} aria-hidden />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Puzzle Rush</p>
-                    <p className="text-[11px] leading-snug text-zinc-500 dark:text-zinc-400">
+                    <p className="text-base font-semibold text-zinc-900 dark:text-zinc-50">Puzzle Rush</p>
+                    <p className="text-xs leading-snug text-zinc-500 dark:text-zinc-400">
                       Timed · 3 lives or relaxed
                     </p>
                   </div>
@@ -792,9 +897,9 @@ function HomeView({
             </div>
           </section>
 
-          <section className="mt-3.5 border-t border-zinc-100 pt-3.5 dark:border-zinc-800">
+          <section className="flex min-h-0 flex-1 flex-col border-t border-zinc-100 pt-3 dark:border-zinc-800">
             <HomeSectionLabel>Play &amp; study</HomeSectionLabel>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid min-h-0 flex-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
               {secondary.map(({ label, sub, icon: Icon, accent, onClick }) => {
                 const shell = HOME_ICON_SHELL[accent];
                 return (
@@ -802,16 +907,16 @@ function HomeView({
                     key={label}
                     type="button"
                     onClick={onClick}
-                    className="group flex items-center gap-2.5 rounded-xl border border-zinc-200/90 bg-zinc-50/40 px-3 py-2 text-left transition hover:border-zinc-300 hover:bg-white dark:border-zinc-700 dark:bg-zinc-800/30 dark:hover:border-zinc-600 dark:hover:bg-zinc-800/60"
+                    className="group flex h-full items-center gap-3 rounded-xl border border-zinc-200/90 bg-zinc-50/40 px-4 py-3 text-left transition hover:border-zinc-300 hover:bg-white dark:border-zinc-700 dark:bg-zinc-800/30 dark:hover:border-zinc-600 dark:hover:bg-zinc-800/60"
                   >
                     <div
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${shell.shell}`}
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${shell.shell}`}
                     >
-                      <Icon className={`h-4 w-4 ${shell.icon}`} aria-hidden />
+                      <Icon className={`h-5 w-5 ${shell.icon}`} aria-hidden />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{label}</p>
-                      <p className="mt-0.5 text-[11px] leading-snug text-zinc-500 dark:text-zinc-400">{sub}</p>
+                      <p className="mt-0.5 text-xs leading-snug text-zinc-500 dark:text-zinc-400">{sub}</p>
                     </div>
                     <ChevronRight className="h-4 w-4 shrink-0 text-zinc-400 transition group-hover:translate-x-0.5 dark:group-hover:text-zinc-300" aria-hidden />
                   </button>
@@ -820,25 +925,25 @@ function HomeView({
             </div>
           </section>
 
-          <section className="mt-3.5 border-t border-zinc-100 pt-3.5 dark:border-zinc-800">
+          <section className="flex min-h-0 flex-1 flex-col border-t border-zinc-100 pt-3 dark:border-zinc-800">
             <HomeSectionLabel>Library</HomeSectionLabel>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid min-h-0 flex-1 gap-2.5 sm:grid-cols-2">
               {library.map(({ label, sub, icon: Icon, accent, href }) => {
                 const shell = HOME_ICON_SHELL[accent];
                 return (
                   <Link
                     key={href}
                     href={href}
-                    className="group flex items-center gap-2.5 rounded-xl border border-dashed border-zinc-200 bg-zinc-50/30 px-3 py-2.5 text-left transition hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900/20 dark:hover:border-zinc-500 dark:hover:bg-zinc-800/40"
+                    className="group flex h-full items-center gap-3 rounded-xl border border-dashed border-zinc-200 bg-zinc-50/30 px-4 py-3 text-left transition hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900/20 dark:hover:border-zinc-500 dark:hover:bg-zinc-800/40"
                   >
                     <div
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${shell.shell}`}
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md ${shell.shell}`}
                     >
-                      <Icon className={`h-3.5 w-3.5 ${shell.icon}`} aria-hidden />
+                      <Icon className={`h-4 w-4 ${shell.icon}`} aria-hidden />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">{label}</p>
-                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{sub}</p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">{sub}</p>
                     </div>
                     <ChevronRight className="h-4 w-4 shrink-0 text-zinc-400 opacity-70 transition group-hover:translate-x-0.5 group-hover:opacity-100" aria-hidden />
                   </Link>
@@ -854,7 +959,7 @@ function HomeView({
 
 // ─── Play Lobby ───────────────────────────────────────────────────────────────
 
-function PlayLobby({ joinCode, setJoinCode, creating, joining, tc, setTc, color, setColor, createdGame, onCreate, onEnterGame, onJoin }: {
+export function PlayLobby({ joinCode, setJoinCode, creating, joining, tc, setTc, color, setColor, createdGame, onCreate, onEnterGame, onJoin, onBack }: {
   joinCode: string; setJoinCode: (v: string) => void;
   creating: boolean; joining: boolean;
   tc: TimeControl; setTc: (t: TimeControl) => void;
@@ -863,6 +968,7 @@ function PlayLobby({ joinCode, setJoinCode, creating, joining, tc, setTc, color,
   onCreate: () => void;
   onEnterGame: (g: ChessGame) => void;
   onJoin: () => void;
+  onBack?: () => void;
 }) {
   const [showMore, setShowMore] = useState(false);
   const [copied, setCopied]     = useState(false);
@@ -879,108 +985,181 @@ function PlayLobby({ joinCode, setJoinCode, creating, joining, tc, setTc, color,
     { value: "black",  label: "Black",  icon: "♚" },
   ];
 
-  return (
-    <div className="flex flex-1 flex-col items-center justify-start overflow-y-auto px-4 py-6 sm:justify-center sm:py-8">
-      <div className="w-full max-w-sm">
-        <div className="rounded-2xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+  const joinReady = joinCode.length >= 4 && !joining;
 
-          {/* ── Time control — always visible, compact top strip ──── */}
-          <div className="border-b border-zinc-100 px-4 py-3 dark:border-zinc-800">
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Time Control</p>
-            <div className="flex flex-wrap gap-1.5">
-              {visibleTCs.map((t) => (
-                <button key={t.label} onClick={() => { if (!createdGame) setTc(t); }}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
-                    tc.label === t.label
-                      ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                      : createdGame
-                        ? "bg-zinc-50 text-zinc-300 dark:bg-zinc-800/50 dark:text-zinc-600"
-                        : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400"
-                  }`}
-                >{t.label}</button>
-              ))}
+  return (
+    <div className="flex h-full min-h-0 w-full flex-1 items-center justify-center overflow-y-auto bg-zinc-100 dark:bg-[#1e1e1e]">
+      <div className="my-auto flex w-full max-w-[640px] flex-col gap-4 px-6 py-8">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex w-fit items-center gap-1.5 text-sm font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+          >
+            <ArrowLeft className="h-4 w-4" /> Back
+          </button>
+        )}
+
+        <div
+          className="w-full rounded-3xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
+          style={{ padding: 32 }}
+        >
+          {/* Decorative header — same anatomy as Puzzle Rush setup */}
+          <div className="text-center">
+            <p className="text-4xl" aria-hidden>♟</p>
+            <h2 className="mt-1 text-2xl font-bold text-zinc-900 dark:text-zinc-100">Play with Friend</h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              Create a private room and share the code with a friend
+            </p>
+          </div>
+
+          {/* ── Time control ── */}
+          <div className="mt-6 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Time Control</p>
+            <div className="flex flex-wrap gap-2">
+              {visibleTCs.map((t) => {
+                const selected = tc.label === t.label;
+                const disabled = !!createdGame;
+                return (
+                  <button
+                    key={t.label}
+                    onClick={() => { if (!disabled) setTc(t); }}
+                    disabled={disabled && !selected}
+                    style={
+                      selected
+                        ? { backgroundColor: "#769656", borderColor: "#769656" }
+                        : undefined
+                    }
+                    className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
+                      selected
+                        ? "text-white"
+                        : disabled
+                          ? "border-zinc-200 bg-zinc-50 text-zinc-300 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-600"
+                          : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                );
+              })}
               {!createdGame && (
-                <button onClick={() => setShowMore((s) => !s)}
-                  className="rounded-lg px-2.5 py-1 text-xs font-medium text-zinc-400 underline-offset-2 hover:text-zinc-600 dark:hover:text-zinc-300">
+                <button
+                  type="button"
+                  onClick={() => setShowMore((s) => !s)}
+                  className="rounded-xl border border-dashed border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-500 transition hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-600 dark:text-zinc-400 dark:hover:text-zinc-200"
+                >
                   {showMore ? "Less" : "More…"}
                 </button>
               )}
             </div>
           </div>
 
-          {/* ── Main action area ──────────────────────────────────── */}
-          <div className="px-4 py-4">
-            {createdGame ? (
-              <div>
-                <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Room created</p>
-                <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">Share this code with your friend, then enter when ready.</p>
-                <div className="mb-3 flex items-center justify-between rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 dark:border-zinc-700 dark:bg-zinc-800">
-                  <span className="font-mono text-2xl font-bold tracking-[0.2em] text-zinc-900 dark:text-zinc-100">
-                    {createdGame.roomCode}
-                  </span>
-                  <button onClick={() => copyCode(createdGame.roomCode)}
-                    className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-700">
-                    {copied ? <><Check className="h-3.5 w-3.5 text-emerald-500" /> Copied!</> : <><Copy className="h-3.5 w-3.5" /> Copy</>}
-                  </button>
-                </div>
-                <button onClick={() => onEnterGame(createdGame)}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700">
-                  <Swords className="h-4 w-4" /> Enter Game
+          {/* ── Main action area ── */}
+          {createdGame ? (
+            <div className="mt-6">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Room created</p>
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Share this code with your friend, then enter when ready.</p>
+              <div className="mt-3 flex items-center justify-between rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 dark:border-zinc-700 dark:bg-zinc-800">
+                <span className="font-mono text-2xl font-bold tracking-[0.2em] text-zinc-900 dark:text-zinc-100">
+                  {createdGame.roomCode}
+                </span>
+                <button onClick={() => copyCode(createdGame.roomCode)}
+                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-700">
+                  {copied ? <><Check className="h-3.5 w-3.5 text-emerald-500" /> Copied!</> : <><Copy className="h-3.5 w-3.5" /> Copy</>}
                 </button>
               </div>
-            ) : (
-              <div>
-                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Play as</p>
-                <div className="mb-4 grid grid-cols-3 gap-1.5">
-                  {COLOR_OPTIONS.map(({ value, label, icon }) => (
-                    <button key={value} onClick={() => setColor(value)}
-                      className={`flex flex-col items-center rounded-xl border py-2 text-xs font-medium transition ${
-                        color === value
-                          ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                          : "border-zinc-200 bg-zinc-50 text-zinc-600 hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400"
-                      }`}
-                    >
-                      <span className="mb-0.5 text-base">{icon}</span>
-                      {label}
-                    </button>
-                  ))}
+              <button
+                onClick={() => onEnterGame(createdGame)}
+                style={{ backgroundColor: "#769656" }}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white shadow-sm transition hover:brightness-95"
+              >
+                <Swords className="h-4 w-4" /> Enter Game
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="mt-5 space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Play As</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {COLOR_OPTIONS.map(({ value, label, icon }) => {
+                    const selected = color === value;
+                    return (
+                      <button
+                        key={value}
+                        onClick={() => setColor(value)}
+                        style={
+                          selected
+                            ? { backgroundColor: "#769656", borderColor: "#769656" }
+                            : undefined
+                        }
+                        className={`flex flex-col items-center rounded-xl border py-3 text-xs font-semibold transition ${
+                          selected
+                            ? "text-white"
+                            : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                        }`}
+                      >
+                        <span className="mb-1 text-lg">{icon}</span>
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
-                <button onClick={onCreate} disabled={creating}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-                >
-                  {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Swords className="h-4 w-4" />}
-                  Create Room
-                </button>
               </div>
-            )}
-          </div>
 
-          {/* ── Join — divider + compact section ──────────────────── */}
+              <button
+                onClick={onCreate}
+                disabled={creating}
+                style={{ backgroundColor: "#769656" }}
+                className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-bold text-white shadow-sm transition hover:brightness-95 disabled:cursor-not-allowed disabled:brightness-90"
+              >
+                {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Swords className="h-4 w-4" />}
+                Create Room
+              </button>
+            </>
+          )}
+
+          {/* ── Join — divider + compact section ── */}
           {!createdGame && (
-            <div className="border-t border-zinc-100 px-4 py-3 dark:border-zinc-800">
-              <div className="mb-2 flex items-center gap-2">
+            <>
+              <div className="mt-5 mb-3 flex items-center gap-2">
                 <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">or join</span>
                 <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
               </div>
               <div className="flex gap-2">
                 <input
-                  value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase().slice(0, 6))}
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value.toUpperCase().slice(0, 6))}
                   onKeyDown={(e) => e.key === "Enter" && onJoin()}
                   placeholder="Room code"
-                  className="min-w-0 flex-1 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 font-mono text-sm tracking-widest placeholder:font-sans placeholder:text-xs placeholder:tracking-normal dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                  className="min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 font-mono text-sm tracking-widest placeholder:font-sans placeholder:text-xs placeholder:tracking-normal dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
                   maxLength={6}
                 />
-                <button onClick={onJoin} disabled={joining || joinCode.length < 4}
-                  className="flex shrink-0 items-center gap-1.5 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+                <button
+                  onClick={onJoin}
+                  disabled={!joinReady}
+                  style={
+                    joinReady
+                      ? { backgroundColor: "#769656" }
+                      : undefined
+                  }
+                  className={`flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+                    joinReady
+                      ? "text-white shadow-sm hover:brightness-95"
+                      : "bg-zinc-200 text-zinc-400 cursor-not-allowed dark:bg-zinc-800 dark:text-zinc-600"
+                  }`}
                 >
                   {joining ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Users className="h-3.5 w-3.5" />}
                   Join
                 </button>
               </div>
-            </div>
+            </>
           )}
 
+          {/* Tip */}
+          <p className="mt-4 text-center text-xs text-zinc-400 dark:text-zinc-500">
+            Tip: Voice chat is optional — invite a friend over any chat app.
+          </p>
         </div>
       </div>
     </div>
@@ -1136,6 +1315,30 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
   const [rematch, setRematch]       = useState<"sent" | "received" | null>(null);
   const [opponentName, setOpponentName] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+
+  // ── Waiting room: measure the board height in pixels and apply it as the
+  //    fixed height of the left panel so they line up perfectly. CSS flex
+  //    height matching was unreliable across the resize observers the board
+  //    component does internally; a JS measurement is more deterministic.
+  const waitingBoardRef = useRef<HTMLDivElement>(null);
+  const [waitingPanelHeight, setWaitingPanelHeight] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    const el = waitingBoardRef.current;
+    if (!el) return;
+    const sync = () => {
+      const h = el.getBoundingClientRect().height;
+      if (h > 0) setWaitingPanelHeight(h);
+    };
+    sync();
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(sync);
+      ro.observe(el);
+      return () => ro.disconnect();
+    }
+    window.addEventListener("resize", sync);
+    return () => window.removeEventListener("resize", sync);
+  }, [gameState.status]);
 
   const { requestJoin, connecting: voiceConnecting, error: voiceError, session: voiceSession } = useMeetCall();
   const livekitConfigured = Boolean(process.env.NEXT_PUBLIC_LIVEKIT_URL);
@@ -1621,56 +1824,135 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
   );
 
   // ── Waiting-room lobby ────────────────────────────────────────────────
+  //
+  // Two-column composition: a wider info card on the left (360px) and a
+  // slightly tighter board on the right (max 500px) so the two sides feel
+  // visually balanced. The left card's height is JS-measured against the
+  // board so both columns line up exactly. Internal spacing follows a 4/8/16
+  // rhythm: gap-1.5 for inline rows, my-4 for major sections, p-6 outer.
   if (isWaiting) {
     return (
-      <div className="flex h-full min-h-0 flex-1 flex-col items-center justify-center p-4">
-        <div className="w-full max-w-sm">
-          <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-            {/* Status */}
-            <div className="mb-4 flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin text-emerald-500" />
-              <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">Waiting for opponent</span>
-            </div>
-
-            {/* Room code — prominent */}
-            <div className="mb-4 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800">
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Room code</p>
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-2xl font-bold tracking-[0.2em] text-zinc-900 dark:text-zinc-100">
-                  {gameState.roomCode}
-                </span>
-                <button onClick={copyCode}
-                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-700">
-                  {copied ? <><Check className="h-3.5 w-3.5 text-emerald-500" /> Copied</> : <><Copy className="h-3.5 w-3.5" /> Copy</>}
-                </button>
-              </div>
-            </div>
-
-            {/* Invite link */}
-            <button onClick={copyLink}
-              className="mb-4 flex w-full items-center justify-center gap-1.5 rounded-lg border border-zinc-200 py-2 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">
-              {copiedLink ? <><Check className="h-3.5 w-3.5 text-emerald-500" /> Link copied!</> : <><Copy className="h-3.5 w-3.5" /> Copy invite link</>}
+      <div className="flex h-full min-h-0 w-full flex-1 items-center justify-center overflow-y-auto bg-zinc-100 dark:bg-[#1e1e1e]">
+        <div
+          className="mx-auto flex w-full flex-col gap-6 px-6 py-8 lg:flex-row lg:items-start lg:gap-8"
+          style={{ maxWidth: 1000 }}
+        >
+          {/* ── Left column: info card ─────────────────────────────────── */}
+          <div
+            className="flex w-full shrink-0 flex-col gap-3 lg:w-[360px]"
+            style={waitingPanelHeight ? { height: waitingPanelHeight } : undefined}
+          >
+            <button
+              type="button"
+              onClick={onBack}
+              className="flex w-fit items-center gap-1.5 text-sm font-medium text-zinc-500 transition hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+            >
+              <ArrowLeft className="h-4 w-4" /> Back to lobby
             </button>
 
-            {/* Game info */}
-            <div className="flex items-center justify-between rounded-lg bg-zinc-100/80 px-3 py-2 text-xs text-zinc-500 dark:bg-zinc-800/50 dark:text-zinc-400">
-              <span>{tc.label}</span>
-              <span>Playing as {myColor ?? "random"}</span>
+            <div className="flex flex-1 flex-col rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+              {/* ── Status row ── */}
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span
+                    className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60"
+                    style={{ backgroundColor: "#769656" }}
+                  />
+                  <span
+                    className="relative inline-flex h-2.5 w-2.5 rounded-full"
+                    style={{ backgroundColor: "#769656" }}
+                  />
+                </span>
+                <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+                  Waiting for opponent…
+                </span>
+              </div>
+
+              {/* ── Room code (clickable) ── */}
+              <button
+                type="button"
+                onClick={copyCode}
+                className="group mt-5 block w-full rounded-xl border border-zinc-200 bg-zinc-50 px-5 py-5 text-center transition hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800/60 dark:hover:border-zinc-600"
+                title={copied ? "Copied!" : "Click to copy room code"}
+              >
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">
+                  Room code
+                </p>
+                <span
+                  className="mt-1.5 block font-mono font-black tabular-nums text-zinc-900 dark:text-zinc-100"
+                  style={{ fontSize: 40, letterSpacing: "0.1em", lineHeight: 1.1 }}
+                >
+                  {gameState.roomCode}
+                </span>
+                <p className="mt-2 inline-flex items-center justify-center gap-1 text-[11px] font-medium text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300">
+                  {copied ? (
+                    <><Check className="h-3 w-3 text-emerald-500" /> Copied!</>
+                  ) : (
+                    <><Copy className="h-3 w-3" /> Click to copy</>
+                  )}
+                </p>
+              </button>
+
+              {/* ── Copy invite link — primary action ── */}
+              <button
+                onClick={copyLink}
+                style={{ backgroundColor: "#769656" }}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-95"
+              >
+                {copiedLink ? (
+                  <><Check className="h-4 w-4" /> Link copied!</>
+                ) : (
+                  <><Copy className="h-4 w-4" /> Copy invite link</>
+                )}
+              </button>
+
+              {/* ── Meta pills ── */}
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                  ⏱ {tc.label}
+                </span>
+                <span
+                  className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                  style={{
+                    backgroundColor: "rgba(118,150,86,0.12)",
+                    color: "#5d8a4e",
+                  }}
+                >
+                  {(myColor ?? "random") === "black" ? "♚" : "♔"} Playing as {myColor ?? "random"}
+                </span>
+              </div>
+
+              {/* ── Bottom helper — pinned via mt-auto + soft top border ── */}
+              <div className="mt-auto flex flex-col items-center gap-2 border-t border-zinc-100 pt-5 text-center dark:border-zinc-800">
+                <span className="chess-gentle-pulse text-4xl" aria-hidden>
+                  ♞
+                </span>
+                <p className="text-[13px] font-medium leading-snug text-zinc-700 dark:text-zinc-200">
+                  Share the code with your opponent
+                </p>
+                <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
+                  Most games start within 30 seconds
+                </p>
+              </div>
             </div>
           </div>
 
-          {/* Small preview board */}
-          <div className="mt-4 flex justify-center opacity-40">
-            <ChessBoardWrapper
-              className="shrink-0 overflow-hidden rounded-lg"
-              forcedBoardWidth={200}
-              fixedEdgeNotation={false}
-              options={{
-                position: fen,
-                boardOrientation: myColor ?? "white",
-                allowDragging: false,
-              }}
-            />
+          {/* ── Right column: board (anchored, slightly tighter) ──────── */}
+          <div className="flex min-h-0 flex-1 items-start justify-center">
+            <div
+              ref={waitingBoardRef}
+              className="w-full max-w-[500px] opacity-70 transition-opacity"
+            >
+              <ChessBoardWrapper
+                className="overflow-hidden"
+                fixedEdgeNotation={false}
+                options={{
+                  position: fen,
+                  boardOrientation: myColor ?? "white",
+                  allowDragging: false,
+                }}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -1926,7 +2208,7 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
             type="button"
             disabled={voiceConnecting}
             onClick={() => requestJoin(voiceRoom)}
-            className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 py-1.5 text-[11px] font-semibold text-violet-800 hover:bg-violet-100 disabled:opacity-60 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-200 dark:hover:bg-violet-950/50"
+            className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 py-1.5 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200 dark:hover:bg-emerald-950/50"
           >
             {voiceConnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <span aria-hidden>🎤</span>}
             {voiceConnecting ? "Connecting…" : "Voice Call"}
@@ -2128,10 +2410,15 @@ function PuzzleLibrary({ onBack, onSolve }: { onBack: () => void; onSolve: (p: L
 
       {user && levelGrandTotal > 0 && (
         <div className="border-b border-zinc-100 px-4 py-2.5 dark:border-zinc-800">
-          <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
-            {solvedCount} / {levelGrandTotal} {LEVEL_LABELS[activeLevel]} puzzles solved
-          </p>
-          <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+          <div className="flex items-center justify-between text-xs font-medium text-zinc-600 dark:text-zinc-300">
+            <span>
+              {solvedCount} / {levelGrandTotal} {LEVEL_LABELS[activeLevel]} puzzles solved
+            </span>
+            <span className="font-mono text-[11px] text-emerald-600 dark:text-emerald-400">
+              {Math.min(100, Math.round((solvedCount / levelGrandTotal) * 1000) / 10)}%
+            </span>
+          </div>
+          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
             <div
               className="h-full rounded-full bg-emerald-500 transition-all duration-500"
               style={{ width: `${Math.min(100, Math.round((solvedCount / levelGrandTotal) * 1000) / 10)}%` }}
@@ -2251,16 +2538,22 @@ function PuzzleLibrary({ onBack, onSolve }: { onBack: () => void; onSolve: (p: L
         {puzzles.map((p, i) => (
           <div
             key={p.id}
-            className={`flex flex-col gap-2 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900 ${
+            className={`group flex flex-col gap-2 rounded-2xl border border-zinc-200 bg-white p-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg dark:border-zinc-700 dark:bg-zinc-900 ${
               user && solvedIds.has(p.id) ? "opacity-70" : ""
             }`}
           >
+            <div className="flex justify-center pb-1">
+              <PuzzleMiniBoard fen={p.fen} size={120} />
+            </div>
             <div className="flex items-start justify-between gap-2">
-              <div>
+              <div className="min-w-0">
                 <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${LEVEL_COLORS[p.level]}`}>
                   {LEVEL_LABELS[p.level]}
                 </span>
-                <p className="mt-1 text-xs font-mono text-zinc-400">Rating: {p.rating}</p>
+                <p className="mt-1 inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 font-mono text-[11px] text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+                  <Star className="h-3 w-3 fill-amber-400 text-amber-400" aria-hidden />
+                  {p.rating}
+                </p>
               </div>
               <div className="relative shrink-0 pt-0.5">
                 {user && solvedIds.has(p.id) && (
@@ -2277,7 +2570,12 @@ function PuzzleLibrary({ onBack, onSolve }: { onBack: () => void; onSolve: (p: L
             {p.themes.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {p.themes.slice(0, 3).map((t) => (
-                  <span key={t} className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">{t}</span>
+                  <span
+                    key={t}
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${puzzleTagAccentClasses(t)}`}
+                  >
+                    {t}
+                  </span>
                 ))}
               </div>
             )}
@@ -2295,16 +2593,17 @@ function PuzzleLibrary({ onBack, onSolve }: { onBack: () => void; onSolve: (p: L
                   total,
                 })
               }
-              className="mt-auto flex items-center justify-center gap-1.5 rounded-xl bg-amber-500 py-2 text-sm font-semibold text-white hover:bg-amber-600"
+              className="mt-auto flex items-center justify-center gap-1.5 rounded-xl bg-[#5d8a4e] py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#4d7c3f]"
             >
-              <Swords className="h-3.5 w-3.5" /> Solve
+              <span aria-hidden className="text-base leading-none">♞</span> Solve
             </button>
           </div>
         ))}
         {loading &&
           puzzles.length === 0 &&
           Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="flex h-36 flex-col gap-2 rounded-2xl border border-zinc-100 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/50">
+            <div key={i} className="flex flex-col gap-2 rounded-2xl border border-zinc-100 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
+              <div className="mx-auto h-[120px] w-[120px] animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
               <div className="h-5 w-24 animate-pulse rounded-full bg-zinc-200 dark:bg-zinc-700" />
               <div className="h-3 w-16 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
               <div className="mt-auto h-9 animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-700" />
@@ -2443,7 +2742,16 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
   const wrongExplGenRef = useRef(0);
   const libraryWrongAttemptsRef = useRef(0);
   const [wrongAttempts, setWrongAttempts] = useState(0);
-  const [showSolution, setShowSolution] = useState(false);
+
+  // Inactivity hint — surfaces a tip after 10s without a move so the player
+  // doesn't sit staring at an empty panel.
+  const [inactivityHintVisible, setInactivityHintVisible] = useState(false);
+  useEffect(() => {
+    setInactivityHintVisible(false);
+    if (result === "solved") return;
+    const t = setTimeout(() => setInactivityHintVisible(true), 10_000);
+    return () => clearTimeout(t);
+  }, [puzzle.fen, fen, result]);
   // TTS
   const [speaking, setSpeaking] = useState(false);
   const [paused, setPaused]     = useState(false);
@@ -2465,6 +2773,22 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
       wrongArrowClearRef.current = null;
     }
   }
+
+  /** Auto-clear move arrows after 1s so they fade out instead of lingering. */
+  const moveArrowClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function scheduleMoveArrowClear() {
+    if (moveArrowClearRef.current) clearTimeout(moveArrowClearRef.current);
+    moveArrowClearRef.current = setTimeout(() => {
+      setMoveArrows([]);
+      moveArrowClearRef.current = null;
+    }, 1000);
+  }
+  function clearMoveArrowTimer() {
+    if (moveArrowClearRef.current) {
+      clearTimeout(moveArrowClearRef.current);
+      moveArrowClearRef.current = null;
+    }
+  }
   function clearShakeTimer() {
     if (shakeClearRef.current) {
       clearTimeout(shakeClearRef.current);
@@ -2476,6 +2800,7 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
     return () => {
       clearWrongArrowTimer();
       clearShakeTimer();
+      clearMoveArrowTimer();
     };
   }, []);
 
@@ -2492,6 +2817,7 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
         setMoveArrows([
           { startSquare: setupMove.slice(0, 2), endSquare: setupMove.slice(2, 4), color: PUZZLE_ARROW_OPPONENT },
         ]);
+        scheduleMoveArrowClear();
         const mu = mutedRef.current;
         if (chessRef.current.isCheck()) playSound("check", mu);
         else if (m.flags.includes("c")) playSound("capture", mu);
@@ -2499,6 +2825,7 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
       }
     }, 600);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setupMove]);
 
   // Fetch AI explanation after solving
@@ -2700,6 +3027,7 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
     setMoveArrows([
       { startSquare: sourceSquare, endSquare: targetSquare, color: PUZZLE_ARROW_USER },
     ]);
+    scheduleMoveArrowClear();
     setLastMoveSide("user");
 
     announceMove(move, chess);
@@ -2736,6 +3064,7 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
         const m    = chessRef.current.move({ from, to, promotion: opponentMove[4] ?? "q" });
         if (m) {
           setMoveArrows([{ startSquare: from, endSquare: to, color: PUZZLE_ARROW_OPPONENT }]);
+          scheduleMoveArrowClear();
           setLastMoveSide("opponent");
           announceMove(m, chessRef.current);
           const ch = chessRef.current;
@@ -2758,6 +3087,7 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
     libraryWrongAttemptsRef.current = 0;
     clearWrongArrowTimer();
     clearShakeTimer();
+    clearMoveArrowTimer();
     setMoveArrows([]);
     setBoardShake(false);
     setLoadingWrong(false);
@@ -2772,14 +3102,83 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
     fenBeforeDropRef.current = f;
   }
 
+  /**
+   * Reveal the full solution: replays remaining solMoves on the board with a
+   * 500ms delay between plies, then triggers the solved state so the
+   * "Why this works" explanation and Next Puzzle button appear.
+   */
+  const giveUpRunningRef = useRef(false);
+  function handleGiveUp() {
+    if (giveUpRunningRef.current) return;
+    giveUpRunningRef.current = true;
+
+    // Clear wrong-state UI before replaying.
+    wrongExplGenRef.current++;
+    clearWrongArrowTimer();
+    clearShakeTimer();
+    clearMoveArrowTimer();
+    setBoardShake(false);
+    setLoadingWrong(false);
+    setWrongSquares(null);
+    setWrongExpl("");
+    setWrongHint("");
+    setShowHint(false);
+    setMoveArrows([]);
+    setResult("idle");
+
+    // Resync chess.js to the FEN before the user's wrong drop, in case it drifted.
+    chessRef.current.load(fenBeforeDropRef.current);
+    setFen(fenBeforeDropRef.current);
+
+    const playOne = (idx: number) => {
+      if (idx >= solMoves.length) {
+        // Done — flip to solved state.
+        setResult("solved");
+        playSound("notify", mutedRef.current);
+        fetchExplanation();
+        giveUpRunningRef.current = false;
+        return;
+      }
+      const uci = solMoves[idx]!;
+      const from = uci.slice(0, 2);
+      const to = uci.slice(2, 4);
+      const m = chessRef.current.move({ from, to, promotion: uci[4] ?? "q" });
+      if (!m) {
+        giveUpRunningRef.current = false;
+        return;
+      }
+      setMoveArrows([
+        {
+          startSquare: from,
+          endSquare: to,
+          color: idx % 2 === 0 ? PUZZLE_ARROW_USER : PUZZLE_ARROW_OPPONENT,
+        },
+      ]);
+      scheduleMoveArrowClear();
+      setLastMoveSide(idx % 2 === 0 ? "user" : "opponent");
+      const ch = chessRef.current;
+      if (ch.isCheck()) playSound("check", mutedRef.current);
+      else if (m.flags.includes("c")) playSound("capture", mutedRef.current);
+      else playSound("move", mutedRef.current);
+      setFen(ch.fen());
+      fenBeforeDropRef.current = ch.fen();
+      setLastMove([from, to]);
+      setMoveIdx(idx + 1);
+      setTimeout(() => playOne(idx + 1), 500);
+    };
+
+    // Tiny defer so the UI can repaint the cleared wrong-state first.
+    setTimeout(() => playOne(moveIdx), 60);
+  }
+
   function handleReset() {
     stopSpeech();
     wrongExplGenRef.current++;
     libraryWrongAttemptsRef.current = 0;
     setWrongAttempts(0);
-    setShowSolution(false);
     clearWrongArrowTimer();
     clearShakeTimer();
+    clearMoveArrowTimer();
     setMoveArrows([]);
     setBoardShake(false);
     setLoadingWrong(false);
@@ -2807,6 +3206,7 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
           setMoveArrows([
             { startSquare: setupMove.slice(0, 2), endSquare: setupMove.slice(2, 4), color: PUZZLE_ARROW_OPPONENT },
           ]);
+          scheduleMoveArrowClear();
           const mu = mutedRef.current;
           if (chessRef.current.isCheck()) playSound("check", mu);
           else if (m.flags.includes("c")) playSound("capture", mu);
@@ -2845,70 +3245,59 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
     [fen],
   );
 
-  const boardStageRef = useRef<HTMLDivElement>(null);
-  const [boardStageSize, setBoardStageSize] = useState({ w: 0, h: 0 });
-
-  useLayoutEffect(() => {
-    const el = boardStageRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const sync = () => {
-      setBoardStageSize({ w: el.clientWidth, h: el.clientHeight });
-    };
-    const ro = new ResizeObserver((entries) => {
-      const e = entries[0];
-      if (e?.contentRect) {
-        setBoardStageSize({ w: e.contentRect.width, h: e.contentRect.height });
-      } else {
-        sync();
-      }
-    });
-    ro.observe(el);
-    sync();
-    return () => ro.disconnect();
-  }, []);
-
-  const puzzleBoardEdge = useMemo(() => {
-    const { w, h } = boardStageSize;
-    if (w <= 0 || h <= 0) return 0;
-    // Leave some breathing room so the board never overflows
-    const available = Math.min(w - 8, h - 8);
-    const edge = Math.min(Math.floor(available), 560);
-    return edge > 0 ? edge : 0;
-  }, [boardStageSize]);
+  const sideToMove = chess.turn();
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 justify-center overflow-hidden bg-zinc-100 dark:bg-zinc-950">
-      <div className="flex h-full min-h-0 w-full max-w-6xl items-stretch gap-2.5 overflow-hidden px-2 py-2 sm:gap-3 sm:px-3 sm:py-2.5">
-        <aside className="flex h-full min-h-0 w-[12rem] shrink-0 flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:w-52 lg:w-56">
+    <BoardLayoutShell
+      left={
+        <>
+          {/* Left panel content moved into a fragment so the shared shell can host it. */}
           <button
             type="button"
             onClick={onBack}
-            className="flex shrink-0 items-center gap-1 px-2.5 pb-1 pt-2 text-[11px] font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 sm:px-3"
+            className="flex shrink-0 items-center gap-1 px-4 pb-1 pt-3 text-xs font-semibold text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
           >
-            <ArrowLeft className="h-3 w-3 shrink-0" aria-hidden />
+            <ArrowLeft className="h-3.5 w-3.5 shrink-0" aria-hidden />
             Back
           </button>
 
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain px-2.5 sm:px-3">
-              <div className="flex flex-col gap-1.5 py-1.5">
-                <div>
-                  <h2 className="truncate text-xs font-semibold leading-tight text-zinc-900 dark:text-zinc-100 sm:text-[13px]">
-                    {title}
-                  </h2>
-                  <p className="mt-0.5 text-[10px] leading-snug text-zinc-600 dark:text-zinc-400">
-                    Find best move for{" "}
-                    <strong className="font-semibold text-zinc-800 dark:text-zinc-200">{playerColor}</strong>.
-                  </p>
-                </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain px-4">
+              <div className="flex flex-col gap-3 py-2">
+                <SidebarTitle eyebrow="Puzzle" title={title} />
+
+                <SidebarState
+                  tone={result === "solved" ? "done" : "user"}
+                  label={result === "solved" ? "Solved" : "Your move"}
+                  value={
+                    <span className="flex items-center gap-2">
+                      <span
+                        className="inline-block shrink-0 rounded-full dark:shadow-none"
+                        style={{
+                          width: 14,
+                          height: 14,
+                          boxSizing: "border-box",
+                          ...(sideToMove === "w"
+                            ? { backgroundColor: "#ffffff", border: "2px solid #27272a" }
+                            : { backgroundColor: "#18181b", border: "2px solid #18181b" }),
+                        }}
+                        aria-label={sideToMove === "w" ? "White to move" : "Black to move"}
+                      />
+                      <span>
+                        Find best move for{" "}
+                        <span className="capitalize">{playerColor}</span>
+                      </span>
+                    </span>
+                  }
+                />
 
                 <div>
-                  <div className="flex flex-wrap items-center gap-1">
-                    <span className={`inline-block rounded-full px-1.5 py-px text-[10px] font-medium ${LEVEL_COLORS[level as PuzzleLevel]}`}>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${LEVEL_COLORS[level as PuzzleLevel]}`}>
                       {LEVEL_LABELS[level as PuzzleLevel]}
                     </span>
                     {isLibrary && (
-                      <span className="font-mono text-[10px] text-zinc-500 dark:text-zinc-400">{(puzzle as LibraryPuzzle).rating}</span>
+                      <span className="font-mono text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">{(puzzle as LibraryPuzzle).rating}</span>
                     )}
                     <button
                       type="button"
@@ -2919,12 +3308,12 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
                       {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
                     </button>
                   </div>
-                  <div className="mt-1">
-                    <div className="mb-px flex items-center justify-between text-[10px] text-zinc-500 dark:text-zinc-400">
+                  <div className="mt-2">
+                    <div className="mb-1 flex items-center justify-between text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">
                       <span>Move {currentPlayerMove}/{totalPlayerMoves}</span>
                       <span>{progressPct}%</span>
                     </div>
-                    <div className="h-1 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700/60">
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700/60">
                       <div
                         className={`h-full rounded-full transition-all duration-500 ${result === "solved" ? "bg-emerald-500" : "bg-amber-400"}`}
                         style={{ width: `${progressPct}%` }}
@@ -2940,23 +3329,21 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
                   </div>
                 )}
                 {(result === "wrong" || (wrongExpl && result === "idle")) && (
-                  <div className="rounded-md border border-red-200/90 bg-red-50/90 px-1.5 py-1 dark:border-red-900/50 dark:bg-red-950/30">
-                    <div className="flex items-center gap-1 text-red-700 dark:text-red-400">
-                      <X className="h-3 w-3 shrink-0" />
-                      <span className="text-[10px] font-semibold sm:text-[11px]">Not the best move.</span>
-                    </div>
-                    <div className="mt-0.5 text-[10px] leading-snug text-red-600/90 dark:text-red-400/90 sm:text-[11px]">
-                      {loadingWrong ? (
-                        <span className="flex items-center gap-1 text-red-400">
-                          <Loader2 className="h-3 w-3 animate-spin" /> Analyzing…
-                        </span>
-                      ) : wrongExpl ? (
-                        <p>{wrongExpl}</p>
-                      ) : (
-                        <p className="text-red-400">Try a stronger threat.</p>
-                      )}
-                    </div>
-                  </div>
+                  <FeedbackPanel
+                    variant="warning"
+                    icon={<X className="h-3 w-3" />}
+                    title="Not the best move"
+                  >
+                    {loadingWrong ? (
+                      <span className="flex items-center gap-1 opacity-80">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Analyzing…
+                      </span>
+                    ) : wrongExpl ? (
+                      <p>{wrongExpl}</p>
+                    ) : (
+                      <p className="opacity-80">Try a stronger threat.</p>
+                    )}
+                  </FeedbackPanel>
                 )}
 
                 {result === "solved" && (
@@ -2993,156 +3380,264 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
                   </div>
                 )}
 
-                {result === "wrong" && wrongAttempts >= 3 && !showSolution && (
+                {/* Inactivity hint — appears after 10s without a move while idle */}
+                {inactivityHintVisible && result !== "solved" && result !== "wrong" && (
+                  <div className="rounded-md border border-amber-200/80 bg-amber-50/70 px-2 py-1.5 text-[11px] leading-snug text-amber-800 dark:border-amber-800/80 dark:bg-amber-950/25 dark:text-amber-300">
+                    <p className="flex items-start gap-1.5">
+                      <Lightbulb className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+                      <span>{hintText || themeToHint(themes)}</span>
+                    </p>
+                  </div>
+                )}
+
+                {/* Give Up — always available during play (not when solved) */}
+                {result !== "solved" && result !== "wrong" && (
                   <button
                     type="button"
-                    onClick={() => setShowSolution(true)}
-                    className="flex w-full items-center justify-center gap-1 rounded-md border border-violet-200 bg-violet-50/90 py-1 text-[10px] font-medium text-violet-800 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-300 sm:text-[11px]"
+                    onClick={handleGiveUp}
+                    className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-zinc-300 bg-transparent py-2 text-[12px] font-semibold text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-800 dark:border-zinc-600 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
                   >
-                    <Lightbulb className="h-3 w-3" /> Show solution
+                    <Flag className="h-3.5 w-3.5" /> Show solution
                   </button>
                 )}
-                {showSolution && (() => {
-                  const solChess = new Chess(fenBeforeDropRef.current);
-                  const expectedUci = solMoves[moveIdx];
-                  if (!expectedUci) return null;
-                  try {
-                    const m = solChess.move({ from: expectedUci.slice(0, 2), to: expectedUci.slice(2, 4), promotion: expectedUci[4] ?? "q" });
-                    if (!m) return null;
-                    return (
-                      <div className="rounded-md border border-violet-200 bg-violet-50/70 px-1.5 py-1 dark:border-violet-800 dark:bg-violet-950/25">
-                        <p className="mb-px text-[9px] font-bold uppercase tracking-wider text-violet-500">Solution</p>
-                        <p className="text-[10px] leading-snug text-violet-900 dark:text-violet-100 sm:text-[11px]">
-                          Play <span className="font-mono font-bold">{m.san}</span>.
-                        </p>
-                      </div>
-                    );
-                  } catch {
-                    return null;
-                  }
-                })()}
+
               </div>
             </div>
 
-            <div className="shrink-0 border-t border-zinc-200/80 px-2.5 pb-1.5 pt-1 dark:border-zinc-700/50 sm:px-3">
-              <div className="flex flex-col gap-1">
-                {!showHint && result !== "solved" && (
-                  <button
-                    type="button"
-                    onClick={() => setShowHint(true)}
-                    className="flex w-full items-center gap-1 rounded-md border border-amber-300/80 bg-amber-50/90 px-1.5 py-1 text-left text-[10px] font-medium text-amber-800 hover:bg-amber-100/90 dark:border-amber-800/80 dark:bg-amber-950/25 dark:text-amber-400 dark:hover:bg-amber-950/40 sm:text-[11px]"
-                  >
-                    <Lightbulb className="h-3 w-3 shrink-0" /> Show hint
-                  </button>
-                )}
-                {showHint && (
-                  <div className="rounded-md border border-amber-200/80 bg-amber-50/70 px-1.5 py-1 text-[10px] leading-snug text-amber-800 dark:border-amber-800 dark:bg-amber-950/25 dark:text-amber-400 sm:text-[11px]">
-                    <p className="flex items-start gap-1">
-                      <Lightbulb className="mt-0.5 h-3 w-3 shrink-0" />
-                      {loadingHint && isLibrary && !builtInHint ? (
-                        <span className="flex items-center gap-1 text-[10px] text-amber-600/90">
-                          <Loader2 className="h-3 w-3 shrink-0 animate-spin" /> Generating…
-                        </span>
-                      ) : (
-                        hintText || themeToHint(themes)
-                      )}
-                    </p>
-                    {themes.length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {themes.map((t) => (
-                          <span key={t} className="rounded-full bg-amber-100/60 px-1.5 py-px text-[9px] font-medium text-amber-600 dark:bg-amber-900/30 dark:text-amber-500">{t}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-                {result === "wrong" && (
+            {result === "wrong" && (
+              <div className="shrink-0 border-t border-zinc-200/80 px-4 pb-3 pt-3 dark:border-zinc-700/50">
+                <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={handleTryAgain}
-                    className="flex w-full items-center justify-center gap-1 rounded-md bg-zinc-800 py-1 text-[11px] font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-200 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                    style={{ backgroundColor: "#769656" }}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2.5 text-[13px] font-bold text-white shadow-sm transition hover:brightness-95"
                   >
-                    <Undo2 className="h-3 w-3" /> Try again
+                    <Undo2 className="h-4 w-4" /> Try again
                   </button>
-                )}
-                <div className="flex gap-1">
                   <button
                     type="button"
-                    onClick={handleReset}
-                    className="flex flex-1 items-center justify-center gap-1 rounded-md border border-zinc-300/60 bg-zinc-100/80 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-200/80 dark:border-zinc-600 dark:bg-zinc-800/80 dark:text-zinc-200 dark:hover:bg-zinc-700"
+                    onClick={handleGiveUp}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-zinc-300 bg-transparent py-2.5 text-[13px] font-semibold text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-800 dark:border-zinc-600 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
                   >
-                    <RefreshCw className="h-3 w-3" /> Reset
+                    <Flag className="h-4 w-4" /> Give Up
                   </button>
-                  {result === "solved" && (
-                    <button
-                      type="button"
-                      disabled={nextPuzzleLoading}
-                      onClick={async () => {
-                        stopSpeech();
-                        if (onNextPuzzle) {
-                          setNextPuzzleLoading(true);
-                          try {
-                            await onNextPuzzle();
-                          } finally {
-                            setNextPuzzleLoading(false);
-                          }
-                        } else {
-                          onBack();
-                        }
-                      }}
-                      className="flex flex-1 items-center justify-center gap-1 rounded-md bg-amber-500 py-1 text-[11px] font-semibold text-white hover:bg-amber-600 disabled:opacity-60"
-                    >
-                      {nextPuzzleLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-                      Next
-                    </button>
-                  )}
                 </div>
               </div>
+            )}
+          </div>
+        </>
+      }
+      right={
+        <>
+          <SidebarDominant
+            label={result === "solved" ? "Solved" : result === "wrong" ? "Retry" : "Puzzle"}
+            value={currentPlayerMove}
+            unit={`/ ${totalPlayerMoves} moves`}
+          />
 
-              <ChessMoveHistoryPanel
-                historyVerbose={puzzleMoveHistoryVerbose}
-                userSide={playerColor}
-                emptyLabel="Play a move to see the sequence here."
-                className="mt-1"
+          <div className="mt-3">
+            <SidebarStatGrid>
+              <SidebarStat
+                label="Wrong"
+                value={wrongAttempts}
+                tone={wrongAttempts > 0 ? "danger" : "muted"}
               />
+              <SidebarStat label="Progress" value={`${progressPct}%`} tone="accent" />
+            </SidebarStatGrid>
+          </div>
+
+          {/* Moves — 2-column White / Black grid */}
+          <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">
+            <p className="shrink-0 text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500">
+              Moves
+            </p>
+            <div className="mt-2 min-h-0 flex-1 overflow-y-auto pr-1">
+              {puzzleMoveHistoryVerbose.length === 0 ? (
+                <p className="text-xs italic text-zinc-400 dark:text-zinc-500">
+                  Make a move to see the line.
+                </p>
+              ) : (
+                (() => {
+                  type Pair = { num: number; white?: Move; black?: Move; wPly?: number; bPly?: number };
+                  const pairs: Pair[] = [];
+                  let i = 0;
+                  let num = 1;
+                  if (puzzleMoveHistoryVerbose[0]?.color === "b") {
+                    pairs.push({ num, black: puzzleMoveHistoryVerbose[0], bPly: 0 });
+                    i = 1;
+                    num++;
+                  }
+                  while (i < puzzleMoveHistoryVerbose.length) {
+                    const w = puzzleMoveHistoryVerbose[i];
+                    const b = puzzleMoveHistoryVerbose[i + 1];
+                    pairs.push({
+                      num,
+                      white: w,
+                      black: b,
+                      wPly: i,
+                      bPly: b ? i + 1 : undefined,
+                    });
+                    i += 2;
+                    num++;
+                  }
+                  const lastPly = puzzleMoveHistoryVerbose.length - 1;
+                  return (
+                    <div className="grid grid-cols-[1.9rem_1fr_1fr] gap-x-1.5 gap-y-1 font-mono text-[13px] leading-5 tabular-nums">
+                      {pairs.map((p) => {
+                        const wCurrent = p.wPly === lastPly;
+                        const bCurrent = p.bPly === lastPly;
+                        return (
+                          <React.Fragment key={`mv-${p.num}`}>
+                            <span className="text-zinc-400 dark:text-zinc-500">{p.num}.</span>
+                            <span
+                              className={
+                                wCurrent
+                                  ? "rounded bg-emerald-100 px-1.5 font-bold text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200"
+                                  : "px-1.5 font-semibold text-zinc-700 dark:text-zinc-200"
+                              }
+                            >
+                              {p.white?.san ?? ""}
+                            </span>
+                            <span
+                              className={
+                                bCurrent
+                                  ? "rounded bg-emerald-100 px-1.5 font-bold text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200"
+                                  : "px-1.5 font-semibold text-zinc-700 dark:text-zinc-200"
+                              }
+                            >
+                              {p.black?.san ?? ""}
+                            </span>
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
+                  );
+                })()
+              )}
             </div>
           </div>
-        </aside>
 
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden py-1 sm:py-1.5">
-          <div
-            ref={boardStageRef}
-            className="relative flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden p-1"
-          >
-            <ChessBoardWrapper
-              sizePreset="puzzleSolve"
-              useViewportSizeFallback={false}
-              forcedBoardWidth={puzzleBoardEdge > 0 ? puzzleBoardEdge : undefined}
-              className={`max-h-full max-w-full overflow-hidden rounded-lg ${boardShake ? "puzzle-board-shake" : ""}`}
-              options={{
-                position: fen,
-                onPieceDrop: ({ sourceSquare, targetSquare }) => {
-                  clearPuzzleSelection();
-                  return onDrop(sourceSquare, targetSquare ?? "");
-                },
-                boardOrientation: playerColor,
-                allowDragging: result !== "solved",
-                allowDrawingArrows: false,
-                clearArrowsOnPositionChange: false,
-                arrows: moveArrows,
-                boardStyle: { boxShadow: innerBoardShadow, transition: "box-shadow 0.2s" },
-                squareStyles: { ...squareStyles, ...puzzleLegalStyles },
-                ...puzzleLegalHandlers,
-              }}
-            />
-            <div className="pointer-events-none absolute bottom-1 left-1/2 z-10 max-w-[min(100%,24rem)] -translate-x-1/2 px-2 sm:bottom-2">
-              <div className="pointer-events-auto flex justify-center">
-                <ChessMoveAnnounceChip text={moveAnnounceChip} />
+          {/* Themes */}
+          {themes.length > 0 && (
+            <div className="mt-3 shrink-0 border-t border-zinc-200/80 pt-3 dark:border-zinc-700/50">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500">
+                Themes
+              </p>
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {themes.map((t) => (
+                  <span
+                    key={t}
+                    className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+                  >
+                    {t}
+                  </span>
+                ))}
               </div>
             </div>
+          )}
+
+          {/* Reset + Next puzzle (Next only after solving) */}
+          <div className="mt-3 flex shrink-0 gap-1.5">
+            <SidebarButton
+              variant="secondary"
+              onClick={handleReset}
+              title="Reset puzzle"
+              className={result === "solved" ? "" : "flex-1"}
+            >
+              <RefreshCw className="h-4 w-4" />
+              {result !== "solved" && <span>Reset</span>}
+            </SidebarButton>
+            {result === "solved" && (
+              <button
+                type="button"
+                disabled={nextPuzzleLoading}
+                onClick={async () => {
+                  stopSpeech();
+                  if (onNextPuzzle) {
+                    setNextPuzzleLoading(true);
+                    try {
+                      await onNextPuzzle();
+                    } finally {
+                      setNextPuzzleLoading(false);
+                    }
+                  } else {
+                    onBack();
+                  }
+                }}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#5d8a4e] px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#4d7c3f] disabled:opacity-60"
+              >
+                {nextPuzzleLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    Next Puzzle
+                    <ChevronRight className="h-4 w-4" />
+                  </>
+                )}
+              </button>
+            )}
           </div>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    >
+      {(boardEdge) => (
+        <>
+          <ChessBoardWrapper
+            useViewportSizeFallback={false}
+            forcedBoardWidth={boardEdge > 0 ? boardEdge : undefined}
+            fixedEdgeNotation={false}
+            className={`shrink-0 overflow-hidden ${boardShake ? "puzzle-board-shake" : ""}`}
+            options={{
+              position: fen,
+              onPieceDrop: ({ sourceSquare, targetSquare }) => {
+                clearPuzzleSelection();
+                return onDrop(sourceSquare, targetSquare ?? "");
+              },
+              boardOrientation: playerColor,
+              allowDragging: result !== "solved",
+              allowDrawingArrows: false,
+              clearArrowsOnPositionChange: false,
+              arrows: moveArrows,
+              arrowOptions: {
+                ...defaultArrowOptions,
+                opacity: 0.4,
+                activeOpacity: 0.4,
+                arrowWidthDenominator: 12,
+                arrowLengthReducerDenominator: 2,
+              },
+              boardStyle: {
+                boxShadow:
+                  result === "solved"
+                    ? innerBoardShadow
+                    : `${innerBoardShadow}, ${
+                        playerColor === "white"
+                          ? "inset 0 -4px 0 0 rgba(255,255,255,0.95), 0 6px 18px -6px rgba(255,255,255,0.5)"
+                          : "inset 0 -4px 0 0 rgba(0,0,0,0.85), 0 6px 18px -6px rgba(0,0,0,0.45)"
+                      }`,
+                transition: "box-shadow 0.2s",
+                borderRadius: 0,
+                border: "none",
+              },
+              squareStyles: { ...squareStyles, ...puzzleLegalStyles },
+              ...puzzleLegalHandlers,
+            }}
+          />
+          {/* Turn indicator — pulsing corner badge over the board's bottom-left */}
+          {result !== "solved" && (
+            <div
+              className="puzzle-turn-pulse pointer-events-none absolute bottom-1.5 left-1.5 z-20 flex h-5 w-5 items-center justify-center rounded-full ring-2 ring-white dark:ring-zinc-900"
+              style={{
+                backgroundColor: playerColor === "white" ? "#ffffff" : "#1a1a1a",
+                border: playerColor === "white" ? "1px solid #94a3b8" : "1px solid #000000",
+              }}
+              title={`${playerColor === "white" ? "White" : "Black"} to move`}
+              aria-label={`${playerColor === "white" ? "White" : "Black"} to move`}
+            />
+          )}
+        </>
+      )}
+    </BoardLayoutShell>
   );
 }
+

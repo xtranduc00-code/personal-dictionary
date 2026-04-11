@@ -498,7 +498,7 @@ export function GameReview({ pgn, gameId, whitePlayer, blackPlayer, onBack }: {
               value={saveName}
               onChange={(e) => setSaveName(e.target.value)}
               placeholder="Line name (e.g. Italian Game – Giuoco Piano)"
-              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
             <div className="flex items-center gap-3">
               <div className="flex overflow-hidden rounded-xl border border-zinc-200 text-xs dark:border-zinc-700">
@@ -514,7 +514,7 @@ export function GameReview({ pgn, gameId, whitePlayer, blackPlayer, onBack }: {
                 <input
                   type="range" min={2} max={Math.min(moves.length, 30)} value={saveMoveCount}
                   onChange={(e) => setSaveMoveCount(Number(e.target.value))}
-                  className="flex-1 accent-violet-500"
+                  className="flex-1 accent-emerald-500"
                 />
               </div>
             </div>
@@ -632,7 +632,7 @@ export function GameReview({ pgn, gameId, whitePlayer, blackPlayer, onBack }: {
                     <button
                       onClick={() => fetchMoveExplanation(cursor)}
                       disabled={explLoading && explCursor === cursor}
-                      className="flex items-center gap-1 rounded-lg bg-violet-600 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-violet-700 disabled:opacity-60"
+                      className="flex items-center gap-1 rounded-lg bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
                     >
                       {explLoading && explCursor === cursor
                         ? <Loader2 className="h-3 w-3 animate-spin" />
@@ -668,7 +668,7 @@ export function GameReview({ pgn, gameId, whitePlayer, blackPlayer, onBack }: {
                     </div>
                   ) : explCache[cursor] ? (
                     <p className="text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">
-                      <Sparkles className="mr-1 inline h-3 w-3 text-violet-500" />
+                      <Sparkles className="mr-1 inline h-3 w-3 text-emerald-500" />
                       {explCache[cursor]}
                     </p>
                   ) : null}
@@ -736,7 +736,7 @@ export function GameReview({ pgn, gameId, whitePlayer, blackPlayer, onBack }: {
             <button
               onClick={fetchGameSummary}
               disabled={summaryLoading}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-violet-300 bg-violet-50 py-2.5 text-sm font-semibold text-violet-700 hover:bg-violet-100 disabled:opacity-60 dark:border-violet-700 dark:bg-violet-900/20 dark:text-violet-300"
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300"
             >
               {summaryLoading
                 ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating summary…</>
@@ -746,10 +746,10 @@ export function GameReview({ pgn, gameId, whitePlayer, blackPlayer, onBack }: {
           )}
 
           {gameSummary && (
-            <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 dark:border-violet-800 dark:bg-violet-900/20">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-900/20">
               <div className="mb-2 flex items-center gap-1.5">
-                <Sparkles className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-                <p className="text-sm font-bold text-violet-800 dark:text-violet-300">AI Game Summary</p>
+                <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                <p className="text-sm font-bold text-emerald-800 dark:text-emerald-300">AI Game Summary</p>
               </div>
               <div className="space-y-3 text-xs text-zinc-700 dark:text-zinc-300">
                 {gameSummary.opening && (
@@ -776,7 +776,7 @@ export function GameReview({ pgn, gameId, whitePlayer, blackPlayer, onBack }: {
                     <ul className="space-y-1">
                       {gameSummary.suggestions.map((s, i) => (
                         <li key={i} className="flex items-start gap-1.5">
-                          <span className="mt-0.5 shrink-0 font-bold text-violet-600 dark:text-violet-400">{i + 1}.</span>
+                          <span className="mt-0.5 shrink-0 font-bold text-emerald-600 dark:text-emerald-400">{i + 1}.</span>
                           {s}
                         </li>
                       ))}

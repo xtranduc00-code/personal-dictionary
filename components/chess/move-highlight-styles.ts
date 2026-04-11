@@ -1,22 +1,21 @@
 /** Last-move overlays for react-chessboard `squareStyles` (algebraic keys). */
-export const MOVE_HIGHLIGHT_OPPONENT_FROM = "rgba(255, 228, 170, 0.58)";
-export const MOVE_HIGHLIGHT_OPPONENT_TO = "rgba(255, 165, 70, 0.48)";
-export const MOVE_HIGHLIGHT_USER_FROM = "rgba(186, 245, 200, 0.55)";
-export const MOVE_HIGHLIGHT_USER_TO = "rgba(34, 197, 94, 0.52)";
+//
+// chess.com-style yellow-green tint applied to both squares of the previous
+// move regardless of who played it.
+const MOVE_HIGHLIGHT = "rgba(255, 255, 0, 0.4)";
+
+export const MOVE_HIGHLIGHT_OPPONENT_FROM = MOVE_HIGHLIGHT;
+export const MOVE_HIGHLIGHT_OPPONENT_TO = MOVE_HIGHLIGHT;
+export const MOVE_HIGHLIGHT_USER_FROM = MOVE_HIGHLIGHT;
+export const MOVE_HIGHLIGHT_USER_TO = MOVE_HIGHLIGHT;
 
 export function squareStylesForLastMove(
   from: string,
   to: string,
-  side: "user" | "opponent",
+  _side: "user" | "opponent",
 ): Record<string, { backgroundColor: string }> {
-  if (side === "user") {
-    return {
-      [from]: { backgroundColor: MOVE_HIGHLIGHT_USER_FROM },
-      [to]: { backgroundColor: MOVE_HIGHLIGHT_USER_TO },
-    };
-  }
   return {
-    [from]: { backgroundColor: MOVE_HIGHLIGHT_OPPONENT_FROM },
-    [to]: { backgroundColor: MOVE_HIGHLIGHT_OPPONENT_TO },
+    [from]: { backgroundColor: MOVE_HIGHLIGHT },
+    [to]: { backgroundColor: MOVE_HIGHLIGHT },
   };
 }

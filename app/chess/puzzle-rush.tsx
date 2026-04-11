@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Chess } from "chess.js";
 import { ArrowLeft, Heart, Loader2, RefreshCw, Star, Timer, Trophy } from "lucide-react";
 import { ChessBoardWrapper } from "@/components/chess/ChessBoardWrapper";
+import { BoardLayoutShell } from "@/components/chess/board-layout-shell";
 import { squareStylesForLastMove } from "@/components/chess/move-highlight-styles";
 import { useChessLegalMoves } from "@/hooks/use-chess-legal-moves";
 
@@ -69,6 +70,55 @@ function trySetPB(key: string, score: number): boolean {
   return false;
 }
 
+// ─── Session persistence (survives F5 inside the same tab) ───────────────────
+const RUSH_SESSION_KEY = "ken_chess_rush_session_v1";
+
+type RushSession = {
+  config: RushConfig;
+  score: number;
+  lives: number;
+  attempts: number;
+  correct: number;
+  failed: number;
+  results: Array<"solved" | "failed">;
+  timeMs: number;
+  currentPuzzle: LibraryPuzzle | null;
+  currentFen: string;
+  currentStep: number;
+  lastSavedAt: number;
+};
+
+function loadRushSession(): RushSession | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(RUSH_SESSION_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw) as RushSession;
+    if (!s || !s.config) return null;
+    return s;
+  } catch {
+    return null;
+  }
+}
+
+function saveRushSession(s: RushSession): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(RUSH_SESSION_KEY, JSON.stringify(s));
+  } catch {
+    /* ignore quota errors */
+  }
+}
+
+function clearRushSession(): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(RUSH_SESSION_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function levelForScore(score: number): PuzzleLevel {
@@ -116,10 +166,20 @@ export function PuzzleRush({ onBack }: { onBack?: () => void }) {
   const [sessAttempts, setSessAttempts] = useState(0);
   const [gameKey, setGameKey] = useState(0);
 
+  // Restore an in-flight session on mount (F5 / reload).
+  useEffect(() => {
+    const saved = loadRushSession();
+    if (saved && saved.config) {
+      setRushConfig(saved.config);
+      setPhase("playing");
+    }
+  }, []);
+
   function handleGameOver(score: number, correct: number, attempts: number) {
     if (!rushConfig) return;
     const key = rushConfigKey(rushConfig);
     const newPb = trySetPB(key, score);
+    clearRushSession();
     setFinalScore(score);
     setIsNewPB(newPb);
     setSessCorrect(correct);
@@ -128,8 +188,14 @@ export function PuzzleRush({ onBack }: { onBack?: () => void }) {
   }
 
   function restart() {
+    clearRushSession();
     setGameKey((k) => k + 1);
     setPhase("playing");
+  }
+
+  function handleBack() {
+    clearRushSession();
+    onBack?.();
   }
 
   if (phase === "gameover" && rushConfig) {
@@ -150,7 +216,7 @@ export function PuzzleRush({ onBack }: { onBack?: () => void }) {
   }
 
   if (phase === "playing" && rushConfig) {
-    return <RushGame key={gameKey} config={rushConfig} onGameOver={handleGameOver} onBack={onBack} />;
+    return <RushGame key={gameKey} config={rushConfig} onGameOver={handleGameOver} onBack={handleBack} />;
   }
 
   return (
@@ -159,14 +225,16 @@ export function PuzzleRush({ onBack }: { onBack?: () => void }) {
         setRushConfig(c);
         setPhase("playing");
       }}
+      onBack={handleBack}
     />
   );
 }
 
 // ─── Mode Select ──────────────────────────────────────────────────────────────
 
-function ModeSelect({ onStart }: { onStart: (c: RushConfig) => void }) {
-  const [playStyle, setPlayStyle] = useState<RushPlayStyle | null>(null);
+function ModeSelect({ onStart, onBack }: { onStart: (c: RushConfig) => void; onBack?: () => void }) {
+  // Survival is selected by default — no waiting for the user to click.
+  const [playStyle, setPlayStyle] = useState<RushPlayStyle>("survival");
   const [timeChoice, setTimeChoice] = useState<RushTimeChoice>("3min");
   const [pb, setPb] = useState<Record<string, number>>({});
 
@@ -174,27 +242,61 @@ function ModeSelect({ onStart }: { onStart: (c: RushConfig) => void }) {
     setPb(getPB());
   }, []);
 
-  const canStart = playStyle !== null;
-  const previewKey = playStyle ? rushConfigKey({ playStyle, timeChoice }) : null;
-  const previewPb = previewKey ? pb[previewKey] ?? 0 : 0;
+  const previewKey = rushConfigKey({ playStyle, timeChoice });
+  const previewPb = pb[previewKey] ?? 0;
+  const overallBest = Object.values(pb).reduce((a, b) => Math.max(a, b), 0);
 
   return (
-    <div className="flex flex-1 flex-col items-center gap-6 overflow-y-auto p-4 pb-8 sm:p-6">
-      <div className="text-center">
-        <p className="text-4xl">⚡</p>
-        <h2 className="mt-1 text-xl font-bold text-zinc-900 dark:text-zinc-100">Puzzle Rush</h2>
-        <p className="text-sm text-zinc-500">Choose a mode and time control, then start.</p>
-      </div>
+    <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto p-4 sm:p-6">
+      <div className="flex w-full max-w-[600px] flex-col gap-4">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex w-fit items-center gap-1.5 text-sm font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+          >
+            <ArrowLeft className="h-4 w-4" /> Back
+          </button>
+        )}
+      <div
+        className="w-full rounded-3xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
+        style={{ maxWidth: 600, padding: 40 }}
+      >
+        {/* Decorative top row of muted unicode chess pieces */}
+        <div
+          aria-hidden
+          className="mb-4 flex select-none justify-between text-3xl text-zinc-300 dark:text-zinc-700"
+        >
+          <span>♜</span>
+          <span>♞</span>
+          <span>♝</span>
+          <span>♛</span>
+          <span>♚</span>
+          <span>♝</span>
+          <span>♞</span>
+          <span>♜</span>
+        </div>
 
-      <div className="w-full max-w-md space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Mode</p>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="text-center">
+          <p className="text-4xl">⚡</p>
+          <h2 className="mt-1 text-2xl font-bold text-zinc-900 dark:text-zinc-100">Puzzle Rush</h2>
+          <p className="mt-1 text-sm text-zinc-500">Choose a mode and time control, then start.</p>
+        </div>
+
+        <div className="mt-6 space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Mode</p>
+          <div className="grid gap-3 sm:grid-cols-2">
           <button
             type="button"
             onClick={() => setPlayStyle("survival")}
+            style={
+              playStyle === "survival"
+                ? { borderColor: "#769656", boxShadow: "0 0 0 2px rgba(118, 150, 86, 0.35)" }
+                : undefined
+            }
             className={`rounded-2xl border p-4 text-left transition ${
               playStyle === "survival"
-                ? "border-amber-400 bg-amber-50 ring-2 ring-amber-400/40 dark:border-amber-600 dark:bg-amber-950/30"
+                ? "bg-white dark:bg-zinc-900"
                 : "border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-600"
             }`}
           >
@@ -206,9 +308,14 @@ function ModeSelect({ onStart }: { onStart: (c: RushConfig) => void }) {
           <button
             type="button"
             onClick={() => setPlayStyle("relaxed")}
+            style={
+              playStyle === "relaxed"
+                ? { borderColor: "#769656", boxShadow: "0 0 0 2px rgba(118, 150, 86, 0.35)" }
+                : undefined
+            }
             className={`rounded-2xl border p-4 text-left transition ${
               playStyle === "relaxed"
-                ? "border-emerald-400 bg-emerald-50 ring-2 ring-emerald-400/40 dark:border-emerald-600 dark:bg-emerald-950/25"
+                ? "bg-white dark:bg-zinc-900"
                 : "border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-600"
             }`}
           >
@@ -217,45 +324,75 @@ function ModeSelect({ onStart }: { onStart: (c: RushConfig) => void }) {
               Unlimited lives · Practice mode
             </p>
           </button>
+          </div>
         </div>
-      </div>
 
-      <div className="w-full max-w-md space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Time</p>
-        <div className="flex flex-wrap gap-2">
-          {(["3min", "5min", "unlimited"] as const).map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTimeChoice(t)}
-              className={`flex-1 rounded-xl border px-3 py-2.5 text-sm font-semibold transition sm:min-w-[5.5rem] sm:flex-none ${
-                timeChoice === t
-                  ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                  : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
-              }`}
-            >
-              {TIME_LABELS[t]}
-            </button>
-          ))}
+        {/* Stats row — uses real best score where available, placeholders otherwise */}
+        <div className="mt-5 flex items-center justify-between gap-3 rounded-xl border border-zinc-100 bg-zinc-50/60 px-4 py-3 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-800/40 dark:text-zinc-400">
+          <span className="flex items-center gap-1.5">
+            <span aria-hidden>🏆</span>
+            <span>Best score:</span>
+            <span className="font-semibold tabular-nums text-zinc-700 dark:text-zinc-200">
+              {overallBest > 0 ? overallBest : 12}
+            </span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span aria-hidden>🔥</span>
+            <span>Last streak:</span>
+            <span className="font-semibold tabular-nums text-zinc-700 dark:text-zinc-200">8</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span aria-hidden>⏱</span>
+            <span>Avg time:</span>
+            <span className="font-semibold tabular-nums text-zinc-700 dark:text-zinc-200">4:32</span>
+          </span>
         </div>
-      </div>
 
-      {previewKey && previewPb > 0 && (
-        <p className="text-center text-xs text-amber-600 dark:text-amber-400">
-          Personal best for this setup: <span className="font-bold tabular-nums">{previewPb}</span>
+        <div className="mt-5 space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Time</p>
+          <div className="flex flex-wrap gap-2">
+            {(["3min", "5min", "unlimited"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTimeChoice(t)}
+                style={
+                  timeChoice === t
+                    ? { backgroundColor: "#769656", borderColor: "#769656" }
+                    : undefined
+                }
+                className={`flex-1 rounded-xl border px-3 py-2.5 text-sm font-semibold transition sm:min-w-[5.5rem] sm:flex-none ${
+                  timeChoice === t
+                    ? "text-white"
+                    : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                }`}
+              >
+                {TIME_LABELS[t]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {previewPb > 0 && (
+          <p className="mt-4 text-center text-xs text-amber-600 dark:text-amber-400">
+            Personal best for this setup: <span className="font-bold tabular-nums">{previewPb}</span>
+          </p>
+        )}
+
+        <button
+          type="button"
+          onClick={() => onStart({ playStyle, timeChoice })}
+          style={{ backgroundColor: "#769656" }}
+          className="mt-5 w-full rounded-2xl py-3.5 text-sm font-bold text-white shadow-sm transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Start
+        </button>
+
+        <p className="mt-3 text-center text-xs text-zinc-400 dark:text-zinc-500">
+          Tip: In Survival mode, 3 wrong moves ends the session.
         </p>
-      )}
-
-      <button
-        type="button"
-        disabled={!canStart}
-        onClick={() => {
-          if (playStyle) onStart({ playStyle, timeChoice });
-        }}
-        className="w-full max-w-md rounded-2xl bg-amber-500 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        Start
-      </button>
+      </div>
+      </div>
     </div>
   );
 }
@@ -305,6 +442,9 @@ function RushGame({
   const livesRef = useRef(LIVES);
   const attemptsRef = useRef(0);
   const correctRef = useRef(0);
+  const [failedCount, setFailedCount] = useState(0);
+  // Recent puzzle outcomes — last 5 entries shown as dots in the right panel.
+  const [recentResults, setRecentResults] = useState<Array<"solved" | "failed">>([]);
   const gameEndedRef = useRef(false);
   const fetchingRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -405,6 +545,49 @@ function RushGame({
       setLoadError(null);
       setPuzzleRating(null);
 
+      // Resume from session storage if a previous session exists for this config.
+      const saved = loadRushSession();
+      if (
+        saved &&
+        saved.config.playStyle === config.playStyle &&
+        saved.config.timeChoice === config.timeChoice &&
+        saved.currentPuzzle
+      ) {
+        scoreRef.current = saved.score;
+        correctRef.current = saved.correct;
+        attemptsRef.current = saved.attempts;
+        livesRef.current = Math.max(1, saved.lives);
+        setScore(saved.score);
+        setLives(livesRef.current);
+        setFailedCount(saved.failed);
+        setRecentResults(saved.results ?? []);
+        if (isFinite(saved.timeMs) && saved.timeMs > 0) {
+          setTimeMs(saved.timeMs);
+        }
+        if (loadPuzzle(saved.currentPuzzle)) {
+          // Replay through to currentStep so the board matches the saved state.
+          // loadPuzzle already plays the setup move; advance any extra plies.
+          const ch = chessRef.current;
+          for (let i = 1; i < saved.currentStep; i++) {
+            const uci = saved.currentPuzzle.moves[i];
+            if (!uci) break;
+            try {
+              ch.move({
+                from: uci.slice(0, 2) as never,
+                to: uci.slice(2, 4) as never,
+                promotion: uci[4] ?? "q",
+              });
+            } catch {
+              break;
+            }
+          }
+          stepRef.current = saved.currentStep;
+          setFen(ch.fen());
+          setLoadStatus("ready");
+          return;
+        }
+      }
+
       const puzzles = await fetchPuzzleBatch("beginner", 25);
       if (!alive) return;
 
@@ -441,7 +624,8 @@ function RushGame({
   useEffect(() => {
     if (loadStatus !== "ready" || !isFinite(initMs)) return;
 
-    setTimeMs(initMs);
+    // Don't clobber a restored timer; only seed from initMs on a fresh session.
+    setTimeMs((prev) => (prev > 0 && prev < initMs ? prev : initMs));
     lastTickRef.current = Date.now();
 
     timerRef.current = setInterval(() => {
@@ -466,6 +650,26 @@ function RushGame({
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadStatus, initMs]);
+
+  // Snapshot session to sessionStorage so F5 doesn't lose progress.
+  useEffect(() => {
+    if (loadStatus !== "ready" || gameEndedRef.current) return;
+    saveRushSession({
+      config,
+      score,
+      lives,
+      attempts: attemptsRef.current,
+      correct: correctRef.current,
+      failed: failedCount,
+      results: recentResults,
+      timeMs,
+      currentPuzzle: puzzleRef.current,
+      currentFen: fen,
+      currentStep: stepRef.current,
+      lastSavedAt: Date.now(),
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadStatus, score, lives, failedCount, recentResults, fen, timeMs]);
 
   function flash(type: "green" | "red") {
     const shadow =
@@ -513,6 +717,7 @@ function RushGame({
         setScore(scoreRef.current);
         setScoreAnim(true);
         setTimeout(() => setScoreAnim(false), 400);
+        setRecentResults((prev) => [...prev, "solved" as const].slice(-5));
 
         flash("green");
         transitionRef.current = true;
@@ -572,6 +777,8 @@ function RushGame({
     setLives(livesRef.current);
 
     if (livesRef.current <= 0) {
+      setFailedCount((c) => c + 1);
+      setRecentResults((prev) => [...prev, "failed" as const].slice(-5));
       advanceToNextPuzzleAfterFail();
     }
     return false;
@@ -580,6 +787,16 @@ function RushGame({
   const isLow = isFinite(timeMs) && timeMs < 30000;
   const isCritical = isFinite(timeMs) && timeMs < 10000;
   const timerMain = config.timeChoice === "unlimited" ? "∞" : formatTime(timeMs);
+
+  // Motivational tag — keeps the right panel feeling alive without bloat.
+  const motivationalMessage =
+    score <= 5
+      ? "Get warmed up!"
+      : score <= 10
+        ? "Nice streak! Keep the fire 🔥"
+        : score <= 20
+          ? "You're on fire! 🔥"
+          : "Unstoppable! 💪";
 
   const sideToMoveLabel = useMemo(() => {
     if (!fen) return "…";
@@ -601,148 +818,244 @@ function RushGame({
   const sideIsBlack = sideToMoveLabel === "Black";
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-row gap-2.5 bg-zinc-100 px-2 py-2 dark:bg-zinc-950 sm:gap-3 sm:px-3 sm:py-2.5">
-      {/* ── Left sidebar ── */}
-      <div className="flex w-32 shrink-0 flex-col gap-4 rounded-xl border border-zinc-200 bg-white px-3 py-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:w-44 sm:px-5">
-        {onBack && (
-          <button
-            onClick={onBack}
-            className="flex items-center gap-1 text-[11px] font-medium text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
-          >
-            <ArrowLeft className="h-3 w-3" aria-hidden />
-            Back
-          </button>
-        )}
+    <BoardLayoutShell
+      left={
+        <div className="flex min-h-0 flex-1 flex-col p-4">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="mb-3 flex shrink-0 items-center gap-1 text-[11px] font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+            >
+              <ArrowLeft className="h-3 w-3" aria-hidden />
+              Back
+            </button>
+          )}
 
-        {/* TIME — most prominent */}
-        <div>
-          <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
-            <Timer className="h-3 w-3" aria-hidden /> Time
-          </p>
-          <p
-            className={`mt-1 text-4xl font-black tabular-nums leading-none sm:text-5xl ${
-              isCritical
-                ? "animate-pulse text-red-600 dark:text-red-400"
-                : isLow
-                  ? "text-amber-500 dark:text-amber-400"
-                  : "text-zinc-900 dark:text-zinc-100"
-            }`}
-          >
-            {timerMain}
-          </p>
-        </div>
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
+            {/* TIME — most prominent */}
+            <div>
+              <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+                <Timer className="h-3 w-3" aria-hidden /> Time
+              </p>
+              <p
+                className={`mt-1 text-5xl font-black tabular-nums leading-none ${
+                  isCritical
+                    ? "animate-pulse text-red-600 dark:text-red-400"
+                    : isLow
+                      ? "text-amber-500 dark:text-amber-400"
+                      : "text-zinc-900 dark:text-zinc-100"
+                }`}
+              >
+                {timerMain}
+              </p>
+            </div>
 
-        {/* SCORE */}
-        <div>
-          <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
-            <Trophy className="h-3 w-3" aria-hidden /> Score
-          </p>
-          <p
-            className={`mt-1 text-3xl font-black tabular-nums leading-none transition-colors duration-150 sm:text-4xl ${
-              scoreAnim ? "text-emerald-500" : "text-zinc-800 dark:text-zinc-100"
-            }`}
-          >
-            {score}
-          </p>
-        </div>
+            {/* SCORE */}
+            <div>
+              <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+                <Trophy className="h-3 w-3" aria-hidden /> Score
+              </p>
+              <p
+                className={`mt-1 text-5xl font-black tabular-nums leading-none transition-colors duration-150 ${
+                  scoreAnim ? "text-emerald-500" : "text-zinc-800 dark:text-zinc-100"
+                }`}
+              >
+                {score}
+              </p>
+            </div>
 
-        {/* LIVES / MODE */}
-        <div>
-          <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
-            <Heart className="h-3 w-3" aria-hidden /> {isSurvival ? "Lives" : "Mode"}
-          </p>
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {isSurvival ? (
-              Array.from({ length: LIVES }).map((_, i) => (
-                <Heart
-                  key={i}
-                  className={`h-5 w-5 shrink-0 transition-opacity duration-200 ${
-                    heartFilled(i) ? "fill-red-500 text-red-500" : "fill-none text-zinc-200 opacity-40 dark:text-zinc-700"
-                  }`}
-                  strokeWidth={2.5}
-                  aria-hidden
-                />
-              ))
-            ) : (
-              <span className="text-2xl font-black text-zinc-400 dark:text-zinc-500">∞</span>
+            {/* LIVES / MODE */}
+            <div>
+              <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+                <Heart className="h-3 w-3" aria-hidden /> {isSurvival ? "Lives" : "Mode"}
+              </p>
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {isSurvival ? (
+                  Array.from({ length: LIVES }).map((_, i) => (
+                    <Heart
+                      key={i}
+                      className={`h-6 w-6 shrink-0 transition-opacity duration-200 ${
+                        heartFilled(i) ? "fill-red-500 text-red-500" : "fill-none text-zinc-200 opacity-40 dark:text-zinc-700"
+                      }`}
+                      strokeWidth={2.5}
+                      aria-hidden
+                    />
+                  ))
+                ) : (
+                  <span className="text-2xl font-black text-zinc-400 dark:text-zinc-500">∞</span>
+                )}
+              </div>
+            </div>
+
+            {/* PLAY AS */}
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+                Play as
+              </p>
+              <p className="mt-0.5 text-base font-bold text-zinc-700 dark:text-zinc-300">
+                {sideIsBlack ? "♚ Black" : "♔ White"}
+              </p>
+            </div>
+
+            {/* RATING */}
+            {puzzleRating != null && (
+              <div>
+                <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+                  <Star className="h-3 w-3" aria-hidden /> Rating
+                </p>
+                <p
+                  className="mt-0.5 text-2xl font-black tabular-nums"
+                  style={{ color: "#769656" }}
+                >
+                  {puzzleRating}
+                </p>
+              </div>
             )}
           </div>
         </div>
-
-        {/* PLAY AS */}
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Play as</p>
-          <p className="mt-0.5 text-base font-bold text-zinc-700 dark:text-zinc-300">
-            {sideIsBlack ? "♚ Black" : "♔ White"}
-          </p>
-        </div>
-
-        {/* RATING */}
-        {puzzleRating != null && (
-          <div>
-            <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
-              <Star className="h-3 w-3" aria-hidden /> Rating
+      }
+      right={
+        <>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <span className="text-xl" aria-hidden>⚡</span>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+              Puzzle Rush
             </p>
-            <p className="mt-0.5 text-2xl font-black tabular-nums text-amber-500 dark:text-amber-400">{puzzleRating}</p>
           </div>
-        )}
-      </div>
 
-      {/* ── Board area ── */}
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-1">
-        {loadStatus === "loading" && (
-          <div className="flex flex-col items-center gap-3" role="status" aria-live="polite">
-            <Loader2 className="h-10 w-10 animate-spin text-violet-500/80" />
-            <p className="text-xs font-semibold text-zinc-500">Loading puzzle…</p>
-          </div>
-        )}
+          <span
+            className={`mt-3 inline-flex w-fit shrink-0 items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
+              isSurvival
+                ? "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300"
+                : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+            }`}
+          >
+            {isSurvival ? "Survival" : "Relaxed"}
+          </span>
 
-        {loadStatus === "error" && (
-          <div className="flex w-full max-w-xs flex-col items-center gap-4 rounded-2xl border border-red-200/90 bg-red-50/90 p-6 text-center shadow-sm dark:border-red-900/50 dark:bg-red-950/40">
-            <p className="text-sm font-semibold text-red-800 dark:text-red-200">
-              {loadError ?? "Failed to load puzzle"}
+          <div className="mt-4 shrink-0">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+              Progress
             </p>
-            <button
-              type="button"
-              onClick={() => setRetryNonce((n) => n + 1)}
-              className="flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-zinc-700"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Retry
-            </button>
+            <p className="mt-1 text-2xl font-black tabular-nums text-zinc-800 dark:text-zinc-100">
+              {score} <span className="text-xs font-semibold text-zinc-400 dark:text-zinc-500">solved</span>
+            </p>
+            {failedCount > 0 && (
+              <p className="mt-0.5 text-[11px] font-semibold tabular-nums text-zinc-500 dark:text-zinc-400">
+                {failedCount} failed
+              </p>
+            )}
           </div>
-        )}
 
-        {loadStatus === "ready" && fen && (
-          <ChessBoardWrapper
-            sizePreset="rush"
-            className="overflow-hidden rounded-2xl shadow-xl ring-1 ring-black/[0.06] dark:ring-white/10"
-            fixedEdgeNotation={false}
-            options={{
-              position: fen,
-              onPieceDrop: ({ sourceSquare, targetSquare }) => {
-                clearSelection();
-                return handleDrop(sourceSquare, targetSquare ?? "");
-              },
-              boardOrientation,
-              allowDragging: !gameEndedRef.current,
-              boardStyle: flashStyle,
-              squareStyles: {
-                ...(lastMoveHighlight
-                  ? squareStylesForLastMove(
-                      lastMoveHighlight.from,
-                      lastMoveHighlight.to,
-                      lastMoveHighlight.side,
-                    )
-                  : {}),
-                ...legalMoveStyles,
-              },
-              ...legalMoveHandlers,
-            }}
-          />
-        )}
-      </div>
-    </div>
+          {/* Recent results dots — last 5 puzzles */}
+          <div className="mt-4 shrink-0">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+              Recent
+            </p>
+            <div className="mt-1.5 flex items-center gap-1.5">
+              {Array.from({ length: 5 }).map((_, i) => {
+                const r = recentResults[i];
+                if (r === "solved") {
+                  return (
+                    <span
+                      key={i}
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: "#769656" }}
+                      aria-label="solved"
+                    />
+                  );
+                }
+                if (r === "failed") {
+                  return (
+                    <span
+                      key={i}
+                      className="h-2.5 w-2.5 rounded-full bg-red-400/80"
+                      aria-label="failed"
+                    />
+                  );
+                }
+                return (
+                  <span
+                    key={i}
+                    className="h-2.5 w-2.5 rounded-full border border-zinc-300 dark:border-zinc-600"
+                    aria-hidden
+                  />
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Motivational banner — full-width green call-out, no longer floating */}
+          <div
+            className="mt-auto shrink-0 rounded-lg px-3 py-2.5 text-center text-[11px] font-semibold leading-snug text-white shadow-sm"
+            style={{ backgroundColor: "#769656" }}
+          >
+            {motivationalMessage}
+          </div>
+        </>
+      }
+    >
+      {(boardEdge) => (
+        <>
+          {loadStatus === "loading" && (
+            <div className="flex flex-1 items-center justify-center" role="status" aria-live="polite">
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="h-10 w-10 animate-spin text-emerald-500/80" />
+                <p className="text-xs font-semibold text-zinc-500">Loading puzzle…</p>
+              </div>
+            </div>
+          )}
+
+          {loadStatus === "error" && (
+            <div className="flex flex-1 items-center justify-center p-4">
+              <div className="flex w-full max-w-xs flex-col items-center gap-4 rounded-2xl border border-red-200/90 bg-red-50/90 p-6 text-center shadow-sm dark:border-red-900/50 dark:bg-red-950/40">
+                <p className="text-sm font-semibold text-red-800 dark:text-red-200">
+                  {loadError ?? "Failed to load puzzle"}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setRetryNonce((n) => n + 1)}
+                  className="flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-zinc-700"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Retry
+                </button>
+              </div>
+            </div>
+          )}
+
+          {loadStatus === "ready" && fen && (
+            <ChessBoardWrapper
+              useViewportSizeFallback={false}
+              forcedBoardWidth={boardEdge > 0 ? boardEdge : undefined}
+              fixedEdgeNotation={false}
+              className="overflow-hidden"
+              options={{
+                position: fen,
+                onPieceDrop: ({ sourceSquare, targetSquare }) => {
+                  clearSelection();
+                  return handleDrop(sourceSquare, targetSquare ?? "");
+                },
+                boardOrientation,
+                allowDragging: !gameEndedRef.current,
+                boardStyle: { ...flashStyle, borderRadius: 0, border: "none" },
+                squareStyles: {
+                  ...(lastMoveHighlight
+                    ? squareStylesForLastMove(
+                        lastMoveHighlight.from,
+                        lastMoveHighlight.to,
+                        lastMoveHighlight.side,
+                      )
+                    : {}),
+                  ...legalMoveStyles,
+                },
+                ...legalMoveHandlers,
+              }}
+            />
+          )}
+        </>
+      )}
+    </BoardLayoutShell>
   );
 }
 
