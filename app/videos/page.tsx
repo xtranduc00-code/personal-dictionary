@@ -244,6 +244,8 @@ export default function VideosPage() {
   const [loadingFeed, setLoadingFeed] = useState(false);
   const [playingVideo, setPlayingVideo] = useState<YTVideo | YTSavedVideo | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [newPlaylistModalOpen, setNewPlaylistModalOpen] = useState(false);
+  const [newPlaylistDraft, setNewPlaylistDraft] = useState("");
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -578,7 +580,10 @@ export default function VideosPage() {
 
         {/* New playlist */}
         <button
-          onClick={() => setShowAddDialog(true)}
+          onClick={() => {
+            setNewPlaylistDraft("");
+            setNewPlaylistModalOpen(true);
+          }}
           className="w-full flex items-center gap-2 px-4 py-1.5 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
         >
           <Plus className="h-3.5 w-3.5" /> New playlist
@@ -1090,6 +1095,70 @@ export default function VideosPage() {
       )}
 
       {showAddDialog && <AddDialog onClose={() => setShowAddDialog(false)} onAdd={handleAdd} />}
+
+      {/* New playlist — name only, no URL handling */}
+      {newPlaylistModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setNewPlaylistModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-white dark:bg-zinc-900 shadow-2xl p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">New playlist</h2>
+              <button onClick={() => setNewPlaylistModalOpen(false)} aria-label="Close">
+                <X className="h-4 w-4 text-zinc-400" />
+              </button>
+            </div>
+            <input
+              autoFocus
+              value={newPlaylistDraft}
+              onChange={(e) => setNewPlaylistDraft(e.target.value)}
+              onKeyDown={async (e) => {
+                if (e.key === "Enter" && newPlaylistDraft.trim()) {
+                  try {
+                    await handleCreateMyPlaylist(newPlaylistDraft.trim());
+                    setNewPlaylistDraft("");
+                    setNewPlaylistModalOpen(false);
+                  } catch {
+                    /* toast shown by handler */
+                  }
+                } else if (e.key === "Escape") {
+                  setNewPlaylistModalOpen(false);
+                }
+              }}
+              placeholder="Playlist name…"
+              className="w-full rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/50"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setNewPlaylistModalOpen(false)}
+                className="rounded-lg px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={!newPlaylistDraft.trim()}
+                onClick={async () => {
+                  if (!newPlaylistDraft.trim()) return;
+                  try {
+                    await handleCreateMyPlaylist(newPlaylistDraft.trim());
+                    setNewPlaylistDraft("");
+                    setNewPlaylistModalOpen(false);
+                  } catch {
+                    /* toast shown by handler */
+                  }
+                }}
+                className="rounded-lg bg-red-500 px-3 py-2 text-sm font-medium text-white hover:bg-red-600 disabled:opacity-50 transition-colors"
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Channel playlists browser */}
       {browsingPlaylists && (

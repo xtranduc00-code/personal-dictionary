@@ -6,6 +6,9 @@ import { useParticipants, useRoomContext } from "@livekit/components-react";
 import { ConnectionState, RoomEvent } from "livekit-client";
 import { useI18n } from "@/components/i18n-provider";
 import { formatMmSs } from "@/lib/meets-format";
+import { avatarColor, getInitials } from "@/lib/meets-avatar";
+
+const MAX_HEADER_CHIPS = 5;
 
 type Props = {
     roomDisplayName: string;
@@ -97,9 +100,33 @@ export const CallRoomHeader = memo(function CallRoomHeader({
                 </div>
                 <span className="hidden h-4 w-px shrink-0 bg-zinc-200 sm:block" aria-hidden />
                 <div className="flex min-w-0 flex-wrap items-center gap-3 text-xs text-zinc-600 sm:text-sm">
-                    <span className="inline-flex items-center gap-1.5 whitespace-nowrap font-medium">
+                    <span className="inline-flex items-center gap-2 whitespace-nowrap font-medium">
                         <Users className="h-4 w-4 shrink-0 text-zinc-500" strokeWidth={2} aria-hidden />
                         <span className="text-zinc-700">{peopleLabel}</span>
+                        {participants.length > 0 ? (
+                            <span className="inline-flex items-center -space-x-1.5">
+                                {participants.slice(0, MAX_HEADER_CHIPS).map((p) => {
+                                    const name = p.name || p.identity || "Guest";
+                                    return (
+                                        <span
+                                            key={p.sid || p.identity}
+                                            className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white ring-2 ring-white ${avatarColor(name)}`}
+                                            title={name}
+                                        >
+                                            {getInitials(name)}
+                                        </span>
+                                    );
+                                })}
+                                {participants.length > MAX_HEADER_CHIPS ? (
+                                    <span
+                                        className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-zinc-700 px-1.5 text-[10px] font-semibold text-white ring-2 ring-white"
+                                        aria-hidden
+                                    >
+                                        {`+${participants.length - MAX_HEADER_CHIPS}`}
+                                    </span>
+                                ) : null}
+                            </span>
+                        ) : null}
                     </span>
                     <span
                         className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-zinc-200 bg-zinc-50 px-2 py-0.5 font-mono tabular-nums text-zinc-800"

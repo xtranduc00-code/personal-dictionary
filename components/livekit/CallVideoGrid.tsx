@@ -12,7 +12,6 @@ import {
 import type { TrackReferenceOrPlaceholder } from "@livekit/components-core";
 import {
     isTrackReference,
-    ParticipantPlaceholder,
     VideoTrack,
     useParticipants,
     useTracks,
@@ -20,10 +19,68 @@ import {
 import { Pin } from "lucide-react";
 import { Track } from "livekit-client";
 import { useI18n } from "@/components/i18n-provider";
+import { avatarColor, getInitials } from "@/lib/meets-avatar";
 import {
     type MeetsVideoSubscriptionProfile,
     useMeetsTrackSubscriptionProfile,
 } from "@/lib/use-meets-track-subscription-profile";
+
+function displayName(trackRef: TrackReferenceOrPlaceholder): string {
+    return trackRef.participant.name || trackRef.participant.identity || "Guest";
+}
+
+function CameraOffBadge({
+    name,
+    size,
+}: {
+    name: string;
+    size: "pip" | "strip" | "stage";
+}) {
+    const initials = getInitials(name);
+    const color = avatarColor(name);
+    /** Skip the name line when it collapses to the same single letter as the initials (e.g. name "B" → initials "B"). */
+    const showName = name.trim().toUpperCase() !== initials;
+    if (size === "pip") {
+        return (
+            <div className="flex h-full w-full items-center justify-center bg-zinc-900">
+                <div className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white ${color}`}>
+                    {initials}
+                </div>
+            </div>
+        );
+    }
+    if (size === "strip") {
+        return (
+            <div className="flex h-full w-full items-center justify-center bg-zinc-900 px-2">
+                <div className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold text-white ${color}`}>
+                    {initials}
+                </div>
+            </div>
+        );
+    }
+    return (
+        <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-zinc-900">
+            <div className={`flex h-16 w-16 items-center justify-center rounded-full text-xl font-semibold text-white shadow-lg ${color}`}>
+                {initials}
+            </div>
+            {showName ? (
+                <span className="max-w-[240px] truncate text-sm font-medium text-white/85">
+                    {name}
+                </span>
+            ) : null}
+        </div>
+    );
+}
+
+function isCameraOff(trackRef: TrackReferenceOrPlaceholder): boolean {
+    if (trackRef.source !== Track.Source.Camera) {
+        return false;
+    }
+    if (!isTrackReference(trackRef)) {
+        return true;
+    }
+    return trackRef.publication?.isMuted === true;
+}
 
 const VideoCell = memo(function VideoCell({
     trackRef,
@@ -32,6 +89,7 @@ const VideoCell = memo(function VideoCell({
     fillStage,
     subscriptionProfile,
     hideLabel,
+    badgeSize = "stage",
 }: {
     trackRef: TrackReferenceOrPlaceholder;
     fit: "cover" | "contain";
@@ -39,33 +97,37 @@ const VideoCell = memo(function VideoCell({
     fillStage?: boolean;
     subscriptionProfile: MeetsVideoSubscriptionProfile;
     hideLabel?: boolean;
+    badgeSize?: "stage" | "strip";
 }) {
     useMeetsTrackSubscriptionProfile(trackRef, subscriptionProfile);
 
     const isScreen = trackRef.source === Track.Source.ScreenShare;
+    const cameraOff = isCameraOff(trackRef);
     const frame = fillStage
-        ? "relative flex h-full min-h-0 w-full flex-1 overflow-hidden bg-zinc-950"
-        : `relative flex w-full overflow-hidden rounded-lg border border-zinc-200 bg-zinc-950 ${minHeightClass ?? "min-h-0"}`;
+        ? "relative flex h-full min-h-0 w-full flex-1 items-center justify-center overflow-hidden bg-black"
+        : `relative flex items-center justify-center w-full overflow-hidden rounded-lg border border-zinc-200 bg-black ${minHeightClass ?? "min-h-0"}`;
+    const name = displayName(trackRef);
     return (
         <div className={frame}>
-            {isTrackReference(trackRef) ? (
+            {isTrackReference(trackRef) && !cameraOff ? (
                 <VideoTrack
                     trackRef={trackRef}
                     manageSubscription={false}
-                    className="h-full w-full min-h-0 max-h-full min-w-0"
+                    className="block min-h-0 min-w-0"
                     style={{
+                        width: "100%",
+                        height: "100%",
+                        maxWidth: "100%",
+                        maxHeight: "100%",
                         objectFit: fit,
-                        maxHeight: fit === "contain" ? "100%" : undefined,
                     }}
                 />
             ) : (
-                <div className="flex h-full min-h-[200px] w-full items-center justify-center bg-zinc-950">
-                    <ParticipantPlaceholder className="h-16 w-16 text-zinc-500 sm:h-20 sm:w-20" />
-                </div>
+                <CameraOffBadge name={name} size={badgeSize} />
             )}
-            {!hideLabel && (
+            {!hideLabel && !cameraOff && (
                 <div className="pointer-events-none absolute bottom-3 left-3 max-w-[calc(100%-24px)] truncate rounded-md bg-black/55 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm">
-                    {trackRef.participant.name || trackRef.participant.identity}
+                    {name}
                     {isScreen ? " · screen" : ""}
                 </div>
             )}
@@ -186,7 +248,7 @@ const LocalSelfPip = memo(function LocalSelfPip({
                 className={`relative aspect-video w-full overflow-hidden rounded-lg border-2 border-white/15 bg-zinc-900 shadow-lg ${draggable ? "" : "pointer-events-auto"}`}
                 title={draggable ? t("meetsSelfPipDragHint") : undefined}
             >
-                {isTrackReference(trackRef) ? (
+                {isTrackReference(trackRef) && !isCameraOff(trackRef) ? (
                     <VideoTrack
                         trackRef={trackRef}
                         manageSubscription={false}
@@ -194,13 +256,8 @@ const LocalSelfPip = memo(function LocalSelfPip({
                         style={{ objectFit: fit }}
                     />
                 ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-zinc-800">
-                        <ParticipantPlaceholder className="h-10 w-10 text-zinc-500" />
-                    </div>
+                    <CameraOffBadge name={displayName(trackRef)} size="pip" />
                 )}
-                <div className="pointer-events-none absolute bottom-1 left-1 max-w-[calc(100%-8px)] truncate rounded bg-black/60 px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-white opacity-0 backdrop-blur-sm transition-opacity group-hover/pip:opacity-100">
-                    {t("meetsChatYou")}
-                </div>
             </div>
         </div>
     );
@@ -241,6 +298,7 @@ const VideoTile = memo(function VideoTile({
                 minHeightClass={minHeightClass}
                 subscriptionProfile={subscriptionProfile}
                 hideLabel={hideLabel}
+                badgeSize={compact ? "strip" : "stage"}
             />
             <div
                 className={`pointer-events-none absolute inset-x-0 top-0 flex justify-end p-2 ${compact ? "opacity-100 sm:opacity-0 sm:group-hover:opacity-100" : "opacity-0 group-hover:opacity-100"} transition-opacity`}
@@ -331,7 +389,8 @@ export const CallVideoGrid = memo(function CallVideoGrid() {
         return autoScreenFocus;
     }, [allForPinLookup, pinnedKey, autoScreenFocus]);
 
-    const useFocusLayout = liveScreens.length > 0 || pinnedKey !== null;
+    const hasActiveScreenShare = liveScreens.length > 0;
+    const useFocusLayout = hasActiveScreenShare || pinnedKey !== null;
 
     const onPinToggle = useCallback((key: string) => {
         setPinnedKey((prev) => (prev === key ? null : key));
@@ -347,9 +406,15 @@ export const CallVideoGrid = memo(function CallVideoGrid() {
         return allForPinLookup.filter((tr) => trackKey(tr) !== fk);
     }, [allForPinLookup, focusTrack]);
 
-    /** Cameras + remote screens only (no duplicate local screen in grid). */
+    /**
+     * Cameras + remote screens, but drop cameras that are off — those get
+     * represented as avatar chips in the header instead of floating tiles on the stage.
+     */
     const stageTiles = useMemo(
-        () => [...cameraTracks, ...remoteScreens],
+        () => [
+            ...cameraTracks.filter((tr) => !isCameraOff(tr)),
+            ...remoteScreens,
+        ],
         [cameraTracks, remoteScreens],
     );
 
@@ -370,16 +435,16 @@ export const CallVideoGrid = memo(function CallVideoGrid() {
                         pinnedKey={pinnedKey}
                         onPinToggle={onPinToggle}
                     />
-                    {/* Self-view overlay — bottom-right, above controls */}
-                    {localCameraTrack ? (
+                    {/* Self-view overlay — hidden during screen share or when own camera is off */}
+                    {!hasActiveScreenShare && localCameraTrack && !isCameraOff(localCameraTrack) ? (
                         <LocalSelfPip
                             trackRef={localCameraTrack}
                             constrainToRef={focusStageRef}
                         />
                     ) : null}
                 </div>
-                {/* Right sidebar strip for other participants */}
-                {stripTracks.length > 0 ? (
+                {/* Right sidebar strip — hidden during screen share so shared content fills width */}
+                {!hasActiveScreenShare && stripTracks.length > 0 ? (
                     <div
                         className="flex shrink-0 flex-col gap-2 overflow-y-auto overflow-x-hidden p-2"
                         style={{ width: 168 }}
@@ -408,7 +473,10 @@ export const CallVideoGrid = memo(function CallVideoGrid() {
     }
 
     const mainStage =
-        stageTiles.length === 1 ? (
+        stageTiles.length === 0 ? (
+            /* All cameras off, no screenshare — keep the stage clean; participants show as chips in the header. */
+            <div className="flex h-full min-h-0 w-full flex-1 items-center justify-center bg-black" aria-hidden />
+        ) : stageTiles.length === 1 ? (
             <div className="flex h-full min-h-0 w-full flex-1 items-stretch justify-center px-0 py-0">
                 <div className="flex h-full min-h-0 w-full flex-1">
                     <VideoTile
@@ -447,7 +515,9 @@ export const CallVideoGrid = memo(function CallVideoGrid() {
     return (
         <div className="relative flex h-full min-h-0 w-full flex-1 flex-col">
             {mainStage}
-            {localCameraTrack ? <LocalSelfPip trackRef={localCameraTrack} /> : null}
+            {localCameraTrack && !isCameraOff(localCameraTrack) ? (
+                <LocalSelfPip trackRef={localCameraTrack} />
+            ) : null}
         </div>
     );
 });
