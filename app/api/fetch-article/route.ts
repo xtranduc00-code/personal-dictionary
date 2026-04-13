@@ -6,11 +6,6 @@ import {
     extractHbrArticleFromHtml,
     isHbrArticleUrl,
 } from "@/lib/hbr-article-extract";
-import {
-    buildHbrProxyChain,
-    fetchProxyHtml,
-    type HbrProxySource,
-} from "@/lib/hbr-proxy-chain";
 
 export const runtime = "nodejs";
 
@@ -65,7 +60,7 @@ type ArticlePayload = {
 };
 
 const CACHE_TTL_MS = 60 * 60 * 1000;
-/** archive.ph snapshots don't move once captured, so cache HBR-via-archive results longer. */
+/** Wayback snapshots are immutable — keep them around longer than direct fetches. */
 const ARCHIVE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 type CacheEntry = { payload: ArticlePayload; expiresAt: number };
 const articleCache = new Map<string, CacheEntry>();
@@ -118,6 +113,14 @@ async function fetchHtml(url: string): Promise<{ html: string; finalUrl: string 
                 "Sec-Fetch-User": "?1",
                 "Upgrade-Insecure-Requests": "1",
                 Connection: "close",
+                // Pretend the user just clicked through from a Google search and
+                // explicitly wipe any cookies — keeps HBR's meter at 0/freshest.
+                Cookie: "",
+                Referer: "https://www.google.com/",
+                "sec-ch-ua":
+                    '"Chromium";v="120", "Google Chrome";v="120"',
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-platform": '"macOS"',
             },
         });
         if (!res.ok) {
@@ -127,9 +130,107 @@ async function fetchHtml(url: string): Promise<{ html: string; finalUrl: string 
         if (!ct.includes("text/html") && !ct.includes("xml")) {
             throw new Error("Upstream did not return HTML");
         }
-        return { html: await res.text(), finalUrl: res.url || url };
+        const html = await res.text();
+        if (
+            typeof process !== "undefined" &&
+            process.env.NODE_ENV === "production"
+        ) {
+            // Fetch-stage diagnostic: status + bytes received from upstream.
+            // If `htmlLen` is suspiciously short for an HBR article, the
+            // publisher served a paywall/login stub — meaning `__NEXT_DATA__`
+            // (and `articleBody` inside it) is already truncated upstream.
+            try {
+                console.log(
+                    "[fetch-article] upstream",
+                    JSON.stringify({
+                        requested: url,
+                        finalUrl: res.url || url,
+                        status: res.status,
+                        contentType: ct,
+                        contentLength:
+                            res.headers.get("content-length") ?? null,
+                        contentEncoding:
+                            res.headers.get("content-encoding") ?? null,
+                        htmlLen: html.length,
+                    }),
+                );
+            } catch {
+                /* ignore */
+            }
+        }
+        return { html, finalUrl: res.url || url };
     } finally {
         clearTimeout(timeout);
+    }
+}
+
+/**
+ * Strip Wayback's injected toolbar, scripts, and URL-rewrites so the
+ * remaining HTML looks like the original page. Without this, Readability
+ * trips on Wayback's wrapper navigation and emits a sea of empty <p> tags;
+ * `__NEXT_DATA__` JSON also lives unmodified on the page so HBR's bespoke
+ * extractor (`extractHbrArticleFromHtml`) parses cleanly once the wrapper
+ * is gone.
+ */
+function stripWaybackChrome(html: string): string {
+    return html
+        // 1. Toolbar block injected at the top of every snapshot.
+        .replace(
+            /<!--\s*BEGIN WAYBACK TOOLBAR[\s\S]*?END WAYBACK TOOLBAR[^>]*-->/gi,
+            "",
+        )
+        // 2. The toolbar's <script> + <link> tags from archive.org.
+        .replace(
+            /<script[^>]*\b(?:src=["'][^"']*archive\.org[^"']*["'][^>]*|>[\s\S]*?wbhack[\s\S]*?)<\/script>/gi,
+            "",
+        )
+        .replace(
+            /<link[^>]+archive\.org[^>]*>/gi,
+            "",
+        )
+        // 3. URL rewrites: `https://web.archive.org/web/<ts>[mod_]/<original>`
+        //    Strip the prefix so srcs/hrefs point at the real origin again.
+        .replace(
+            /https?:\/\/web\.archive\.org\/web\/\d+\w{0,3}\//gi,
+            "",
+        );
+}
+
+/**
+ * Try to load the article from the Wayback Machine before hitting hbr.org
+ * directly. HBR detects datacenter IPs (Netlify Lambda) and serves a
+ * deliberately corrupted `articleBody` ("intent to fulfillment" → "illment")
+ * to anti-bot it, but Wayback archives the page from a real browser session
+ * so the snapshot HTML is clean and `__NEXT_DATA__` parses normally.
+ */
+async function fetchViaWayback(url: string): Promise<string | null> {
+    try {
+        const availRes = await fetch(
+            `https://archive.org/wayback/available?url=${encodeURIComponent(url)}`,
+            { signal: AbortSignal.timeout(5_000) },
+        );
+        if (!availRes.ok) return null;
+
+        const avail = (await availRes.json()) as {
+            archived_snapshots?: { closest?: { url?: string } };
+        };
+        const snapshotUrl = avail?.archived_snapshots?.closest?.url;
+        if (!snapshotUrl) return null;
+
+        const snapRes = await fetch(snapshotUrl, {
+            signal: AbortSignal.timeout(10_000),
+            headers: {
+                "User-Agent": pickUserAgent(),
+                Accept: "text/html",
+            },
+        });
+        if (!snapRes.ok) return null;
+
+        const html = await snapRes.text();
+        if (!html || html.length < 10_000) return null;
+        return stripWaybackChrome(html);
+    } catch {
+        return null;
     }
 }
 
@@ -149,10 +250,16 @@ function computeReadingTime(words: number): number {
 function extractArticle(html: string, url: string): ArticlePayload | null {
     // HBR articles bundle a clean JSON payload in __NEXT_DATA__ — prefer that
     // over Readability on *.hbr.org so we get the full body, real byline list,
-    // hero image, and primary topic without HTML guessing.
+    // hero image, and primary topic without HTML guessing. If the embedded
+    // body is suspiciously short (paywall served a truncated stub), keep the
+    // candidate around and compare against Readability's pass over the same
+    // HTML — sometimes the inline DOM has more than the JSON envelope did.
+    let hbrCandidate: ArticlePayload | null = null;
     if (isHbrArticleUrl(url)) {
-        const hbr = extractHbrArticleFromHtml(html, url);
-        if (hbr) return hbr;
+        hbrCandidate = extractHbrArticleFromHtml(html, url);
+        if (hbrCandidate && (hbrCandidate.textContent?.length ?? 0) >= 2000) {
+            return hbrCandidate;
+        }
     }
 
     const dom = new JSDOM(html, { url });
@@ -161,7 +268,11 @@ function extractArticle(html: string, url: string): ArticlePayload | null {
     const parsed = reader.parse();
 
     const textContent = parsed?.textContent?.trim() ?? "";
-    if (!textContent || textContent.length < 80) return null;
+    if (!textContent || textContent.length < 80) {
+        // Readability bailed but the HBR JSON envelope had *something* — better
+        // a short HBR stub than a hard 422.
+        return hbrCandidate;
+    }
 
     const words = textContent.split(/\s+/).filter(Boolean).length;
     const hostname = new URL(url).hostname.replace(/^www\./, "");
@@ -206,7 +317,7 @@ function extractArticle(html: string, url: string): ArticlePayload | null {
         'meta[property="twitter:image"]',
     ]);
 
-    return {
+    const readabilityPayload: ArticlePayload = {
         title,
         byline: byline ?? null,
         content: parsed?.content ?? "",
@@ -218,6 +329,15 @@ function extractArticle(html: string, url: string): ArticlePayload | null {
         coverImage: coverImage ?? null,
         url,
     };
+
+    // For HBR, return whichever extractor produced more body text.
+    if (hbrCandidate) {
+        const hbrLen = hbrCandidate.textContent?.length ?? 0;
+        const readLen = readabilityPayload.textContent?.length ?? 0;
+        return hbrLen >= readLen ? hbrCandidate : readabilityPayload;
+    }
+
+    return readabilityPayload;
 }
 
 export async function GET(req: NextRequest) {
@@ -252,40 +372,33 @@ export async function GET(req: NextRequest) {
             /* cache read failed — fall through to live fetch */
         }
 
-        // HBR's cookie-meter blocks direct fetch after ~2 articles per session.
-        // Try a chain of public reader proxies first. Each gets 8s, then we run
-        // Readability on the returned HTML and only accept it as a real success if
-        // textContent >= 2000 chars (anything shorter usually means the proxy
-        // returned a paywalled stub or its own error page).
+        // HBR serves a corrupted articleBody to datacenter IPs. Wayback's
+        // archived snapshot was captured by a real browser session, so the
+        // text is intact. Try it first; fall through to direct fetch if no
+        // snapshot exists yet or extraction is too short to trust.
         if (isHbrArticleUrl(key)) {
-            const chain = buildHbrProxyChain(key);
-            for (const attempt of chain) {
-                try {
-                    const html = await fetchProxyHtml(attempt.url, 8_000);
-                    if (!html) continue;
-                    const article = extractArticle(html, key);
-                    if (!article) continue;
-                    if ((article.textContent?.length ?? 0) < 2000) continue;
-                    try {
-                        cacheSet(key, article, ARCHIVE_CACHE_TTL_MS);
-                    } catch {
-                        /* cache write failed — still return the article */
+            try {
+                const waybackHtml = await fetchViaWayback(key);
+                if (waybackHtml) {
+                    const article = extractArticle(waybackHtml, key);
+                    if (article && (article.textContent?.length ?? 0) > 2000) {
+                        try {
+                            cacheSet(key, article, ARCHIVE_CACHE_TTL_MS);
+                        } catch {
+                            /* cache write failed — still return the article */
+                        }
+                        return NextResponse.json(article, {
+                            headers: {
+                                "x-article-cache": "miss",
+                                "x-article-source": "wayback",
+                                ...NO_CACHE_HEADERS,
+                            },
+                        });
                     }
-                    return NextResponse.json(article, {
-                        headers: {
-                            "x-article-cache": "miss",
-                            "x-article-source":
-                                attempt.source satisfies HbrProxySource,
-                            ...NO_CACHE_HEADERS,
-                        },
-                    });
-                } catch {
-                    // Any proxy-step failure (network, parse, jsdom OOM) must
-                    // not abort the whole chain — move on to the next attempt.
-                    continue;
                 }
+            } catch {
+                /* Wayback failed — fall through to direct fetch */
             }
-            // All proxies failed — fall through to direct fetch (returns partial).
         }
 
         try {

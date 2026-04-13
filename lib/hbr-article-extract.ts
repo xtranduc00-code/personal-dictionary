@@ -73,6 +73,89 @@ function stripHtml(s: string): string {
     );
 }
 
+function escapeHtml(s: string): string {
+    return s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+/**
+ * `articleBody` from HBR's __NEXT_DATA__ is a single long string with
+ * section titles embedded inline — no newlines, no terminator, no marker.
+ * General heading detection (regex + length heuristics) is unreliable on
+ * that, so we use an explicit allow-list of known HBR section titles
+ * gathered from observed articles. Anything that matches becomes <h2>;
+ * everything between matches is sentence-split into ~4-sentence paragraphs
+ * wrapped in <p>.
+ *
+ * Add new titles to HBR_SECTION_TITLES as we encounter them — this is a
+ * pragmatic stopgap until HBR exposes structured headings in __NEXT_DATA__.
+ */
+const SENTENCES_PER_PARAGRAPH = 4;
+
+const HBR_SECTION_TITLES: string[] = [
+    "The Erosion of Revenue",
+    "Advertising revenue",
+    "Transaction fees",
+    "Subscriptions and membership fees",
+    "Ecosystem services",
+    "The Erosion of Competitive Advantage",
+    "What Can Platforms Do?",
+    "Resist",
+    "Adapt",
+    "Reinvent",
+    "Waiting is No Longer a Good Strategy",
+    "The Commitment Paradox",
+    "Where Flexibility Works—and Where It Fails",
+    "Boundary Conditions Matter",
+    "Rethinking Corporate Advantage",
+];
+
+function escapeRegex(s: string): string {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function articleBodyToHtml(text: string): string {
+    if (!text) return "";
+
+    // Longest titles first so the alternation in the split regex picks the
+    // most specific match (e.g. "The Erosion of Competitive Advantage" beats
+    // "The Erosion of Revenue" at a position where they share a prefix).
+    const sortedTitles = [...HBR_SECTION_TITLES].sort(
+        (a, b) => b.length - a.length,
+    );
+    const titlePattern = sortedTitles.map(escapeRegex).join("|");
+    const splitRegex = new RegExp(`(${titlePattern})`, "g");
+    const titleSet = new Set(HBR_SECTION_TITLES);
+
+    const parts = text.split(splitRegex);
+    let html = "";
+
+    for (const raw of parts) {
+        const part = raw.trim();
+        if (!part) continue;
+
+        if (titleSet.has(part)) {
+            html += `<h2>${escapeHtml(part)}</h2>`;
+            continue;
+        }
+
+        const sentences = part.match(/[^.!?]+[.!?]+/g) ?? [part];
+        for (let i = 0; i < sentences.length; i += SENTENCES_PER_PARAGRAPH) {
+            const para = sentences
+                .slice(i, i + SENTENCES_PER_PARAGRAPH)
+                .join(" ")
+                .trim();
+            if (para) html += `<p>${escapeHtml(para)}</p>`;
+        }
+    }
+
+    return html || `<p>${escapeHtml(text)}</p>`;
+}
+
 function absolutizeHbr(href: string | undefined | null): string | null {
     if (!href) return null;
     const trimmed = href.trim();
@@ -139,17 +222,65 @@ export function extractHbrArticleFromHtml(
         .props?.pageProps?.article;
     if (!article) return null;
 
+    const rawArticleBody =
+        typeof article.articleBody === "string" ? article.articleBody : "";
     const title = decodeEntities((article.title ?? "").trim());
-    const textContent = decodeEntities((article.articleBody ?? "").trim());
+    let textContent = decodeEntities(rawArticleBody.trim());
     if (!title || !textContent) return null;
+
+    // HBR repeats the article title as the first line of `articleBody`, so
+    // the reader would render it twice (once in <h1>, once at the top of
+    // the prose). Strip the leading title if present.
+    if (title && textContent.startsWith(title)) {
+        textContent = textContent.slice(title.length).trimStart();
+    }
+    // ". . ." appears in HBR copy as a section divider — collapse to a
+    // single ellipsis so it doesn't get sentence-split into 3 empty <p>s.
+    textContent = textContent.replace(/\.\s\.\s\.\s?/g, "\u2026 ");
 
     // `article.content` is the rendered HTML (paragraphs, links, headings,
     // figures). Sanitize first, then strip HBR-specific cruft (share buttons,
-    // image-credit lines, empty bullets) so the reader stays clean.
+    // image-credit lines, empty bullets) so the reader stays clean. When the
+    // rendered HTML is suspiciously short (paywall stub: only the lede
+    // paragraph survived) but `articleBody` still has the full prose, fall
+    // back to wrapping the plain text in <p> tags so the reader shows the
+    // whole article — losing inline figures is preferable to losing 95% of
+    // the body.
     const rawHtml = typeof article.content === "string" ? article.content : "";
-    const content = rawHtml
-        ? cleanHbrArticleHtml(sanitizeHbrArticleHtml(rawHtml))
-        : "";
+    const sanitized = rawHtml ? sanitizeHbrArticleHtml(rawHtml) : "";
+    const cleanedHtml = sanitized ? cleanHbrArticleHtml(sanitized) : "";
+    const renderedTextLength = cleanedHtml ? stripHtml(cleanedHtml).length : 0;
+    const usingFallback = renderedTextLength < textContent.length * 0.5;
+    const content = usingFallback
+        ? articleBodyToHtml(textContent)
+        : cleanedHtml;
+
+    // Pipeline length tracker — lets us see in Netlify logs exactly where
+    // the body shrinks. Drop "5–15 random char gaps" usually means the
+    // upstream `articleBody` was already corrupt (paywall degraded payload),
+    // because every transform below this only removes *whole elements*.
+    if (typeof process !== "undefined" && process.env.NODE_ENV === "production") {
+        try {
+            const finalTextLen = stripHtml(content).length;
+            console.log(
+                "[hbr-extract] lengths",
+                JSON.stringify({
+                    url,
+                    rawArticleBodyLen: rawArticleBody.length,
+                    decodedTextContentLen: textContent.length,
+                    rawContentHtmlLen: rawHtml.length,
+                    sanitizedHtmlLen: sanitized.length,
+                    cleanedHtmlLen: cleanedHtml.length,
+                    cleanedTextLen: renderedTextLength,
+                    finalContentHtmlLen: content.length,
+                    finalContentTextLen: finalTextLen,
+                    usedFallback: usingFallback,
+                }),
+            );
+        } catch {
+            /* ignore */
+        }
+    }
     const byline = joinAuthors(article.authors);
     const excerpt =
         decodeEntities((article.dek ?? "").trim()) ||

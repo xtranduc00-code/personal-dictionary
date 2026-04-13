@@ -9,7 +9,7 @@ import type { RssItem } from "@/app/api/rss/route";
  *   stream-item   — /the-latest (custom element with data-* attributes)
  *   feed-entry    — /data-visuals (classic server-rendered <li>)
  *   __NEXT_DATA__ — /reading-lists, /executive (Next.js JSON payload)
- *   cards / tiles — /magazine, /case-selections (generic .card / .tile)
+ *   cards / tiles — /magazine (generic .card / .tile)
  *
  * To keep the main flow simple we run a pipeline of parser strategies; the
  * first strategy that yields items wins. When `?page=N` actually returns new
@@ -28,7 +28,6 @@ export type HbrTab =
     | "store"
     | "reading-lists"
     | "data-visuals"
-    | "case-selections"
     | "executive";
 
 export const HBR_TAB_ORDER: HbrTab[] = [
@@ -39,7 +38,6 @@ export const HBR_TAB_ORDER: HbrTab[] = [
     "store",
     "reading-lists",
     "data-visuals",
-    "case-selections",
     "executive",
 ];
 
@@ -51,7 +49,6 @@ export const HBR_TAB_LABELS: Record<HbrTab, string> = {
     store: "Store",
     "reading-lists": "Reading Lists",
     "data-visuals": "Data & Visuals",
-    "case-selections": "Case Selections",
     executive: "HBR Executive",
 };
 
@@ -63,7 +60,6 @@ const HBR_TAB_PATHS: Record<HbrTab, string> = {
     store: "/store",
     "reading-lists": "/reading-lists",
     "data-visuals": "/data-visuals",
-    "case-selections": "/case-selections",
     executive: "/executive",
 };
 
@@ -519,58 +515,6 @@ function parseMagazineCovers(html: string): RssItem[] {
     return items;
 }
 
-/** /case-selections — `.tile[data-case-selection-name]` curated case bundles. */
-function parseCaseSelections(html: string): RssItem[] {
-    const $ = cheerio.load(html);
-    const items: RssItem[] = [];
-    const seen = new Set<string>();
-    $(".tile[data-case-selection-name]").each((_i, el) => {
-        const $el = $(el);
-        const slug = cleanText($el.attr("data-case-selection-name"));
-        if (!slug) return;
-        const url = `https://hbr.org/case-selections/${slug}`;
-        if (seen.has(url)) return;
-        const title =
-            cleanText($el.find(".tile-article-title").first().text()) ||
-            cleanText(
-                $el.find(".collection-data").attr("data-collection-name"),
-            );
-        if (!title) return;
-        const summary = cleanText($el.find(".tile-summary").first().text()) || null;
-        const category =
-            cleanText($el.find(".tile-subject-tag").first().text()) ||
-            cleanText(
-                $el.find(".collection-data").attr("data-collection-category"),
-            ) ||
-            "Case Selection";
-        const dateLabel = cleanText($el.find(".tile-date-label").first().text());
-        const dateMatch = dateLabel.match(/([A-Z][a-z]+ \d{1,2},\s*\d{4})/);
-        const publishedAt = dateMatch
-            ? (() => {
-                  const d = new Date(dateMatch[1]);
-                  return Number.isFinite(d.getTime()) ? d.toISOString() : null;
-              })()
-            : null;
-        const thumbnail =
-            absolutize($el.find("img").attr("src")) ||
-            absolutize(firstSrcFromSrcset($el.find("img").attr("srcset")));
-        seen.add(url);
-        items.push({
-            id: url,
-            title: decodeEntities(title),
-            url,
-            summary: summary ? decodeEntities(summary) : null,
-            author: null,
-            publishedAt,
-            source: "hbr",
-            thumbnail,
-            category,
-            readingTime: computeReadingTime(summary ?? title),
-        });
-    });
-    return items;
-}
-
 /* ───────────────────── parser pipeline ───────────────────── */
 
 type ParserFn = (html: string) => RssItem[];
@@ -583,7 +527,6 @@ const STRATEGIES_BY_TAB: Record<HbrTab, ParserFn[]> = {
     store: [parseCardsOrTiles],
     "reading-lists": [parseReadingListsNextData, parseCardsOrTiles],
     "data-visuals": [parseFeedEntries, parseCardsOrTiles],
-    "case-selections": [parseCaseSelections, parseCardsOrTiles],
     executive: [parseExecutiveNextData, parseCardsOrTiles],
 };
 

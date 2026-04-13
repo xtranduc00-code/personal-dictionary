@@ -2,11 +2,13 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LayoutGrid, Newspaper, Search } from "lucide-react";
 import { useI18n } from "@/components/i18n-provider";
 import { formatRelativeDaysAgo } from "@/lib/format-relative-days-ago";
 import { Pagination } from "@/components/pagination";
+import { clearHbrCookies } from "@/lib/clear-hbr-cookies";
 import type { RssItem } from "@/app/api/rss/route";
 
 const HBR_PILL =
@@ -17,7 +19,6 @@ type HbrTabId =
     | "topics"
     | "reading-lists"
     | "data-visuals"
-    | "case-selections"
     | "executive";
 
 const HBR_TABS: { id: HbrTabId; label: string }[] = [
@@ -25,7 +26,6 @@ const HBR_TABS: { id: HbrTabId; label: string }[] = [
     { id: "topics", label: "Topics" },
     { id: "reading-lists", label: "Reading Lists" },
     { id: "data-visuals", label: "Data & Visuals" },
-    { id: "case-selections", label: "Case Selections" },
     { id: "executive", label: "HBR Executive" },
 ];
 
@@ -40,13 +40,34 @@ function HBRStoryGrid({
     items: RssItem[];
     returnTo: string;
 }) {
+    const router = useRouter();
+    const onCardClick = useCallback(
+        (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+            // Let cmd/ctrl/shift/middle-click open in a new tab as usual.
+            if (
+                e.metaKey ||
+                e.ctrlKey ||
+                e.shiftKey ||
+                e.altKey ||
+                e.button !== 0
+            ) {
+                return;
+            }
+            e.preventDefault();
+            void clearHbrCookies().finally(() => router.push(href));
+        },
+        [router],
+    );
     return (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {items.map((item) => (
+            {items.map((item) => {
+                const href = readerHref(item.url, returnTo);
+                return (
                 <Link
                     key={item.id}
-                    href={readerHref(item.url, returnTo)}
+                    href={href}
                     prefetch={false}
+                    onClick={(e) => onCardClick(e, href)}
                     className="group flex flex-col overflow-hidden rounded-2xl border-0 bg-white shadow-[0_10px_40px_-12px_rgba(15,23,42,0.14)] ring-1 ring-zinc-900/[0.04] transition duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_22px_50px_-12px_rgba(15,23,42,0.22)] hover:ring-amber-200/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/50 dark:bg-zinc-900 dark:shadow-[0_12px_40px_-8px_rgba(0,0,0,0.5)] dark:ring-white/[0.06]"
                 >
                     <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden bg-zinc-100 dark:bg-zinc-800">
@@ -91,7 +112,8 @@ function HBRStoryGrid({
                         </div>
                     </div>
                 </Link>
-            ))}
+                );
+            })}
         </div>
     );
 }

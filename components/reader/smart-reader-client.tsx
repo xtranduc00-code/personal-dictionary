@@ -15,7 +15,6 @@ import { EngooReadingTutorPanel } from "@/components/engoo/engoo-reading-tutor-p
 import { AddFlashcardModal, HighlightToolbar } from "@/components/ielts";
 import { storeEngooCallContext } from "@/lib/engoo-call-context";
 import { buildSmartReaderEngooTutorPayload } from "@/lib/smart-reader-tutor-payload";
-import { fetchHbrArticleInBrowser } from "@/lib/hbr-client-fetch";
 
 const SMART_READER_MARK_CLASS =
     "smart-reader-highlight bg-yellow-200/80 dark:bg-yellow-500/30 text-inherit rounded px-0.5";
@@ -150,34 +149,6 @@ export function SmartReaderClient() {
         setArticle(null);
 
         (async () => {
-            // HBR articles: fetch + parse archive.ph snapshot in the browser.
-            // Server fetch hits HBR's cookie meter and Netlify's 10s cap;
-            // running in the user's tab bypasses both.
-            if (src === "hbr") {
-                try {
-                    const article = await fetchHbrArticleInBrowser(
-                        url,
-                        ctrl.signal,
-                    );
-                    if (ctrl.signal.aborted) return;
-                    if (!article) {
-                        setError(
-                            "Could not load the article from archive.ph. Open it on hbr.org instead.",
-                        );
-                        return;
-                    }
-                    setArticle(article);
-                    markRead(url);
-                } catch (e) {
-                    if (!ctrl.signal.aborted) {
-                        setError(e instanceof Error ? e.message : "Network error");
-                    }
-                } finally {
-                    if (!ctrl.signal.aborted) setLoading(false);
-                }
-                return;
-            }
-
             try {
                 const res = await fetch(
                     `/api/fetch-article?url=${encodeURIComponent(url)}`,
@@ -216,7 +187,7 @@ export function SmartReaderClient() {
             }
         })();
         return () => ctrl.abort();
-    }, [url, src]);
+    }, [url]);
 
     useEffect(() => {
         if (!url) return;
@@ -413,10 +384,19 @@ export function SmartReaderClient() {
                                 <p className="mt-3 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
                                     Reader view · {sourceLabel}
                                 </p>
+                                {article.coverImage ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                        src={article.coverImage}
+                                        alt={article.title}
+                                        loading="lazy"
+                                        className="mt-6 block w-full max-h-[400px] rounded-lg object-cover"
+                                    />
+                                ) : null}
                                 <hr className="my-8 border-0 border-t border-zinc-200/80 dark:border-zinc-700/80 sm:my-10" />
                                 <div
                                     ref={articleBodyRef}
-                                    className={GUARDIAN_READ_BODY_CLASS}
+                                    className={`${GUARDIAN_READ_BODY_CLASS} select-text`}
                                     dangerouslySetInnerHTML={{ __html: article.content }}
                                 />
                             </article>
