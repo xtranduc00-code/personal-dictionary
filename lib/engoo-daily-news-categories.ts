@@ -27,9 +27,12 @@ export const ENGOO_DAILY_NEWS_CATEGORIES = [
 
 export type EngooDailyNewsCategoryDef = (typeof ENGOO_DAILY_NEWS_CATEGORIES)[number];
 
-/** Tab slug → pill label produced by `resolveEngooListCardCategory` for filtering. */
+/**
+ * Tab slug → pill label produced by `resolveEngooListCardCategory` for filtering.
+ * Excludes "all" (no filter) and "sport" (Guardian Sport feed, handled out-of-band).
+ */
 export const ENGOO_DAILY_NEWS_TOPIC_SLUG_TO_LABEL: Record<
-  Exclude<EngooDailyNewsCategoryDef["slug"], "all">,
+  Exclude<EngooDailyNewsCategoryDef["slug"], "all" | "sport">,
   string
 > = {
   "business-politics": "Business & Politics",
