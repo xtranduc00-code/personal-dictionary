@@ -13,6 +13,20 @@ import { hbrCacheGet, hbrCacheSet } from "@/lib/hbr-blob-cache";
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
+/**
+ * Prevent every CDN layer from caching this endpoint. Netlify was collapsing
+ * responses across `?source=...` / `?section=...` combos, causing all tabs to
+ * show the same feed on deploy. Each request must reach the Lambda so the
+ * in-memory `feedCache` / HBR blob cache — both keyed by source/tab — can do
+ * the right thing.
+ */
+const NO_CACHE_HEADERS = {
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+    "CDN-Cache-Control": "no-store",
+    "Netlify-CDN-Cache-Control": "no-store",
+    Vary: "*",
+};
+
 export type RssItem = {
     id: string;
     title: string;
@@ -160,7 +174,7 @@ function streamHbrTab(tab: HbrTab): Response {
         headers: {
             "Content-Type": "application/x-ndjson",
             "X-Cache": "miss",
-            "Cache-Control": "no-store",
+            ...NO_CACHE_HEADERS,
         },
     });
 }
@@ -176,10 +190,16 @@ export async function GET(req: NextRequest) {
             label: "Harvard Business Review",
             preset: true,
         });
-        return NextResponse.json({
-            sources,
-            hbrTabs: HBR_TAB_ORDER.map((t) => ({ id: t, label: HBR_TAB_LABELS[t] })),
-        });
+        return NextResponse.json(
+            {
+                sources,
+                hbrTabs: HBR_TAB_ORDER.map((t) => ({
+                    id: t,
+                    label: HBR_TAB_LABELS[t],
+                })),
+            },
+            { headers: NO_CACHE_HEADERS },
+        );
     }
 
     if (sourceParam.toLowerCase() === "hbr") {
@@ -204,8 +224,7 @@ export async function GET(req: NextRequest) {
                 {
                     headers: {
                         "X-Cache": "hit",
-                        "Cache-Control":
-                            "public, s-maxage=1800, stale-while-revalidate=3600",
+                        ...NO_CACHE_HEADERS,
                     },
                 },
             );
@@ -221,7 +240,7 @@ export async function GET(req: NextRequest) {
     if (!source) {
         return NextResponse.json(
             { error: `Unknown RSS source: ${sourceParam}` },
-            { status: 404 },
+            { status: 404, headers: NO_CACHE_HEADERS },
         );
     }
 
@@ -229,14 +248,13 @@ export async function GET(req: NextRequest) {
         const items = await fetchFeed(source);
         return NextResponse.json(
             { source: source.name, label: source.label, items },
-            {
-                headers: {
-                    "Cache-Control": "public, s-maxage=1800, stale-while-revalidate=3600",
-                },
-            },
+            { headers: NO_CACHE_HEADERS },
         );
     } catch (e) {
         const msg = e instanceof Error ? e.message : "RSS fetch failed";
-        return NextResponse.json({ error: msg }, { status: 502 });
+        return NextResponse.json(
+            { error: msg },
+            { status: 502, headers: NO_CACHE_HEADERS },
+        );
     }
 }

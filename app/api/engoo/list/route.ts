@@ -44,8 +44,15 @@ export async function GET(req: NextRequest) {
   const cursor = sp.get("cursor")?.trim() || null;
 
   const cacheKey = `list:${apiCategoryId}:t:${topicSlug ?? "all"}:${cursor ?? "first"}:${pageSize}:${lo}:${hi}`;
+  // Netlify's CDN was serving the first tab's cached response for every
+  // category query, collapsing all tabs to the same articles on deploy.
+  // Tell every CDN layer to skip caching so each `?category=...` request
+  // reaches the Lambda and hits the in-memory cache keyed by topic.
   const CACHE_HEADERS = {
-    "Cache-Control": "public, s-maxage=1800, stale-while-revalidate=3600",
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+    "CDN-Cache-Control": "no-store",
+    "Netlify-CDN-Cache-Control": "no-store",
+    Vary: "*",
   };
 
   const hit = getCachedEngooList<EngooListApiResponse>(cacheKey);
@@ -133,6 +140,9 @@ export async function GET(req: NextRequest) {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Engoo list fetch failed";
-    return NextResponse.json({ error: msg }, { status: 502 });
+    return NextResponse.json(
+      { error: msg },
+      { status: 502, headers: CACHE_HEADERS },
+    );
   }
 }

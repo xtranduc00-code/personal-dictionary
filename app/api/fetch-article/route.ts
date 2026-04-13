@@ -15,6 +15,18 @@ import {
 export const runtime = "nodejs";
 
 /**
+ * Never let Netlify's CDN cache article responses. The payload varies by
+ * `?url=` query; a single stale edge-cache entry would collapse every
+ * subsequent article fetch into the same body.
+ */
+const NO_CACHE_HEADERS = {
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+    "CDN-Cache-Control": "no-store",
+    "Netlify-CDN-Cache-Control": "no-store",
+    Vary: "*",
+};
+
+/**
  * Smart Reader article fetcher.
  *
  * GET /api/fetch-article?url=<encoded>
@@ -209,74 +221,113 @@ function extractArticle(html: string, url: string): ArticlePayload | null {
 }
 
 export async function GET(req: NextRequest) {
-    const raw = req.nextUrl.searchParams.get("url")?.trim() ?? "";
-    if (!raw) {
-        return NextResponse.json({ error: "Missing ?url" }, { status: 400 });
-    }
-    const parsedUrl = validateUrl(raw);
-    if (!parsedUrl) {
-        return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
-    }
-    const key = parsedUrl.toString();
+    // Outermost safety net: Netlify converts any uncaught throw into a plain
+    // "Internal Server Error" text body, which breaks res.json() on the client.
+    // Every code path below must resolve to a JSON response.
+    try {
+        const raw = req.nextUrl.searchParams.get("url")?.trim() ?? "";
+        if (!raw) {
+            return NextResponse.json(
+                { error: "Missing ?url" },
+                { status: 400, headers: NO_CACHE_HEADERS },
+            );
+        }
+        const parsedUrl = validateUrl(raw);
+        if (!parsedUrl) {
+            return NextResponse.json(
+                { error: "Invalid URL" },
+                { status: 400, headers: NO_CACHE_HEADERS },
+            );
+        }
+        const key = parsedUrl.toString();
 
-    const cached = cacheGet(key);
-    if (cached) {
-        return NextResponse.json(cached, {
-            headers: { "x-article-cache": "hit" },
-        });
-    }
+        try {
+            const cached = cacheGet(key);
+            if (cached) {
+                return NextResponse.json(cached, {
+                    headers: { "x-article-cache": "hit", ...NO_CACHE_HEADERS },
+                });
+            }
+        } catch {
+            /* cache read failed — fall through to live fetch */
+        }
 
-    // HBR's cookie-meter blocks direct fetch after ~2 articles per session.
-    // Try a chain of public reader proxies first. Each gets 8s, then we run
-    // Readability on the returned HTML and only accept it as a real success if
-    // textContent >= 2000 chars (anything shorter usually means the proxy
-    // returned a paywalled stub or its own error page).
-    if (isHbrArticleUrl(key)) {
-        const chain = buildHbrProxyChain(key);
-        for (const attempt of chain) {
-            const html = await fetchProxyHtml(attempt.url, 8_000);
-            if (!html) continue;
-            const article = extractArticle(html, key);
-            if (!article) continue;
-            if ((article.textContent?.length ?? 0) < 2000) continue;
-            cacheSet(key, article, ARCHIVE_CACHE_TTL_MS);
+        // HBR's cookie-meter blocks direct fetch after ~2 articles per session.
+        // Try a chain of public reader proxies first. Each gets 8s, then we run
+        // Readability on the returned HTML and only accept it as a real success if
+        // textContent >= 2000 chars (anything shorter usually means the proxy
+        // returned a paywalled stub or its own error page).
+        if (isHbrArticleUrl(key)) {
+            const chain = buildHbrProxyChain(key);
+            for (const attempt of chain) {
+                try {
+                    const html = await fetchProxyHtml(attempt.url, 8_000);
+                    if (!html) continue;
+                    const article = extractArticle(html, key);
+                    if (!article) continue;
+                    if ((article.textContent?.length ?? 0) < 2000) continue;
+                    try {
+                        cacheSet(key, article, ARCHIVE_CACHE_TTL_MS);
+                    } catch {
+                        /* cache write failed — still return the article */
+                    }
+                    return NextResponse.json(article, {
+                        headers: {
+                            "x-article-cache": "miss",
+                            "x-article-source":
+                                attempt.source satisfies HbrProxySource,
+                            ...NO_CACHE_HEADERS,
+                        },
+                    });
+                } catch {
+                    // Any proxy-step failure (network, parse, jsdom OOM) must
+                    // not abort the whole chain — move on to the next attempt.
+                    continue;
+                }
+            }
+            // All proxies failed — fall through to direct fetch (returns partial).
+        }
+
+        try {
+            const { html, finalUrl } = await fetchHtml(key);
+            const article = extractArticle(html, finalUrl);
+            if (!article) {
+                return NextResponse.json(
+                    { error: "Could not extract readable content from this page." },
+                    { status: 422, headers: NO_CACHE_HEADERS },
+                );
+            }
+            try {
+                cacheSet(key, article);
+            } catch {
+                /* cache write failed — still return the article */
+            }
             return NextResponse.json(article, {
                 headers: {
                     "x-article-cache": "miss",
-                    "x-article-source": attempt.source satisfies HbrProxySource,
+                    "x-article-source": "direct",
+                    ...NO_CACHE_HEADERS,
                 },
             });
-        }
-        // All proxies failed — fall through to direct fetch (returns partial).
-    }
-
-    try {
-        const { html, finalUrl } = await fetchHtml(key);
-        const article = extractArticle(html, finalUrl);
-        if (!article) {
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            if (msg.includes("abort") || msg === "AbortError") {
+                return NextResponse.json(
+                    { error: "The request timed out. Try again." },
+                    { status: 408, headers: NO_CACHE_HEADERS },
+                );
+            }
             return NextResponse.json(
-                { error: "Could not extract readable content from this page." },
-                { status: 422 },
+                { error: "Could not fetch or parse the page." },
+                { status: 422, headers: NO_CACHE_HEADERS },
             );
         }
-        cacheSet(key, article);
-        return NextResponse.json(article, {
-            headers: {
-                "x-article-cache": "miss",
-                "x-article-source": "direct",
-            },
-        });
     } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        if (msg.includes("abort") || msg === "AbortError") {
-            return NextResponse.json(
-                { error: "The request timed out. Try again." },
-                { status: 408 },
-            );
-        }
+        console.error("[fetch-article] unhandled", msg);
         return NextResponse.json(
-            { error: "Could not fetch or parse the page." },
-            { status: 422 },
+            { error: "Failed to fetch article", content: null },
+            { status: 500, headers: NO_CACHE_HEADERS },
         );
     }
 }
@@ -284,34 +335,44 @@ export async function GET(req: NextRequest) {
 const postSchema = z.object({ url: z.string().url().max(2048) });
 
 export async function POST(req: NextRequest) {
+    try {
     let body: { url: string };
     try {
         const j: unknown = await req.json();
         const r = postSchema.safeParse(j);
         if (!r.success) {
-            return NextResponse.json({ error: "Invalid URL." }, { status: 400 });
+            return NextResponse.json(
+                { error: "Invalid URL." },
+                { status: 400, headers: NO_CACHE_HEADERS },
+            );
         }
         body = r.data;
     } catch {
-        return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+        return NextResponse.json(
+            { error: "Invalid JSON body." },
+            { status: 400, headers: NO_CACHE_HEADERS },
+        );
     }
 
     const parsedUrl = validateUrl(body.url);
     if (!parsedUrl) {
         return NextResponse.json(
             { error: "Only http(s) URLs are allowed." },
-            { status: 400 },
+            { status: 400, headers: NO_CACHE_HEADERS },
         );
     }
     const key = parsedUrl.toString();
     const cached = cacheGet(key);
     if (cached) {
-        return NextResponse.json({
-            title: cached.title,
-            content: cached.textContent,
-            source: cached.siteName,
-            url: cached.url,
-        });
+        return NextResponse.json(
+            {
+                title: cached.title,
+                content: cached.textContent,
+                source: cached.siteName,
+                url: cached.url,
+            },
+            { headers: NO_CACHE_HEADERS },
+        );
     }
 
     try {
@@ -323,22 +384,25 @@ export async function POST(req: NextRequest) {
                     error:
                         "Could not extract readable article text. Try pasting the article text manually.",
                 },
-                { status: 422 },
+                { status: 422, headers: NO_CACHE_HEADERS },
             );
         }
         cacheSet(key, article);
-        return NextResponse.json({
-            title: article.title,
-            content: article.textContent,
-            source: article.siteName,
-            url: article.url,
-        });
+        return NextResponse.json(
+            {
+                title: article.title,
+                content: article.textContent,
+                source: article.siteName,
+                url: article.url,
+            },
+            { headers: NO_CACHE_HEADERS },
+        );
     } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         if (msg.includes("abort") || msg === "AbortError") {
             return NextResponse.json(
                 { error: "The request timed out. Try again, or paste the article text manually." },
-                { status: 408 },
+                { status: 408, headers: NO_CACHE_HEADERS },
             );
         }
         return NextResponse.json(
@@ -346,7 +410,15 @@ export async function POST(req: NextRequest) {
                 error:
                     "Could not fetch or parse the page. Many sites block automated access — paste the article text manually.",
             },
-            { status: 422 },
+            { status: 422, headers: NO_CACHE_HEADERS },
+        );
+    }
+    } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[fetch-article POST] unhandled", msg);
+        return NextResponse.json(
+            { error: "Failed to fetch article", content: null },
+            { status: 500, headers: NO_CACHE_HEADERS },
         );
     }
 }

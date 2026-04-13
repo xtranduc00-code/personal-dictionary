@@ -154,6 +154,17 @@ export function SmartReaderClient() {
                     `/api/fetch-article?url=${encodeURIComponent(url)}`,
                     { signal: ctrl.signal },
                 );
+                // Netlify sometimes replies with a plain "Internal Server Error"
+                // body when a serverless function crashes. Guard res.json() so
+                // the user sees a usable message instead of a JSON parse error.
+                const contentType = res.headers.get("content-type") ?? "";
+                if (!contentType.includes("application/json")) {
+                    if (ctrl.signal.aborted) return;
+                    setError(
+                        "Article temporarily unavailable. Open in browser instead.",
+                    );
+                    return;
+                }
                 const json = (await res.json()) as
                     | Article
                     | { error?: string };

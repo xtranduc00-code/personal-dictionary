@@ -17,6 +17,7 @@ import type { EngooListApiResponse, EngooListCard } from "@/lib/engoo-types";
 import { engooLevelBadgeBackground } from "@/lib/engoo-level-style";
 import {
   ENGOO_DAILY_NEWS_CATEGORIES,
+  ENGOO_DAILY_NEWS_TOPIC_SLUG_TO_LABEL,
   getEngooDailyNewsCategoryBySlug,
 } from "@/lib/engoo-daily-news-categories";
 import { formatRelativeDaysAgo } from "@/lib/format-relative-days-ago";
@@ -510,11 +511,29 @@ export function EngooDailyNewsHomeInner({
     });
   }, [allItems]);
 
+  // Defensive client-side tab filter. The API already filters by topicLabel,
+  // but if server-side filtering drifts or returns an unfiltered payload
+  // (e.g. during a cache/backfill glitch), the visible list must still match
+  // the selected tab.
+  const categoryFilteredItems = useMemo(() => {
+    if (isAllTab) return dedupedItems;
+    const expectedLabel =
+      activeCategory.slug in ENGOO_DAILY_NEWS_TOPIC_SLUG_TO_LABEL
+        ? ENGOO_DAILY_NEWS_TOPIC_SLUG_TO_LABEL[
+            activeCategory.slug as keyof typeof ENGOO_DAILY_NEWS_TOPIC_SLUG_TO_LABEL
+          ]
+        : null;
+    if (!expectedLabel) return dedupedItems;
+    return dedupedItems.filter((c) => c.category === expectedLabel);
+  }, [dedupedItems, isAllTab, activeCategory.slug]);
+
   const filteredForSearch = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return dedupedItems;
-    return dedupedItems.filter((c) => c.title.toLowerCase().includes(q));
-  }, [dedupedItems, searchQuery]);
+    if (!q) return categoryFilteredItems;
+    return categoryFilteredItems.filter((c) =>
+      c.title.toLowerCase().includes(q),
+    );
+  }, [categoryFilteredItems, searchQuery]);
 
   // Reset to page 1 when search changes
   useEffect(() => {
