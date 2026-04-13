@@ -4,7 +4,7 @@ import { supabaseForUserData } from "@/lib/supabase-server";
 
 const DEFAULT_TEMPLATES = [
   { id: "read_engoo", label: "Read Engoo", href: "/news", sort_order: 0 },
-  { id: "read_guardian", label: "Read Guardian", href: "/news?src=guardian", sort_order: 1 },
+  { id: "read_guardian", label: "Read Sport", href: "/news?category=sport", sort_order: 1 },
   { id: "flashcards_10", label: "10 Flashcards", href: "/flashcards", sort_order: 2 },
   { id: "ielts_listening", label: "IELTS Listening", href: "/listening", sort_order: 3 },
   { id: "ielts_speaking", label: "IELTS Speaking", href: "/ielts-speaking", sort_order: 4 },

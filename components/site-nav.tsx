@@ -68,12 +68,6 @@ const newsSectionLinks: NewsSourceLink[] = [
         dailyNewsSource: "engoo",
     },
     {
-        href: "/news?src=guardian",
-        labelKey: "dailyNewsSourceGuardian",
-        icon: Newspaper,
-        dailyNewsSource: "guardian",
-    },
-    {
         href: "/news?src=hbr",
         labelKey: "dailyNewsSourceHBR",
         icon: Newspaper,
@@ -201,26 +195,21 @@ function isChessPath(pathname: string) {
 function isEntertainmentSidebarActive(pathname: string) {
     return isNewsPath(pathname) || isEntertainmentPath(pathname) || isChessPath(pathname);
 }
-/** Sidebar: Engoo daily hub + lesson/article paths (not Guardian/HBR hub / in-app readers). */
+/**
+ * Sidebar: Engoo daily hub + lesson/article paths + the Guardian Sport branch
+ * which now lives inside the Engoo Daily News page (not HBR hub / in-app reader).
+ */
 function isEngooDailyNewsNavActive(pathname: string, src: string | null): boolean {
     if (pathname.startsWith("/reading/") || pathname.startsWith("/articles/"))
         return true;
     if (pathname.startsWith("/news/football") || pathname.startsWith("/news/guardian"))
-        return false;
+        return true;
     if (pathname === "/news/read")
-        return false;
+        return src !== "hbr";
     if (pathname.startsWith("/news/"))
         return true;
     if (pathname === "/news")
-        return src !== "guardian" && src !== "hbr";
-    return false;
-}
-function isGuardianDailyNewsNavActive(pathname: string, src: string | null): boolean {
-    if (pathname.startsWith("/news/football") || pathname.startsWith("/news/guardian"))
-        return true;
-    if (pathname === "/news/read") return src === "guardian";
-    if (pathname === "/news")
-        return src === "guardian";
+        return src !== "hbr";
     return false;
 }
 function isHBRDailyNewsNavActive(pathname: string, src: string | null): boolean {
@@ -332,9 +321,7 @@ function NewsSourceExpandedNavLinks({ pathname, t, filterQuery = "", onLinkClick
             const active =
                 e.dailyNewsSource === "engoo"
                     ? isEngooDailyNewsNavActive(pathname, dailyNewsSrc)
-                    : e.dailyNewsSource === "guardian"
-                      ? isGuardianDailyNewsNavActive(pathname, dailyNewsSrc)
-                      : isHBRDailyNewsNavActive(pathname, dailyNewsSrc);
+                    : isHBRDailyNewsNavActive(pathname, dailyNewsSrc);
             const Icon = e.icon;
             return (<NavSidebarRow key={e.href} href={e.href} labelKey={e.labelKey} onLinkClick={onLinkClick} className={[subBase, active ? subActive : subIdle].join(" ")} active={active} sub icon={Icon}/>);
         })}

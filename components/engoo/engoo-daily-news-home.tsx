@@ -12,8 +12,17 @@ import {
   type CSSProperties,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Flame, LayoutGrid, Search, Tag } from "lucide-react";
+import {
+  BookDown,
+  Flame,
+  LayoutGrid,
+  Loader2,
+  Newspaper,
+  Search,
+  Tag,
+} from "lucide-react";
 import type { EngooListApiResponse, EngooListCard } from "@/lib/engoo-types";
+import type { GuardianListItem } from "@/lib/guardian-content-types";
 import { engooLevelBadgeBackground } from "@/lib/engoo-level-style";
 import {
   ENGOO_DAILY_NEWS_CATEGORIES,
@@ -24,6 +33,12 @@ import { formatRelativeDaysAgo } from "@/lib/format-relative-days-ago";
 import { parseResponseJson } from "@/lib/read-response-json";
 import { useI18n } from "@/components/i18n-provider";
 import { Pagination } from "@/components/pagination";
+import {
+  buildGuardianListEpubBlob,
+  fetchGuardianArticlesForKindleEpub,
+  GUARDIAN_KINDLE_EPUB_MAX_ARTICLES,
+  triggerEpubDownload,
+} from "@/lib/guardian-kindle-epub";
 
 const NEW_BADGE_MAX_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -362,11 +377,74 @@ function listQuery(
   return base;
 }
 
+const GUARDIAN_SPORT_PILL =
+  "border-rose-200/90 bg-rose-50 text-rose-950 dark:border-rose-800/80 dark:bg-rose-950/50 dark:text-rose-100";
+
+function GuardianSportCard({
+  item,
+  returnTo,
+}: {
+  item: GuardianListItem;
+  returnTo: string;
+}) {
+  const readHref = `/news/guardian/read?url=${encodeURIComponent(item.webUrl)}&returnTo=${encodeURIComponent(returnTo)}`;
+  return (
+    <Link
+      key={item.id}
+      href={readHref}
+      prefetch={false}
+      className="group flex flex-col overflow-hidden rounded-2xl border-0 bg-white shadow-[0_10px_40px_-12px_rgba(15,23,42,0.14)] ring-1 ring-zinc-900/[0.04] transition duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_22px_50px_-12px_rgba(15,23,42,0.22)] hover:ring-rose-200/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:bg-zinc-900 dark:shadow-[0_12px_40px_-8px_rgba(0,0,0,0.5)] dark:ring-white/[0.06]"
+    >
+      <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden bg-zinc-100 dark:bg-zinc-800">
+        {item.thumbnailUrl ? (
+          <Image
+            src={item.thumbnailUrl}
+            alt=""
+            fill
+            className="object-cover transition duration-500 group-hover:scale-[1.03]"
+            sizes="(max-width:768px) 100vw, 33vw"
+            unoptimized
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center bg-zinc-200/80 dark:bg-zinc-800">
+            <Newspaper className="h-10 w-10 text-zinc-400" />
+          </div>
+        )}
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col p-3.5 sm:p-4">
+        <h3 className="line-clamp-3 text-left text-lg font-extrabold leading-[1.35] tracking-tight text-zinc-900 dark:text-zinc-50">
+          {item.webTitle}
+        </h3>
+        {item.webPublicationDate ? (
+          <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500">
+            {formatRelativeDaysAgo(item.webPublicationDate)}
+          </p>
+        ) : null}
+        {item.trailText ? (
+          <p className="mt-2 line-clamp-2 text-xs text-zinc-600 dark:text-zinc-400">
+            {item.trailText}
+          </p>
+        ) : null}
+        <div className="mt-auto flex flex-wrap items-center justify-end gap-2 pt-3">
+          <span
+            className={`max-w-full truncate rounded-full border px-2.5 py-0.5 text-left text-[11px] font-semibold ${GUARDIAN_SPORT_PILL}`}
+          >
+            The Guardian
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 export function EngooDailyNewsHomeInner({
   initialData,
+  initialSportItems,
 }: {
   /** Server-pre-fetched "all" category items — skips the initial client fetch when provided. */
   initialData?: EngooListApiResponse | null;
+  /** Server-pre-fetched Guardian Sport items — skips the initial client fetch when Sport tab opens first. */
+  initialSportItems?: GuardianListItem[] | null;
 }) {
   const { t } = useI18n();
   const router = useRouter();
@@ -378,17 +456,38 @@ export function EngooDailyNewsHomeInner({
     [searchParams],
   );
   const isAllTab = activeCategory.slug === "all";
+  const isSportTab = activeCategory.slug === "sport";
 
   // Server pre-fetched data is only valid for the "all" tab (default).
-  const hasServerData = isAllTab && Array.isArray(initialData?.items) && (initialData!.items.length > 0);
+  const hasServerData =
+    isAllTab &&
+    !isSportTab &&
+    Array.isArray(initialData?.items) &&
+    initialData!.items.length > 0;
+  const hasServerSport =
+    Array.isArray(initialSportItems) && initialSportItems.length > 0;
 
   const [allItems, setAllItems] = useState<EngooListCard[]>(
     hasServerData ? initialData!.items : [],
   );
-  const [listLoading, setListLoading] = useState(!hasServerData);
+  const [listLoading, setListLoading] = useState(!hasServerData && !isSportTab);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Guardian Sport tab state. Kept alongside the Engoo list state so the
+  // shared header (search box, tab nav) can operate on either dataset
+  // without shuttling state through a separate component.
+  const [sportItems, setSportItems] = useState<GuardianListItem[]>(
+    hasServerSport ? initialSportItems! : [],
+  );
+  const [sportLoading, setSportLoading] = useState(
+    isSportTab && !hasServerSport,
+  );
+  const [sportError, setSportError] = useState<string | null>(null);
+  const [sportNoKey, setSportNoKey] = useState(false);
+  const [kindleBusy, setKindleBusy] = useState(false);
+  const [kindleError, setKindleError] = useState<string | null>(null);
 
   const PAGE_SIZE = 30;
   /** Max pages to show — caps how many articles we fetch. */
@@ -465,6 +564,11 @@ export function EngooDailyNewsHomeInner({
   const skipInitialRef = useRef(hasServerData);
 
   useEffect(() => {
+    // Sport tab uses Guardian data — handled by its own effect below.
+    if (isSportTab) {
+      crawlAbortRef.current?.abort();
+      return;
+    }
     if (skipInitialRef.current) {
       skipInitialRef.current = false;
       // Load remaining pages in background if server data had a nextCursor.
@@ -499,7 +603,75 @@ export function EngooDailyNewsHomeInner({
     }
     return () => { crawlAbortRef.current?.abort(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCategory.slug, fetchBoundedItems]);
+  }, [activeCategory.slug, fetchBoundedItems, isSportTab]);
+
+  // Guardian Sport loader. Runs once the first time the Sport tab is opened
+  // (unless the server already pre-fetched Sport items for this request).
+  const skipSportFetchRef = useRef(hasServerSport);
+  useEffect(() => {
+    if (!isSportTab) return;
+    if (skipSportFetchRef.current) {
+      skipSportFetchRef.current = false;
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setSportLoading(true);
+      setSportError(null);
+      setSportNoKey(false);
+      try {
+        const res = await fetch(
+          "/api/guardian/list?section=sport&pageSize=50",
+          { credentials: "same-origin" },
+        );
+        const text = await res.text();
+        let json: {
+          items?: GuardianListItem[];
+          error?: string;
+          code?: string;
+        };
+        try {
+          json = JSON.parse(text) as typeof json;
+        } catch {
+          if (!cancelled) {
+            setSportError(
+              t("guardianListUnexpectedResponse").replace(
+                "{status}",
+                String(res.status),
+              ),
+            );
+            setSportItems([]);
+          }
+          return;
+        }
+        if (cancelled) return;
+        if (res.status === 503) {
+          setSportNoKey(true);
+          setSportItems([]);
+          return;
+        }
+        if (!res.ok) {
+          const msg = json.error ?? t("dailyNewsGuardianLoadError");
+          const code = json.code?.trim();
+          setSportError(code ? `${msg} (code: ${code})` : msg);
+          setSportItems([]);
+          return;
+        }
+        setSportItems(json.items ?? []);
+      } catch {
+        if (!cancelled) {
+          setSportError(t("dailyNewsGuardianLoadError"));
+          setSportItems([]);
+        }
+      } finally {
+        if (!cancelled) setSportLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSportTab]);
 
   // Deduplicate by masterId — the API can return the same article more than once
   const dedupedItems = useMemo(() => {
@@ -535,21 +707,71 @@ export function EngooDailyNewsHomeInner({
     );
   }, [categoryFilteredItems, searchQuery]);
 
-  // Reset to page 1 when search changes
+  const filteredSport = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return sportItems;
+    return sportItems.filter((x) =>
+      x.webTitle.toLowerCase().includes(q),
+    );
+  }, [sportItems, searchQuery]);
+
+  // Reset to page 1 when search or tab changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery]);
+  }, [searchQuery, activeCategory.slug]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredForSearch.length / PAGE_SIZE));
+  // Clear the Kindle error whenever the active tab changes so a stale message
+  // from Sport doesn't linger when the user jumps to All / Business / etc.
+  useEffect(() => {
+    setKindleError(null);
+  }, [activeCategory.slug]);
+
+  const visibleFilteredCount = isSportTab
+    ? filteredSport.length
+    : filteredForSearch.length;
+  const totalPages = Math.max(1, Math.ceil(visibleFilteredCount / PAGE_SIZE));
   const safePage = Math.min(currentPage, totalPages);
   const pageItems = filteredForSearch.slice(
     (safePage - 1) * PAGE_SIZE,
     safePage * PAGE_SIZE,
   );
+  const pageSportItems = filteredSport.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE,
+  );
+
+  const sportListReturnTo = "/news?category=sport";
+
+  const downloadSportKindleEpub = useCallback(async () => {
+    if (!isSportTab || filteredSport.length === 0) return;
+    setKindleError(null);
+    setKindleBusy(true);
+    try {
+      const articles = await fetchGuardianArticlesForKindleEpub(
+        filteredSport,
+        3,
+        GUARDIAN_KINDLE_EPUB_MAX_ARTICLES,
+      );
+      const day = new Date().toISOString().slice(0, 10);
+      const bookTitle = `Guardian Sport — ${day}`;
+      const blob = await buildGuardianListEpubBlob(articles, bookTitle);
+      const safeDay = day.replace(/-/g, "");
+      triggerEpubDownload(blob, `guardian-sport-${safeDay}.epub`);
+    } catch {
+      setKindleError(t("dailyNewsSportKindleError"));
+    } finally {
+      setKindleBusy(false);
+    }
+  }, [isSportTab, filteredSport, t]);
 
   const { featured, spotlights, gridItems } = useMemo(() => {
     const list = pageItems;
-    const useFeatured = isAllTab && safePage === 1 && !searchQuery.trim() && list.length > 0;
+    const useFeatured =
+      isAllTab &&
+      !isSportTab &&
+      safePage === 1 &&
+      !searchQuery.trim() &&
+      list.length > 0;
     if (!useFeatured) {
       return {
         featured: null as EngooListCard | null,
@@ -562,11 +784,14 @@ export function EngooDailyNewsHomeInner({
       spotlights: list.slice(1, 3),
       gridItems: list.length > 3 ? list.slice(3) : [],
     };
-  }, [pageItems, isAllTab, searchQuery, safePage]);
+  }, [pageItems, isAllTab, isSportTab, searchQuery, safePage]);
 
-  const emptyAfterLoad = !listLoading && !error && allItems.length === 0;
-  const listHadDataButNoneVisible =
-    !listLoading && filteredForSearch.length === 0 && allItems.length > 0;
+  const emptyAfterLoad = isSportTab
+    ? !sportLoading && !sportError && !sportNoKey && sportItems.length === 0
+    : !listLoading && !error && allItems.length === 0;
+  const listHadDataButNoneVisible = isSportTab
+    ? !sportLoading && filteredSport.length === 0 && sportItems.length > 0
+    : !listLoading && filteredForSearch.length === 0 && allItems.length > 0;
   const emptySearch = listHadDataButNoneVisible;
 
   const showMoreStoriesBand =
@@ -585,20 +810,52 @@ export function EngooDailyNewsHomeInner({
               {t("dailyNewsPageTitle")}
             </h1>
           </div>
-          <label className="flex w-full max-w-md items-center gap-2 rounded-xl border border-zinc-200/90 bg-zinc-50/90 px-3 py-2.5 shadow-inner shadow-zinc-200/20 sm:w-auto dark:border-zinc-600 dark:bg-zinc-950/50 dark:shadow-none">
-            <Search
-              className="h-4 w-4 shrink-0 text-zinc-400 dark:text-zinc-500"
-              aria-hidden
-            />
-            <input
-              type="search"
-              placeholder={t("dailyNewsSearchPlaceholder")}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="min-w-0 flex-1 bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus-visible:ring-0 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-            />
-          </label>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[22rem] sm:flex-row sm:items-stretch sm:gap-3">
+            <label className="flex w-full flex-1 items-center gap-2 rounded-xl border border-zinc-200/90 bg-zinc-50/90 px-3 py-2.5 shadow-inner shadow-zinc-200/20 dark:border-zinc-600 dark:bg-zinc-950/50 dark:shadow-none">
+              <Search
+                className="h-4 w-4 shrink-0 text-zinc-400 dark:text-zinc-500"
+                aria-hidden
+              />
+              <input
+                type="search"
+                placeholder={t("dailyNewsSearchPlaceholder")}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="min-w-0 flex-1 bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus-visible:ring-0 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+              />
+            </label>
+            {isSportTab &&
+            !sportLoading &&
+            !sportNoKey &&
+            filteredSport.length > 0 ? (
+              <div className="flex w-full flex-col gap-1 sm:w-auto sm:shrink-0">
+                <button
+                  type="button"
+                  onClick={() => void downloadSportKindleEpub()}
+                  disabled={kindleBusy}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-rose-900 shadow-sm transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-800/80 dark:bg-zinc-900 dark:text-rose-100 dark:hover:bg-rose-950/40 sm:w-auto sm:whitespace-nowrap"
+                >
+                  {kindleBusy ? (
+                    <Loader2
+                      className="h-4 w-4 shrink-0 animate-spin"
+                      aria-hidden
+                    />
+                  ) : (
+                    <BookDown className="h-4 w-4 shrink-0" aria-hidden />
+                  )}
+                  {kindleBusy
+                    ? t("dailyNewsSportKindleBuilding")
+                    : t("dailyNewsSportKindleDownload")}
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
+        {isSportTab && kindleError ? (
+          <p className="border-t border-rose-100/80 px-4 py-2 text-center text-sm text-red-600 dark:border-rose-900/40 dark:text-red-400 sm:px-6">
+            {kindleError}
+          </p>
+        ) : null}
         <nav
           className="flex gap-0.5 overflow-x-auto border-t border-zinc-100/90 bg-zinc-50/40 px-2 pb-1.5 pt-2 [-ms-overflow-style:none] [scrollbar-width:none] dark:border-zinc-800 dark:bg-zinc-950/30 sm:gap-1 sm:px-4 [&::-webkit-scrollbar]:hidden"
           aria-label="Categories"
@@ -635,13 +892,61 @@ export function EngooDailyNewsHomeInner({
       />
 
       <main className="mx-auto mt-8 max-w-6xl px-1 sm:mt-10 sm:px-0">
-        {error ? (
+        {isSportTab && sportNoKey ? (
+          <p className="mb-6 rounded-xl border border-amber-200/90 bg-amber-50/90 px-4 py-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
+            {t("dailyNewsGuardianNoKey")}
+          </p>
+        ) : null}
+        {isSportTab ? (
+          sportError ? (
+            <p className="mb-4 text-center text-sm text-red-600 dark:text-red-400">
+              {sportError}
+            </p>
+          ) : null
+        ) : error ? (
           <p className="mb-4 text-center text-sm text-red-600 dark:text-red-400">
             {error}
           </p>
         ) : null}
 
-        {listLoading ? (
+        {isSportTab ? (
+          sportLoading ? (
+            <HomeSkeleton layout="category" />
+          ) : emptyAfterLoad ? (
+            <p className="py-20 text-center text-zinc-500 dark:text-zinc-400">
+              {t("dailyNewsSportEmpty")}
+            </p>
+          ) : emptySearch ? (
+            <p className="py-20 text-center text-zinc-500 dark:text-zinc-400">
+              No articles match your search.
+            </p>
+          ) : (
+            <section className="space-y-6">
+              <h2 className="flex items-center gap-2 font-serif text-xl font-bold tracking-tight text-zinc-800 dark:text-zinc-100 sm:text-2xl">
+                <Tag
+                  className="h-5 w-5 shrink-0 text-rose-500/80 dark:text-rose-400/80"
+                  aria-hidden
+                />
+                {activeCategory.label}
+              </h2>
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {pageSportItems.map((item) => (
+                  <div key={item.id} className="min-w-0">
+                    <GuardianSportCard
+                      item={item}
+                      returnTo={sportListReturnTo}
+                    />
+                  </div>
+                ))}
+              </div>
+              <Pagination
+                currentPage={safePage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+              />
+            </section>
+          )
+        ) : listLoading ? (
           <HomeSkeleton layout={isAllTab ? "featured" : "category"} />
         ) : emptyAfterLoad ? (
           <p className="py-20 text-center text-zinc-500 dark:text-zinc-400">

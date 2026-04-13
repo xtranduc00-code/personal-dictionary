@@ -12,7 +12,7 @@ import { useAuth } from "@/lib/auth-context";
 /** All app features available as daily task options */
 const FEATURE_OPTIONS: { label: string; labelVi: string; href: string }[] = [
   { label: "Read Engoo", labelVi: "Đọc Engoo", href: "/news" },
-  { label: "Read Guardian", labelVi: "Đọc Guardian", href: "/news?src=guardian" },
+  { label: "Read Sport", labelVi: "Đọc thể thao", href: "/news?category=sport" },
   { label: "10 Flashcards", labelVi: "10 Flashcards", href: "/flashcards" },
   { label: "IELTS Listening", labelVi: "IELTS Listening", href: "/listening" },
   { label: "IELTS Reading", labelVi: "IELTS Reading", href: "/ielts-reading" },

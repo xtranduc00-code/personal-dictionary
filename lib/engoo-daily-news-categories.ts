@@ -18,6 +18,11 @@ export const ENGOO_DAILY_NEWS_CATEGORIES = [
   { slug: "health-lifestyle", label: "Health & Lifestyle" },
   { slug: "culture-society", label: "Culture & Society" },
   { slug: "travel-experiences", label: "Travel & Experiences" },
+  // "sport" is an out-of-band tab: its articles come from the Guardian Sport
+  // feed, not Engoo's lesson_headers. The Engoo list API treats this slug as
+  // "all" + never matches a topic, so filtering stays a client-side branch
+  // inside `EngooDailyNewsHomeInner`.
+  { slug: "sport", label: "Sport" },
 ] as const;
 
 export type EngooDailyNewsCategoryDef = (typeof ENGOO_DAILY_NEWS_CATEGORIES)[number];

@@ -302,11 +302,8 @@ export function HBRDailyNewsPanel({
                 <div className="flex flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:pb-5">
                     <div className="border-l-4 border-l-rose-600 pl-3 dark:border-l-rose-500">
                         <h1 className="text-2xl font-extrabold tracking-tight text-zinc-900 sm:text-3xl dark:text-zinc-50">
-                            {t("dailyNewsPageTitle")}
-                        </h1>
-                        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
                             {t("dailyNewsSourceHBR")}
-                        </p>
+                        </h1>
                     </div>
                     <label className="flex w-full flex-1 items-center gap-2 rounded-xl border border-zinc-200/90 bg-zinc-50/90 px-3 py-2.5 shadow-inner shadow-zinc-200/20 sm:w-auto sm:min-w-[22rem] sm:flex-none dark:border-zinc-600 dark:bg-zinc-950/50 dark:shadow-none">
                         <Search

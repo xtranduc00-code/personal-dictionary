@@ -35,35 +35,33 @@ async function fetchHbrInitial(): Promise<RssItem[] | null> {
 export default async function NewsIndexPage({
   searchParams,
 }: {
-  searchParams: Promise<{ src?: string; gtab?: string; category?: string }>;
+  searchParams: Promise<{ src?: string; category?: string }>;
 }) {
   const params = await searchParams;
-  const isGuardian = params.src === "guardian";
   const isHBR = params.src === "hbr";
-  const guardianTab: "news" | "sport" =
-    params.gtab === "sport" ? "sport" : "news";
+  const isSport = params.category === "sport";
 
-  let guardianNewsInitial: GuardianListItem[] | null = null;
   let guardianSportInitial: GuardianListItem[] | null = null;
   let engooInitial: EngooListApiResponse | null = null;
   let hbrInitial: RssItem[] | null = null;
 
-  if (isGuardian) {
-    if (guardianTab === "sport") {
-      guardianSportInitial = await fetchGuardianListItems("sport", 50).catch(() => null);
-    } else {
-      guardianNewsInitial = await fetchGuardianListItems("world", 50).catch(() => null);
-    }
-  } else if (isHBR) {
+  if (isHBR) {
     hbrInitial = await fetchHbrInitial();
+  } else if (isSport) {
+    guardianSportInitial = await fetchGuardianListItems("sport", 50).catch(
+      () => null,
+    );
   } else {
     engooInitial = await fetchEngooDefaultItems(30).catch(() => null);
   }
 
   return (
-    <Suspense fallback={<HomeSkeleton layout={isGuardian || isHBR ? "category" : "featured"} />}>
+    <Suspense
+      fallback={
+        <HomeSkeleton layout={isHBR || isSport ? "category" : "featured"} />
+      }
+    >
       <DailyNewsHub
-        guardianNewsInitial={guardianNewsInitial}
         guardianSportInitial={guardianSportInitial}
         engooInitial={engooInitial}
         hbrInitial={hbrInitial}

@@ -38,10 +38,10 @@ function wrapRangeWithMark(range: Range): HTMLElement | null {
 
 function safeReturnTo(raw: string | null): string {
   if (!raw || !raw.startsWith("/") || raw.startsWith("//")) {
-    return "/news?src=guardian";
+    return "/news?category=sport";
   }
   if (raw === "/") {
-    return "/news?src=guardian";
+    return "/news?category=sport";
   }
   if (raw.startsWith("/?")) {
     return `/news${raw.slice(1)}`;
