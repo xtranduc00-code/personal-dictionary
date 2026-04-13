@@ -1,38 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
 import Link from "next/link";
 import {
   ChevronDown, Circle, CheckCircle2, Flame, Loader2,
-  Settings2, Plus, Trash2, Check, X, ListChecks,
+  ListChecks, Sparkles,
 } from "lucide-react";
-import { useDailyTasks, type TaskTemplate } from "./daily-tasks-context";
+import { useDailyTasks } from "./daily-tasks-context";
 import { useAuth } from "@/lib/auth-context";
-
-/** All app features available as daily task options */
-const FEATURE_OPTIONS: { label: string; labelVi: string; href: string }[] = [
-  { label: "Read Engoo", labelVi: "Đọc Engoo", href: "/news" },
-  { label: "Read Sport", labelVi: "Đọc thể thao", href: "/news?category=sport" },
-  { label: "10 Flashcards", labelVi: "10 Flashcards", href: "/flashcards" },
-  { label: "IELTS Listening", labelVi: "IELTS Listening", href: "/listening" },
-  { label: "IELTS Reading", labelVi: "IELTS Reading", href: "/ielts-reading" },
-  { label: "IELTS Writing", labelVi: "IELTS Writing", href: "/ielts-writing" },
-  { label: "IELTS Speaking", labelVi: "IELTS Speaking", href: "/ielts-speaking" },
-  { label: "Chess Puzzles", labelVi: "Chess Puzzles", href: "/chess" },
-  { label: "Study Kit", labelVi: "Study Kit", href: "/study-kit" },
-  { label: "Watch Together", labelVi: "Xem cùng nhau", href: "/watch" },
-  { label: "YouTube Videos", labelVi: "YouTube Videos", href: "/videos" },
-  { label: "Dictionary", labelVi: "Từ điển", href: "/dictionary" },
-  { label: "Translate", labelVi: "Dịch", href: "/translate" },
-  { label: "Notes", labelVi: "Ghi chú", href: "/notes" },
-  { label: "Diary", labelVi: "Nhật ký", href: "/notes/diary" },
-  { label: "Calendar", labelVi: "Lịch", href: "/calendar" },
-];
-
-/** Derive a stable task ID from a feature href */
-function hrefToId(href: string): string {
-  return href.replace(/^\//, "").replace(/[/?=&]/g, "_") || "home";
-}
+import { COUNTER_TASKS } from "./daily-tasks-auto-detect";
 
 export function DailyTasksSidebar({
   isOpen,
@@ -46,10 +21,7 @@ export function DailyTasksSidebar({
   onLinkClick?: () => void;
 }) {
   const { user } = useAuth();
-  const { templates, tasks, streak, loading, markTask, unmarkTask, saveTemplates } = useDailyTasks();
-  const [editing, setEditing] = useState(false);
-  const [editDraft, setEditDraft] = useState<TaskTemplate[]>([]);
-  const [showAdd, setShowAdd] = useState(false);
+  const { templates, tasks, streak, loading, counters, markTask, unmarkTask } = useDailyTasks();
   const isVi = locale === "vi";
 
   if (!user) return null;
@@ -58,38 +30,6 @@ export function DailyTasksSidebar({
   const total = templates.length;
   const progressPct = total > 0 ? (doneCount / total) * 100 : 0;
   const allDone = doneCount === total && total > 0;
-
-  function startEditing() {
-    setEditDraft(templates.map((t) => ({ ...t })));
-    setEditing(true);
-    setShowAdd(false);
-  }
-
-  function doSave() {
-    saveTemplates(editDraft);
-    setEditing(false);
-  }
-
-  function doCancel() {
-    setEditing(false);
-    setEditDraft([]);
-    setShowAdd(false);
-  }
-
-  function removeDraft(id: string) {
-    setEditDraft((prev) => prev.filter((t) => t.id !== id));
-  }
-
-  function addFeature(feat: { label: string; labelVi: string; href: string }) {
-    const id = hrefToId(feat.href);
-    if (editDraft.some((t) => t.id === id)) return;
-    setEditDraft((prev) => [...prev, { id, label: isVi ? feat.labelVi : feat.label, href: feat.href }]);
-    setShowAdd(false);
-  }
-
-  const availableFeatures = FEATURE_OPTIONS.filter(
-    (f) => !editDraft.some((t) => t.id === hrefToId(f.href))
-  );
 
   /* ── Row style tokens (matching other nav sections) ── */
   const rowBase = "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200";
@@ -100,8 +40,10 @@ export function DailyTasksSidebar({
     <div className="flex shrink-0 flex-col gap-0.5">
       {/* ── Section header — matches NavSectionHeader pattern ── */}
       <div className={[
-        "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
-        "text-zinc-500 hover:bg-zinc-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+        "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-300",
+        allDone
+          ? "bg-gradient-to-r from-emerald-50/80 via-emerald-50/60 to-transparent text-emerald-700 ring-1 ring-emerald-200/60 dark:from-emerald-900/30 dark:via-emerald-900/15 dark:to-transparent dark:text-emerald-300 dark:ring-emerald-700/40"
+          : "text-zinc-500 hover:bg-zinc-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
       ].join(" ")}>
         <button
           type="button"
@@ -110,56 +52,49 @@ export function DailyTasksSidebar({
         >
           <span className={[
             "flex h-10 w-10 items-center justify-center rounded-xl transition",
-            "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
+            allDone
+              ? "bg-emerald-500 text-white shadow-sm shadow-emerald-400/40 dark:bg-emerald-600 dark:shadow-emerald-900/40"
+              : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
           ].join(" ")}>
-            <ListChecks className="h-5 w-5" />
+            {allDone ? <Sparkles className="h-5 w-5" /> : <ListChecks className="h-5 w-5" />}
           </span>
         </button>
 
-        <span className="min-w-0 flex-1 select-none text-left text-base font-medium">
-          {isVi ? "Nhiệm vụ hôm nay" : "Daily Tasks"}
+        <span className={`min-w-0 flex-1 select-none text-left text-base font-medium ${allDone ? "font-semibold" : ""}`}>
+          {allDone
+            ? (isVi ? "Đã hết nhiệm vụ!" : "All done today!")
+            : (isVi ? "Nhiệm vụ hôm nay" : "Daily Tasks")}
         </span>
 
         {/* Progress + streak badges */}
-        {!editing && (
-          <div className="flex items-center gap-1.5">
-            {streak > 0 && (
-              <span className="flex items-center gap-0.5 text-[11px] font-bold text-orange-500">
-                <Flame className="h-3.5 w-3.5" />
-                {streak}
-              </span>
-            )}
-            <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${
-              allDone
-                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
-                : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
-            }`}>
-              {doneCount}/{total}
-            </span>
-          </div>
-        )}
-
-        {/* Edit / Save / Cancel buttons */}
-        {isOpen && !editing && (
-          <button
-            type="button"
-            onClick={startEditing}
-            title={isVi ? "Chỉnh sửa" : "Edit tasks"}
-            className="shrink-0 rounded-lg p-1.5 text-zinc-300 transition hover:text-zinc-500 dark:text-zinc-600 dark:hover:text-zinc-400"
+        <div className="flex items-center gap-1.5">
+          <span
+            title={isVi ? `Chuỗi ${streak} ngày` : `${streak}-day streak`}
+            className={[
+              "flex items-center gap-1 rounded-full px-2 py-1 text-[12px] font-bold tabular-nums transition-all",
+              streak >= 30
+                ? "bg-gradient-to-r from-rose-500 via-orange-500 to-amber-400 text-white shadow-md shadow-orange-400/50 dark:shadow-rose-900/50"
+                : streak >= 7
+                  ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-sm shadow-orange-300/50 dark:shadow-rose-900/40"
+                  : streak >= 3
+                    ? "bg-orange-100 text-orange-600 ring-1 ring-orange-200 dark:bg-orange-900/40 dark:text-orange-300 dark:ring-orange-800/60"
+                    : streak >= 1
+                      ? "bg-orange-50 text-orange-500 dark:bg-orange-900/25 dark:text-orange-400"
+                      : "bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500",
+              streak >= 7 ? "animate-pulse" : "",
+            ].join(" ")}
           >
-            <Settings2 className="h-4 w-4" />
-          </button>
-        )}
-        {isOpen && editing && (
-          <div className="flex shrink-0 gap-0.5">
-            <button type="button" onClick={doSave} title="Save" className="rounded-lg p-1.5 text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
-              <Check className="h-4 w-4" />
-            </button>
-            <button type="button" onClick={doCancel} title="Cancel" className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        )}
+            <Flame className={`h-4 w-4 ${streak === 0 ? "" : streak >= 7 ? "drop-shadow-[0_0_4px_rgba(255,140,0,0.7)]" : ""}`} fill={streak >= 3 ? "currentColor" : "none"} />
+            <span>{streak}</span>
+          </span>
+          <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${
+            allDone
+              ? "bg-emerald-500 text-white dark:bg-emerald-600"
+              : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+          }`}>
+            {doneCount}/{total}
+          </span>
+        </div>
 
         <button
           type="button"
@@ -171,7 +106,7 @@ export function DailyTasksSidebar({
       </div>
 
       {/* ── Progress bar ── */}
-      {isOpen && !editing && total > 0 && (
+      {isOpen && total > 0 && (
         <div className="mx-4 mb-1 h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800">
           <div
             className={`h-full rounded-full transition-all duration-500 ${
@@ -190,55 +125,8 @@ export function DailyTasksSidebar({
         </div>
       )}
 
-      {/* ── Edit mode ── */}
-      {isOpen && editing && (
-        <div className="space-y-0.5 pl-2">
-          {editDraft.map((t) => (
-            <div key={t.id} className={`${rowBase} border-l-2 border-transparent pl-8 justify-between`}>
-              <span className="flex-1 truncate text-zinc-700 dark:text-zinc-300">{t.label}</span>
-              <button
-                type="button"
-                onClick={() => removeDraft(t.id)}
-                className="shrink-0 rounded-lg p-1 text-zinc-300 transition hover:text-red-500 dark:text-zinc-600 dark:hover:text-red-400"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          ))}
-
-          {showAdd ? (
-            <div className="mx-4 max-h-48 overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
-              {availableFeatures.length === 0 ? (
-                <p className="px-3 py-2 text-sm text-zinc-400">{isVi ? "Đã thêm hết" : "All added"}</p>
-              ) : (
-                availableFeatures.map((f) => (
-                  <button
-                    key={f.href}
-                    type="button"
-                    onClick={() => addFeature(f)}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 transition hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                  >
-                    <Plus className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
-                    {isVi ? f.labelVi : f.label}
-                  </button>
-                ))
-              )}
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setShowAdd(true)}
-              className={`${rowBase} border-l-2 border-transparent pl-8 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300`}
-            >
-              <Plus className="h-4 w-4 shrink-0" />
-              <span>{isVi ? "Thêm nhiệm vụ" : "Add task"}</span>
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* ── Normal mode — task list ── */}
-      {isOpen && !editing && (
+      {/* ── Task list ── */}
+      {isOpen && (
         <div className="space-y-0.5 pl-2">
           {loading ? (
             <div className="flex justify-center py-4">
@@ -246,12 +134,14 @@ export function DailyTasksSidebar({
             </div>
           ) : total === 0 ? (
             <p className="px-8 py-3 text-sm text-zinc-400 dark:text-zinc-500">
-              {isVi ? "Bấm ⚙ để thêm nhiệm vụ" : "Tap ⚙ to add tasks"}
+              {isVi ? "Chưa có nhiệm vụ" : "No tasks"}
             </p>
           ) : (
             templates.map((tmpl) => {
               const task = tasks.find((t) => t.taskKey === tmpl.id);
               const done = !!task?.completedAt;
+              const counterCfg = COUNTER_TASKS[tmpl.id];
+              const counterValue = counterCfg ? Math.min(counters[counterCfg.counterKey] ?? 0, counterCfg.threshold) : null;
 
               return (
                 <div key={tmpl.id} className={`${rowBase} ${done ? rowDone : rowIdle}`}>
@@ -276,6 +166,12 @@ export function DailyTasksSidebar({
                   >
                     {tmpl.label}
                   </Link>
+
+                  {counterCfg && !done && (
+                    <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                      {counterValue}/{counterCfg.threshold}
+                    </span>
+                  )}
                 </div>
               );
             })

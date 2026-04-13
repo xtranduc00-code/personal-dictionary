@@ -2,12 +2,12 @@ import { addMinutes } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { getCalendarEventStorageTimeZone } from "@/lib/calendar/event-start-utc";
 
-/** Same as calendar event wall clock: push bodies show this zone (default Europe/Prague). */
+/** Same as calendar event wall clock: push bodies show this zone (default Asia/Ho_Chi_Minh). */
 export function getPushNotificationTimeZone(): string {
   return getCalendarEventStorageTimeZone();
 }
 
-/** One line for a timed calendar event start (Czech/storage TZ). */
+/** One line for a timed calendar event start (storage TZ). */
 export function formatPushEventStartLabel(startUtc: Date, tz: string): string {
   return formatInTimeZone(startUtc, tz, "yyyy-MM-dd HH:mm");
 }

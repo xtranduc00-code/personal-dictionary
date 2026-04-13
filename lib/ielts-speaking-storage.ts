@@ -266,6 +266,11 @@ export async function addTopicVocabItem(topicId: string, word: string, explanati
         explanation: explanation?.trim() ?? "",
         example: example?.trim() ?? "",
     });
+    if (typeof window !== "undefined") {
+        import("@/components/daily-tasks/daily-tasks-auto-detect")
+            .then(({ incrementVocabCounter }) => incrementVocabCounter())
+            .catch(() => {});
+    }
 }
 export async function updateTopicVocabItem(topicId: string, index: number, word: string, explanation?: string, example?: string): Promise<void> {
     await patchJson(`${API}/topics/${topicId}/vocab`, {

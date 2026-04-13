@@ -12,7 +12,7 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { authFetch, useAuth } from "@/lib/auth-context";
-import { markDailyTask } from "@/components/daily-tasks/daily-tasks-auto-detect";
+import { incrementChessPuzzleCounter } from "@/components/daily-tasks/daily-tasks-auto-detect";
 import { supabase } from "@/lib/supabase";
 import { createChessGame, getChessGame, joinChessGame, updateChessGame, type ChessGame } from "@/lib/chess-storage";
 import { useMeetCall } from "@/lib/meet-call-context";
@@ -3052,7 +3052,7 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
       playSound("notify", muted);
       fetchExplanation();
       void recordLibraryProgressIfNeeded(libraryWrongAttemptsRef.current + 1);
-      markDailyTask("chess_puzzles_5");
+      incrementChessPuzzleCounter();
       return true;
     }
 

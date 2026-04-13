@@ -157,6 +157,11 @@ export function SmartReaderClient() {
                 }
                 setArticle(json);
                 markRead(url);
+                if (src === "hbr") {
+                    import("@/components/daily-tasks/daily-tasks-auto-detect")
+                        .then(({ markDailyTask }) => markDailyTask("read_hbr"))
+                        .catch(() => {});
+                }
             } catch (e) {
                 if (!ctrl.signal.aborted) {
                     setError(e instanceof Error ? e.message : "Network error");

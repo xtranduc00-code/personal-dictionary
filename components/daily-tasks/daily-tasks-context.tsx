@@ -16,6 +16,7 @@ type DailyTasksState = {
   tasks: DailyTask[];
   streak: number;
   loading: boolean;
+  counters: Record<string, number>;
   markTask: (key: string, autoDetected?: boolean) => Promise<void>;
   unmarkTask: (key: string) => Promise<void>;
   refresh: () => Promise<void>;
@@ -27,6 +28,7 @@ const Ctx = createContext<DailyTasksState>({
   tasks: [],
   streak: 0,
   loading: true,
+  counters: {},
   markTask: async () => {},
   unmarkTask: async () => {},
   refresh: async () => {},
@@ -48,6 +50,7 @@ export function DailyTasksProvider({ children }: { children: React.ReactNode }) 
   const [tasks, setTasks] = useState<DailyTask[]>([]);
   const [streak, setStreak] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [counters, setCounters] = useState<Record<string, number>>({});
   const dateRef = useRef(localDate());
   const templatesRef = useRef<TaskTemplate[]>([]);
 
@@ -84,21 +87,39 @@ export function DailyTasksProvider({ children }: { children: React.ReactNode }) 
     finally { setLoading(false); }
   }, [user]);
 
+  // Fetch today's counters (server-backed, cross-device)
+  const fetchCounters = useCallback(async () => {
+    if (!user) { setCounters({}); return; }
+    try {
+      const date = localDate();
+      const res = await authFetch(`/api/daily-tasks/counters?date=${date}`);
+      if (res.ok) {
+        const data = await res.json() as { counters: Record<string, number> };
+        setCounters(data.counters ?? {});
+      }
+    } catch { /* ignore */ }
+  }, [user]);
+
   // Load on mount
   useEffect(() => {
-    if (!user) { setTemplates([]); setTasks([]); setLoading(false); return; }
+    if (!user) { setTemplates([]); setTasks([]); setCounters({}); setLoading(false); return; }
     (async () => {
       const tmpls = await fetchTemplates();
-      await fetchTasks(tmpls);
+      await Promise.all([fetchTasks(tmpls), fetchCounters()]);
     })();
-  }, [user, fetchTemplates, fetchTasks]);
+  }, [user, fetchTemplates, fetchTasks, fetchCounters]);
 
   // Midnight reset
   useEffect(() => {
-    const check = () => { if (localDate() !== dateRef.current) fetchTasks(); };
+    const check = () => {
+      if (localDate() !== dateRef.current) {
+        fetchTasks();
+        fetchCounters();
+      }
+    };
     const id = setInterval(check, 30_000);
     return () => clearInterval(id);
-  }, [fetchTasks]);
+  }, [fetchTasks, fetchCounters]);
 
   // Auto-detection events
   useEffect(() => {
@@ -111,6 +132,17 @@ export function DailyTasksProvider({ children }: { children: React.ReactNode }) 
     };
     window.addEventListener("daily-task-auto-detected", handler);
     return () => window.removeEventListener("daily-task-auto-detected", handler);
+  }, []);
+
+  // Counter updates from auto-detect (after server increments)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { counterKey, value } = (e as CustomEvent).detail ?? {};
+      if (typeof counterKey !== "string" || typeof value !== "number") return;
+      setCounters((prev) => ({ ...prev, [counterKey]: value }));
+    };
+    window.addEventListener("daily-counter-updated", handler);
+    return () => window.removeEventListener("daily-counter-updated", handler);
   }, []);
 
   const markTask = useCallback(async (key: string, autoDetected = false) => {
@@ -157,8 +189,8 @@ export function DailyTasksProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   const value = useMemo(() => ({
-    templates, tasks, streak, loading, markTask, unmarkTask, refresh: fetchTasks, saveTemplates,
-  }), [templates, tasks, streak, loading, markTask, unmarkTask, fetchTasks, saveTemplates]);
+    templates, tasks, streak, loading, counters, markTask, unmarkTask, refresh: fetchTasks, saveTemplates,
+  }), [templates, tasks, streak, loading, counters, markTask, unmarkTask, fetchTasks, saveTemplates]);
 
   return (
     <Ctx.Provider value={value}>

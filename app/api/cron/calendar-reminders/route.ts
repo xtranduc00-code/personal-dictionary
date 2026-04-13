@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { runCalendarReminderSweep } from "@/lib/push/send-calendar-reminder";
 import { runStudyScheduleReminderSweep } from "@/lib/push/send-study-schedule-reminder";
 import { runVocabReminderSweep } from "@/lib/push/send-vocab-reminder";
+import { runDailyTasksReminderSweep } from "@/lib/push/send-daily-tasks-reminder";
 import { getSiteUrl } from "@/lib/site-url";
 import { getSupabaseServiceClient } from "@/lib/supabase-server";
 
@@ -39,7 +40,7 @@ export async function GET(req: Request) {
     }
     const siteUrl = getSiteUrl();
     // Isolated sweeps: one throwing (DB blip, bad row) must not take down the others.
-    const [calendar, studySchedule, vocab] = await Promise.all([
+    const [calendar, studySchedule, vocab, dailyTasks] = await Promise.all([
       runCalendarReminderSweep(db, siteUrl).catch((e) => {
         console.error("calendar-reminders: calendar sweep", e);
         return { checked: 0, sent: 0, errors: 0 };
@@ -52,15 +53,20 @@ export async function GET(req: Request) {
         console.error("calendar-reminders: vocab sweep", e);
         return { sent: 0, errors: 0, skipped: `error: ${e instanceof Error ? e.message : String(e)}` };
       }),
+      runDailyTasksReminderSweep(db, siteUrl).catch((e) => {
+        console.error("calendar-reminders: daily-tasks sweep", e);
+        return { sent: 0, errors: 0, skipped: `error: ${e instanceof Error ? e.message : String(e)}` };
+      }),
     ]);
     return NextResponse.json({
       ok: true,
       checked: calendar.checked + studySchedule.checked,
-      sent: calendar.sent + studySchedule.sent + vocab.sent,
-      errors: calendar.errors + studySchedule.errors + vocab.errors,
+      sent: calendar.sent + studySchedule.sent + vocab.sent + dailyTasks.sent,
+      errors: calendar.errors + studySchedule.errors + vocab.errors + dailyTasks.errors,
       calendar,
       studySchedule,
       vocab,
+      dailyTasks,
     });
   } catch (e) {
     console.error("calendar-reminders cron", e);

@@ -371,11 +371,11 @@ export const translations = {
     studyScheduleNextYear: "Next year",
     studyScheduleTzLabel: "Times shown in",
     studyScheduleTzVN: "Vietnam",
-    studyScheduleTzLocal: "Czechia",
+    studyScheduleTzLocal: "Local",
     studyScheduleTzHint:
-      "Data is saved in Vietnam calendar dates and 30-minute Vietnam slots. Czechia mode still shows 48 rows for one calendar day, 00:00–24:00 in your browser’s time zone; each row maps to the matching Vietnam slot for load/save.",
+      "Data is saved in Vietnam calendar dates and 30-minute Vietnam slots. Local mode shows 48 rows for one calendar day, 00:00–24:00 in your browser's time zone; each row maps to the matching Vietnam slot for load/save.",
     studyScheduleFooterHint:
-      "Saved on the server for everyone signed in • Vietnam: 48 rows = one Vietnam day (VN slot keys) • Czechia: 48 rows = one local day (labels in your TZ; cells map to VN keys) • Columns 1–3 share one person per time; columns 4–5 share another • Past slots (by real end time in VN) are locked • Click/drag with the brushes above • Double-click headers to rename • CSV matches the grid you see",
+      "Saved on the server for everyone signed in • Vietnam: 48 rows = one Vietnam day (VN slot keys) • Local: 48 rows = one local day (labels in your TZ; cells map to VN keys) • Columns 1–3 share one person per time; columns 4–5 share another • Past slots (by real end time in VN) are locked • Click/drag with the brushes above • Double-click headers to rename • CSV matches the grid you see",
     studyScheduleLoadFailed: "Could not load the shared schedule. Try again.",
     studyScheduleSaveFailed:
       "Could not save. Check your connection and try again.",
@@ -629,7 +629,7 @@ export const translations = {
     calendarTimePlaceholder: "HH:MM",
     calendarTzLabel: "Time conversion (optional)",
     calendarTzHint:
-      "Start/end are interpreted as Vietnam local time, then stored in the calendar storage timezone for reminders (same as Czech storage by default).",
+      "Start/end are interpreted as Vietnam local time, then stored in the calendar storage timezone for reminders.",
     calendarNotesLabel: "Notes",
     calendarNotesOptional: "(optional)",
     calendarNotesPlaceholder: "e.g. Location, meeting link…",
@@ -639,7 +639,7 @@ export const translations = {
     calendarValidationPast: "Start time cannot be in the past.",
     calendarValidationEnd: "End must be after start.",
     calendarTzNoConversion: "No conversion (default)",
-    calendarTzVN: "Convert Vietnam time → Czech time",
+    calendarTzVN: "Vietnam time → storage",
     calendarSearchNoResults: "No events match your search.",
     calendarSearchEmpty: "No events yet.",
     calendarStatusEnded: "Ended",
@@ -1343,7 +1343,7 @@ export const translations = {
     aboutBody1:
       "I focus on fullstack development and AI-driven applications. I built an IELTS learning platform with realtime voice interaction, scoring, and feedback.",
     aboutBody2Location:
-      "Based in Brno, Czech Republic · MSc Information Technology @ Brno University of Technology",
+      "MSc Information Technology @ Brno University of Technology",
     aboutBody2Languages: "Languages: English, Vietnamese",
     aboutViewResume: "View Resume",
     aboutTechTitle: "Technical skills",
@@ -1396,7 +1396,7 @@ export const translations = {
     resumeTechTools: "Tools",
     resumeEdu1Year: "Feb 2026 – Present",
     resumeEdu1Title: "MSc Information Technology",
-    resumeEdu1School: "Brno University of Technology, Czech Republic",
+    resumeEdu1School: "Brno University of Technology",
     resumeEdu2Year: "2019 – 2023",
     resumeEdu2Title: "Bachelor of E-commerce",
     resumeEdu2School: "Vietnam National University",
@@ -1810,11 +1810,11 @@ export const translations = {
     studyScheduleNextYear: "Năm sau",
     studyScheduleTzLabel: "Hiển thị giờ",
     studyScheduleTzVN: "Việt Nam",
-    studyScheduleTzLocal: "Czechia",
+    studyScheduleTzLocal: "Máy",
     studyScheduleTzHint:
-      "Dữ liệu lưu theo ngày lịch Việt Nam và khung 30 phút VN. Chế độ Czechia vẫn 48 hàng cho một ngày lịch 00:00–24:00 theo timezone trình duyệt; mỗi hàng map sang đúng ô lưu trữ VN.",
+      "Dữ liệu lưu theo ngày lịch Việt Nam và khung 30 phút VN. Chế độ Máy vẫn 48 hàng cho một ngày lịch 00:00–24:00 theo timezone trình duyệt; mỗi hàng map sang đúng ô lưu trữ VN.",
     studyScheduleFooterHint:
-      "Lưu server • Việt Nam: 48 hàng = một ngày VN (khóa slot VN) • Czechia: 48 hàng = một ngày theo TZ máy (nhãn giờ địa phương, ô map sang VN) • 3 cột đầu cùng một người mỗi khung; 2 cột sau cùng một người • Khung đã qua (theo thời điểm kết thúc VN) khóa • Chọn tên trên và click/kéo ô • Double-click đổi tên • CSV đúng với lưới đang xem",
+      "Lưu server • Việt Nam: 48 hàng = một ngày VN (khóa slot VN) • Máy: 48 hàng = một ngày theo TZ máy (nhãn giờ địa phương, ô map sang VN) • 3 cột đầu cùng một người mỗi khung; 2 cột sau cùng một người • Khung đã qua (theo thời điểm kết thúc VN) khóa • Chọn tên trên và click/kéo ô • Double-click đổi tên • CSV đúng với lưới đang xem",
     studyScheduleLoadFailed: "Không tải được lịch chung. Thử lại.",
     studyScheduleSaveFailed: "Không lưu được. Kiểm tra mạng và thử lại.",
     studyScheduleRetry: "Thử lại",
@@ -2067,7 +2067,7 @@ export const translations = {
     calendarTimePlaceholder: "HH:MM",
     calendarTzLabel: "Quy đổi giờ (tuỳ chọn)",
     calendarTzHint:
-      "Giờ bắt đầu/kết thúc được hiểu theo giờ địa phương Việt Nam, rồi lưu theo múi lưu trữ lịch để nhắc (mặc định giống giờ Czech).",
+      "Giờ bắt đầu/kết thúc được hiểu theo giờ địa phương Việt Nam, rồi lưu theo múi lưu trữ lịch để nhắc.",
     calendarNotesLabel: "Ghi chú",
     calendarNotesOptional: "(tuỳ chọn)",
     calendarNotesPlaceholder: "vd. Địa điểm, link họp…",
@@ -2077,7 +2077,7 @@ export const translations = {
     calendarValidationPast: "Thời bắt đầu không được trong quá khứ.",
     calendarValidationEnd: "Kết thúc phải sau bắt đầu.",
     calendarTzNoConversion: "Không quy đổi (mặc định)",
-    calendarTzVN: "Giờ Việt Nam → giờ Czech",
+    calendarTzVN: "Giờ Việt Nam → lưu trữ",
     calendarSearchNoResults: "Không có sự kiện khớp tìm kiếm.",
     calendarSearchEmpty: "Chưa có sự kiện.",
     calendarStatusEnded: "Đã xong",

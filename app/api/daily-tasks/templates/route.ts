@@ -3,12 +3,11 @@ import { getAuthUser } from "@/lib/get-auth-user";
 import { supabaseForUserData } from "@/lib/supabase-server";
 
 const DEFAULT_TEMPLATES = [
-  { id: "read_engoo", label: "Read Engoo", href: "/news", sort_order: 0 },
-  { id: "read_guardian", label: "Read Sport", href: "/news?category=sport", sort_order: 1 },
-  { id: "flashcards_10", label: "10 Flashcards", href: "/flashcards", sort_order: 2 },
-  { id: "ielts_listening", label: "IELTS Listening", href: "/listening", sort_order: 3 },
-  { id: "ielts_speaking", label: "IELTS Speaking", href: "/ielts-speaking", sort_order: 4 },
-  { id: "chess_puzzles_5", label: "5 Chess Puzzles", href: "/chess", sort_order: 5 },
+  { id: "read_engoo", label: "Daily News", href: "/news", sort_order: 0 },
+  { id: "read_hbr", label: "1 HBR article", href: "/news?src=hbr", sort_order: 1 },
+  { id: "vocab_10", label: "5 vocab", href: "/flashcards", sort_order: 2 },
+  { id: "chess_puzzles_10", label: "10 Chess Puzzles", href: "/chess", sort_order: 3 },
+  { id: "diary_write", label: "Write diary", href: "/notes/diary", sort_order: 4 },
 ];
 
 /** GET — fetch user's task templates (seed defaults on first use) */
@@ -24,11 +23,36 @@ export async function GET(req: Request) {
     .eq("user_id", user.id)
     .order("sort_order", { ascending: true });
 
-  // First time: seed defaults
-  if (!rows || rows.length === 0) {
+  const needsSeed = !rows || rows.length === 0;
+  // Migrate users still on any legacy default id (one-shot: skips once new ids are present)
+  const LEGACY_IDS = new Set([
+    "chess_puzzles_5", "chess", "flashcards_10", "flashcards",
+    "ielts_listening", "listening", "ielts_speaking", "ielts-speaking",
+    "read_guardian", "news_category_sport",
+  ]);
+  const NEW_IDS = new Set(DEFAULT_TEMPLATES.map((t) => t.id));
+  const hasLegacy = !needsSeed && rows.some((r) => LEGACY_IDS.has(r.id));
+  const hasAnyNew = !needsSeed && rows.some((r) => NEW_IDS.has(r.id) && r.id !== "read_engoo");
+  const needsMigration = hasLegacy && !hasAnyNew;
+
+  if (needsSeed || needsMigration) {
+    if (needsMigration) {
+      await db.from("daily_task_templates").delete().eq("user_id", user.id);
+    }
     const seeds = DEFAULT_TEMPLATES.map((t) => ({ ...t, user_id: user.id }));
     await db.from("daily_task_templates").insert(seeds);
     return NextResponse.json(DEFAULT_TEMPLATES.map(({ id, label, href }) => ({ id, label, href })));
+  }
+
+  // In-place label refresh for `vocab_10` when still showing the old "10 vocab" label.
+  const staleVocab = rows.find((r) => r.id === "vocab_10" && r.label === "10 vocab");
+  if (staleVocab) {
+    await db
+      .from("daily_task_templates")
+      .update({ label: "5 vocab" })
+      .eq("user_id", user.id)
+      .eq("id", "vocab_10");
+    staleVocab.label = "5 vocab";
   }
 
   return NextResponse.json(rows.map(({ id, label, href }) => ({ id, label, href })));

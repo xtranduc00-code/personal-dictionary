@@ -655,6 +655,9 @@ export function DiaryNotesView() {
                 return sortDiaryEntriesNewestFirst([ent, ...rest]);
             });
             setSelectedId(ent.id);
+            import("@/components/daily-tasks/daily-tasks-auto-detect")
+                .then(({ markDailyTask }) => markDailyTask("diary_write"))
+                .catch(() => {});
         } catch {
             toast.error(t("notesSaveFailed"));
         } finally {

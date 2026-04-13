@@ -116,6 +116,9 @@ export async function addFlashcard(setId: string, word: string, definition: stri
         example: string;
         created_at: string;
     }>(res);
+    import("@/components/daily-tasks/daily-tasks-auto-detect")
+        .then(({ incrementVocabCounter }) => incrementVocabCounter())
+        .catch(() => {});
     return {
         id: r.id,
         setId: r.set_id,

@@ -12,7 +12,7 @@ export type ReminderFireSpec = {
   offsetMs: number;
   kind: string;
   title: string;
-  /** `whenLocal` = date/time string in push display TZ (e.g. Czech, from CALENDAR_EVENT_STORAGE_TIMEZONE). */
+  /** `whenLocal` = date/time string in push display TZ (from CALENDAR_EVENT_STORAGE_TIMEZONE). */
   calendarBody: (eventTitle: string, whenLocal: string) => string;
   scheduleBody: (
     booker: string,

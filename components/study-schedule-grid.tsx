@@ -670,10 +670,7 @@ export function StudyScheduleGrid() {
             nextByDate[dk] = normalizeDayCells(acc, rawDay);
         }
       }
-      const td: TimeDisplayTz =
-        data.timeDisplay === "local" || data.timeDisplay === "cz"
-          ? "local"
-          : "vn";
+      const td: TimeDisplayTz = "vn";
       setAccounts(acc);
       setByDate(nextByDate);
       setTimeDisplay(td);
@@ -888,8 +885,6 @@ export function StudyScheduleGrid() {
     URL.revokeObjectURL(url);
   };
 
-  const selectCls =
-    "h-9 appearance-none rounded-lg border border-zinc-200 bg-zinc-50 pl-3 pr-8 text-sm font-medium text-zinc-800 outline-none focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100";
   const dateInputCls =
     "h-9 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-100 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-zinc-400 dark:focus:ring-zinc-900/30";
   const thInputCls =
@@ -952,33 +947,6 @@ export function StudyScheduleGrid() {
           >
             <ChevronRight className="h-4 w-4" />
           </button>
-
-          <span
-            className="h-6 w-px shrink-0 bg-zinc-200 dark:bg-zinc-600"
-            aria-hidden
-          />
-
-          <label
-            htmlFor="study-schedule-tz"
-            className="shrink-0 text-xs font-medium whitespace-nowrap text-zinc-600 dark:text-zinc-400"
-          >
-            {t("studyScheduleTzLabel")}
-          </label>
-          <div className="relative min-w-[8.5rem] shrink-0">
-            <select
-              id="study-schedule-tz"
-              value={timeDisplay}
-              onChange={(e) =>
-                setTimeDisplay(e.target.value === "local" ? "local" : "vn")
-              }
-              className={`${selectCls} w-full min-w-0`}
-              aria-label={t("studyScheduleTzLabel")}
-            >
-              <option value="vn">{t("studyScheduleTzVN")}</option>
-              <option value="local">{t("studyScheduleTzLocal")}</option>
-            </select>
-            <ChevronRight className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-90 text-zinc-400" />
-          </div>
 
           {boot === "ok" && (
             <>

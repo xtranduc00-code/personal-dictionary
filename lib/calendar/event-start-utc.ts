@@ -1,14 +1,13 @@
 import { fromZonedTime } from "date-fns-tz";
 
 /**
- * Calendar events store `date` + `start_time` as wall clock in this zone
- * (aligned with the app’s “CZ baseline” when saving timed events).
+ * Calendar events store `date` + `start_time` as wall clock in this zone.
  */
 export function getCalendarEventStorageTimeZone(): string {
   return (
     process.env.NEXT_PUBLIC_CALENDAR_EVENT_STORAGE_TIMEZONE?.trim() ||
     process.env.CALENDAR_EVENT_STORAGE_TIMEZONE?.trim() ||
-    "Europe/Prague"
+    "Asia/Ho_Chi_Minh"
   );
 }
 
