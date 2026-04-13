@@ -204,34 +204,83 @@ function stripWaybackChrome(html: string): string {
  * so the snapshot HTML is clean and `__NEXT_DATA__` parses normally.
  */
 async function fetchViaWayback(url: string): Promise<string | null> {
+    // DIAGNOSTIC: trace every step in production so we can see exactly which
+    // call fails on Netlify (vs. local dev). Remove once Wayback path is
+    // confirmed working in production.
+    const log = (event: string, data?: Record<string, unknown>) => {
+        if (
+            typeof process !== "undefined" &&
+            process.env.NODE_ENV === "production"
+        ) {
+            try {
+                console.log(
+                    `[wayback] ${event}`,
+                    data ? JSON.stringify(data) : "",
+                );
+            } catch {
+                /* ignore */
+            }
+        }
+    };
+
+    log("checking availability for", { url });
+    let availRes: Response;
     try {
-        const availRes = await fetch(
+        availRes = await fetch(
             `https://archive.org/wayback/available?url=${encodeURIComponent(url)}`,
             { signal: AbortSignal.timeout(5_000) },
         );
-        if (!availRes.ok) return null;
+    } catch (e) {
+        log("availability fetch threw", {
+            error: e instanceof Error ? e.message : String(e),
+        });
+        return null;
+    }
+    log("availability response", {
+        status: availRes.status,
+        ok: availRes.ok,
+        contentType: availRes.headers.get("content-type") ?? null,
+    });
+    if (!availRes.ok) return null;
 
-        const avail = (await availRes.json()) as {
-            archived_snapshots?: { closest?: { url?: string } };
-        };
-        const snapshotUrl = avail?.archived_snapshots?.closest?.url;
-        if (!snapshotUrl) return null;
+    let avail: { archived_snapshots?: { closest?: { url?: string } } };
+    try {
+        avail = await availRes.json();
+    } catch (e) {
+        log("availability json parse failed", {
+            error: e instanceof Error ? e.message : String(e),
+        });
+        return null;
+    }
+    const snapshotUrl = avail?.archived_snapshots?.closest?.url;
+    log("snapshot url", { snapshotUrl: snapshotUrl ?? "none" });
+    if (!snapshotUrl) return null;
 
-        const snapRes = await fetch(snapshotUrl, {
+    let snapRes: Response;
+    try {
+        snapRes = await fetch(snapshotUrl, {
             signal: AbortSignal.timeout(10_000),
             headers: {
                 "User-Agent": pickUserAgent(),
                 Accept: "text/html",
             },
         });
-        if (!snapRes.ok) return null;
-
-        const html = await snapRes.text();
-        if (!html || html.length < 10_000) return null;
-        return stripWaybackChrome(html);
-    } catch {
+    } catch (e) {
+        log("snapshot fetch threw", {
+            error: e instanceof Error ? e.message : String(e),
+        });
         return null;
     }
+    log("snapshot response", {
+        status: snapRes.status,
+        ok: snapRes.ok,
+    });
+    if (!snapRes.ok) return null;
+
+    const html = await snapRes.text();
+    log("snapshot html length", { htmlLen: html.length });
+    if (!html || html.length < 10_000) return null;
+    return stripWaybackChrome(html);
 }
 
 function metaContent(doc: Document, selectors: string[]): string | null {
