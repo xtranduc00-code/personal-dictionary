@@ -15,6 +15,7 @@ import { EngooReadingTutorPanel } from "@/components/engoo/engoo-reading-tutor-p
 import { AddFlashcardModal, HighlightToolbar } from "@/components/ielts";
 import { storeEngooCallContext } from "@/lib/engoo-call-context";
 import { buildSmartReaderEngooTutorPayload } from "@/lib/smart-reader-tutor-payload";
+import { fetchHbrArticleInBrowser } from "@/lib/hbr-client-fetch";
 
 const SMART_READER_MARK_CLASS =
     "smart-reader-highlight bg-yellow-200/80 dark:bg-yellow-500/30 text-inherit rounded px-0.5";
@@ -149,6 +150,34 @@ export function SmartReaderClient() {
         setArticle(null);
 
         (async () => {
+            // HBR articles: fetch + parse archive.ph snapshot in the browser.
+            // Server fetch hits HBR's cookie meter and Netlify's 10s cap;
+            // running in the user's tab bypasses both.
+            if (src === "hbr") {
+                try {
+                    const article = await fetchHbrArticleInBrowser(
+                        url,
+                        ctrl.signal,
+                    );
+                    if (ctrl.signal.aborted) return;
+                    if (!article) {
+                        setError(
+                            "Could not load the article from archive.ph. Open it on hbr.org instead.",
+                        );
+                        return;
+                    }
+                    setArticle(article);
+                    markRead(url);
+                } catch (e) {
+                    if (!ctrl.signal.aborted) {
+                        setError(e instanceof Error ? e.message : "Network error");
+                    }
+                } finally {
+                    if (!ctrl.signal.aborted) setLoading(false);
+                }
+                return;
+            }
+
             try {
                 const res = await fetch(
                     `/api/fetch-article?url=${encodeURIComponent(url)}`,
@@ -187,7 +216,7 @@ export function SmartReaderClient() {
             }
         })();
         return () => ctrl.abort();
-    }, [url]);
+    }, [url, src]);
 
     useEffect(() => {
         if (!url) return;
