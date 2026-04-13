@@ -28,7 +28,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const sectionRaw = searchParams.get("section")?.trim().toLowerCase();
   const section: "world" | "sport" = sectionRaw === "sport" ? "sport" : "world";
-  const pageSize = Math.min(50, Math.max(1, Number(searchParams.get("pageSize")) || 30));
+  const pageSize = Math.min(200, Math.max(1, Number(searchParams.get("pageSize")) || 50));
 
   try {
     const items = await fetchGuardianListItems(section, pageSize);

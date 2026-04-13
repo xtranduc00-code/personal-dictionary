@@ -12,17 +12,50 @@ import {
 import { MEETS_SCREEN_SHARE_CAPTURE } from "@/lib/meets-livekit-options";
 import { downloadBlobAsFile } from "@/lib/meets-download-chat";
 import { safeMeetFileBase } from "@/lib/meets-format";
+import { convertWebmToMp4 } from "@/lib/meets-convert-webm-to-mp4";
 
 export type PendingMeetRecording = {
     blob: Blob;
     mimeType: string;
 };
 
-function makeRecordingFilename(roomDisplayName: string): string {
+function makeRecordingFilenameBase(roomDisplayName: string): string {
     const d = new Date();
     const pad = (n: number) => String(n).padStart(2, "0");
     const ts = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`;
-    return `meeting-${safeMeetFileBase(roomDisplayName)}-${ts}.webm`;
+    return `meeting-${safeMeetFileBase(roomDisplayName)}-${ts}`;
+}
+
+async function convertAndDownload(
+    webmBlob: Blob,
+    baseName: string,
+): Promise<PendingMeetRecording> {
+    const toastId = toast.loading("Converting to MP4… 0%");
+    try {
+        const mp4Blob = await convertWebmToMp4(webmBlob, (percent) => {
+            toast.update(toastId, {
+                render: `Converting to MP4… ${percent}%`,
+                isLoading: true,
+            });
+        });
+        toast.update(toastId, {
+            render: "Saved as MP4",
+            type: "success",
+            isLoading: false,
+            autoClose: 3000,
+        });
+        downloadBlobAsFile(mp4Blob, `${baseName}.mp4`);
+        return { blob: mp4Blob, mimeType: "video/mp4" };
+    } catch {
+        toast.update(toastId, {
+            render: "MP4 conversion failed — saved as .webm instead",
+            type: "warning",
+            isLoading: false,
+            autoClose: 4000,
+        });
+        downloadBlobAsFile(webmBlob, `${baseName}.webm`);
+        return { blob: webmBlob, mimeType: webmBlob.type || "video/webm" };
+    }
 }
 
 export function useMeetsLocalRecording(roomDisplayName?: string) {
@@ -110,12 +143,14 @@ export function useMeetsLocalRecording(roomDisplayName?: string) {
 
                 if (blob.size < 1) {
                     toast.warning(t("meetsRecordingEmpty"));
-                } else {
-                    const filename = makeRecordingFilename(roomDisplayNameRef.current);
-                    downloadBlobAsFile(blob, filename);
-                    setPendingRecording({ blob, mimeType: type });
-                    toast.success(t("meetsToastRecordingStopped"));
+                    flushStopWaiters();
+                    return;
                 }
+                toast.success(t("meetsToastRecordingStopped"));
+                const baseName = makeRecordingFilenameBase(roomDisplayNameRef.current);
+                void convertAndDownload(blob, baseName).then((pending) => {
+                    setPendingRecording(pending);
+                });
                 flushStopWaiters();
             };
             mr.onerror = () => {

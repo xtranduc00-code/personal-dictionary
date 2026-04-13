@@ -58,7 +58,7 @@ type NewsSourceLink = {
     href: string;
     labelKey: TranslationKey;
     icon: LucideIcon;
-    dailyNewsSource: "engoo" | "guardian";
+    dailyNewsSource: "engoo" | "guardian" | "hbr";
 };
 const newsSectionLinks: NewsSourceLink[] = [
     {
@@ -72,6 +72,12 @@ const newsSectionLinks: NewsSourceLink[] = [
         labelKey: "dailyNewsSourceGuardian",
         icon: Newspaper,
         dailyNewsSource: "guardian",
+    },
+    {
+        href: "/news?src=hbr",
+        labelKey: "dailyNewsSourceHBR",
+        icon: Newspaper,
+        dailyNewsSource: "hbr",
     },
 ];
 const entertainmentSectionLinks: {
@@ -195,23 +201,31 @@ function isChessPath(pathname: string) {
 function isEntertainmentSidebarActive(pathname: string) {
     return isNewsPath(pathname) || isEntertainmentPath(pathname) || isChessPath(pathname);
 }
-/** Sidebar: Engoo daily hub + lesson/article paths (not Guardian hub / in-app readers). */
+/** Sidebar: Engoo daily hub + lesson/article paths (not Guardian/HBR hub / in-app readers). */
 function isEngooDailyNewsNavActive(pathname: string, src: string | null): boolean {
     if (pathname.startsWith("/reading/") || pathname.startsWith("/articles/"))
         return true;
     if (pathname.startsWith("/news/football") || pathname.startsWith("/news/guardian"))
         return false;
+    if (pathname === "/news/read")
+        return false;
     if (pathname.startsWith("/news/"))
         return true;
     if (pathname === "/news")
-        return src !== "guardian";
+        return src !== "guardian" && src !== "hbr";
     return false;
 }
 function isGuardianDailyNewsNavActive(pathname: string, src: string | null): boolean {
     if (pathname.startsWith("/news/football") || pathname.startsWith("/news/guardian"))
         return true;
+    if (pathname === "/news/read") return src === "guardian";
     if (pathname === "/news")
         return src === "guardian";
+    return false;
+}
+function isHBRDailyNewsNavActive(pathname: string, src: string | null): boolean {
+    if (pathname === "/news/read") return src === "hbr";
+    if (pathname === "/news") return src === "hbr";
     return false;
 }
 function isSchedulePath(pathname: string) {
@@ -315,9 +329,12 @@ function NewsSourceExpandedNavLinks({ pathname, t, filterQuery = "", onLinkClick
         !fq || entHit || newsHit || navMatches(t(key), filterQuery);
     return (<>
       {links.filter((e) => matchKey(e.labelKey)).map((e) => {
-            const active = e.dailyNewsSource === "engoo"
-                ? isEngooDailyNewsNavActive(pathname, dailyNewsSrc)
-                : isGuardianDailyNewsNavActive(pathname, dailyNewsSrc);
+            const active =
+                e.dailyNewsSource === "engoo"
+                    ? isEngooDailyNewsNavActive(pathname, dailyNewsSrc)
+                    : e.dailyNewsSource === "guardian"
+                      ? isGuardianDailyNewsNavActive(pathname, dailyNewsSrc)
+                      : isHBRDailyNewsNavActive(pathname, dailyNewsSrc);
             const Icon = e.icon;
             return (<NavSidebarRow key={e.href} href={e.href} labelKey={e.labelKey} onLinkClick={onLinkClick} className={[subBase, active ? subActive : subIdle].join(" ")} active={active} sub icon={Icon}/>);
         })}
@@ -424,6 +441,7 @@ function SiteNavInner() {
             match(navT("navNewsSection")) ||
             match(navT("dailyNewsSourceEngoo")) ||
             match(navT("dailyNewsSourceGuardian")) ||
+            match(navT("dailyNewsSourceHBR")) ||
             match(navT("articleHomeNav")) ||
             navMatches("engoo", navQ) ||
             navMatches("guardian", navQ) ||

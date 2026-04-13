@@ -1,12 +1,22 @@
 "use client";
 
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import {
+    memo,
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+    type CSSProperties,
+    type RefObject,
+} from "react";
 import { toast } from "react-toastify";
 import {
     Circle,
+    Maximize2,
     MessageSquare,
     Mic,
     MicOff,
+    Minimize2,
     MonitorUp,
     PhoneOff,
     Square,
@@ -36,6 +46,10 @@ type CallControlsProps = {
     variant?: "full" | "mini";
     /** Thanh điều khiển nổi trên nền video tối — dock tối + shadow rõ. */
     toolbarSurface?: "default" | "darkDock";
+    isFullscreen?: boolean;
+    onToggleFullscreen?: () => void;
+    /** When set, the full toolbar auto-hides after 3s of no mouse activity inside this container. */
+    idleContainerRef?: RefObject<HTMLElement | null>;
 };
 
 const btnLight =
@@ -50,17 +64,24 @@ const btnMuted =
 const btnShareActive =
     "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 bg-emerald-600 text-white shadow-[0_0_0_2px_rgba(16,185,129,0.35)] transition hover:bg-emerald-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 dark:bg-emerald-600 dark:hover:bg-emerald-500 dark:focus-visible:ring-emerald-400/40";
 
-/** Nút trên dock tối (luôn dùng khi toolbarSurface=darkDock). */
+/** Nút trên dock tối — icon trắng, nền tối nhẹ, giữ đỏ cho state tắt. */
 const btnDock =
-    "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-zinc-600/60 bg-zinc-800/95 text-zinc-100 shadow-sm transition hover:bg-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20";
+    "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 bg-white/10 text-white shadow-sm transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30";
 
 const btnDockOn =
-    "border-emerald-500/40 bg-emerald-900/45 text-emerald-100 hover:bg-emerald-900/60";
+    "bg-emerald-500/25 text-white hover:bg-emerald-500/35";
 
 const toolbarDarkDock =
-    "meet-toolbar-enter pointer-events-auto flex flex-wrap items-center justify-center gap-1.5 rounded-full border border-white/10 bg-zinc-950/70 px-2 py-1.5 shadow-[0_12px_36px_rgba(0,0,0,0.5)] backdrop-blur-2xl sm:gap-2 sm:px-2.5";
+    "meet-toolbar-enter pointer-events-auto flex flex-wrap items-center justify-center gap-1.5 rounded-full px-2 py-1.5 shadow-[0_12px_36px_rgba(0,0,0,0.35)] sm:gap-2 sm:px-2.5";
 
-const IDLE_FADE_MS = 4000;
+const toolbarDarkDockStyle: CSSProperties = {
+    backgroundColor: "rgba(30,30,30,0.85)",
+    backdropFilter: "blur(8px)",
+    WebkitBackdropFilter: "blur(8px)",
+    border: "0.5px solid rgba(255,255,255,0.08)",
+};
+
+const IDLE_HIDE_MS = 3000;
 
 export const CallControls = memo(function CallControls({
     recording,
@@ -69,6 +90,9 @@ export const CallControls = memo(function CallControls({
     onLeave,
     variant = "full",
     toolbarSurface = "default",
+    isFullscreen,
+    onToggleFullscreen,
+    idleContainerRef,
 }: CallControlsProps) {
     const { t } = useI18n();
     const {
@@ -100,7 +124,8 @@ export const CallControls = memo(function CallControls({
     const { isRecording, recordingElapsedSec, recordBusy, onRecordToggle } = recording;
 
     const isMini = variant === "mini";
-    const onDarkDock = toolbarSurface === "darkDock" && !isMini;
+    const onDarkDock = !isMini;
+    void toolbarSurface;
     const baseBtn = onDarkDock ? btnDock : btnLight;
     const onBtn = onDarkDock ? btnDockOn : btnLightOn;
     const micTooltip = isMicrophoneEnabled
@@ -114,22 +139,55 @@ export const CallControls = memo(function CallControls({
         ? "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 bg-red-600 text-white shadow-sm transition hover:bg-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/60 dark:bg-red-600 dark:hover:bg-red-500"
         : "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 bg-[#EF4444] text-white shadow-sm transition hover:bg-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/60 dark:bg-red-600 dark:hover:bg-red-500";
 
-    // Auto-dim after idle (full toolbar only)
+    // Auto-hide after 3s of no mouse activity inside the call area (full toolbar only).
     const toolbarRef = useRef<HTMLDivElement>(null);
-    const [idle, setIdle] = useState(false);
-    const idleTimer = useRef<ReturnType<typeof setTimeout>>(null);
+    const [hidden, setHidden] = useState(false);
+    const [barHover, setBarHover] = useState(false);
+    const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const resetIdle = useCallback(() => {
-        setIdle(false);
-        if (idleTimer.current) clearTimeout(idleTimer.current);
-        idleTimer.current = setTimeout(() => setIdle(true), IDLE_FADE_MS);
-    }, []);
+    const keepVisible = isRecording || barHover;
 
     useEffect(() => {
         if (isMini) return;
-        resetIdle();
-        return () => { if (idleTimer.current) clearTimeout(idleTimer.current); };
-    }, [isMini, resetIdle]);
+        const container = idleContainerRef?.current ?? null;
+        if (!container) {
+            setHidden(false);
+            return;
+        }
+        const setCursor = (v: string) => {
+            container.style.cursor = v;
+        };
+        const arm = () => {
+            if (idleTimer.current) clearTimeout(idleTimer.current);
+            if (keepVisible) return;
+            idleTimer.current = setTimeout(() => {
+                setHidden(true);
+                setCursor("none");
+            }, IDLE_HIDE_MS);
+        };
+        const show = () => {
+            setHidden(false);
+            setCursor("");
+            arm();
+        };
+        const hideNow = () => {
+            if (idleTimer.current) clearTimeout(idleTimer.current);
+            if (keepVisible) return;
+            setHidden(true);
+            setCursor("");
+        };
+        show();
+        container.addEventListener("mousemove", show);
+        container.addEventListener("mouseenter", show);
+        container.addEventListener("mouseleave", hideNow);
+        return () => {
+            container.removeEventListener("mousemove", show);
+            container.removeEventListener("mouseenter", show);
+            container.removeEventListener("mouseleave", hideNow);
+            if (idleTimer.current) clearTimeout(idleTimer.current);
+            setCursor("");
+        };
+    }, [idleContainerRef, isMini, keepVisible]);
 
     if (isMini) {
         return (
@@ -215,16 +273,19 @@ export const CallControls = memo(function CallControls({
     return (
         <div
             ref={toolbarRef}
-            className={`pointer-events-none flex flex-col items-center gap-1.5 transition-opacity duration-500 ${idle && !isMini ? "opacity-50 hover:opacity-100" : "opacity-100"}`}
-            onPointerMove={!isMini ? resetIdle : undefined}
-            onPointerDown={!isMini ? resetIdle : undefined}
+            className="flex flex-col items-center gap-1.5"
+            style={{
+                transition: "opacity 0.25s ease, transform 0.25s ease",
+                opacity: hidden ? 0 : 1,
+                transform: hidden ? "translateY(20px)" : "translateY(0)",
+                pointerEvents: hidden ? "none" : "auto",
+            }}
+            onMouseEnter={() => setBarHover(true)}
+            onMouseLeave={() => setBarHover(false)}
         >
             <div
-                className={
-                    onDarkDock
-                        ? toolbarDarkDock
-                        : "meet-toolbar-enter pointer-events-auto flex flex-wrap items-center justify-center gap-1.5 rounded-full border border-[#E5E7EB]/60 bg-white/70 px-2 py-1.5 shadow-[0_4px_20px_rgba(0,0,0,0.06)] backdrop-blur-xl dark:border-white/10 dark:bg-black/40 dark:shadow-[0_8px_30px_rgba(0,0,0,0.4)] sm:gap-2 sm:px-2.5"
-                }
+                className={toolbarDarkDock}
+                style={toolbarDarkDockStyle}
                 role="toolbar"
                 aria-label={t("meetsControlsToolbar")}
             >
@@ -336,6 +397,24 @@ export const CallControls = memo(function CallControls({
                         )}
                     </button>
                 </Tooltip>
+
+                {onToggleFullscreen ? (
+                    <Tooltip content={t("ariaToggleFullscreen")} placement="top">
+                        <button
+                            type="button"
+                            className={baseBtn}
+                            onClick={onToggleFullscreen}
+                            aria-label={t("ariaToggleFullscreen")}
+                            aria-pressed={isFullscreen ?? false}
+                        >
+                            {isFullscreen ? (
+                                <Minimize2 className="h-[18px] w-[18px]" strokeWidth={2} />
+                            ) : (
+                                <Maximize2 className="h-[18px] w-[18px]" strokeWidth={2} />
+                            )}
+                        </button>
+                    </Tooltip>
+                ) : null}
 
                 <Tooltip content={t("meetsEndCall")} placement="top">
                     <button

@@ -38,7 +38,7 @@ export async function fetchGuardianListItems(
 
   const guardianSection = section === "sport" ? "football" : "world";
   const apiPageSize =
-    section === "sport" ? Math.min(50, Math.max(pageSize * 2, 36)) : pageSize;
+    section === "sport" ? Math.min(200, Math.max(pageSize * 2, 36)) : pageSize;
 
   const u = new URL("https://content.guardianapis.com/search");
   u.searchParams.set("api-key", key);

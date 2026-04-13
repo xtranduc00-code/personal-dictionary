@@ -156,7 +156,7 @@ export function GuardianDailyNewsPanel({
   const [kindleBusy, setKindleBusy] = useState(false);
   const [kindleError, setKindleError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const GUARDIAN_PAGE_SIZE = 9;
+  const GUARDIAN_PAGE_SIZE = 30;
 
   const loadList = useCallback(
     async (section: "world" | "sport") => {
@@ -169,7 +169,7 @@ export function GuardianDailyNewsPanel({
       setNoKey(false);
       try {
         const res = await fetch(
-          `/api/guardian/list?section=${section}&pageSize=30`,
+          `/api/guardian/list?section=${section}&pageSize=50`,
           { credentials: "same-origin" },
         );
         const text = await res.text();

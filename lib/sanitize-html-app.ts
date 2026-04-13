@@ -142,6 +142,27 @@ export function sanitizeGuardianArticleHtml(raw: string): string {
   }
 }
 
+const HBR_IFRAME_HOSTS = [
+  ...BBC_IFRAME_HOSTS,
+  "hbr.org",
+  "www.hbr.org",
+  "static.hbr.org",
+];
+
+const hbrArticleSanitizeOptions: IOptions = {
+  ...bbcSanitizeOptions,
+  allowedIframeHostnames: HBR_IFRAME_HOSTS,
+};
+
+/** Shared sanitizer for HBR's `article.content` raw HTML (from `__NEXT_DATA__`). */
+export function sanitizeHbrArticleHtml(raw: string): string {
+  try {
+    return sanitizeHtml(raw, hbrArticleSanitizeOptions);
+  } catch {
+    return stripHtmlFallback(raw);
+  }
+}
+
 /** TipTap / RichTextEditor output (notes PDF, flashcard definitions): tables, images, task lists, highlight. */
 const TIPTAP_TAGS = [
   "h1",

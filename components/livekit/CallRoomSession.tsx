@@ -482,8 +482,6 @@ function CallRoomInner({
                 roomDisplayName={roomDisplayName}
                 isPresenting={isScreenShareEnabled}
                 onLeaveClick={requestLeave}
-                onToggleStageFullscreen={toggleStageFullscreen}
-                isStageFullscreen={isStageFullscreen}
             />
             <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 pb-4 pt-3 sm:gap-5 sm:px-5 sm:pb-5 sm:pt-4 lg:flex-row lg:items-stretch">
                 <div
@@ -518,6 +516,9 @@ function CallRoomInner({
                             chatOpen={chatOpen}
                             onToggleChat={toggleChat}
                             onLeave={requestLeave}
+                            isFullscreen={isStageFullscreen}
+                            onToggleFullscreen={toggleStageFullscreen}
+                            idleContainerRef={stageRef}
                         />
                     </div>
                 </div>

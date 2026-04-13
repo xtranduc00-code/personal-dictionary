@@ -353,7 +353,7 @@ function listQuery(
   categorySlug: string,
   opts: { cursor?: string | null; pageSize?: number } = {},
 ) {
-  const defaultPs = categorySlug === "all" ? 18 : 9;
+  const defaultPs = 30;
   const ps = opts.pageSize ?? defaultPs;
   const base = `/api/engoo/list?minLevel=1&maxLevel=10&page_size=${ps}&category=${encodeURIComponent(categorySlug)}`;
   if (opts.cursor)
@@ -389,7 +389,7 @@ export function EngooDailyNewsHomeInner({
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
-  const PAGE_SIZE = isAllTab ? 18 : 9;
+  const PAGE_SIZE = 30;
   /** Max pages to show — caps how many articles we fetch. */
   const MAX_PAGES = 10;
   const MAX_ARTICLES = PAGE_SIZE * MAX_PAGES;
@@ -425,7 +425,7 @@ export function EngooDailyNewsHomeInner({
 
     try {
       while (!ctrl.signal.aborted && accumulated.length < limit) {
-        const batchSize = Math.min(30, limit - accumulated.length);
+        const batchSize = Math.min(50, limit - accumulated.length);
         const res: Response = await fetch(
           listQuery(slug, { cursor, pageSize: batchSize }),
           { signal: ctrl.signal },
@@ -477,7 +477,7 @@ export function EngooDailyNewsHomeInner({
           let cursor: string | null = initialData?.nextCursor ?? null;
           try {
             while (cursor && !ctrl.signal.aborted && accumulated.length < MAX_ARTICLES) {
-              const batchSize = Math.min(30, MAX_ARTICLES - accumulated.length);
+              const batchSize = Math.min(50, MAX_ARTICLES - accumulated.length);
               const res = await fetch(
                 listQuery(activeCategory.slug, { cursor, pageSize: batchSize }),
                 { signal: ctrl.signal },

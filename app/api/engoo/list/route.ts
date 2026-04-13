@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
         ]
       : null;
   const categoryLabel = ENGOO_DEFAULT_CATEGORY_LABEL;
-  const pageSize = parseIntParam(sp.get("page_size"), 9, 1, 30);
+  const pageSize = parseIntParam(sp.get("page_size"), 30, 1, 50);
   const cursor = sp.get("cursor")?.trim() || null;
 
   const cacheKey = `list:${apiCategoryId}:t:${topicSlug ?? "all"}:${cursor ?? "first"}:${pageSize}:${lo}:${hi}`;
