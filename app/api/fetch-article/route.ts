@@ -1,11 +1,34 @@
 import { Readability } from "@mozilla/readability";
 import { NextRequest, NextResponse } from "next/server";
-import { JSDOM } from "jsdom";
 import { z } from "zod";
 import {
     extractHbrArticleFromHtml,
     isHbrArticleUrl,
 } from "@/lib/hbr-article-extract";
+
+// jsdom is loaded lazily — on Netlify's Node runtime its require chain
+// pulls in @exodus/bytes (ESM-only) and crashes the whole route module
+// with ERR_REQUIRE_ESM at import time. Dynamic-importing inside the
+// extractor lets us catch the failure and fall back to whatever the
+// regex-based HBR extractor produced.
+type JSDOMCtor = typeof import("jsdom").JSDOM;
+let cachedJSDOM: JSDOMCtor | null | "failed" = null;
+async function loadJSDOM(): Promise<JSDOMCtor | null> {
+    if (cachedJSDOM === "failed") return null;
+    if (cachedJSDOM) return cachedJSDOM;
+    try {
+        const mod = await import("jsdom");
+        cachedJSDOM = mod.JSDOM;
+        return cachedJSDOM;
+    } catch (e) {
+        console.error(
+            "[fetch-article] jsdom load failed",
+            e instanceof Error ? e.message : String(e),
+        );
+        cachedJSDOM = "failed";
+        return null;
+    }
+}
 
 export const runtime = "nodejs";
 
@@ -296,7 +319,10 @@ function computeReadingTime(words: number): number {
     return Math.max(1, Math.round(words / 200));
 }
 
-function extractArticle(html: string, url: string): ArticlePayload | null {
+async function extractArticle(
+    html: string,
+    url: string,
+): Promise<ArticlePayload | null> {
     // HBR articles bundle a clean JSON payload in __NEXT_DATA__ — prefer that
     // over Readability on *.hbr.org so we get the full body, real byline list,
     // hero image, and primary topic without HTML guessing. If the embedded
@@ -310,6 +336,12 @@ function extractArticle(html: string, url: string): ArticlePayload | null {
             return hbrCandidate;
         }
     }
+
+    // Lazy-load JSDOM. On Netlify the import can throw ERR_REQUIRE_ESM —
+    // when that happens, return whatever the regex-based HBR extractor
+    // gave us (even if short) instead of crashing the route.
+    const JSDOM = await loadJSDOM();
+    if (!JSDOM) return hbrCandidate;
 
     const dom = new JSDOM(html, { url });
     const doc = dom.window.document;
@@ -429,7 +461,7 @@ export async function GET(req: NextRequest) {
             try {
                 const waybackHtml = await fetchViaWayback(key);
                 if (waybackHtml) {
-                    const article = extractArticle(waybackHtml, key);
+                    const article = await extractArticle(waybackHtml, key);
                     if (article && (article.textContent?.length ?? 0) > 2000) {
                         try {
                             cacheSet(key, article, ARCHIVE_CACHE_TTL_MS);
@@ -452,7 +484,7 @@ export async function GET(req: NextRequest) {
 
         try {
             const { html, finalUrl } = await fetchHtml(key);
-            const article = extractArticle(html, finalUrl);
+            const article = await extractArticle(html, finalUrl);
             if (!article) {
                 return NextResponse.json(
                     { error: "Could not extract readable content from this page." },
@@ -539,7 +571,7 @@ export async function POST(req: NextRequest) {
 
     try {
         const { html, finalUrl } = await fetchHtml(key);
-        const article = extractArticle(html, finalUrl);
+        const article = await extractArticle(html, finalUrl);
         if (!article) {
             return NextResponse.json(
                 {

@@ -418,6 +418,20 @@ body {
   -webkit-touch-callout: default !important;
 }
 
+/*
+ * Smart Reader / Guardian / HBR article body — force text selection so the
+ * Vocab note toolbar can fire on highlight. Some upstream HTML (notably
+ * Wayback snapshots and HBR's rendered content) ships inline `user-select:
+ * none` or pointer-events tweaks; this overrides them at the cascade.
+ */
+.guardian-read-content,
+.guardian-read-content * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -webkit-touch-callout: default !important;
+  pointer-events: auto !important;
+}
+
 .ielts-transcript .transcript-content,
 .ielts-transcript .highlight-segment {
   cursor: text;

@@ -29,7 +29,10 @@
 
 [build.environment]
   # pdf-parse declares: node >=20.16 <21 || >=22.3
-  NODE_VERSION = "22"
+  # Node 20 avoids the ERR_REQUIRE_ESM crash from jsdom → @exodus/bytes
+  # (jsdom's CJS api.js requires that ESM-only package; Node 22 enforces
+  # the boundary harder than Node 20 does).
+  NODE_VERSION = "20"
   NEXT_TELEMETRY_DISABLED = "1"
 
 # Native addons for PDF text + screenshot OCR — keep out of the JS bundle where possible

@@ -377,6 +377,7 @@ function GuardianReadInner() {
           onHighlight={handleHighlight}
           onUnhighlight={() => setToolbar(null)}
           onFlashcard={handleFlashcard}
+          preserveEditorSelectionOnToolbarMouseDown
         />
       ) : null}
 

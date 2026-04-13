@@ -16,32 +16,6 @@ import { AddFlashcardModal, HighlightToolbar } from "@/components/ielts";
 import { storeEngooCallContext } from "@/lib/engoo-call-context";
 import { buildSmartReaderEngooTutorPayload } from "@/lib/smart-reader-tutor-payload";
 
-const SMART_READER_MARK_CLASS =
-    "smart-reader-highlight bg-yellow-200/80 dark:bg-yellow-500/30 text-inherit rounded px-0.5";
-
-/**
- * Wrap a DOM Range with a <mark> in-place. Falls back to extract/insert when
- * the range spans multiple elements (surroundContents throws in that case).
- */
-function wrapRangeWithMark(range: Range): HTMLElement | null {
-    if (typeof document === "undefined") return null;
-    const mark = document.createElement("mark");
-    mark.className = SMART_READER_MARK_CLASS;
-    try {
-        range.surroundContents(mark);
-        return mark;
-    } catch {
-        try {
-            const frag = range.extractContents();
-            mark.appendChild(frag);
-            range.insertNode(mark);
-            return mark;
-        } catch {
-            return null;
-        }
-    }
-}
-
 type Article = {
     title: string;
     byline: string | null;
@@ -124,6 +98,11 @@ export function SmartReaderClient() {
     const url = searchParams.get("url")?.trim() ?? "";
     const src = searchParams.get("src")?.trim() ?? "";
     const returnTo = searchParams.get("returnTo")?.trim() || "/news";
+    // Optimistic UI hints from the previous page: title + cover image URL
+    // get embedded in the link so the reader can paint header + hero image
+    // instantly while the body is still being fetched (Wayback ~10s).
+    const optimisticTitle = searchParams.get("title")?.trim() || null;
+    const optimisticCover = searchParams.get("cover")?.trim() || null;
 
     const [article, setArticle] = useState<Article | null>(null);
     const [loading, setLoading] = useState(true);
@@ -216,39 +195,47 @@ export function SmartReaderClient() {
         setTutorOpen(false);
     }, [url]);
 
+
     // Show the highlight toolbar on text selection inside the article body.
     useEffect(() => {
         const onMouseUp = () => {
-            const sel = window.getSelection();
-            if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
-                setToolbar(null);
-                return;
-            }
-            const range = sel.getRangeAt(0);
-            const root = articleBodyRef.current;
-            if (
-                !root ||
-                (!root.contains(range.startContainer) &&
-                    !root.contains(range.endContainer))
-            ) {
-                setToolbar(null);
-                return;
-            }
-            const text = sel.toString().trim();
-            if (!text) {
-                setToolbar(null);
-                return;
-            }
-            const rect = range.getBoundingClientRect();
-            if (rect.width === 0 && rect.height === 0) {
-                setToolbar(null);
-                return;
-            }
-            setToolbar({
-                x: rect.left + rect.width / 2,
-                y: rect.top - 8,
-                selectedText: text,
-            });
+            // Defer state read + update by a tick so the browser has time to
+            // finalize the selection — and so the React re-render from
+            // setToolbar happens AFTER the selection is committed, not
+            // synchronously inside the mouseup event (which has been
+            // observed to drop the selection on some configurations).
+            setTimeout(() => {
+                const sel = window.getSelection();
+                if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+                    setToolbar(null);
+                    return;
+                }
+                const range = sel.getRangeAt(0);
+                const root = articleBodyRef.current;
+                if (
+                    !root ||
+                    (!root.contains(range.startContainer) &&
+                        !root.contains(range.endContainer))
+                ) {
+                    setToolbar(null);
+                    return;
+                }
+                const text = sel.toString().trim();
+                if (!text) {
+                    setToolbar(null);
+                    return;
+                }
+                const rect = range.getBoundingClientRect();
+                if (rect.width === 0 && rect.height === 0) {
+                    setToolbar(null);
+                    return;
+                }
+                setToolbar({
+                    x: rect.left + rect.width / 2,
+                    y: rect.top - 8,
+                    selectedText: text,
+                });
+            }, 0);
         };
         document.addEventListener("mouseup", onMouseUp);
         const onKey = (e: KeyboardEvent) => {
@@ -261,24 +248,7 @@ export function SmartReaderClient() {
         };
     }, []);
 
-    const handleHighlight = useCallback(() => {
-        const sel = window.getSelection();
-        if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
-            setToolbar(null);
-            return;
-        }
-        const range = sel.getRangeAt(0);
-        const root = articleBodyRef.current;
-        if (!root || !root.contains(range.commonAncestorContainer)) {
-            setToolbar(null);
-            return;
-        }
-        wrapRangeWithMark(range);
-        sel.removeAllRanges();
-        setToolbar(null);
-    }, []);
-
-    const handleFlashcard = useCallback((word: string) => {
+const handleFlashcard = useCallback((word: string) => {
         setFlashcardWord(word);
         window.getSelection()?.removeAllRanges();
         setToolbar(null);
@@ -357,6 +327,41 @@ export function SmartReaderClient() {
                     {!url ? (
                         <div className="rounded-2xl border border-zinc-200/70 bg-white px-5 py-8 text-center text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/85 dark:text-zinc-400">
                             No article url provided.
+                        </div>
+                    ) : loading && optimisticTitle ? (
+                        // Optimistic UI: while the body is being fetched
+                        // (Wayback round-trip ~10s), paint the header + hero
+                        // image + a skeleton body so the page feels instant.
+                        <div className="overflow-hidden rounded-3xl border border-zinc-200/70 bg-white px-5 py-8 shadow-[0_4px_32px_-8px_rgba(15,23,42,0.08)] dark:border-zinc-800 dark:bg-zinc-900/85 sm:px-8 sm:py-10">
+                            <article className="w-full min-w-0">
+                                <h1 className="text-balance text-[1.65rem] font-bold leading-snug tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-3xl">
+                                    {optimisticTitle}
+                                </h1>
+                                <p className="mt-3 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
+                                    Reader view · {sourceLabel}
+                                </p>
+                                {optimisticCover ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                        src={optimisticCover}
+                                        alt={optimisticTitle}
+                                        loading="eager"
+                                        className="mt-6 block w-full max-h-[400px] rounded-lg object-cover"
+                                    />
+                                ) : null}
+                                <hr className="my-8 border-0 border-t border-zinc-200/80 dark:border-zinc-700/80 sm:my-10" />
+                                <div className="animate-pulse space-y-4">
+                                    <div className="h-4 w-[90%] rounded bg-zinc-200/80 dark:bg-zinc-800/80" />
+                                    <div className="h-4 w-[95%] rounded bg-zinc-200/80 dark:bg-zinc-800/80" />
+                                    <div className="h-4 w-[85%] rounded bg-zinc-200/80 dark:bg-zinc-800/80" />
+                                    <div className="h-4 w-[92%] rounded bg-zinc-200/80 dark:bg-zinc-800/80" />
+                                    <div className="h-4 w-[78%] rounded bg-zinc-200/80 dark:bg-zinc-800/80" />
+                                    <div className="mt-8 h-6 w-[40%] rounded bg-zinc-300/80 dark:bg-zinc-700/80" />
+                                    <div className="h-4 w-[88%] rounded bg-zinc-200/80 dark:bg-zinc-800/80" />
+                                    <div className="h-4 w-[93%] rounded bg-zinc-200/80 dark:bg-zinc-800/80" />
+                                    <div className="h-4 w-[80%] rounded bg-zinc-200/80 dark:bg-zinc-800/80" />
+                                </div>
+                            </article>
                         </div>
                     ) : loading ? (
                         <div className="py-24 text-center text-sm text-zinc-500 dark:text-zinc-400">
@@ -438,9 +443,11 @@ export function SmartReaderClient() {
                     y={toolbar.y}
                     hasHighlightId={false}
                     selectedText={toolbar.selectedText}
-                    onHighlight={handleHighlight}
+                    onHighlight={() => setToolbar(null)}
                     onUnhighlight={() => setToolbar(null)}
                     onFlashcard={handleFlashcard}
+                    showHighlightButtons={false}
+                    preserveEditorSelectionOnToolbarMouseDown
                 />
             ) : null}
 

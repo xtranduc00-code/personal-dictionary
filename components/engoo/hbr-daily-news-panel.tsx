@@ -29,8 +29,23 @@ const HBR_TABS: { id: HbrTabId; label: string }[] = [
     { id: "executive", label: "HBR Executive" },
 ];
 
-function readerHref(url: string, returnTo: string): string {
-    return `/news/read?src=hbr&url=${encodeURIComponent(url)}&returnTo=${encodeURIComponent(returnTo)}`;
+function readerHref(
+    url: string,
+    returnTo: string,
+    title?: string,
+    cover?: string | null,
+): string {
+    const parts = [
+        `src=hbr`,
+        `url=${encodeURIComponent(url)}`,
+        `returnTo=${encodeURIComponent(returnTo)}`,
+    ];
+    // Optimistic UI: ship the card's title + thumbnail in the URL so the
+    // reader can paint header + cover image instantly while the article
+    // body is still being fetched from Wayback (~10s).
+    if (title) parts.push(`title=${encodeURIComponent(title)}`);
+    if (cover) parts.push(`cover=${encodeURIComponent(cover)}`);
+    return `/news/read?${parts.join("&")}`;
 }
 
 function HBRStoryGrid({
@@ -61,7 +76,12 @@ function HBRStoryGrid({
     return (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((item) => {
-                const href = readerHref(item.url, returnTo);
+                const href = readerHref(
+                    item.url,
+                    returnTo,
+                    item.title,
+                    item.thumbnail,
+                );
                 return (
                 <Link
                     key={item.id}
