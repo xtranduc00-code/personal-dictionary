@@ -37,6 +37,8 @@ export type HbrExtractedArticle = {
     /** Plain-text body — suitable for reading time + AI enhance endpoints. */
     textContent: string;
     excerpt: string | null;
+    /** HBR editorial summary block (sanitized HTML) — renders as its own section above the body. */
+    summary: string | null;
     siteName: string;
     publishedTime: string | null;
     readingTime: number;
@@ -286,6 +288,10 @@ export function extractHbrArticleFromHtml(
         decodeEntities((article.dek ?? "").trim()) ||
         (article.summary ? stripHtml(article.summary).slice(0, 400) : "") ||
         null;
+    const summaryHtml =
+        typeof article.summary === "string" && article.summary.trim()
+            ? sanitizeHbrArticleHtml(article.summary)
+            : null;
     const publishedTime = article.published?.trim() || null;
     const coverImage = absolutizeHbr(article.hero?.image?.defaultSrc);
     const category = article.primaryTopic?.trim() || null;
@@ -296,6 +302,7 @@ export function extractHbrArticleFromHtml(
         content,
         textContent,
         excerpt: excerpt || null,
+        summary: summaryHtml && summaryHtml.trim() ? summaryHtml : null,
         siteName: "Harvard Business Review",
         publishedTime,
         readingTime: computeReadingTime(textContent),

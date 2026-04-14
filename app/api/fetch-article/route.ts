@@ -74,6 +74,8 @@ type ArticlePayload = {
     content: string;
     textContent: string;
     excerpt: string | null;
+    /** HBR editorial summary (sanitized HTML) — null for non-HBR sources. */
+    summary?: string | null;
     siteName: string | null;
     publishedTime: string | null;
     readingTime: number;

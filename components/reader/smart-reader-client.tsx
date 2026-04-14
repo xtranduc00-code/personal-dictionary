@@ -22,6 +22,7 @@ type Article = {
     content: string;
     textContent: string;
     excerpt: string | null;
+    summary?: string | null;
     siteName: string | null;
     publishedTime: string | null;
     readingTime: number;
@@ -404,6 +405,17 @@ const handleFlashcard = useCallback((word: string) => {
                                     />
                                 ) : null}
                                 <hr className="my-8 border-0 border-t border-zinc-200/80 dark:border-zinc-700/80 sm:my-10" />
+                                {article.summary ? (
+                                    <aside className="mb-8 rounded-xl border border-zinc-200 bg-zinc-50/70 p-5 text-[0.95rem] leading-7 text-zinc-700 dark:border-zinc-700/80 dark:bg-zinc-800/40 dark:text-zinc-300">
+                                        <div className="mb-2 text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                                            Summary
+                                        </div>
+                                        <div
+                                            className="prose prose-zinc max-w-none dark:prose-invert prose-p:my-2"
+                                            dangerouslySetInnerHTML={{ __html: article.summary }}
+                                        />
+                                    </aside>
+                                ) : null}
                                 <div
                                     ref={articleBodyRef}
                                     className={`${GUARDIAN_READ_BODY_CLASS} select-text`}
