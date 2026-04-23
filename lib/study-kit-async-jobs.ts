@@ -17,7 +17,7 @@ export type StudyKitJobSourcesJson = {
  * Use background job + Storage instead of doing OCR+OpenAI in one HTTP request.
  *
  * Important: Next.js serverless on Netlify often does **not** set `NETLIFY=true` (especially with a
- * custom primary URL like kenworkspace.com). Rely on `STUDY_KIT_ASYNC=1`, `DEPLOY_ID`, or `NETLIFY`.
+ * custom primary URL like kenworkspace.netlify.app). Rely on `STUDY_KIT_ASYNC=1`, `DEPLOY_ID`, or `NETLIFY`.
  */
 export function studyKitAsyncPipelineEnabled(): boolean {
     if (process.env.STUDY_KIT_FORCE_SYNC === "true" || process.env.STUDY_KIT_FORCE_SYNC === "1")

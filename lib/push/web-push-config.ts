@@ -6,7 +6,7 @@ export function isWebPushConfigured(): boolean {
   const pub = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
   const priv = process.env.VAPID_PRIVATE_KEY?.trim();
   const subj =
-    process.env.VAPID_SUBJECT?.trim() || "mailto:hello@kenworkspace.com";
+    process.env.VAPID_SUBJECT?.trim() || "mailto:hello@kenworkspace.netlify.app";
   return Boolean(pub && priv && subj);
 }
 
@@ -19,7 +19,7 @@ export function ensureWebPushConfigured(): void {
   const pub = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
   const priv = process.env.VAPID_PRIVATE_KEY?.trim();
   const subj =
-    process.env.VAPID_SUBJECT?.trim() || "mailto:hello@kenworkspace.com";
+    process.env.VAPID_SUBJECT?.trim() || "mailto:hello@kenworkspace.netlify.app";
   if (!pub || !priv) {
     throw new Error("VAPID keys missing");
   }
