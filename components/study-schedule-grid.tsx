@@ -15,12 +15,16 @@ import {
   List,
   Loader2,
   Pencil,
+  Plus,
+  Trash2,
+  Users,
   X,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { authFetch } from "@/lib/auth-context";
 import { useI18n } from "@/components/i18n-provider";
+import type { TranslationKey } from "@/lib/i18n";
 
 /** Full day in 30-minute steps: 00:00–00:30 … 23:30–24:00 (48 rows). */
 const TIME_SLOTS: readonly string[] = (() => {
@@ -81,18 +85,36 @@ const DEFAULT_ACCOUNTS = [
   "Minh 2",
 ];
 
-/** Preset people for each cell (tutor-style colored blocks). */
-const SCHEDULE_PRESETS = [
+type SchedulePreset = { name: string; color: string };
+
+/** Initial brushes used until the API responds; matches the SQL seed in study_schedule_shared. */
+const DEFAULT_PRESETS: SchedulePreset[] = [
   { name: "Duy", color: "#1e293b" },
   { name: "Quang", color: "#0f766e" },
   { name: "Thư", color: "#6d28d9" },
-] as const;
+];
+
+/** Curated palette for the manage-people picker (small set keeps brushes visually distinct). */
+const PRESET_COLOR_PALETTE: readonly string[] = [
+  "#1e293b",
+  "#0f766e",
+  "#6d28d9",
+  "#b45309",
+  "#be123c",
+  "#1d4ed8",
+  "#15803d",
+  "#9d174d",
+  "#475569",
+  "#0e7490",
+];
+
+const FALLBACK_PRESET_COLOR = "#475569";
 
 /** Matches sticky time column width for “now” line + dot (Preply-style). */
 const TIME_AXIS_COL_PX = 72;
 
-/** Each paint click/drag step fills this many 30′ rows (2 → one wall-clock hour). */
-const PAINT_STAMP_HALF_HOUR_ROWS = 2;
+/** Each paint click/drag step fills this many 30′ rows (1 → 30 minutes). */
+const PAINT_STAMP_HALF_HOUR_ROWS = 1;
 
 function hexAlphaBackground(hex: string, alpha: number): string {
   const raw = hex.replace("#", "").trim();
@@ -104,10 +126,31 @@ function hexAlphaBackground(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-type PresetName = (typeof SCHEDULE_PRESETS)[number]["name"];
+function colorForScheduleName(
+  name: string,
+  presets: readonly SchedulePreset[],
+): string {
+  return presets.find((p) => p.name === name)?.color ?? "";
+}
 
-function colorForScheduleName(name: string): string {
-  return SCHEDULE_PRESETS.find((p) => p.name === name)?.color ?? "";
+function sanitizePresetsClient(raw: unknown): SchedulePreset[] {
+  if (!Array.isArray(raw)) return [];
+  const out: SchedulePreset[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const r = item as { name?: unknown; color?: unknown };
+    const name =
+      typeof r.name === "string" ? r.name.trim().slice(0, 40) : "";
+    if (!name || seen.has(name)) continue;
+    const rawColor = typeof r.color === "string" ? r.color.trim() : "";
+    const color = /^#[0-9a-f]{6}$/i.test(rawColor)
+      ? rawColor
+      : FALLBACK_PRESET_COLOR;
+    seen.add(name);
+    out.push({ name, color });
+  }
+  return out;
 }
 
 type TimeDisplayTz = "vn" | "local";
@@ -329,6 +372,7 @@ function buildEmptyDay(accounts: string[]): DayCells {
 function normalizeDayCells(
   accounts: string[],
   raw: Record<string, Record<string, { text?: string; color?: string }>> | undefined,
+  presets: readonly SchedulePreset[],
 ): DayCells {
   const out = buildEmptyDay(accounts);
   if (!raw) return out;
@@ -343,7 +387,7 @@ function normalizeDayCells(
       const c = row[a];
       if (c && typeof c === "object") {
         const text = typeof c.text === "string" ? c.text : "";
-        const presetColor = colorForScheduleName(text);
+        const presetColor = colorForScheduleName(text, presets);
         const color =
           presetColor ||
           (typeof c.color === "string" ? c.color : "");
@@ -490,28 +534,36 @@ function stablePayload(
   acc: string[],
   byDate: ByDateState,
   timeDisplay: TimeDisplayTz,
+  presets: readonly SchedulePreset[],
 ): string {
-  return JSON.stringify({ accounts: acc, byDate, timeDisplay });
+  return JSON.stringify({ accounts: acc, byDate, presets, timeDisplay });
 }
 
 export function StudyScheduleGrid() {
   const { t, locale } = useI18n();
   const [accounts, setAccounts] = useState<string[]>(() => [...DEFAULT_ACCOUNTS]);
   const [byDate, setByDate] = useState<ByDateState>({});
+  const [presets, setPresets] = useState<SchedulePreset[]>(() => [
+    ...DEFAULT_PRESETS,
+  ]);
   const [selectedDateKey, setSelectedDateKey] = useState(() =>
     toDateKey(new Date()),
   );
   const [editingAccount, setEditingAccount] = useState<number | null>(null);
   const [timeDisplay, setTimeDisplay] = useState<TimeDisplayTz>("vn");
   const [boot, setBoot] = useState<"loading" | "ok" | "error">("loading");
-  const [activeBrush, setActiveBrush] = useState<PresetName | "clear">("Duy");
+  /** Brush is the preset name string, "clear" to erase, or "" when no brushes exist. */
+  const [activeBrush, setActiveBrush] = useState<string>(
+    () => DEFAULT_PRESETS[0]?.name ?? "",
+  );
   const [showAllShiftsModal, setShowAllShiftsModal] = useState(false);
+  const [showManageModal, setShowManageModal] = useState(false);
   const [pastTick, setPastTick] = useState(0);
 
   const lastSyncedJsonRef = useRef("");
   const dragPaintingRef = useRef(false);
-  const stateRef = useRef({ accounts, byDate, timeDisplay });
-  stateRef.current = { accounts, byDate, timeDisplay };
+  const stateRef = useRef({ accounts, byDate, timeDisplay, presets });
+  stateRef.current = { accounts, byDate, timeDisplay, presets };
 
   const browserTzLabel = useMemo(() => {
     try {
@@ -657,24 +709,39 @@ export function StudyScheduleGrid() {
       const data = (await res.json()) as {
         accounts?: string[];
         byDate?: Record<string, Record<string, Record<string, { text?: string; color?: string }>>>;
+        presets?: unknown;
         timeDisplay?: string;
       };
       let acc = Array.isArray(data.accounts)
         ? data.accounts.map((a) => String(a).trim() || "—")
         : [...DEFAULT_ACCOUNTS];
       if (acc.length === 0) acc = [...DEFAULT_ACCOUNTS];
+      const sanitizedPresets = sanitizePresetsClient(data.presets);
+      const nextPresets =
+        sanitizedPresets.length > 0 ? sanitizedPresets : [...DEFAULT_PRESETS];
       const nextByDate: ByDateState = {};
       if (data.byDate && typeof data.byDate === "object") {
         for (const [dk, rawDay] of Object.entries(data.byDate)) {
           if (/^\d{4}-\d{2}-\d{2}$/.test(dk))
-            nextByDate[dk] = normalizeDayCells(acc, rawDay);
+            nextByDate[dk] = normalizeDayCells(acc, rawDay, nextPresets);
         }
       }
       const td: TimeDisplayTz = "vn";
       setAccounts(acc);
       setByDate(nextByDate);
+      setPresets(nextPresets);
+      setActiveBrush((prev) => {
+        if (prev === "clear") return "clear";
+        if (nextPresets.some((p) => p.name === prev)) return prev;
+        return nextPresets[0]?.name ?? "";
+      });
       setTimeDisplay(td);
-      lastSyncedJsonRef.current = stablePayload(acc, nextByDate, td);
+      lastSyncedJsonRef.current = stablePayload(
+        acc,
+        nextByDate,
+        td,
+        nextPresets,
+      );
       setBoot("ok");
     } catch {
       setBoot("error");
@@ -716,7 +783,12 @@ export function StudyScheduleGrid() {
     const timer = window.setTimeout(() => {
       void (async () => {
         const s = stateRef.current;
-        const payload = stablePayload(s.accounts, s.byDate, s.timeDisplay);
+        const payload = stablePayload(
+          s.accounts,
+          s.byDate,
+          s.timeDisplay,
+          s.presets,
+        );
         if (payload === lastSyncedJsonRef.current) return;
         try {
           const res = await authFetch("/api/study-schedule", {
@@ -735,7 +807,7 @@ export function StudyScheduleGrid() {
       })();
     }, 650);
     return () => window.clearTimeout(timer);
-  }, [accounts, byDate, timeDisplay, boot, t]);
+  }, [accounts, byDate, presets, timeDisplay, boot, t]);
 
   const applyCellChoice = useCallback(
     (
@@ -778,7 +850,9 @@ export function StudyScheduleGrid() {
           )
             continue;
 
-          const color = text ? colorForScheduleName(text) || "#475569" : "";
+          const color = text
+            ? colorForScheduleName(text, presets) || FALLBACK_PRESET_COLOR
+            : "";
           dayMutations[vnDateKey] = {
             ...dayBase,
             [vnSlot]: {
@@ -792,7 +866,7 @@ export function StudyScheduleGrid() {
         return { ...prev, ...dayMutations };
       });
     },
-    [gridRows, accounts],
+    [gridRows, accounts, presets],
   );
 
   const handlePaintPointerDown = useCallback(
@@ -803,6 +877,7 @@ export function StudyScheduleGrid() {
       slotCount: number = 1,
     ) => {
       if (e.button !== 0) return;
+      if (activeBrush === "") return;
       e.preventDefault();
       dragPaintingRef.current = true;
       if (activeBrush === "clear")
@@ -820,6 +895,7 @@ export function StudyScheduleGrid() {
       slotCount: number = 1,
     ) => {
       if (!dragPaintingRef.current) return;
+      if (activeBrush === "") return;
       if ((e.buttons & 1) === 0) return;
       if (activeBrush === "clear")
         applyCellChoice(rowIdx, account, "", slotCount);
@@ -827,6 +903,99 @@ export function StudyScheduleGrid() {
     },
     [activeBrush, applyCellChoice],
   );
+
+  const renameCellsForPerson = useCallback(
+    (oldName: string, newName: string) => {
+      if (!oldName || oldName === newName) return;
+      setByDate((prev) => {
+        const out: ByDateState = {};
+        let changed = false;
+        for (const [dk, day] of Object.entries(prev)) {
+          const nextDay: DayCells = {};
+          let dayChanged = false;
+          for (const [slot, row] of Object.entries(day)) {
+            const nextRow: Record<string, CellData> = {};
+            let rowChanged = false;
+            for (const [acc, cell] of Object.entries(row)) {
+              if (cell.text === oldName) {
+                nextRow[acc] = { ...cell, text: newName };
+                rowChanged = true;
+              } else {
+                nextRow[acc] = cell;
+              }
+            }
+            nextDay[slot] = rowChanged ? nextRow : row;
+            if (rowChanged) dayChanged = true;
+          }
+          out[dk] = dayChanged ? nextDay : day;
+          if (dayChanged) changed = true;
+        }
+        return changed ? out : prev;
+      });
+    },
+    [],
+  );
+
+  const recolorCellsForPerson = useCallback(
+    (name: string, color: string) => {
+      if (!name) return;
+      setByDate((prev) => {
+        const out: ByDateState = {};
+        let changed = false;
+        for (const [dk, day] of Object.entries(prev)) {
+          const nextDay: DayCells = {};
+          let dayChanged = false;
+          for (const [slot, row] of Object.entries(day)) {
+            const nextRow: Record<string, CellData> = {};
+            let rowChanged = false;
+            for (const [acc, cell] of Object.entries(row)) {
+              if (cell.text === name && cell.color !== color) {
+                nextRow[acc] = { ...cell, color };
+                rowChanged = true;
+              } else {
+                nextRow[acc] = cell;
+              }
+            }
+            nextDay[slot] = rowChanged ? nextRow : row;
+            if (rowChanged) dayChanged = true;
+          }
+          out[dk] = dayChanged ? nextDay : day;
+          if (dayChanged) changed = true;
+        }
+        return changed ? out : prev;
+      });
+    },
+    [],
+  );
+
+  const clearCellsForPerson = useCallback((name: string) => {
+    if (!name) return;
+    setByDate((prev) => {
+      const out: ByDateState = {};
+      let changed = false;
+      for (const [dk, day] of Object.entries(prev)) {
+        const nextDay: DayCells = {};
+        let dayChanged = false;
+        for (const [slot, row] of Object.entries(day)) {
+          const nextRow: Record<string, CellData> = {};
+          let rowChanged = false;
+          for (const [acc, cell] of Object.entries(row)) {
+            if (cell.text === name) {
+              nextRow[acc] = { text: "", color: "" };
+              rowChanged = true;
+            } else {
+              nextRow[acc] = cell;
+            }
+          }
+          nextDay[slot] = rowChanged ? nextRow : row;
+          if (rowChanged) dayChanged = true;
+        }
+        out[dk] = dayChanged ? nextDay : day;
+        if (dayChanged) changed = true;
+      }
+      return changed ? out : prev;
+    });
+  }, []);
 
   const renameAccount = (idx: number, newName: string) => {
     const trimmed = newName.trim() || accounts[idx];
@@ -954,7 +1123,7 @@ export function StudyScheduleGrid() {
                 className="h-6 w-px shrink-0 bg-zinc-200 dark:bg-zinc-600"
                 aria-hidden
               />
-              {SCHEDULE_PRESETS.map((p) => (
+              {presets.map((p) => (
                 <button
                   key={p.name}
                   type="button"
@@ -981,6 +1150,16 @@ export function StudyScheduleGrid() {
                 ].join(" ")}
               >
                 {t("studySchedulePaintClear")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowManageModal(true)}
+                className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border border-zinc-300 bg-white px-2 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 sm:px-2.5 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+              >
+                <Users className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span className="hidden sm:inline">
+                  {t("studyScheduleManagePeople")}
+                </span>
               </button>
               <span
                 className="h-6 w-px shrink-0 bg-zinc-200 dark:bg-zinc-600"
@@ -1389,6 +1568,258 @@ export function StudyScheduleGrid() {
           </div>
         </div>
       )}
+
+      {boot === "ok" && showManageModal && (
+        <ManagePeopleModal
+          presets={presets}
+          onClose={() => setShowManageModal(false)}
+          onCommit={(next) => {
+            setPresets(next);
+            setActiveBrush((prev) => {
+              if (prev === "clear") return "clear";
+              if (next.some((p) => p.name === prev)) return prev;
+              return next[0]?.name ?? "";
+            });
+          }}
+          onRenamePerson={renameCellsForPerson}
+          onRecolorPerson={recolorCellsForPerson}
+          onDeletePerson={clearCellsForPerson}
+          t={t}
+        />
+      )}
+    </div>
+  );
+}
+
+type ManagePeopleModalProps = {
+  presets: SchedulePreset[];
+  onClose: () => void;
+  onCommit: (next: SchedulePreset[]) => void;
+  onRenamePerson: (oldName: string, newName: string) => void;
+  onRecolorPerson: (name: string, color: string) => void;
+  onDeletePerson: (name: string) => void;
+  t: (key: TranslationKey) => string;
+};
+
+type DraftRow = SchedulePreset & {
+  /** Name this row had when the modal opened — undefined for newly added rows. */
+  originalName?: string;
+  originalColor?: string;
+};
+
+function ManagePeopleModal({
+  presets,
+  onClose,
+  onCommit,
+  onRenamePerson,
+  onRecolorPerson,
+  onDeletePerson,
+  t,
+}: ManagePeopleModalProps) {
+  const [draft, setDraft] = useState<DraftRow[]>(() =>
+    presets.map((p) => ({
+      ...p,
+      originalName: p.name,
+      originalColor: p.color,
+    })),
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const updateDraft = (idx: number, patch: Partial<SchedulePreset>) => {
+    setDraft((prev) =>
+      prev.map((p, i) => (i === idx ? { ...p, ...patch } : p)),
+    );
+    setError(null);
+  };
+
+  const removeRow = (idx: number) => {
+    setDraft((prev) => prev.filter((_, i) => i !== idx));
+    setError(null);
+  };
+
+  const addRow = () => {
+    const used = new Set(draft.map((p) => p.color));
+    const nextColor =
+      PRESET_COLOR_PALETTE.find((c) => !used.has(c)) ??
+      PRESET_COLOR_PALETTE[0]!;
+    setDraft((prev) => [...prev, { name: "", color: nextColor }]);
+    setError(null);
+  };
+
+  const handleSave = () => {
+    const cleaned: SchedulePreset[] = [];
+    const seen = new Set<string>();
+    for (const p of draft) {
+      const name = p.name.trim().slice(0, 40);
+      if (!name) {
+        setError(t("studyScheduleManageEmptyName"));
+        return;
+      }
+      if (seen.has(name)) {
+        setError(t("studyScheduleManageDuplicateName"));
+        return;
+      }
+      const color = /^#[0-9a-f]{6}$/i.test(p.color)
+        ? p.color
+        : FALLBACK_PRESET_COLOR;
+      seen.add(name);
+      cleaned.push({ name, color });
+    }
+
+    /** Survivors keep their originalName tag; everything else in old presets is deleted. */
+    const survivingOriginalNames = new Set<string>();
+    draft.forEach((row, idx) => {
+      if (row.originalName) survivingOriginalNames.add(row.originalName);
+      const finalName = cleaned[idx]!.name;
+      const finalColor = cleaned[idx]!.color;
+      if (row.originalName && row.originalName !== finalName) {
+        onRenamePerson(row.originalName, finalName);
+      }
+      if (row.originalColor && row.originalColor !== finalColor) {
+        onRecolorPerson(finalName, finalColor);
+      }
+    });
+    presets.forEach((p) => {
+      if (!survivingOriginalNames.has(p.name)) onDeletePerson(p.name);
+    });
+
+    onCommit(cleaned);
+    onClose();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        className="flex min-h-0 max-h-[85vh] w-full max-w-md flex-col rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="study-schedule-manage-modal-title"
+      >
+        <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-4 dark:border-zinc-700">
+          <h2
+            id="study-schedule-manage-modal-title"
+            className="text-base font-semibold text-zinc-900 dark:text-zinc-100"
+          >
+            {t("studyScheduleManageModalTitle")}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            aria-label={t("studyScheduleModalClose")}
+          >
+            <X className="h-4 w-4" aria-hidden />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          {draft.length === 0 ? (
+            <p className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
+              {t("studyScheduleManageEmpty")}
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {draft.map((p, idx) => (
+                <li
+                  key={idx}
+                  className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/40"
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="h-7 w-7 shrink-0 rounded-md ring-1 ring-zinc-300 dark:ring-zinc-600"
+                      style={{ background: p.color }}
+                      aria-hidden
+                    />
+                    <input
+                      type="text"
+                      value={p.name}
+                      placeholder={t("studyScheduleManageNamePlaceholder")}
+                      onChange={(e) => updateDraft(idx, { name: e.target.value })}
+                      maxLength={40}
+                      className="h-9 min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-2 text-sm text-zinc-900 outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-100 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-zinc-400 dark:focus:ring-zinc-900/30"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeRow(idx)}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-300 bg-white text-zinc-500 hover:border-red-300 hover:bg-red-50 hover:text-red-600 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-red-700 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                      aria-label={t("studyScheduleManageDelete")}
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden />
+                    </button>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                      {t("studyScheduleManageColorLabel")}
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {PRESET_COLOR_PALETTE.map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => updateDraft(idx, { color: c })}
+                          className={[
+                            "h-6 w-6 rounded-md ring-offset-1 ring-offset-zinc-50 transition focus:outline-none dark:ring-offset-zinc-800/40",
+                            p.color === c
+                              ? "ring-2 ring-zinc-900 dark:ring-zinc-100"
+                              : "ring-1 ring-zinc-300 hover:ring-zinc-500 dark:ring-zinc-600 dark:hover:ring-zinc-400",
+                          ].join(" ")}
+                          style={{ background: c }}
+                          aria-label={c}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <button
+            type="button"
+            onClick={addRow}
+            className="mt-4 inline-flex h-9 items-center gap-1.5 rounded-lg border border-dashed border-zinc-300 bg-white px-3 text-sm font-medium text-zinc-700 hover:border-zinc-500 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-zinc-400 dark:hover:bg-zinc-800"
+          >
+            <Plus className="h-4 w-4 shrink-0" aria-hidden />
+            {t("studyScheduleManageAddPerson")}
+          </button>
+
+          {error && (
+            <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
+              {error}
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-zinc-200 px-5 py-3 dark:border-zinc-700">
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-9 rounded-lg border border-zinc-300 bg-white px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+          >
+            {t("studyScheduleManageCancel")}
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            className="h-9 rounded-lg bg-zinc-900 px-4 text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+          >
+            {t("studyScheduleManageSave")}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

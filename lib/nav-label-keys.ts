@@ -10,6 +10,7 @@ export const NAV_LABEL_KEYS = [
     "navNewsSection",
     "navEntertainmentSection",
     "navScheduleSection",
+    "navPreplySection",
     "portfolioHome",
     "portfolioProfile",
     "portfolioContact",

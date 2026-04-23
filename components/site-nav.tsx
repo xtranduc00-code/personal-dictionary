@@ -12,7 +12,7 @@ import {
 import { NavAccountFooter } from "@/components/nav-account-footer";
 import { ProfileModal } from "@/components/profile-modal";
 import { SecurityModal } from "@/components/security-modal";
-import { BookHeart, BookOpen, BookMarked, BookText, Bot, CalendarClock, CalendarDays, ChessKing, ChevronLeft, ChevronRight, Clapperboard, FileText, FolderOpen, GraduationCap, Headphones, History, Home, Languages, LayoutDashboard, LibraryBig, LogIn, LogOut, Mail, Menu, Mic, Moon, Newspaper, NotebookText, PartyPopper, PenLine, PhoneCall, Search, Sparkles, Sun, Table2, UserCircle, X, Youtube, type LucideIcon, } from "lucide-react";
+import { BookHeart, BookOpen, BookMarked, BookText, Bot, CalendarClock, CalendarDays, ChessKing, ChevronLeft, ChevronRight, Clapperboard, FileText, FolderOpen, GraduationCap, Headphones, History, Home, Languages, LayoutDashboard, LibraryBig, LogIn, LogOut, Mail, Menu, Mic, Moon, Newspaper, NotebookText, PartyPopper, PenLine, PhoneCall, School, Search, Sparkles, Sun, Table2, UserCircle, X, Youtube, type LucideIcon, } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { DailyTasksSidebar } from "@/components/daily-tasks/daily-tasks-sidebar";
 import { useMeetCallOptional } from "@/lib/meet-call-context";
@@ -91,8 +91,14 @@ const scheduleSectionLinks: {
     icon: LucideIcon;
 }[] = [
     { href: "/calendar", labelKey: "calendar", icon: CalendarDays },
-    { href: "/study-schedule", labelKey: "studySchedule", icon: Table2 },
     { href: "/call", labelKey: "meets", icon: PhoneCall },
+];
+const preplySectionLinks: {
+    href: string;
+    labelKey: TranslationKey;
+    icon: LucideIcon;
+}[] = [
+    { href: "/study-schedule", labelKey: "studySchedule", icon: Table2 },
     { href: "/notes", labelKey: "notes", icon: FileText },
 ];
 const portfolioSectionLinks: {
@@ -219,6 +225,11 @@ function isHBRDailyNewsNavActive(pathname: string, src: string | null): boolean 
 }
 function isSchedulePath(pathname: string) {
     return scheduleSectionLinks.some((link) => {
+        return pathname === link.href || pathname.startsWith(`${link.href}/`);
+    });
+}
+function isPreplyPath(pathname: string) {
+    return preplySectionLinks.some((link) => {
         if (link.href === "/notes") {
             return pathname === "/notes";
         }
@@ -386,6 +397,7 @@ function SiteNavInner() {
     const [ieltsOpen, setIeltsOpen] = useState(true);
     const [studyOpen, setStudyOpen] = useState(true);
     const [scheduleOpen, setScheduleOpen] = useState(true);
+    const [preplyOpen, setPreplyOpen] = useState(true);
     const [entertainmentOpen, setEntertainmentOpen] = useState(true);
     const [dictionaryOpen, setDictionaryOpen] = useState(true);
     const [portfolioOpen, setPortfolioOpen] = useState(true);
@@ -468,14 +480,24 @@ function SiteNavInner() {
             watchLinksFiltered.length > 0;
         const scheduleLinks = !fq
             ? scheduleSectionLinks
-            : match(navT("navScheduleSection")) || match(navT("notes"))
+            : match(navT("navScheduleSection"))
               ? scheduleSectionLinks
               : scheduleSectionLinks.filter((l) => match(navT(l.labelKey)));
         const showSchedule =
             !fq ||
             match(navT("navScheduleSection")) ||
-            match(navT("notes")) ||
             scheduleLinks.length > 0;
+        const preplyLinks = !fq
+            ? preplySectionLinks
+            : match(navT("navPreplySection")) || match(navT("notes")) || match(navT("studySchedule"))
+              ? preplySectionLinks
+              : preplySectionLinks.filter((l) => match(navT(l.labelKey)));
+        const showPreply =
+            !fq ||
+            match(navT("navPreplySection")) ||
+            match(navT("notes")) ||
+            match(navT("studySchedule")) ||
+            preplyLinks.length > 0;
         const ieltsLinksMatch = [
             ...ieltsSkillLinks,
             ieltsSpeakingHub,
@@ -489,7 +511,8 @@ function SiteNavInner() {
             showIelts ||
             showStudy ||
             showEntertainment ||
-            showSchedule;
+            showSchedule ||
+            showPreply;
         return {
             fq,
             plinks,
@@ -498,12 +521,14 @@ function SiteNavInner() {
             newsLinksFiltered,
             watchLinksFiltered,
             scheduleLinks,
+            preplyLinks,
             showPortfolio,
             showDictionary,
             showIelts,
             showStudy,
             showEntertainment,
             showSchedule,
+            showPreply,
             anyShown,
         };
     }, [navSearch, navT, t, locale]);
@@ -517,6 +542,7 @@ function SiteNavInner() {
         setStudyOpen(true);
         setEntertainmentOpen(true);
         setScheduleOpen(true);
+        setPreplyOpen(true);
     }, [navSearch]);
     useEffect(() => {
         const onClear = () => setNavSearch("");
@@ -578,6 +604,9 @@ function SiteNavInner() {
         const savedEntertainment = window.localStorage.getItem("entertainmentSectionOpen");
         if (savedEntertainment !== null)
             setEntertainmentOpen(savedEntertainment === "true");
+        const savedPreply = window.localStorage.getItem("preplySectionOpen");
+        if (savedPreply !== null)
+            setPreplyOpen(savedPreply === "true");
     }, []);
     useEffect(() => {
         if (isIeltsPath(pathname))
@@ -594,6 +623,10 @@ function SiteNavInner() {
     useEffect(() => {
         if (isSchedulePath(pathname))
             setScheduleOpen(true);
+    }, [pathname]);
+    useEffect(() => {
+        if (isPreplyPath(pathname))
+            setPreplyOpen(true);
     }, [pathname]);
     useEffect(() => {
         if (isDictionaryPath(pathname))
@@ -617,6 +650,11 @@ function SiteNavInner() {
         const next = !scheduleOpen;
         setScheduleOpen(next);
         window.localStorage.setItem("scheduleSectionOpen", String(next));
+    }
+    function togglePreplySection() {
+        const next = !preplyOpen;
+        setPreplyOpen(next);
+        window.localStorage.setItem("preplySectionOpen", String(next));
     }
     function toggleEntertainmentSection() {
         const next = !entertainmentOpen;
@@ -864,6 +902,31 @@ function SiteNavInner() {
                 })}
               </div>) : null}
 
+              {navFilter.showSchedule && navFilter.showPreply ? (<div className="my-2 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
+
+              {navFilter.showPreply ? (<div className="flex flex-col gap-0.5">
+                <NavSectionHeader isOpen={preplyOpen} onToggle={togglePreplySection} icon={School} labelKey="navPreplySection" outerClass={[
+                "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
+                isPreplyPath(pathname)
+                    ? "bg-zinc-100 text-zinc-900 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
+                    : "text-zinc-500 hover:bg-zinc-50/90 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+            ].join(" ")} iconBoxClass={[
+                "flex h-10 w-10 items-center justify-center rounded-xl transition",
+                isPreplyPath(pathname)
+                    ? "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900"
+                    : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
+            ].join(" ")}/>
+                {preplyOpen &&
+                navFilter.preplyLinks.map((link) => {
+                    const active = isActive(pathname, link.href);
+                    const Icon = link.icon;
+                    return (<NavSidebarRow key={link.href} href={link.href} labelKey={link.labelKey} onLinkClick={clearQuickSearch} className={[
+                            "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200",
+                            active ? NAV_LINK_ROW_ACTIVE : NAV_LINK_ROW_IDLE,
+                        ].join(" ")} active={active} icon={Icon}/>);
+                })}
+              </div>) : null}
+
             </nav>
             <NavAccountFooter variant="drawer" onOpenProfile={() => setProfileOpen(true)} onOpenSecurity={() => setSecurityOpen(true)}/>
           </aside>
@@ -1070,6 +1133,31 @@ function SiteNavInner() {
                               <span className="leading-none" aria-hidden>🔴</span>
                               {t("meetsLiveBadge")}
                             </span>) : undefined}/>);
+            })}
+            </div>) : null}
+
+            {navFilter.showSchedule && navFilter.showPreply ? (<div className="my-2 shrink-0 border-t border-zinc-200 dark:border-zinc-700"/>) : null}
+
+            {navFilter.showPreply ? (<div className="flex shrink-0 flex-col gap-0.5">
+              <NavSectionHeader isOpen={preplyOpen} onToggle={togglePreplySection} icon={School} labelKey="navPreplySection" outerClass={[
+            "group flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base font-medium transition-all duration-200",
+            isPreplyPath(pathname)
+                ? "bg-white text-zinc-900 shadow-sm ring-1 ring-zinc-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700"
+                : "text-zinc-500 hover:bg-zinc-50/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+        ].join(" ")} iconBoxClass={[
+            "flex h-10 w-10 items-center justify-center rounded-xl transition",
+            isPreplyPath(pathname)
+                ? "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900"
+                : "bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200/80 group-hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover:bg-zinc-700 dark:group-hover:text-zinc-100",
+        ].join(" ")}/>
+              {preplyOpen &&
+            navFilter.preplyLinks.map((link) => {
+                const active = isActive(pathname, link.href);
+                const Icon = link.icon;
+                return (<NavSidebarRow key={link.href} href={link.href} labelKey={link.labelKey} onLinkClick={clearQuickSearch} className={[
+                        "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200",
+                        active ? NAV_LINK_ROW_ACTIVE : NAV_LINK_ROW_IDLE,
+                    ].join(" ")} active={active} icon={Icon}/>);
             })}
             </div>) : null}
 
