@@ -100,17 +100,41 @@ export function CalendarPushSettings() {
     enableInFlight.current = true;
     setBusy(true);
     try {
-      if (!("Notification" in window)) return;
+      if (!("Notification" in window)) {
+        toast.error("Browser does not support Notification API.", {
+          containerId: "cal",
+          autoClose: 8000,
+        });
+        return;
+      }
       const perm = await Notification.requestPermission();
-      if (perm !== "granted") return;
+      if (perm !== "granted") {
+        toast.warning(
+          `Notification permission: ${perm}. Enable it in browser settings (lock icon → Site settings → Notifications → Allow).`,
+          { containerId: "cal", autoClose: 10000 },
+        );
+        return;
+      }
       const vapidRes = await fetch("/api/push/vapid-public-key");
       const vapidJson = (await vapidRes.json()) as {
         configured?: boolean;
         publicKey?: string | null;
       };
-      if (!vapidJson.configured || !vapidJson.publicKey) return;
+      if (!vapidJson.configured || !vapidJson.publicKey) {
+        toast.error(
+          "VAPID public key not configured on server. Set NEXT_PUBLIC_VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY in Netlify env vars.",
+          { containerId: "cal", autoClose: 10000 },
+        );
+        return;
+      }
       const reg = await registerSw();
-      if (!reg) return;
+      if (!reg) {
+        toast.error(
+          "Service worker registration failed. Check /sw.js is accessible.",
+          { containerId: "cal", autoClose: 8000 },
+        );
+        return;
+      }
       await reg.update();
       const existingSub = await reg.pushManager.getSubscription();
       if (existingSub) {
@@ -154,11 +178,18 @@ export function CalendarPushSettings() {
       });
       if (!save.ok) {
         await sub.unsubscribe().catch(() => {});
+        toast.error(
+          `Failed to save subscription to server (HTTP ${save.status}).`,
+          { containerId: "cal", autoClose: 8000 },
+        );
         return;
       }
       setBrowserSubscribed(true);
       await refreshStatus();
       await syncBrowserSubscription();
+      toast.success("Notifications enabled. Use Test notification to verify.", {
+        containerId: "cal",
+      });
     } finally {
       setBusy(false);
       enableInFlight.current = false;
@@ -308,9 +339,6 @@ export function CalendarPushSettings() {
           <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             {t("calendarPushTitle")}
           </h3>
-          <p className="mt-2 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
-            {t("calendarPushVocabHint")}
-          </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {active ? (
               <>
