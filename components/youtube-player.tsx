@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   FastForward, Maximize2, Minimize2, Pause, Play, Rewind, Volume2, VolumeX, X,
-  Subtitles, Settings, ListPlus,
+  Subtitles, Settings, ListPlus, UserPlus, UserCheck, Loader2,
 } from "lucide-react";
 import {
   loadYoutubeIframeApi,
@@ -26,13 +26,29 @@ function fmt(s: number) {
 type Props = {
   videoId: string;
   title?: string;
+  channelId?: string;
   channelTitle?: string;
   publishedAt?: string;
+  /** True when the user already subscribes to this channel — hides the Follow button. */
+  isSubscribedToChannel?: boolean;
+  /** True while a follow request is in flight for this exact channel. */
+  followingChannel?: boolean;
   onClose: () => void;
   onAddToPlaylist?: () => void;
+  onFollowChannel?: (channelId: string) => void;
 };
 
-export function YouTubePlayer({ videoId, title, channelTitle, onClose, onAddToPlaylist }: Props) {
+export function YouTubePlayer({
+  videoId,
+  title,
+  channelId,
+  channelTitle,
+  isSubscribedToChannel,
+  followingChannel,
+  onClose,
+  onAddToPlaylist,
+  onFollowChannel,
+}: Props) {
   const {
     playbackState,
     updatePlaybackState,
@@ -381,6 +397,29 @@ export function YouTubePlayer({ videoId, title, channelTitle, onClose, onAddToPl
 
           {/* Spacer */}
           <div className="flex-1" />
+
+          {/* Follow channel — only shown when we have a channelId and the user
+              isn't already subscribed. */}
+          {channelId && onFollowChannel && !isSubscribedToChannel && (
+            <button
+              onClick={() => onFollowChannel(channelId)}
+              disabled={followingChannel}
+              title={`Follow ${channelTitle ?? "channel"}`}
+              className="inline-flex h-7 items-center gap-1 rounded-lg border border-red-500/70 bg-red-600/90 px-2 text-[10px] font-bold text-white hover:bg-red-600 disabled:opacity-60 transition-colors"
+            >
+              {followingChannel ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserPlus className="h-3 w-3" />}
+              Follow
+            </button>
+          )}
+          {channelId && isSubscribedToChannel && (
+            <span
+              title="Already following"
+              className="inline-flex h-7 items-center gap-1 rounded-lg border border-emerald-700 bg-emerald-900/50 px-2 text-[10px] font-bold text-emerald-200"
+            >
+              <UserCheck className="h-3 w-3" />
+              Following
+            </span>
+          )}
 
           {/* Add to my playlist */}
           {onAddToPlaylist && (

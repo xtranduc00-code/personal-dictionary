@@ -22,6 +22,7 @@ export type YTSavedVideo = {
   videoId: string;
   title: string;
   thumbnail: string;
+  channelId?: string;
   channelTitle: string;
   publishedAt: string;
   addedAt: string;
@@ -105,10 +106,11 @@ export async function getYTSavedVideos(): Promise<YTSavedVideo[]> {
   const res = await authFetch(`${BASE}/saved`);
   const data = await getJson<Array<{
     video_id: string; title: string; thumbnail: string;
-    channel_title: string; published_at: string; added_at: string;
+    channel_id: string | null; channel_title: string; published_at: string; added_at: string;
   }>>(res);
   return data.map((r) => ({
     videoId: r.video_id, title: r.title, thumbnail: r.thumbnail,
+    channelId: r.channel_id ?? undefined,
     channelTitle: r.channel_title, publishedAt: r.published_at, addedAt: r.added_at,
   }));
 }
@@ -119,7 +121,7 @@ export async function saveYTVideo(url: string): Promise<YTSavedVideo> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url }),
   });
-  const data = await getJson<{ videoId: string; title: string; thumbnail: string; channelTitle: string; publishedAt: string }>(res);
+  const data = await getJson<{ videoId: string; title: string; thumbnail: string; channelId?: string; channelTitle: string; publishedAt: string }>(res);
   return { ...data, addedAt: new Date().toISOString() };
 }
 
@@ -231,5 +233,23 @@ export async function getYTFeed(opts?: { channelId?: string; playlistId?: string
   if (opts?.channelId) params.set("channelId", opts.channelId);
   if (opts?.playlistId) params.set("playlistId", opts.playlistId);
   const res = await authFetch(`${BASE}/feed?${params}`);
-  return getJson<YTVideo[]>(res);
+  const data = await getJson<YTVideo[] | { items: YTVideo[]; nextPageToken?: string }>(res);
+  // Single-channel/playlist responses are paged; merged view is a flat array.
+  return Array.isArray(data) ? data : data.items;
+}
+
+/** Paged variant for single-channel / single-playlist views. */
+export async function getYTFeedPage(opts: {
+  channelId?: string;
+  playlistId?: string;
+  per?: number;
+  pageToken?: string;
+}): Promise<{ items: YTVideo[]; nextPageToken?: string }> {
+  const params = new URLSearchParams({ per: String(opts.per ?? 50) });
+  if (opts.channelId) params.set("channelId", opts.channelId);
+  if (opts.playlistId) params.set("playlistId", opts.playlistId);
+  if (opts.pageToken) params.set("pageToken", opts.pageToken);
+  const res = await authFetch(`${BASE}/feed?${params}`);
+  const data = await getJson<{ items: YTVideo[]; nextPageToken?: string }>(res);
+  return data;
 }

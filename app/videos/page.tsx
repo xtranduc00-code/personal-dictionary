@@ -6,12 +6,12 @@ import {
   RefreshCw, ChevronLeft, ChevronRight as ChevronRightIcon,
   Bookmark, BookmarkCheck, ListVideo,
   ChevronDown, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen,
-  Search,
+  Search, UserPlus, UserCheck,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import {
   addToMyPlaylist, addYTChannel, addYTPlaylist, createMyPlaylist, deleteMyPlaylist,
-  getChannelPlaylists, getMyPlaylistItems, getMyPlaylists, getYTChannels, getYTFeed,
+  getChannelPlaylists, getMyPlaylistItems, getMyPlaylists, getYTChannels, getYTFeed, getYTFeedPage,
   getYTLiveVideos, getYTPlaylists, getYTSavedVideos, removeFromMyPlaylist, removeYTChannel, removeYTPlaylist,
   removeYTSavedVideo, saveYTVideo,
   type MyPlaylist, type MyPlaylistItem, type YTChannel, type YTChannelPlaylist,
@@ -57,16 +57,25 @@ type View =
 // ─── VideoCard ─────────────────────────────────────────────────────────────────
 
 function VideoCard({
-  video, saved, onPlay, onSave, onUnsave, onAddToPlaylist, onRemoveFromPlaylist,
+  video, saved, subscribedChannelIds, followingChannelId, onPlay, onSave, onUnsave, onAddToPlaylist, onRemoveFromPlaylist, onFollowChannel,
 }: {
   video: YTVideo | YTSavedVideo | MyPlaylistItem;
   saved: boolean;
+  /** Set of channelIds the user is already subscribed to. */
+  subscribedChannelIds?: Set<string>;
+  /** ChannelId currently being followed (shows spinner). */
+  followingChannelId?: string | null;
   onPlay: (v: YTVideo | YTSavedVideo | MyPlaylistItem) => void;
   onSave: (v: YTVideo | YTSavedVideo | MyPlaylistItem) => void;
   onUnsave: (videoId: string) => void;
   onAddToPlaylist: (v: YTVideo | YTSavedVideo | MyPlaylistItem) => void;
   onRemoveFromPlaylist?: (videoId: string) => void;
+  onFollowChannel?: (channelId: string) => void;
 }) {
+  const channelId = "channelId" in video ? video.channelId : undefined;
+  const isSubscribed = !!channelId && !!subscribedChannelIds?.has(channelId);
+  const isFollowing = !!channelId && followingChannelId === channelId;
+  const showFollow = !!channelId && !isSubscribed && !!onFollowChannel;
   const publishedAt = video.publishedAt;
   return (
     <div className="group relative rounded-xl overflow-hidden bg-zinc-100 dark:bg-zinc-800">
@@ -101,6 +110,17 @@ function VideoCard({
           </div>
         </div>
       </button>
+      {showFollow && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onFollowChannel?.(channelId!); }}
+          disabled={isFollowing}
+          title={`Follow ${video.channelTitle}`}
+          className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full bg-red-500/95 px-2 py-1 text-[10px] font-semibold text-white shadow-md hover:bg-red-600 disabled:opacity-60 transition-colors"
+        >
+          {isFollowing ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserPlus className="h-3 w-3" />}
+          Follow
+        </button>
+      )}
       {/* Action buttons */}
       <div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-all">
         <button
@@ -268,7 +288,18 @@ export default function VideosPage() {
   const [queueCollapsed, setQueueCollapsed] = useState(false);
   const [playerMinimized, setPlayerMinimized] = useState(false);
 
+  // Pagination — only set for single-channel/playlist views; null otherwise.
+  const [feedPageToken, setFeedPageToken] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  // All-channels view client-side reveal: server always sends the merged set,
+  // we just slice it so the page doesn't dump 200 cards at once.
+  const ALL_PAGE = 50;
+  const [allChannelsLimit, setAllChannelsLimit] = useState(ALL_PAGE);
+  // Channel-id currently being followed via the in-card button (shows spinner).
+  const [followingChannelId, setFollowingChannelId] = useState<string | null>(null);
+
   const savedIds = new Set(savedVideos.map((v) => v.videoId));
+  const subscribedChannelIds = new Set(channels.map((c) => c.channelId));
 
   // Mute dock when inline full player is active; unmute otherwise
   useEffect(() => {
@@ -283,9 +314,20 @@ export default function VideosPage() {
 
   // Initial load
   useEffect(() => {
-    Promise.all([getYTChannels(), getYTPlaylists(), getYTSavedVideos(), getMyPlaylists()])
-      .then(([ch, pl, sv, mp]) => { setChannels(ch); setPlaylists(pl); setSavedVideos(sv); setMyPlaylists(mp); })
-      .catch(() => toast.error("Failed to load library"))
+    // allSettled — if one source errors (e.g. saved-videos schema mismatch
+    // before a migration is run) we still surface the others, instead of
+    // making the whole sidebar look empty.
+    Promise.allSettled([getYTChannels(), getYTPlaylists(), getYTSavedVideos(), getMyPlaylists()])
+      .then(([chR, plR, svR, mpR]) => {
+        if (chR.status === "fulfilled") setChannels(chR.value);
+        else { console.error("getYTChannels failed", chR.reason); toast.error("Failed to load channels"); }
+        if (plR.status === "fulfilled") setPlaylists(plR.value);
+        else console.error("getYTPlaylists failed", plR.reason);
+        if (svR.status === "fulfilled") setSavedVideos(svR.value);
+        else console.error("getYTSavedVideos failed", svR.reason);
+        if (mpR.status === "fulfilled") setMyPlaylists(mpR.value);
+        else console.error("getMyPlaylists failed", mpR.reason);
+      })
       .finally(() => setLoadingInit(false));
   }, []);
 
@@ -311,21 +353,28 @@ export default function VideosPage() {
     setLoadingFeed(true);
     setVideos([]);
     setLiveVideos([]);
-
-    const opts =
-      view.type === "channel" ? { channelId: view.id, per: 20 }
-      : view.type === "playlist" ? { playlistId: view.id, per: 50 }
-      : { per: 20 };
+    setFeedPageToken(null);
+    setAllChannelsLimit(ALL_PAGE);
 
     const isLivable = view.type === "channel" || view.type === "all";
     const channelIdForLive = view.type === "channel" ? view.id : undefined;
 
+    // Single channel / single playlist → paged response, 50 per page (YT max).
+    // "All channels" → flat merged array.
+    const fetchVideos: Promise<{ items: YTVideo[]; nextPageToken?: string }> =
+      view.type === "channel"
+        ? getYTFeedPage({ channelId: view.id, per: 50 })
+        : view.type === "playlist"
+          ? getYTFeedPage({ playlistId: view.id, per: 50 })
+          : getYTFeed({ per: 20 }).then((items) => ({ items, nextPageToken: undefined }));
+
     Promise.all([
-      getYTFeed(opts),
+      fetchVideos,
       isLivable ? getYTLiveVideos(channelIdForLive).catch(() => []) : Promise.resolve([]),
-    ]).then(([vids, live]) => {
+    ]).then(([page, live]) => {
       if (cancelled) return;
-      setVideos(vids);
+      setVideos(page.items);
+      setFeedPageToken(page.nextPageToken ?? null);
       setLiveVideos(live as YTLiveVideo[]);
     }).catch(() => {
       if (!cancelled) toast.error("Failed to load videos");
@@ -493,6 +542,43 @@ export default function VideosPage() {
     }
   }
 
+  async function handleFollowChannel(channelId: string) {
+    if (followingChannelId || subscribedChannelIds.has(channelId)) return;
+    setFollowingChannelId(channelId);
+    try {
+      const ch = await addYTChannel(channelId);
+      setChannels((prev) => prev.find((c) => c.channelId === ch.channelId) ? prev : [ch, ...prev]);
+      toast.success(`Followed ${ch.title}`);
+    } catch (e) {
+      toast.error((e as Error).message ?? "Failed to follow");
+    } finally {
+      setFollowingChannelId(null);
+    }
+  }
+
+  async function handleLoadMore() {
+    if (loadingMore || !feedPageToken) return;
+    if (view.type !== "channel" && view.type !== "playlist") return;
+    setLoadingMore(true);
+    try {
+      const page = await getYTFeedPage({
+        channelId: view.type === "channel" ? view.id : undefined,
+        playlistId: view.type === "playlist" ? view.id : undefined,
+        per: 50,
+        pageToken: feedPageToken,
+      });
+      setVideos((prev) => {
+        const seen = new Set(prev.map((v) => v.videoId));
+        return [...prev, ...page.items.filter((v) => !seen.has(v.videoId))];
+      });
+      setFeedPageToken(page.nextPageToken ?? null);
+    } catch {
+      toast.error("Failed to load more");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
   async function handleAddChannelPlaylist(pl: YTChannelPlaylist) {
     try {
       const added = await addYTPlaylist(pl.playlistId);
@@ -518,7 +604,9 @@ export default function VideosPage() {
   const displayedVideos: (YTVideo | YTSavedVideo | MyPlaylistItem)[] =
     view.type === "saved" ? savedVideos
     : view.type === "myPlaylist" ? myPlaylistItems
+    : view.type === "all" ? videos.slice(0, allChannelsLimit)
     : videos;
+  const allHasMore = view.type === "all" && videos.length > allChannelsLimit;
 
   // ── sidebar content ──────────────────────────────────────────────────────────
   const navBtn = (active: boolean) =>
@@ -749,8 +837,20 @@ export default function VideosPage() {
                 <YouTubePlayer
                   videoId={playingVideo.videoId}
                   title={playingVideo.title}
+                  channelId={"channelId" in playingVideo ? playingVideo.channelId : undefined}
                   channelTitle={playingVideo.channelTitle}
                   publishedAt={"publishedAt" in playingVideo ? playingVideo.publishedAt : undefined}
+                  isSubscribedToChannel={
+                    "channelId" in playingVideo && playingVideo.channelId
+                      ? subscribedChannelIds.has(playingVideo.channelId)
+                      : false
+                  }
+                  followingChannel={
+                    "channelId" in playingVideo &&
+                    !!playingVideo.channelId &&
+                    followingChannelId === playingVideo.channelId
+                  }
+                  onFollowChannel={handleFollowChannel}
                   onClose={() => { setPlayingVideo(null); setPlayerMinimized(false); }}
                   onAddToPlaylist={() => setAddToPlModal(playingVideo)}
                 />
@@ -784,8 +884,20 @@ export default function VideosPage() {
                 <YouTubePlayer
                   videoId={playingVideo.videoId}
                   title={playingVideo.title}
+                  channelId={"channelId" in playingVideo ? playingVideo.channelId : undefined}
                   channelTitle={playingVideo.channelTitle}
                   publishedAt={"publishedAt" in playingVideo ? playingVideo.publishedAt : undefined}
+                  isSubscribedToChannel={
+                    "channelId" in playingVideo && playingVideo.channelId
+                      ? subscribedChannelIds.has(playingVideo.channelId)
+                      : false
+                  }
+                  followingChannel={
+                    "channelId" in playingVideo &&
+                    !!playingVideo.channelId &&
+                    followingChannelId === playingVideo.channelId
+                  }
+                  onFollowChannel={handleFollowChannel}
                   onClose={() => setPlayingVideo(null)}
                   onAddToPlaylist={() => setAddToPlModal(playingVideo)}
                 />
@@ -880,6 +992,9 @@ export default function VideosPage() {
                             <VideoCard
                               video={v}
                               saved={savedIds.has(v.videoId)}
+                              subscribedChannelIds={subscribedChannelIds}
+                              followingChannelId={followingChannelId}
+                              onFollowChannel={handleFollowChannel}
                               onPlay={(x) => handlePlayVideo(x)}
                               onSave={handleSaveVideo}
                               onUnsave={handleUnsaveVideo}
@@ -907,6 +1022,9 @@ export default function VideosPage() {
                             key={v.videoId}
                             video={v}
                             saved={savedIds.has(v.videoId)}
+                            subscribedChannelIds={subscribedChannelIds}
+                            followingChannelId={followingChannelId}
+                            onFollowChannel={handleFollowChannel}
                             onPlay={handlePlayVideo}
                             onSave={handleSaveVideo}
                             onUnsave={handleUnsaveVideo}
@@ -915,6 +1033,22 @@ export default function VideosPage() {
                           />
                         ))}
                       </div>
+                      {((feedPageToken && (view.type === "channel" || view.type === "playlist")) || allHasMore) && (
+                        <div className="mt-6 flex justify-center">
+                          <button
+                            onClick={
+                              allHasMore
+                                ? () => setAllChannelsLimit((n) => n + ALL_PAGE)
+                                : handleLoadMore
+                            }
+                            disabled={loadingMore}
+                            className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-5 py-2 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                          >
+                            {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronDown className="h-4 w-4" />}
+                            {loadingMore ? "Loading…" : "Load more"}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1012,7 +1146,7 @@ export default function VideosPage() {
                           <p className="mt-0.5 text-[10px] text-zinc-400 truncate">{v.channelTitle}</p>
                           <p className="text-[10px] text-zinc-400">{relativeTime(v.publishedAt)}</p>
                         </button>
-                        <div className="mt-2 flex gap-1">
+                        <div className="mt-2 flex flex-wrap gap-1">
                           <button
                             onClick={() => setAddToPlModal(v)}
                             title="Add to playlist"
@@ -1027,6 +1161,25 @@ export default function VideosPage() {
                           >
                             <Bookmark className="h-3.5 w-3.5" />
                           </button>
+                          {v.channelId && !subscribedChannelIds.has(v.channelId) ? (
+                            <button
+                              onClick={() => handleFollowChannel(v.channelId)}
+                              disabled={followingChannelId === v.channelId}
+                              title={`Follow ${v.channelTitle}`}
+                              className="inline-flex items-center gap-1 rounded border border-red-200 bg-red-50 px-2 py-1 text-[10px] font-semibold text-red-600 hover:bg-red-100 disabled:opacity-60 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50 transition-colors"
+                            >
+                              {followingChannelId === v.channelId ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserPlus className="h-3 w-3" />}
+                              Follow
+                            </button>
+                          ) : v.channelId ? (
+                            <span
+                              title="Already following"
+                              className="inline-flex items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300"
+                            >
+                              <UserCheck className="h-3 w-3" />
+                              Following
+                            </span>
+                          ) : null}
                         </div>
                       </div>
                     </div>
