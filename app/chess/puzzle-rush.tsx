@@ -687,6 +687,7 @@ function RushGame({
   }
 
   function handleDrop(from: string, to: string): boolean {
+    if (from === to) return false;
     if (gameEndedRef.current || transitionRef.current || !puzzleRef.current) return false;
 
     const puzzle = puzzleRef.current;

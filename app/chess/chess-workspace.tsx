@@ -5,18 +5,26 @@ import dynamic from "next/dynamic";
 import { Chess } from "chess.js";
 import { toast } from "react-toastify";
 import {
-  ArrowLeft, BookOpen, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Crown, Flag,
-  History, LibraryBig, Lightbulb, Loader2, MessageSquare, Mic, MicOff, Pause, Play,
-  RefreshCw, Send, Square, Star, Swords, Trophy, Undo2, Users, Volume2, VolumeX, X, Zap,
+  ArrowLeft, BookOpen, Calendar, Check, ChevronDown, ChevronLeft, ChevronRight, Copy,
+  Crown, Filter, Flag, Lightbulb, Loader2, MessageSquare, Mic, MicOff, Microscope, Pause, Play,
+  RefreshCw, Send, Square, Star, Swords, Trophy, Undo2, Users,
+  Volume2, VolumeX, X, Zap,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { authFetch, useAuth } from "@/lib/auth-context";
 import { incrementChessPuzzleCounter } from "@/components/daily-tasks/daily-tasks-auto-detect";
+import {
+  HINT_MAX_LEVEL,
+  buildLevel1Hint,
+  buildLevel2Hint,
+  buildLevel3Hint,
+  type PuzzleHint,
+} from "@/lib/puzzleHints";
 import { supabase } from "@/lib/supabase";
 import { createChessGame, getChessGame, joinChessGame, updateChessGame, type ChessGame } from "@/lib/chess-storage";
 import { useMeetCall } from "@/lib/meet-call-context";
-import { BUILT_IN_PUZZLES, type BuiltInPuzzle } from "@/lib/chess-puzzles-data";
+import { type BuiltInPuzzle } from "@/lib/chess-puzzles-data";
 function ChessSectionSkeleton({ label }: { label: string }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-zinc-400">
@@ -73,13 +81,36 @@ export type { LibraryPuzzle };
 
 type Mode = "home" | "play-lobby" | "play-game" | "puzzles" | "puzzle-solve" | "game-review" | "opening-trainer" | "endgame-trainer" | "puzzle-rush";
 
-export type PuzzleSort = "newest" | "rating_asc" | "rating_desc";
+export type PuzzleSort = "popular" | "random" | "hardest" | "easiest";
+
+/** Migrate legacy stored sort values (from sessionStorage / older URLs) onto
+ *  the current set. "newest" was retired because Lichess puzzle IDs aren't
+ *  time-ordered and "rating_*" duplicates "hardest"/"easiest". */
+function normalizeSort(raw: string | null | undefined): PuzzleSort {
+  switch (raw) {
+    case "popular":
+    case "random":
+    case "hardest":
+    case "easiest":
+      return raw;
+    case "rating_desc":
+      return "hardest";
+    case "rating_asc":
+      return "easiest";
+    case "newest":
+    default:
+      return "popular";
+  }
+}
 
 /** Snapshot of puzzle list position for "Next puzzle" without losing filters across routes. */
 export type LibraryPuzzleNav = {
   level: PuzzleLevel;
-  theme: string;
-  q: string;
+  /** Multi-select theme filter — comma-joined for the API. Single-select
+   *  pages should pass a 0/1-element array. */
+  themes: string[];
+  /** Multi-select opening filter (family or variation keys). */
+  openings: string[];
   sort: PuzzleSort;
   page: number;
   index: number;
@@ -138,7 +169,27 @@ function readPuzzleLibraryNav(): LibraryPuzzleNav | null {
   try {
     const raw = sessionStorage.getItem(PUZZLE_NAV_STORAGE_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as LibraryPuzzleNav;
+    // The LibraryPuzzleNav shape evolved from { theme, q } singles to
+    // { themes, openings, search } arrays/strings. Migrate the old shape
+    // forward so existing session entries don't crash the next-puzzle flow.
+    const parsed = JSON.parse(raw) as Partial<LibraryPuzzleNav> & {
+      theme?: string;
+      q?: string;
+    };
+    return {
+      level: parsed.level ?? "beginner",
+      themes: Array.isArray(parsed.themes)
+        ? parsed.themes
+        : parsed.theme
+          ? [parsed.theme]
+          : [],
+      openings: Array.isArray(parsed.openings) ? parsed.openings : [],
+      sort: normalizeSort(parsed.sort ?? null),
+      page: parsed.page ?? 1,
+      index: parsed.index ?? 0,
+      pageItems: parsed.pageItems ?? [],
+      total: parsed.total ?? 0,
+    };
   } catch {
     return null;
   }
@@ -174,12 +225,29 @@ const LEVEL_LABELS: Record<PuzzleLevel, string> = {
  * Default: a single neutral pill — keeps cards quiet even with 3 tags.
  * Exception: anything mate-related stays subtle red so the mate hint stands out.
  */
-function puzzleTagAccentClasses(theme: string): string {
-  const t = theme.toLowerCase();
-  if (t.includes("mate")) {
-    return "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300";
-  }
-  return "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400";
+/** Tag colour by theme group, not by substring. The earlier substring rule
+ *  ("any theme containing 'mate' is red") false-matched things like
+ *  "mateInOne" + the literal "mate" eyebrow but also drifted onto unrelated
+ *  themes once new keys were added. Group-based is unambiguous and stable
+ *  as the catalogue grows. */
+const TAG_GROUP_COLORS: Record<string, string> = {
+  recommended: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300",
+  phases:      "bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-300",
+  motifs:      "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
+  advanced:    "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300",
+  mates:       "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300",
+  lengths:     "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300",
+  origin:      "bg-purple-50 text-purple-700 dark:bg-purple-950/30 dark:text-purple-300",
+};
+const TAG_NEUTRAL = "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400";
+
+function puzzleTagAccentClasses(
+  theme: string,
+  themeToGroup?: Map<string, string>,
+): string {
+  const groupId = themeToGroup?.get(theme);
+  if (groupId && TAG_GROUP_COLORS[groupId]) return TAG_GROUP_COLORS[groupId];
+  return TAG_NEUTRAL;
 }
 
 const PUZZLE_PIECE_GLYPH: Record<string, string> = {
@@ -306,11 +374,27 @@ function formatClock(ms: number): string {
 
 const LIBRARY_PAGE_SIZE = 20;
 
-export function ChessWorkspace({ initialLibraryPuzzleId, initialRoom }: { initialLibraryPuzzleId?: string; initialRoom?: ChessGame } = {}) {
+export function ChessWorkspace({
+  initialLibraryPuzzleId,
+  initialRoom,
+  initialMode,
+}: {
+  initialLibraryPuzzleId?: string;
+  initialRoom?: ChessGame;
+  initialMode?: Mode;
+} = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const { user } = useAuth();
-  const [mode, setMode]           = useState<Mode>(() => (initialRoom ? "play-game" : initialLibraryPuzzleId ? "puzzle-solve" : "home"));
+  const [mode, setMode]           = useState<Mode>(() =>
+    initialMode
+      ? initialMode
+      : initialRoom
+        ? "play-game"
+        : initialLibraryPuzzleId
+          ? "puzzle-solve"
+          : "home",
+  );
   const [game, setGame]           = useState<ChessGame | null>(initialRoom ?? null);
   const [createdGame, setCreatedGame] = useState<ChessGame | null>(null); // waiting in lobby
   const [joinCode, setJoinCode]   = useState("");
@@ -389,8 +473,8 @@ export function ChessWorkspace({ initialLibraryPuzzleId, initialRoom }: { initia
         offset: String(offset),
         sort: nav.sort,
       });
-      if (nav.theme) params.set("theme", nav.theme);
-      if (nav.q) params.set("q", nav.q);
+      if (nav.themes.length) params.set("themes", nav.themes.join(","));
+      if (nav.openings.length) params.set("openings", nav.openings.join(","));
 
       const res = await fetch(`/api/chess/puzzles/library?${params}`);
       const data = (await res.json()) as { items: LibraryPuzzle[]; total: number; error?: string };
@@ -454,10 +538,20 @@ export function ChessWorkspace({ initialLibraryPuzzleId, initialRoom }: { initia
           `/api/chess/puzzles/by-id?id=${encodeURIComponent(initialLibraryPuzzleId)}`,
         );
         const data = (await res.json()) as { puzzle?: LibraryPuzzle; error?: string };
-        if (!res.ok) throw new Error(data.error ?? "Puzzle not found");
+
+        let p: LibraryPuzzle | null = null;
+
+        if (res.ok && data.puzzle) {
+          p = data.puzzle;
+        } else if (res.status === 404) {
+          // Fall back to Lichess so daily puzzles + any Lichess id work even
+          // when our local mirror doesn't have the entry.
+          p = await fetchLichessPuzzleAsLibraryShape(initialLibraryPuzzleId);
+        }
+
+        if (!p) throw new Error(data.error ?? "Puzzle not found");
         if (cancelled) return;
 
-        const p = data.puzzle!;
         setActivePuzzle(p);
 
         const nav = readPuzzleLibraryNav();
@@ -536,7 +630,10 @@ export function ChessWorkspace({ initialLibraryPuzzleId, initialRoom }: { initia
         {mode === "home" && (
           <HomeView
             onPlay={() => router.push("/chess/play")}
-            onPuzzles={() => setMode("puzzles")}
+            // Navigate to /chess/puzzles instead of just flipping internal
+            // mode state — keeps the URL meaningful so deep-links and the
+            // browser back button work as the user expects.
+            onPuzzles={() => router.push("/chess/puzzles")}
             onOpenings={() => router.push("/chess/openings")}
             onEndgames={() => setMode("endgame-trainer")}
             onRush={() => setMode("puzzle-rush")}
@@ -573,7 +670,16 @@ export function ChessWorkspace({ initialLibraryPuzzleId, initialRoom }: { initia
         )}
         {mode === "puzzles" && (
           <PuzzleLibrary
-            onBack={goHome}
+            // On /chess/puzzles the back arrow returns to the chess hub via
+            // URL; on the legacy in-page mount (e.g. mobile flow that hasn't
+            // been migrated yet) it falls back to the internal goHome.
+            onBack={() => {
+              if (pathname === "/chess/puzzles") {
+                router.push("/chess");
+              } else {
+                goHome();
+              }
+            }}
             onSolve={(p, nav) => {
               writePuzzleLibraryNav(nav);
               router.push(`/chess/puzzles/${encodeURIComponent(p.id)}`);
@@ -658,10 +764,236 @@ const HOME_ICON_SHELL: Record<
 
 function HomeSectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+    <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500">
       {children}
     </p>
   );
+}
+
+// ─── Mini board (SVG, FEN-driven) ────────────────────────────────────────────
+
+const MINI_BOARD_GLYPHS: Record<string, string> = {
+  K: "♔", Q: "♕", R: "♖", B: "♗", N: "♘", P: "♙",
+  k: "♚", q: "♛", r: "♜", b: "♝", n: "♞", p: "♟",
+};
+
+function MiniBoard({ fen, size = 120 }: { fen: string; size?: number }) {
+  const positionPart = fen.split(" ")[0] ?? "";
+  const ranks = positionPart.split("/");
+  const cell = size / 8;
+  const elements: React.ReactNode[] = [];
+
+  for (let r = 0; r < 8; r++) {
+    let f = 0;
+    const rankStr = ranks[r] ?? "";
+    for (const c of rankStr) {
+      if (/\d/.test(c)) {
+        const skip = parseInt(c, 10);
+        for (let i = 0; i < skip; i++) {
+          const dark = (r + f) % 2 === 1;
+          elements.push(
+            <rect
+              key={`b-${r}-${f}`}
+              x={f * cell}
+              y={r * cell}
+              width={cell}
+              height={cell}
+              fill={dark ? "#b58863" : "#f0d9b5"}
+            />,
+          );
+          f++;
+        }
+      } else {
+        const dark = (r + f) % 2 === 1;
+        elements.push(
+          <rect
+            key={`b-${r}-${f}`}
+            x={f * cell}
+            y={r * cell}
+            width={cell}
+            height={cell}
+            fill={dark ? "#b58863" : "#f0d9b5"}
+          />,
+        );
+        elements.push(
+          <text
+            key={`p-${r}-${f}`}
+            x={f * cell + cell / 2}
+            y={r * cell + cell * 0.78}
+            fontSize={cell * 0.92}
+            textAnchor="middle"
+            fill={c === c.toUpperCase() ? "#fafafa" : "#1a1a1a"}
+            stroke={c === c.toUpperCase() ? "#1a1a1a" : "transparent"}
+            strokeWidth={0.6}
+            style={{
+              fontFamily:
+                '"Segoe UI Symbol", "Apple Color Emoji", "Noto Color Emoji", system-ui, sans-serif',
+            }}
+          >
+            {MINI_BOARD_GLYPHS[c] ?? ""}
+          </text>,
+        );
+        f++;
+      }
+    }
+  }
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      className="rounded-md ring-1 ring-zinc-300/60 dark:ring-zinc-700/60"
+      role="img"
+      aria-hidden
+    >
+      {elements}
+    </svg>
+  );
+}
+
+// ─── Lichess daily puzzle ────────────────────────────────────────────────────
+//
+// https://lichess.org/api/puzzle/daily — public, CORS-enabled, refreshes
+// once per UTC day. We cache the response in localStorage keyed by YYYY-MM-DD
+// so navigating back to /chess does not refetch.
+
+interface LichessDailyPuzzle {
+  puzzle: {
+    id: string;
+    rating: number;
+    plays: number;
+    initialPly: number;
+    solution: string[];
+    themes: string[];
+  };
+  game: {
+    id: string;
+    pgn: string;
+    perf: { key: string; name: string };
+    rated: boolean;
+    players: { name: string; color: string; rating?: number }[];
+    clock?: string;
+  };
+}
+
+const LICHESS_DAILY_CACHE_KEY = "lichess-daily-puzzle-v1";
+
+function todayDateStamp(): string {
+  const d = new Date();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${d.getUTCFullYear()}-${m}-${day}`;
+}
+
+function readDailyPuzzleCache(): LichessDailyPuzzle | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(LICHESS_DAILY_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { date: string; payload: LichessDailyPuzzle };
+    if (parsed.date !== todayDateStamp()) return null;
+    return parsed.payload;
+  } catch {
+    return null;
+  }
+}
+
+function writeDailyPuzzleCache(payload: LichessDailyPuzzle): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      LICHESS_DAILY_CACHE_KEY,
+      JSON.stringify({ date: todayDateStamp(), payload }),
+    );
+  } catch {
+    // ignore quota errors
+  }
+}
+
+/** Replay the PGN up to `initialPly` and return the resulting FEN. */
+function fenAtPly(pgn: string, initialPly: number): string {
+  const board = new Chess();
+  try {
+    board.loadPgn(pgn, { strict: false });
+  } catch {
+    return new Chess().fen();
+  }
+  const history = board.history({ verbose: true });
+  const replay = new Chess();
+  for (let i = 0; i < Math.min(initialPly, history.length); i++) {
+    const m = history[i];
+    replay.move({ from: m.from, to: m.to, promotion: m.promotion });
+  }
+  return replay.fen();
+}
+
+/** Map Lichess rating to our four library levels. */
+function ratingToPuzzleLevel(rating: number): PuzzleLevel {
+  if (rating < 1500) return "beginner";
+  if (rating < 1800) return "intermediate";
+  if (rating < 2100) return "hard";
+  return "expert";
+}
+
+/**
+ * Fetch a Lichess puzzle by id and shape it as a LibraryPuzzle so the existing
+ * PuzzleSolve flow can render it. The Lichess API:
+ *   GET https://lichess.org/api/puzzle/{id}
+ * returns a payload where `puzzle.solution[0]` is the user's first move and
+ * the position at `puzzle.initialPly` is the puzzle position. We synthesize
+ * a `LibraryPuzzle` with `moves[0]` as a NO-OP-shaped sentinel so the solver
+ * starts at the synthesized FEN with the user to move.
+ *
+ * IMPORTANT: our LibraryPuzzle convention has `moves[0]` as the opponent's
+ * setup move (auto-played) and `moves[1..]` as the alternating user/opponent
+ * solution. The Lichess API response does NOT include a setup move — the
+ * starting FEN already accounts for it. To match the LibraryPuzzle shape we
+ * pull the move played at `initialPly - 1` from the original PGN and use
+ * that as `moves[0]`, with the FEN computed at `initialPly - 1` (one ply
+ * earlier, before the setup is played).
+ */
+async function fetchLichessPuzzleAsLibraryShape(
+  id: string,
+): Promise<LibraryPuzzle | null> {
+  try {
+    const res = await fetch(
+      `https://lichess.org/api/puzzle/${encodeURIComponent(id)}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as LichessDailyPuzzle;
+
+    const initialPly = data.puzzle.initialPly;
+    if (typeof initialPly !== "number" || initialPly < 1) return null;
+
+    // FEN at initialPly - 1 (one ply BEFORE the puzzle position)
+    const setupBoard = new Chess();
+    setupBoard.loadPgn(data.game.pgn, { strict: false });
+    const history = setupBoard.history({ verbose: true });
+    if (initialPly - 1 >= history.length) return null;
+
+    const replay = new Chess();
+    for (let i = 0; i < initialPly - 1; i++) {
+      const m = history[i];
+      replay.move({ from: m.from, to: m.to, promotion: m.promotion });
+    }
+    const fenBeforeSetup = replay.fen();
+
+    const setup = history[initialPly - 1];
+    const setupUci = `${setup.from}${setup.to}${setup.promotion ?? ""}`;
+
+    return {
+      id: data.puzzle.id,
+      fen: fenBeforeSetup,
+      moves: [setupUci, ...data.puzzle.solution],
+      rating: data.puzzle.rating,
+      themes: data.puzzle.themes ?? [],
+      level: ratingToPuzzleLevel(data.puzzle.rating),
+    };
+  } catch {
+    return null;
+  }
 }
 
 const HOME_LAST_ACTIVITY_LABELS: Record<ChessHomeActivity, string> = {
@@ -737,44 +1069,16 @@ function HomeView({
     }
   }
 
+  // Endgame Trainer / Opening Trainer / Play with Friend were removed —
+  // they're "nice to have" affordances I never reach for. Keeping only the
+  // one I actually use after analysing a game: train my own mistakes.
   const secondary = [
     {
-      label: "Play with Friend",
-      sub: "Create or join a room · voice optional",
-      icon: Users,
+      label: "From my games",
+      sub: "Train mistakes from your analysed games",
+      icon: Microscope,
       accent: "emerald" as const,
-      onClick: onPlay,
-    },
-    {
-      label: "Opening Trainer",
-      sub: "Lichess tree · explore & practice",
-      icon: Crown,
-      accent: "emerald" as const,
-      onClick: onOpenings,
-    },
-    {
-      label: "Endgame Trainer",
-      sub: "15 lessons · tablebase-backed",
-      icon: Swords,
-      accent: "rose" as const,
-      onClick: onEndgames,
-    },
-  ];
-
-  const library = [
-    {
-      label: "Opening Repertoire",
-      sub: "Your personal lines",
-      icon: LibraryBig,
-      accent: "teal" as const,
-      href: "/chess/repertoire" as const,
-    },
-    {
-      label: "Game History",
-      sub: "Past games & review",
-      icon: History,
-      accent: "sky" as const,
-      href: "/chess/history" as const,
+      onClick: () => router.push("/chess/games"),
     },
   ];
 
@@ -783,178 +1087,344 @@ function HomeView({
     lastActivity && !(resumePuzzleId && lastActivity.mode === "puzzles"),
   );
 
+  // Hero pickup — only render if there's something concrete to resume.
+  const hero =
+    resumePuzzleId
+      ? {
+          title: "Continue your puzzle",
+          subtitle: "Pick up where you stopped",
+          ctaLabel: "Continue",
+          onClick: () =>
+            router.push(`/chess/puzzles/${encodeURIComponent(resumePuzzleId)}`),
+          when: null as string | null,
+        }
+      : showResumeSession && lastActivity
+        ? {
+            title: HOME_LAST_ACTIVITY_LABELS[lastActivity.mode],
+            subtitle: "Resume last session",
+            ctaLabel: "Continue",
+            onClick: resumeLastSession,
+            when: formatChessRelativeTime(lastActivity.at),
+          }
+        : null;
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      {/*
-        Single inset panel: matches sidebar “card row” language (border, white surface, soft shadow)
-        instead of a full-bleed marketing background + grid texture.
-        Sized to fit the viewport in one screen — no inner scroll.
-      */}
-      <div
-        className="mx-auto flex w-full flex-1 min-h-0 flex-col pb-3 pt-0 sm:pb-4"
-        style={{ maxWidth: 1200 }}
-      >
-        <div className="flex min-h-0 flex-1 flex-col gap-4 rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-5">
-          {resumePuzzleId || (showResumeSession && lastActivity) ? (
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div className="mx-auto w-full px-4 pb-8 pt-2 sm:px-6" style={{ maxWidth: 1280 }}>
+        <div className="flex flex-col gap-8">
+          {/* ─── Hero ────────────────────────────────────────────────── */}
+          {hero ? (
             <section>
-              <HomeSectionLabel>Pick up</HomeSectionLabel>
-              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                {resumePuzzleId ? (
-                  <button
-                    type="button"
-                    onClick={() => router.push(`/chess/puzzles/${encodeURIComponent(resumePuzzleId)}`)}
-                    className="group flex w-full items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/90 px-3.5 py-3 text-left transition hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-800/60 dark:bg-emerald-950/35 dark:hover:border-emerald-700 sm:w-auto sm:min-w-[240px]"
-                  >
-                    <span className="flex items-center gap-2.5">
-                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600 text-white dark:bg-emerald-500">
-                        <Play className="h-3.5 w-3.5" fill="currentColor" aria-hidden />
-                      </span>
-                      <span>
-                        <span className="block text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                          Continue puzzle
-                        </span>
-                        <span className="text-[11px] text-zinc-500 dark:text-zinc-400">Same list · filters</span>
-                      </span>
-                    </span>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-emerald-500 transition group-hover:translate-x-0.5 dark:text-emerald-400" aria-hidden />
-                  </button>
-                ) : null}
-                {showResumeSession && lastActivity ? (
-                  <button
-                    type="button"
-                    onClick={resumeLastSession}
-                    className="group flex w-full items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50/80 px-3.5 py-3 text-left transition hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/50 dark:hover:border-zinc-600 sm:w-auto sm:min-w-[220px]"
-                  >
-                    <span className="flex min-w-0 flex-1 flex-col text-left">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                        Resume last session
-                      </span>
-                      <span className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                        {HOME_LAST_ACTIVITY_LABELS[lastActivity.mode]}
-                      </span>
-                      <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                        {formatChessRelativeTime(lastActivity.at)}
-                      </span>
-                    </span>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-zinc-400 transition group-hover:translate-x-0.5" aria-hidden />
-                  </button>
-                ) : null}
-              </div>
+              <button
+                type="button"
+                onClick={hero.onClick}
+                className="group flex w-full items-center gap-4 rounded-2xl border border-zinc-200 border-l-2 border-l-emerald-500 bg-gradient-to-r from-emerald-50/80 via-white to-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md dark:border-zinc-800 dark:border-l-emerald-500 dark:from-emerald-950/25 dark:via-zinc-900 dark:to-zinc-900 sm:p-5"
+              >
+                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-500/30 sm:h-16 sm:w-16">
+                  <Play className="h-6 w-6 sm:h-7 sm:w-7" fill="currentColor" aria-hidden />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300">
+                    {hero.subtitle}
+                  </p>
+                  <h2 className="mt-1 truncate text-lg font-bold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-xl">
+                    {hero.title}
+                  </h2>
+                  {hero.when ? (
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">{hero.when}</p>
+                  ) : null}
+                </div>
+                <span className="hidden shrink-0 items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition group-hover:bg-emerald-700 sm:inline-flex">
+                  {hero.ctaLabel}
+                  <ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5" aria-hidden />
+                </span>
+                <ChevronRight className="h-5 w-5 shrink-0 text-emerald-500 transition group-hover:translate-x-0.5 sm:hidden" aria-hidden />
+              </button>
             </section>
           ) : null}
 
-          <section className="flex min-h-0 flex-[2] flex-col">
+          {/* ─── Main ────────────────────────────────────────────────── */}
+          <section>
             <HomeSectionLabel>Main</HomeSectionLabel>
-            <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row lg:items-stretch">
-              <button
-                type="button"
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+              <MainTile
+                title="Puzzles"
+                subtitle="Lichess library — levels, themes."
+                cta="Open library"
+                accent="amber"
+                icon={BookOpen}
                 onClick={onPuzzles}
-                className="group flex flex-1 flex-col justify-between rounded-xl border border-zinc-200 border-l-[3px] border-l-amber-500 bg-gradient-to-br from-amber-50/80 via-white to-white p-5 text-left shadow-sm transition hover:border-zinc-300 hover:shadow-md dark:border-zinc-700 dark:border-l-amber-500 dark:from-amber-950/25 dark:via-zinc-900 dark:to-zinc-900"
-              >
-                <div className="flex w-full items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-2xl">
-                      Puzzles
-                    </p>
-                    <p className="mt-2 max-w-md text-sm leading-snug text-zinc-600 dark:text-zinc-400">
-                      Lichess library — levels, themes, thousands of positions.
-                    </p>
-                  </div>
-                  <div
-                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ${HOME_ICON_SHELL.amber.shell}`}
-                  >
-                    <BookOpen className={`h-5 w-5 ${HOME_ICON_SHELL.amber.icon}`} aria-hidden />
-                  </div>
-                </div>
-                <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-amber-800 dark:text-amber-300">
-                  Open library
-                  <ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5" aria-hidden />
-                </span>
-              </button>
-
-              <button
-                type="button"
+              />
+              <MainTile
+                title="Puzzle Rush"
+                subtitle="Timed · 3 lives or relaxed."
+                cta="Start run"
+                accent="orange"
+                icon={Zap}
                 onClick={onRush}
-                className="group flex w-full shrink-0 flex-col justify-between rounded-xl border border-zinc-200 bg-zinc-50/50 px-4 py-4 text-left shadow-sm transition hover:border-zinc-300 hover:bg-white dark:border-zinc-700 dark:bg-zinc-800/40 dark:hover:border-zinc-600 dark:hover:bg-zinc-800/80 lg:w-[min(100%,260px)]"
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${HOME_ICON_SHELL.orange.shell}`}
-                  >
-                    <Zap className={`h-5 w-5 ${HOME_ICON_SHELL.orange.icon}`} aria-hidden />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-base font-semibold text-zinc-900 dark:text-zinc-50">Puzzle Rush</p>
-                    <p className="text-xs leading-snug text-zinc-500 dark:text-zinc-400">
-                      Timed · 3 lives or relaxed
-                    </p>
-                  </div>
-                </div>
-                <span className="mt-3 text-xs font-semibold text-orange-700 dark:text-orange-400">
-                  Start run →
-                </span>
-              </button>
+              />
+              <MainTile
+                title="Game Analysis"
+                subtitle="PGN → Stockfish review."
+                cta="Analyse PGN"
+                accent="teal"
+                icon={Microscope}
+                href="/chess/analysis"
+              />
             </div>
           </section>
 
-          <section className="flex min-h-0 flex-1 flex-col border-t border-zinc-100 pt-3 dark:border-zinc-800">
-            <HomeSectionLabel>Play &amp; study</HomeSectionLabel>
-            <div className="grid min-h-0 flex-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+          {/* ─── Training ─────────────────────────────────────────────────
+               Section was "Play & Study" with 4 cards (Play / Openings /
+               Endgames / From-my-games). Trimmed to just the one card I
+               actually use post-analysis; renamed accordingly. Single
+               card is left-aligned at sm:max-w-md so it doesn't stretch
+               edge-to-edge on wide screens. */}
+          <section>
+            <HomeSectionLabel>Training</HomeSectionLabel>
+            <ul className="grid grid-cols-1 gap-6 sm:max-w-md">
               {secondary.map(({ label, sub, icon: Icon, accent, onClick }) => {
                 const shell = HOME_ICON_SHELL[accent];
                 return (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={onClick}
-                    className="group flex h-full items-center gap-3 rounded-xl border border-zinc-200/90 bg-zinc-50/40 px-4 py-3 text-left transition hover:border-zinc-300 hover:bg-white dark:border-zinc-700 dark:bg-zinc-800/30 dark:hover:border-zinc-600 dark:hover:bg-zinc-800/60"
-                  >
-                    <div
-                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${shell.shell}`}
+                  <li key={label}>
+                    <button
+                      type="button"
+                      onClick={onClick}
+                      className="group flex w-full items-center gap-3 rounded-xl border border-zinc-200/90 bg-white p-3 text-left transition hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-600"
                     >
-                      <Icon className={`h-5 w-5 ${shell.icon}`} aria-hidden />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{label}</p>
-                      <p className="mt-0.5 text-xs leading-snug text-zinc-500 dark:text-zinc-400">{sub}</p>
-                    </div>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-zinc-400 transition group-hover:translate-x-0.5 dark:group-hover:text-zinc-300" aria-hidden />
-                  </button>
+                      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${shell.shell}`}>
+                        <Icon className={`h-4 w-4 ${shell.icon}`} aria-hidden />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                          {label}
+                        </p>
+                        <p className="text-[11px] leading-snug text-zinc-500 dark:text-zinc-400">
+                          {sub}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-zinc-400 transition group-hover:translate-x-0.5 dark:group-hover:text-zinc-300" aria-hidden />
+                    </button>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           </section>
 
-          <section className="flex min-h-0 flex-1 flex-col border-t border-zinc-100 pt-3 dark:border-zinc-800">
-            <HomeSectionLabel>Library</HomeSectionLabel>
-            <div className="grid min-h-0 flex-1 gap-2.5 sm:grid-cols-2">
-              {library.map(({ label, sub, icon: Icon, accent, href }) => {
-                const shell = HOME_ICON_SHELL[accent];
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    className="group flex h-full items-center gap-3 rounded-xl border border-dashed border-zinc-200 bg-zinc-50/30 px-4 py-3 text-left transition hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900/20 dark:hover:border-zinc-500 dark:hover:bg-zinc-800/40"
-                  >
-                    <div
-                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md ${shell.shell}`}
-                    >
-                      <Icon className={`h-4 w-4 ${shell.icon}`} aria-hidden />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">{label}</p>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400">{sub}</p>
-                    </div>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-zinc-400 opacity-70 transition group-hover:translate-x-0.5 group-hover:opacity-100" aria-hidden />
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
+          {/* ─── Daily puzzle (Lichess) ──────────────────────────────── */}
+          <DailyPuzzleSection />
         </div>
       </div>
     </div>
   );
+}
+
+// ─── Main tile (used in the 3-up Main row) ───────────────────────────────────
+
+const MAIN_TILE_ACCENTS: Record<
+  "amber" | "orange" | "teal",
+  { borderL: string; gradient: string; ctaText: string; pill: string }
+> = {
+  amber: {
+    borderL: "border-l-amber-500 dark:border-l-amber-500",
+    gradient:
+      "from-amber-50/80 via-white to-white dark:from-amber-950/25 dark:via-zinc-900 dark:to-zinc-900",
+    ctaText: "text-amber-800 dark:text-amber-300",
+    pill: "bg-amber-100 text-amber-700 dark:bg-amber-950/45 dark:text-amber-400",
+  },
+  orange: {
+    borderL: "border-l-orange-500 dark:border-l-orange-500",
+    gradient:
+      "from-orange-50/80 via-white to-white dark:from-orange-950/25 dark:via-zinc-900 dark:to-zinc-900",
+    ctaText: "text-orange-800 dark:text-orange-300",
+    pill: "bg-orange-100 text-orange-700 dark:bg-orange-950/45 dark:text-orange-400",
+  },
+  teal: {
+    borderL: "border-l-teal-500 dark:border-l-teal-500",
+    gradient:
+      "from-teal-50/80 via-white to-white dark:from-teal-950/25 dark:via-zinc-900 dark:to-zinc-900",
+    ctaText: "text-teal-800 dark:text-teal-300",
+    pill: "bg-teal-100 text-teal-700 dark:bg-teal-950/45 dark:text-teal-400",
+  },
+};
+
+function MainTile({
+  title,
+  subtitle,
+  cta,
+  accent,
+  icon: Icon,
+  onClick,
+  href,
+}: {
+  title: string;
+  subtitle: string;
+  cta: string;
+  accent: "amber" | "orange" | "teal";
+  icon: React.ElementType;
+  onClick?: () => void;
+  href?: string;
+}) {
+  const a = MAIN_TILE_ACCENTS[accent];
+  const className = `group flex h-full flex-col rounded-xl border border-zinc-200 border-l-2 ${a.borderL} bg-gradient-to-br ${a.gradient} p-3.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-md dark:border-zinc-700`;
+
+  const inner = (
+    <>
+      <div className="flex w-full items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-base font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+            {title}
+          </p>
+          <p className="mt-0.5 text-xs leading-snug text-zinc-600 dark:text-zinc-400">
+            {subtitle}
+          </p>
+        </div>
+        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${a.pill}`}>
+          <Icon className="h-4 w-4" aria-hidden />
+        </div>
+      </div>
+      <span className={`mt-2 inline-flex items-center gap-1 text-xs font-semibold ${a.ctaText}`}>
+        {cta}
+        <ChevronRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" aria-hidden />
+      </span>
+    </>
+  );
+
+  return href ? (
+    <Link href={href} className={className}>
+      {inner}
+    </Link>
+  ) : (
+    <button type="button" onClick={onClick} className={className}>
+      {inner}
+    </button>
+  );
+}
+
+// ─── Daily puzzle (Lichess) ──────────────────────────────────────────────────
+
+interface DailyPuzzleViewModel {
+  id: string;
+  fen: string;
+  rating: number;
+  themes: string[];
+  initialPly: number;
+}
+
+function DailyPuzzleSection() {
+  const [data, setData] = useState<DailyPuzzleViewModel | null | "error">(
+    () => {
+      const cached = readDailyPuzzleCache();
+      return cached ? buildDailyPuzzleViewModel(cached) : null;
+    },
+  );
+
+  useEffect(() => {
+    if (data) return; // cache already supplied
+
+    let cancelled = false;
+    fetch("https://lichess.org/api/puzzle/daily", { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`lichess daily ${res.status}`);
+        return (await res.json()) as LichessDailyPuzzle;
+      })
+      .then((payload) => {
+        if (cancelled) return;
+        writeDailyPuzzleCache(payload);
+        setData(buildDailyPuzzleViewModel(payload));
+      })
+      .catch(() => {
+        if (!cancelled) setData("error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [data]);
+
+  if (data === "error") return null; // hide entirely on fetch failure
+
+  return (
+    <section>
+      <HomeSectionLabel>Daily puzzle</HomeSectionLabel>
+      {data === null ? (
+        <DailyPuzzleSkeleton />
+      ) : (
+        <Link
+          href={dailyPuzzleHref(data)}
+          className="group flex flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-600 sm:flex-row sm:items-center sm:p-5"
+        >
+          <div className="shrink-0 self-center sm:self-start">
+            <MiniBoard fen={data.fen} size={160} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5 text-zinc-400" aria-hidden />
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                Today · Lichess
+              </p>
+            </div>
+            <h3 className="mt-1 text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+              Puzzle of the day
+            </h3>
+            <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+              Rating <span className="font-mono tabular-nums">{data.rating}</span>
+            </p>
+            {data.themes.length ? (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {data.themes.slice(0, 5).map((t) => (
+                  <span
+                    key={t}
+                    className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+                  >
+                    {t}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+              Solve
+              <ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5" aria-hidden />
+            </span>
+          </div>
+        </Link>
+      )}
+    </section>
+  );
+}
+
+function DailyPuzzleSkeleton() {
+  return (
+    <div className="flex flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:flex-row sm:items-center sm:p-5">
+      <div className="h-40 w-40 shrink-0 animate-pulse rounded-md bg-zinc-100 dark:bg-zinc-800" />
+      <div className="flex-1 space-y-2">
+        <div className="h-3 w-24 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+        <div className="h-5 w-48 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
+        <div className="h-3 w-32 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+        <div className="flex gap-1 pt-1">
+          <div className="h-4 w-12 animate-pulse rounded-full bg-zinc-100 dark:bg-zinc-800" />
+          <div className="h-4 w-16 animate-pulse rounded-full bg-zinc-100 dark:bg-zinc-800" />
+          <div className="h-4 w-14 animate-pulse rounded-full bg-zinc-100 dark:bg-zinc-800" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function buildDailyPuzzleViewModel(p: LichessDailyPuzzle): DailyPuzzleViewModel {
+  return {
+    id: p.puzzle.id,
+    fen: fenAtPly(p.game.pgn, p.puzzle.initialPly),
+    rating: p.puzzle.rating,
+    themes: p.puzzle.themes ?? [],
+    initialPly: p.puzzle.initialPly,
+  };
+}
+
+/** Daily puzzle deep-link — open the actual Lichess puzzle by id. The puzzle
+ *  viewer falls back to the Lichess API when the id isn't in our local mirror. */
+function dailyPuzzleHref(d: DailyPuzzleViewModel): string {
+  return `/chess/puzzles/${encodeURIComponent(d.id)}`;
 }
 
 // ─── Play Lobby ───────────────────────────────────────────────────────────────
@@ -1693,6 +2163,7 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
 
   // ── Move ──────────────────────────────────────────────────────────────────
   function onDrop(sourceSquare: string, targetSquare: string): boolean {
+    if (sourceSquare === targetSquare) return false;
     if (!isMyTurn || gameState.status !== "active") return false;
 
     const move = chess.move({ from: sourceSquare, to: targetSquare, promotion: "q" });
@@ -2221,10 +2692,52 @@ function PlayGame({ initialGame, userId, userName, tc, onBack, onReview }: {
 
 // ─── Puzzle Library ───────────────────────────────────────────────────────────
 
-const THEMES_POPULAR = [
-  "fork", "pin", "skewer", "discoveredAttack", "backRankMate",
-  "hangingPiece", "sacrifice", "deflection", "decoy", "quietMove",
-];
+/** Theme + opening catalogue fetched from /api/chess/themes & /api/chess/openings.
+ *  Cached at module scope so the second time the user opens the library page
+ *  (or remounts the component) we don't re-hit the network. */
+type ThemeMeta = { key: string; name: string; description: string; count: number };
+type ThemeGroupMeta = { id: string; name: string; themes: ThemeMeta[] };
+type OpeningMeta = {
+  family: string;
+  key: string;
+  color: "white" | "black";
+  count: number;
+  variations: { key: string; name: string; count: number }[];
+};
+// Per-level caches — counts on each chip should reflect the *active*
+// difficulty (Lichess does the same; "Fork (246K)" beginner ≠ 1.2M overall).
+// Cache by level so flipping back and forth doesn't re-hit the network.
+const _themesByLevel = new Map<string, Promise<ThemeGroupMeta[]>>();
+const _openingsByLevel = new Map<string, Promise<OpeningMeta[]>>();
+
+function fetchThemesMeta(level: PuzzleLevel): Promise<ThemeGroupMeta[]> {
+  let p = _themesByLevel.get(level);
+  if (!p) {
+    p = fetch(`/api/chess/themes?level=${encodeURIComponent(level)}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("themes fetch failed"))))
+      .then((j) => (j.groups ?? []) as ThemeGroupMeta[])
+      .catch((e) => {
+        _themesByLevel.delete(level); // allow retry
+        throw e;
+      });
+    _themesByLevel.set(level, p);
+  }
+  return p;
+}
+function fetchOpeningsMeta(level: PuzzleLevel): Promise<OpeningMeta[]> {
+  let p = _openingsByLevel.get(level);
+  if (!p) {
+    p = fetch(`/api/chess/openings?level=${encodeURIComponent(level)}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("openings fetch failed"))))
+      .then((j) => (j.openings ?? []) as OpeningMeta[])
+      .catch((e) => {
+        _openingsByLevel.delete(level);
+        throw e;
+      });
+    _openingsByLevel.set(level, p);
+  }
+  return p;
+}
 
 function puzzleVisiblePages(current: number, total: number): (number | "gap")[] {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
@@ -2243,21 +2756,171 @@ function puzzleVisiblePages(current: number, total: number): (number | "gap")[] 
   return out;
 }
 
+/** Above which `totalPages` we drop the numbered jump-to control and show
+ *  only Prev / Random / Next. 50 pages is the threshold because:
+ *    - cap = 1000 (capped multi-theme totals) → exactly 50 pages, treated
+ *      as "compact" mode anyway because the count is fuzzy.
+ *    - 50 numbered buttons fit on a row at desktop; 84 K do not. */
+const PAGINATION_NUMBERED_LIMIT = 50;
+
+/** Sticky-header pagination control — always visible without scrolling
+ *  past the grid. Adapts to result-set size:
+ *    small (≤ 50 pages, exact): Prev / [1 2 … N] / Next
+ *    large (> 50 pages, or capped): Prev / Random / Next + "Showing 1–20 of …"
+ *  The Random button matters more than numbered jumps for the personal-
+ *  training use-case ("give me a different puzzle"). */
+function PaginationStrip({
+  rangeStart,
+  rangeEnd,
+  total,
+  totalIsCapped,
+  safePage,
+  totalPages,
+  loading,
+  onPrev,
+  onNext,
+  onRandom,
+  onJump,
+  puzzlesOnPage,
+  pageSize,
+}: {
+  rangeStart: number;
+  rangeEnd: number;
+  total: number;
+  totalIsCapped: boolean;
+  safePage: number;
+  totalPages: number;
+  loading: boolean;
+  onPrev: () => void;
+  onNext: () => void;
+  onRandom: () => void;
+  /** Used only in the small-result numbered branch; ignored when compact. */
+  onJump: (page: number) => void;
+  puzzlesOnPage: number;
+  pageSize: number;
+}) {
+  if (total === 0) return null;
+  const compact = totalIsCapped || totalPages > PAGINATION_NUMBERED_LIMIT;
+  const visiblePages = puzzleVisiblePages(safePage, totalPages);
+  const formattedTotal = totalIsCapped
+    ? `${total.toLocaleString()}+`
+    : total.toLocaleString();
+  // For capped totals: enable Next while the last response was a full page
+  // (more pages probably exist beyond the cap).
+  const nextDisabled = loading
+    ? true
+    : totalIsCapped
+      ? puzzlesOnPage < pageSize
+      : safePage >= totalPages;
+  const btn =
+    "inline-flex items-center gap-1 rounded-lg border border-zinc-200 px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800";
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-1.5">
+      <span className="hidden truncate text-[11px] text-zinc-500 dark:text-zinc-400 sm:block">
+        {rangeStart.toLocaleString()}–{rangeEnd.toLocaleString()} of {formattedTotal}
+      </span>
+      <button type="button" disabled={safePage <= 1 || loading} onClick={onPrev} className={btn} aria-label="Previous page">
+        <ChevronLeft className="h-4 w-4" />
+        <span className="hidden sm:inline">Prev</span>
+      </button>
+      {compact ? (
+        <button
+          type="button"
+          onClick={onRandom}
+          disabled={loading || totalPages <= 1}
+          className={`${btn} bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:hover:bg-emerald-900/40`}
+          title="Jump to a random page"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          Random
+        </button>
+      ) : (
+        <div className="hidden min-w-0 items-center gap-0.5 md:flex">
+          {visiblePages.map((item, idx) =>
+            item === "gap" ? (
+              <span key={`g-${idx}`} className="px-1 text-zinc-400">…</span>
+            ) : (
+              <button
+                key={item}
+                type="button"
+                disabled={loading}
+                onClick={() => onJump(item)}
+                className={`min-w-[2rem] rounded-lg px-1.5 py-1 text-xs font-medium transition ${
+                  item === safePage
+                    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                    : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                }`}
+              >
+                {item.toLocaleString()}
+              </button>
+            ),
+          )}
+        </div>
+      )}
+      <button type="button" disabled={nextDisabled} onClick={onNext} className={btn} aria-label="Next page">
+        <span className="hidden sm:inline">Next</span>
+        <ChevronRight className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
 type PuzzleProgressFilter = "all" | "unsolved" | "solved";
 
 function PuzzleLibrary({ onBack, onSolve }: { onBack: () => void; onSolve: (p: LibraryPuzzle, nav: LibraryPuzzleNav) => void }) {
   const { user } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const levels: PuzzleLevel[]  = ["beginner", "intermediate", "hard", "expert"];
-  const [activeLevel, setActiveLevel] = useState<PuzzleLevel>("beginner");
-  const [theme, setTheme]             = useState("");
-  const [searchInput, setSearchInput] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [sort, setSort]               = useState<PuzzleSort>("newest");
+
+  // ── URL state initialisation ─────────────────────────────────────────────
+  // Read filter state from URL on first mount so deep-links work
+  // (`/chess/puzzles?level=expert&themes=fork,middlegame`). After mount this
+  // becomes one-way — state changes write to the URL, URL changes don't
+  // pull back into state. Two-way binding adds feedback risk; for a personal
+  // app the deep-link in / state out direction is what matters.
+  const initialLevel = (() => {
+    const raw = searchParams?.get("level");
+    return raw && (levels as readonly string[]).includes(raw) ? (raw as PuzzleLevel) : "beginner";
+  })();
+  const csv = (s: string | null | undefined) =>
+    (s ?? "").split(",").map((p) => p.trim()).filter(Boolean);
+
+  const [activeLevel, setActiveLevel] = useState<PuzzleLevel>(initialLevel);
+  // Multi-select theme/opening filters. The sidebar is the single source of
+  // truth — every chip there is a checkbox, the active-pills strip in the
+  // main header reflects this state too.
+  const [selectedThemes, setSelectedThemes]     = useState<string[]>(() =>
+    csv(searchParams?.get("themes")),
+  );
+  const [selectedOpenings, setSelectedOpenings] = useState<string[]>(() =>
+    csv(searchParams?.get("openings")),
+  );
+  const [themeGroups, setThemeGroups]           = useState<ThemeGroupMeta[]>([]);
+  const [openings, setOpenings]                 = useState<OpeningMeta[]>([]);
+  // Sidebar groups: only Recommended starts expanded. Themes/openings keys
+  // are `themes:<groupId>` and `openings:<color>`.
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(
+    () => ({ "themes:recommended": true }),
+  );
+  // Mobile drawer toggle — sidebar is hidden < lg, opens as sheet on tap.
+  const [filtersDrawerOpen, setFiltersDrawerOpen] = useState(false);
+  // Search state was removed in pass 6 polish — searching by puzzle ID is
+  // rarely useful for personal training, and theme keyword search just
+  // duplicates what the sidebar already exposes.
+  const [sort, setSort]               = useState<PuzzleSort>(() =>
+    normalizeSort(searchParams?.get("sort")),
+  );
   const [progressFilter, setProgressFilter] = useState<PuzzleProgressFilter>("all");
-  const [page, setPage]               = useState(1);
+  const [page, setPage]               = useState(() => {
+    const n = parseInt(searchParams?.get("page") ?? "", 10);
+    return Number.isFinite(n) && n >= 1 ? n : 1;
+  });
   const [puzzles, setPuzzles]         = useState<LibraryPuzzle[]>([]);
   const [total, setTotal]             = useState(0);
-  const [levelGrandTotal, setLevelGrandTotal] = useState(500);
+  const [totalIsCapped, setTotalIsCapped] = useState(false);
+  const [levelGrandTotal, setLevelGrandTotal] = useState(0);
   const [solvedCount, setSolvedCount] = useState(0);
   const [solvedIds, setSolvedIds]     = useState<Set<string>>(() => new Set());
   const [loading, setLoading]         = useState(false);
@@ -2265,20 +2928,44 @@ function PuzzleLibrary({ onBack, onSolve }: { onBack: () => void; onSolve: (p: L
   const abortRef = useRef<AbortController | null>(null);
   const fetchEpochRef = useRef(0);
 
-  useEffect(() => {
-    if (!user && progressFilter !== "all") setProgressFilter("all");
-  }, [user, progressFilter]);
+  // Solved/unsolved progress filter is now single-user via progress.sqlite,
+  // no auth required — the legacy reset-on-logout effect was removed.
 
+  // Reload theme + opening counts whenever the active difficulty changes.
+  // Counts on chips should reflect "Fork at beginner" not "Fork overall".
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(searchInput.trim()), 300);
-    return () => clearTimeout(t);
-  }, [searchInput]);
+    let alive = true;
+    fetchThemesMeta(activeLevel)
+      .then((g) => { if (alive) setThemeGroups(g); })
+      .catch((e) => console.warn("[puzzle-library] themes meta:", e));
+    fetchOpeningsMeta(activeLevel)
+      .then((o) => { if (alive) setOpenings(o); })
+      .catch((e) => console.warn("[puzzle-library] openings meta:", e));
+    return () => { alive = false; };
+  }, [activeLevel]);
+
+  // ── Push filter state to URL (one-way) ──────────────────────────────────
+  // Avoid running on the very first render — the initial URL is already
+  // canonical (we read from it). This prevents an unnecessary history entry
+  // on mount.
+  const didMountRef = useRef(false);
+  useEffect(() => {
+    if (!didMountRef.current) { didMountRef.current = true; return; }
+    const params = new URLSearchParams();
+    if (activeLevel !== "beginner") params.set("level", activeLevel);
+    if (selectedThemes.length) params.set("themes", selectedThemes.join(","));
+    if (selectedOpenings.length) params.set("openings", selectedOpenings.join(","));
+    if (sort !== "popular") params.set("sort", sort);
+    if (page !== 1) params.set("page", String(page));
+    const qs = params.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
+  }, [activeLevel, selectedThemes, selectedOpenings, sort, page, pathname, router]);
 
   const load = useCallback(
     async (
       lvl: PuzzleLevel,
-      th: string,
-      q: string,
+      themes: string[],
+      ops: string[],
       sortKey: PuzzleSort,
       pageNum: number,
       progress: PuzzleProgressFilter,
@@ -2298,14 +2985,15 @@ function PuzzleLibrary({ onBack, onSolve }: { onBack: () => void; onSolve: (p: L
           limit: String(LIBRARY_PAGE_SIZE),
           offset: String(offset),
           sort: sortKey,
-          progress: user ? progress : "all",
+          progress,
         });
-        if (th) params.set("theme", th);
-        if (q) params.set("q", q);
+        if (themes.length) params.set("themes", themes.join(","));
+        if (ops.length) params.set("openings", ops.join(","));
         const res = await authFetch(`/api/chess/puzzles/library?${params}`, { signal: ctrl.signal });
         const data = await res.json() as {
           items: LibraryPuzzle[];
           total: number;
+          totalIsCapped?: boolean;
           error?: string;
           levelGrandTotal?: number;
           solvedCount?: number;
@@ -2316,19 +3004,18 @@ function PuzzleLibrary({ onBack, onSolve }: { onBack: () => void; onSolve: (p: L
         if (!res.ok) {
           setLoadError(data.error ?? "Could not load puzzles.");
           setTotal(0);
+          setTotalIsCapped(false);
           return;
         }
 
         const filtered = data.items.filter((p) => p.level === lvl);
         setPuzzles(filtered);
         setTotal(data.total);
+        setTotalIsCapped(!!data.totalIsCapped);
         if (typeof data.levelGrandTotal === "number") setLevelGrandTotal(data.levelGrandTotal);
-        if (user && typeof data.solvedCount === "number") setSolvedCount(data.solvedCount);
-        if (user && Array.isArray(data.solvedPuzzleIds)) setSolvedIds(new Set(data.solvedPuzzleIds));
-        if (!user) {
-          setSolvedCount(0);
-          setSolvedIds(new Set());
-        }
+        // Solved tracking is single-user via progress.sqlite, no auth required.
+        if (typeof data.solvedCount === "number") setSolvedCount(data.solvedCount);
+        if (Array.isArray(data.solvedPuzzleIds)) setSolvedIds(new Set(data.solvedPuzzleIds));
       } catch (e) {
         if ((e as Error).name === "AbortError") return;
         if (epoch === fetchEpochRef.current) {
@@ -2342,10 +3029,13 @@ function PuzzleLibrary({ onBack, onSolve }: { onBack: () => void; onSolve: (p: L
     [user],
   );
 
+  // Stringified arrays for stable equality comparisons in filterRef.
+  const themesKey = selectedThemes.slice().sort().join(",");
+  const openingsKey = selectedOpenings.slice().sort().join(",");
   const filterRef = useRef<{
     activeLevel: PuzzleLevel;
-    theme: string;
-    debouncedSearch: string;
+    themesKey: string;
+    openingsKey: string;
     sort: PuzzleSort;
     progressFilter: PuzzleProgressFilter;
   } | null>(null);
@@ -2354,8 +3044,8 @@ function PuzzleLibrary({ onBack, onSolve }: { onBack: () => void; onSolve: (p: L
     const filtersChanged =
       prev === null ||
       prev.activeLevel !== activeLevel ||
-      prev.theme !== theme ||
-      prev.debouncedSearch !== debouncedSearch ||
+      prev.themesKey !== themesKey ||
+      prev.openingsKey !== openingsKey ||
       prev.sort !== sort ||
       prev.progressFilter !== progressFilter;
 
@@ -2364,9 +3054,9 @@ function PuzzleLibrary({ onBack, onSolve }: { onBack: () => void; onSolve: (p: L
       return;
     }
 
-    filterRef.current = { activeLevel, theme, debouncedSearch, sort, progressFilter };
-    void load(activeLevel, theme, debouncedSearch, sort, page, user ? progressFilter : "all");
-  }, [activeLevel, theme, debouncedSearch, sort, progressFilter, page, load, user]);
+    filterRef.current = { activeLevel, themesKey, openingsKey, sort, progressFilter };
+    void load(activeLevel, selectedThemes, selectedOpenings, sort, page, progressFilter);
+  }, [activeLevel, selectedThemes, selectedOpenings, themesKey, openingsKey, sort, progressFilter, page, load, user]);
 
   useEffect(() => {
     if (total <= 0) return;
@@ -2374,148 +3064,538 @@ function PuzzleLibrary({ onBack, onSolve }: { onBack: () => void; onSolve: (p: L
     if (page > tp) setPage(tp);
   }, [total, page]);
 
+  // ── Reload on tab/return-to-page ─────────────────────────────────────────
+  // After solving a puzzle the user navigates back to the library and
+  // expects to see the new solved checkmark + bumped progress count.
+  // PuzzleLibrary's React state is preserved across browser back / bfcache
+  // restore, so the existing filter-driven load() effect doesn't re-run.
+  // Listen for visibilitychange + pageshow.persisted and force a fresh
+  // fetch using the current filter state.
+  const loadRef = useRef(load);
+  loadRef.current = load;
+  const filterStateRef = useRef({
+    activeLevel,
+    selectedThemes,
+    selectedOpenings,
+    sort,
+    page,
+    progressFilter,
+  });
+  filterStateRef.current = {
+    activeLevel,
+    selectedThemes,
+    selectedOpenings,
+    sort,
+    page,
+    progressFilter,
+  };
+  useEffect(() => {
+    const refresh = () => {
+      const s = filterStateRef.current;
+      void loadRef.current(
+        s.activeLevel,
+        s.selectedThemes,
+        s.selectedOpenings,
+        s.sort,
+        s.page,
+        s.progressFilter,
+      );
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("pageshow", onPageShow);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pageshow", onPageShow);
+    };
+  }, []);
+
   const totalPages = Math.max(1, Math.ceil(total / LIBRARY_PAGE_SIZE) || 1);
   const safePage = Math.min(page, totalPages);
   const rangeStart = total === 0 ? 0 : (safePage - 1) * LIBRARY_PAGE_SIZE + 1;
   const rangeEnd = total === 0 ? 0 : Math.min(safePage * LIBRARY_PAGE_SIZE, total);
   const visiblePages = puzzleVisiblePages(safePage, totalPages);
 
-  const levelCounts: Record<PuzzleLevel, number> = { beginner: 500, intermediate: 500, hard: 500, expert: 500 };
+  const formattedTotal = totalIsCapped ? `${total.toLocaleString()}+` : total.toLocaleString();
+  const progressPct =
+    levelGrandTotal > 0
+      ? Math.min(100, Math.round((solvedCount / levelGrandTotal) * 1000) / 10)
+      : 0;
+
+  // Map theme key → group id, derived from themeGroups state. Used by tag
+  // colour lookup so a tag's chip colour reflects its group (mates=red,
+  // phases=sky, motifs=zinc, etc.) rather than substring heuristics.
+  const themeToGroup = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const g of themeGroups) for (const t of g.themes) m.set(t.key, g.id);
+    return m;
+  }, [themeGroups]);
 
   return (
     <div className="flex flex-1 flex-col">
-      {/* Back + Level tabs */}
-      <div className="flex items-center border-b border-zinc-200 dark:border-zinc-800 overflow-x-auto">
-        <button type="button" onClick={onBack} className="shrink-0 pl-4 pr-2 py-3 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100">
+      {/* Slim page header — Back + title + Stats link. Difficulty moved
+           into the sidebar (a radio group at the top), so the level tabs
+           that used to live here are gone. */}
+      <div className="flex items-center gap-2 border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Back"
+          className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+        >
           <ArrowLeft className="h-5 w-5" />
         </button>
-        {levels.map((lvl) => (
-          <button
-            key={lvl}
-            type="button"
-            onClick={() => {
-              setActiveLevel(lvl);
-              setPage(1);
-            }}
-            className={`relative flex shrink-0 items-center gap-1.5 px-3 py-3 text-sm font-medium transition ${
-              activeLevel === lvl ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-            }`}
-          >
-            {LEVEL_LABELS[lvl]}
-            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${LEVEL_COLORS[lvl]}`}>{levelCounts[lvl]}</span>
-            {activeLevel === lvl && <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-t-full bg-zinc-900 dark:bg-zinc-100" />}
-          </button>
-        ))}
+        <h1 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          Puzzles
+        </h1>
+        <span className="font-mono text-[11px] text-zinc-400">
+          ({LEVEL_LABELS[activeLevel]})
+        </span>
+        <Link
+          href="/chess/stats"
+          className="ml-auto inline-flex items-center gap-1 rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        >
+          <Trophy className="h-3.5 w-3.5" />
+          Stats
+        </Link>
       </div>
 
-      {user && levelGrandTotal > 0 && (
-        <div className="border-b border-zinc-100 px-4 py-2.5 dark:border-zinc-800">
+      {/* ── 2-column layout: filter sidebar + puzzle grid main ───────────
+           Sidebar is sticky-left at lg+, becomes a slide-in drawer on mobile.
+           Filters live entirely in the sidebar; the main column header is
+           reserved for the things you change *while* browsing (search,
+           sort, status, active-filter pills you can dismiss). */}
+      <div className="flex min-h-0 flex-1">
+        {/* Mobile drawer backdrop */}
+        {filtersDrawerOpen && (
+          <div
+            className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+            onClick={() => setFiltersDrawerOpen(false)}
+            aria-hidden
+          />
+        )}
+
+        {/* SIDEBAR */}
+        <aside
+          className={`fixed inset-y-0 left-0 z-40 w-72 overflow-y-auto border-r border-zinc-200 bg-white px-4 py-4 transition-transform dark:border-zinc-800 dark:bg-zinc-900 lg:static lg:inset-auto lg:z-auto lg:flex lg:w-[280px] lg:translate-x-0 lg:flex-col ${
+            filtersDrawerOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          }`}
+        >
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+              Filters
+            </p>
+            <div className="flex items-center gap-2">
+              {(selectedThemes.length > 0 || selectedOpenings.length > 0) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedThemes([]);
+                    setSelectedOpenings([]);
+                    setPage(1);
+                  }}
+                  className="text-[11px] font-medium text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                >
+                  Clear all
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setFiltersDrawerOpen(false)}
+                className="text-zinc-400 lg:hidden"
+                aria-label="Close filters"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Difficulty — single-select radio group. Lives at the top of the
+               sidebar (above the theme groups) so it's visually obvious it
+               scopes everything below it. Switching difficulty re-fetches
+               counts for the new bucket. */}
+          <div className="border-t border-zinc-100 py-2 first:border-t-0 dark:border-zinc-800">
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
+              Difficulty
+            </p>
+            <div className="flex flex-col gap-0.5">
+              {levels.map((lvl) => (
+                <label
+                  key={lvl}
+                  className={`flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-xs ${
+                    activeLevel === lvl
+                      ? "bg-emerald-50 font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                      : "text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="difficulty"
+                    checked={activeLevel === lvl}
+                    onChange={() => {
+                      setActiveLevel(lvl);
+                      setPage(1);
+                    }}
+                    className="h-3.5 w-3.5 shrink-0 border-zinc-300 text-emerald-600 focus:ring-1 focus:ring-emerald-500"
+                  />
+                  <span>{LEVEL_LABELS[lvl]}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Theme group sections */}
+          {themeGroups.map((g) => {
+            const sectionId = `themes:${g.id}`;
+            const expanded = !!expandedSections[sectionId];
+            const groupSelectedCount = g.themes.filter((t) =>
+              selectedThemes.includes(t.key),
+            ).length;
+            return (
+              <div key={g.id} className="border-t border-zinc-100 py-2 first:border-t-0 dark:border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExpandedSections((s) => ({ ...s, [sectionId]: !s[sectionId] }))
+                  }
+                  className="flex w-full items-center justify-between text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-700 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
+                >
+                  <span className="flex items-center gap-1.5">
+                    {g.name}
+                    {groupSelectedCount > 0 && (
+                      <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 font-mono text-[10px] normal-case tracking-normal text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                        {groupSelectedCount}
+                      </span>
+                    )}
+                  </span>
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`}
+                  />
+                </button>
+                {expanded && (
+                  <div className="mt-2 flex flex-col gap-0.5">
+                    {g.themes.map((t) => {
+                      const checked = selectedThemes.includes(t.key);
+                      const disabled = t.count === 0 && !checked;
+                      return (
+                        <label
+                          key={t.key}
+                          title={t.description}
+                          className={`flex items-center justify-between gap-2 rounded-md px-1.5 py-1 text-xs ${
+                            disabled
+                              ? "cursor-not-allowed text-zinc-300 dark:text-zinc-600"
+                              : "cursor-pointer text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                          }`}
+                        >
+                          <span className="flex min-w-0 items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              disabled={disabled}
+                              onChange={() => {
+                                setSelectedThemes((cur) =>
+                                  checked
+                                    ? cur.filter((k) => k !== t.key)
+                                    : [...cur, t.key],
+                                );
+                                setPage(1);
+                              }}
+                              className="h-3.5 w-3.5 shrink-0 rounded border-zinc-300 text-emerald-600 focus:ring-1 focus:ring-emerald-500 dark:border-zinc-600 dark:bg-zinc-800"
+                            />
+                            <span className="truncate">{t.name}</span>
+                          </span>
+                          <span className="shrink-0 font-mono text-[10px] opacity-60">
+                            {t.count.toLocaleString()}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Openings sections — split by colour, with variations nested */}
+          {openings.length > 0 &&
+            (["white", "black"] as const).map((color) => {
+              const list = openings.filter((o) => o.color === color);
+              if (list.length === 0) return null;
+              const sectionId = `openings:${color}`;
+              const expanded = !!expandedSections[sectionId];
+              const allKeys = list.flatMap((o) => [o.key, ...o.variations.map((v) => v.key)]);
+              const selectedCount = allKeys.filter((k) => selectedOpenings.includes(k)).length;
+              return (
+                <div key={color} className="border-t border-zinc-100 py-2 dark:border-zinc-800">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExpandedSections((s) => ({ ...s, [sectionId]: !s[sectionId] }))
+                    }
+                    className="flex w-full items-center justify-between text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-700 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      Openings — {color === "white" ? "White" : "Black"}
+                      {selectedCount > 0 && (
+                        <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 font-mono text-[10px] normal-case tracking-normal text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                          {selectedCount}
+                        </span>
+                      )}
+                    </span>
+                    <ChevronDown
+                      className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                  {expanded && (
+                    <div className="mt-2 flex flex-col gap-2">
+                      {list.map((o) => {
+                        const checkedFamily = selectedOpenings.includes(o.key);
+                        const disabledFamily = o.count === 0 && !checkedFamily;
+                        return (
+                          <div key={o.key} className="flex flex-col gap-0.5">
+                            <label
+                              className={`flex items-center justify-between gap-2 rounded-md px-1.5 py-1 text-xs ${
+                                disabledFamily
+                                  ? "cursor-not-allowed text-zinc-300 dark:text-zinc-600"
+                                  : "cursor-pointer font-medium text-zinc-700 hover:bg-zinc-50 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                              }`}
+                            >
+                              <span className="flex min-w-0 items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={checkedFamily}
+                                  disabled={disabledFamily}
+                                  onChange={() => {
+                                    setSelectedOpenings((cur) =>
+                                      checkedFamily
+                                        ? cur.filter((k) => k !== o.key)
+                                        : [...cur, o.key],
+                                    );
+                                    setPage(1);
+                                  }}
+                                  className="h-3.5 w-3.5 shrink-0 rounded border-zinc-300 text-emerald-600 focus:ring-1 focus:ring-emerald-500 dark:border-zinc-600 dark:bg-zinc-800"
+                                />
+                                <span className="truncate">{o.family}</span>
+                              </span>
+                              <span className="shrink-0 font-mono text-[10px] opacity-60">
+                                {o.count.toLocaleString()}
+                              </span>
+                            </label>
+                            {o.variations.length > 0 && (
+                              <div className="flex flex-col gap-0.5 pl-5">
+                                {o.variations.map((v) => {
+                                  const checkedV = selectedOpenings.includes(v.key);
+                                  const disabledV = v.count === 0 && !checkedV;
+                                  return (
+                                    <label
+                                      key={v.key}
+                                      className={`flex items-center justify-between gap-2 rounded-md px-1.5 py-0.5 text-[11px] ${
+                                        disabledV
+                                          ? "cursor-not-allowed text-zinc-300 dark:text-zinc-600"
+                                          : "cursor-pointer text-zinc-500 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                                      }`}
+                                    >
+                                      <span className="flex min-w-0 items-center gap-2">
+                                        <input
+                                          type="checkbox"
+                                          checked={checkedV}
+                                          disabled={disabledV}
+                                          onChange={() => {
+                                            setSelectedOpenings((cur) =>
+                                              checkedV
+                                                ? cur.filter((k) => k !== v.key)
+                                                : [...cur, v.key],
+                                            );
+                                            setPage(1);
+                                          }}
+                                          className="h-3 w-3 shrink-0 rounded border-zinc-300 text-emerald-600 focus:ring-1 focus:ring-emerald-500 dark:border-zinc-600 dark:bg-zinc-800"
+                                        />
+                                        <span className="truncate">{v.name}</span>
+                                      </span>
+                                      <span className="shrink-0 font-mono text-[9px] opacity-50">
+                                        {v.count.toLocaleString()}
+                                      </span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+        </aside>
+
+        {/* MAIN COLUMN */}
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {/* Sticky header: Filters btn (mobile) + search + status + sort,
+               then active-filter pills (only when there are active filters). */}
+          <div className="sticky top-0 z-10 border-b border-zinc-100 bg-white/95 px-4 py-2 backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-900/95">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+              <button
+                type="button"
+                onClick={() => setFiltersDrawerOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 lg:hidden dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              >
+                <Filter className="h-4 w-4" />
+                Filters
+                {(selectedThemes.length + selectedOpenings.length) > 0 && (
+                  <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 font-mono text-[10px] text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                    {selectedThemes.length + selectedOpenings.length}
+                  </span>
+                )}
+              </button>
+              {/* Pagination strip lives in the sticky header so the user
+                  can move through 1.7 M beginner puzzles without scrolling
+                  the grid first. Smart variant: when totalPages exceeds
+                  PAGINATION_NUMBERED_LIMIT (50), the numbered jump-to is
+                  replaced with Prev / Random / Next — 84 K page numbers
+                  is noise, "give me a different puzzle" is the real
+                  use-case. */}
+              <PaginationStrip
+                rangeStart={rangeStart}
+                rangeEnd={rangeEnd}
+                total={total}
+                totalIsCapped={totalIsCapped}
+                safePage={safePage}
+                totalPages={totalPages}
+                loading={loading}
+                onPrev={() => setPage((p) => Math.max(1, p - 1))}
+                onNext={() =>
+                  setPage((p) => (totalIsCapped ? p + 1 : Math.min(totalPages, p + 1)))
+                }
+                onRandom={() => {
+                  if (totalPages <= 1) return;
+                  const r = 1 + Math.floor(Math.random() * totalPages);
+                  setPage(r);
+                }}
+                onJump={(n) => setPage(n)}
+                puzzlesOnPage={puzzles.length}
+                pageSize={LIBRARY_PAGE_SIZE}
+              />
+              <div className="flex shrink-0 items-center gap-1 rounded-xl border border-zinc-200 bg-zinc-50 p-0.5 dark:border-zinc-700 dark:bg-zinc-800/80">
+                {(["all", "unsolved", "solved"] as const).map((pf) => (
+                  <button
+                    key={pf}
+                    type="button"
+                    onClick={() => {
+                      setProgressFilter(pf);
+                      setPage(1);
+                    }}
+                    className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold capitalize transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                      progressFilter === pf
+                        ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-900 dark:text-zinc-100"
+                        : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                    }`}
+                  >
+                    {pf === "all" ? "All" : pf === "unsolved" ? "Unsolved" : "Solved"}
+                  </button>
+                ))}
+              </div>
+              <label className="sr-only" htmlFor="puzzle-library-sort">
+                Sort puzzles
+              </label>
+              <select
+                id="puzzle-library-sort"
+                value={sort}
+                onChange={(e) => {
+                  setSort(e.target.value as PuzzleSort);
+                  setPage(1);
+                }}
+                className="shrink-0 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:focus:ring-zinc-800"
+              >
+                <option value="popular">Popular</option>
+                <option value="random">Random</option>
+                <option value="hardest">Hardest</option>
+                <option value="easiest">Easiest</option>
+              </select>
+            </div>
+
+            {/* Active filter pills — click × to remove a single filter. */}
+            {(selectedThemes.length > 0 || selectedOpenings.length > 0) && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {selectedThemes.map((k) => {
+                  const meta = themeGroups.flatMap((g) => g.themes).find((t) => t.key === k);
+                  return (
+                    <button
+                      key={`t:${k}`}
+                      type="button"
+                      onClick={() => {
+                        setSelectedThemes((cur) => cur.filter((x) => x !== k));
+                        setPage(1);
+                      }}
+                      className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
+                    >
+                      {meta?.name ?? k}
+                      <X className="h-3 w-3" />
+                    </button>
+                  );
+                })}
+                {selectedOpenings.map((k) => {
+                  // Look up family or variation by key.
+                  const flat = openings.flatMap((o) => [
+                    { key: o.key, label: o.family },
+                    ...o.variations.map((v) => ({ key: v.key, label: v.name })),
+                  ]);
+                  const meta = flat.find((x) => x.key === k);
+                  return (
+                    <button
+                      key={`o:${k}`}
+                      type="button"
+                      onClick={() => {
+                        setSelectedOpenings((cur) => cur.filter((x) => x !== k));
+                        setPage(1);
+                      }}
+                      className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-700 hover:bg-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:hover:bg-sky-900/50"
+                    >
+                      {meta?.label ?? k}
+                      <X className="h-3 w-3" />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+      {/* Progress bar — always shown so the difficulty's grand total stays
+           visible even before any attempts have been recorded. solvedCount
+           wires to progress.sqlite in pass 5; until then it sits at 0. */}
+      {levelGrandTotal > 0 && (
+        <div className="px-4 pt-2 pb-1">
           <div className="flex items-center justify-between text-xs font-medium text-zinc-600 dark:text-zinc-300">
             <span>
-              {solvedCount} / {levelGrandTotal} {LEVEL_LABELS[activeLevel]} puzzles solved
+              {solvedCount.toLocaleString()} / {levelGrandTotal.toLocaleString()}{" "}
+              {LEVEL_LABELS[activeLevel]} puzzles solved
             </span>
             <span className="font-mono text-[11px] text-emerald-600 dark:text-emerald-400">
-              {Math.min(100, Math.round((solvedCount / levelGrandTotal) * 1000) / 10)}%
+              {progressPct}%
             </span>
           </div>
-          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+          <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
             <div
               className="h-full rounded-full bg-emerald-500 transition-all duration-500"
-              style={{ width: `${Math.min(100, Math.round((solvedCount / levelGrandTotal) * 1000) / 10)}%` }}
+              style={{ width: `${progressPct}%` }}
             />
           </div>
         </div>
       )}
 
-      {/* Theme filter */}
-      <div className="flex gap-1.5 overflow-x-auto px-4 py-2">
-        <button
-          type="button"
-          onClick={() => {
-            setTheme("");
-            setPage(1);
-          }}
-          className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium transition ${!theme ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400"}`}
-        >
-          All themes
-        </button>
-        {THEMES_POPULAR.map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => {
-              setTheme(theme === t ? "" : t);
-              setPage(1);
-            }}
-            className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium transition ${theme === t ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400"}`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-
-      {/* Search + progress filter + sort */}
-      <div className="flex flex-col gap-2 px-4 pb-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
-        <label className="sr-only" htmlFor="puzzle-library-search">
-          Search puzzles
-        </label>
-        <input
-          id="puzzle-library-search"
-          type="search"
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          placeholder="Search by ID (#003YF) or theme keyword…"
-          className="min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-zinc-500 dark:focus:ring-zinc-800"
-          autoComplete="off"
-        />
-        <div className="flex shrink-0 items-center gap-1 rounded-xl border border-zinc-200 bg-zinc-50 p-0.5 dark:border-zinc-700 dark:bg-zinc-800/80">
-          {(["all", "unsolved", "solved"] as const).map((pf) => (
-            <button
-              key={pf}
-              type="button"
-              disabled={!user && pf !== "all"}
-              title={!user && pf !== "all" ? "Sign in to filter by progress" : undefined}
-              onClick={() => {
-                setProgressFilter(pf);
-                setPage(1);
-              }}
-              className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold capitalize transition disabled:cursor-not-allowed disabled:opacity-40 ${
-                progressFilter === pf
-                  ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-900 dark:text-zinc-100"
-                  : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
-              }`}
-            >
-              {pf === "all" ? "All" : pf === "unsolved" ? "Unsolved" : "Solved"}
-            </button>
-          ))}
-        </div>
-        <label className="sr-only" htmlFor="puzzle-library-sort">
-          Sort puzzles
-        </label>
-        <select
-          id="puzzle-library-sort"
-          value={sort}
-          onChange={(e) => {
-            setSort(e.target.value as PuzzleSort);
-            setPage(1);
-          }}
-          className="shrink-0 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:focus:ring-zinc-800"
-        >
-          <option value="newest">Newest</option>
-          <option value="rating_asc">Rating (low → high)</option>
-          <option value="rating_desc">Rating (high → low)</option>
-        </select>
-      </div>
-
-      <p className="px-4 pb-2 text-xs text-zinc-500 dark:text-zinc-400">
-        {loading && total === 0
-          ? "Loading…"
-          : total === 0
-            ? "No puzzles match your filters."
-            : `Showing ${rangeStart}–${rangeEnd} of ${total} puzzle${total === 1 ? "" : "s"}${
-                user ? ` (${solvedCount} solved)` : ""
-              }`}
-      </p>
+      {/* Showing-range + page info now lives in the sticky pagination
+           strip up top, so this row only surfaces empty / loading state. */}
+      {loading && total === 0 ? (
+        <p className="px-4 pb-2 pt-2 text-xs text-zinc-500 dark:text-zinc-400">Loading…</p>
+      ) : total === 0 ? (
+        <p className="px-4 pb-2 pt-2 text-xs text-zinc-500 dark:text-zinc-400">No puzzles match your filters.</p>
+      ) : null}
 
       {loadError && (
         <div className="mx-4 flex flex-col items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-center dark:border-red-900/40 dark:bg-red-950/30">
@@ -2524,7 +3604,7 @@ function PuzzleLibrary({ onBack, onSolve }: { onBack: () => void; onSolve: (p: L
             type="button"
             onClick={() => {
               setPage(1);
-              void load(activeLevel, theme, debouncedSearch, sort, 1, user ? progressFilter : "all");
+              void load(activeLevel, selectedThemes, selectedOpenings, sort, 1, progressFilter);
             }}
             className="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
           >
@@ -2533,59 +3613,40 @@ function PuzzleLibrary({ onBack, onSolve }: { onBack: () => void; onSolve: (p: L
         </div>
       )}
 
-      {/* Grid — single column on narrow phones */}
+      {/* Compact text-only puzzle cards. The mini chess board preview was
+           dropped per UX feedback — at thumbnail size it's not legible and
+           consumes most of the card height. The whole card is now a single
+           clickable button so the user doesn't have to aim at a sub-control. */}
       <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {puzzles.map((p, i) => (
-          <div
-            key={p.id}
-            className={`group flex flex-col gap-2 rounded-2xl border border-zinc-200 bg-white p-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg dark:border-zinc-700 dark:bg-zinc-900 ${
-              user && solvedIds.has(p.id) ? "opacity-70" : ""
-            }`}
-          >
-            <div className="flex justify-center pb-1">
-              <PuzzleMiniBoard fen={p.fen} size={120} />
-            </div>
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${LEVEL_COLORS[p.level]}`}>
-                  {LEVEL_LABELS[p.level]}
-                </span>
-                <p className="mt-1 inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 font-mono text-[11px] text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
-                  <Star className="h-3 w-3 fill-amber-400 text-amber-400" aria-hidden />
-                  {p.rating}
-                </p>
-              </div>
-              <div className="relative shrink-0 pt-0.5">
-                {user && solvedIds.has(p.id) && (
-                  <span
-                    className="absolute -right-1 -top-1 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white shadow-md ring-2 ring-white dark:ring-zinc-900"
-                    aria-label="Solved"
-                  >
-                    <Check className="h-3 w-3 stroke-[3]" />
-                  </span>
-                )}
-                <span className="block text-[10px] text-zinc-300 dark:text-zinc-600">#{p.id}</span>
-              </div>
-            </div>
-            {p.themes.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {p.themes.slice(0, 3).map((t) => (
-                  <span
-                    key={t}
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${puzzleTagAccentClasses(t)}`}
-                  >
-                    {t}
-                  </span>
-                ))}
-              </div>
-            )}
+        {puzzles.map((p, i) => {
+          const isSolved = solvedIds.has(p.id);
+          // Pick up to 3 representative themes (skip very generic ones if
+          // we have specific themes to show). Then up to 1 opening tag.
+          const themeTags = p.themes.slice(0, 3);
+          // Decorated puzzle items from the new API include `openings`. Older
+          // legacy paths might not — fall back to empty.
+          const openingTags =
+            (p as LibraryPuzzle & { openings?: string[] }).openings?.slice(0, 1) ?? [];
+          // Look up display name for the opening tag. Most puzzle tags
+          // are sub-variations our curated openings.json doesn't carry —
+          // fall back to underscore-strip so the chip never reads
+          // "Bishops_Opening_Bercus_Variation".
+          const openingDisplay = openingTags.map((k) => {
+            const flat = openings.flatMap((o) => [
+              { key: o.key, label: o.family },
+              ...o.variations.map((v) => ({ key: v.key, label: v.name })),
+            ]);
+            return flat.find((x) => x.key === k)?.label ?? k.replace(/_/g, " ");
+          });
+          return (
             <button
+              key={p.id}
               type="button"
               onClick={() =>
                 onSolve(p, {
                   level: activeLevel,
-                  theme,
-                  q: debouncedSearch,
+                  themes: selectedThemes,
+                  openings: selectedOpenings,
                   sort,
                   page: safePage,
                   index: i,
@@ -2593,112 +3654,80 @@ function PuzzleLibrary({ onBack, onSolve }: { onBack: () => void; onSolve: (p: L
                   total,
                 })
               }
-              className="mt-auto flex items-center justify-center gap-1.5 rounded-xl bg-[#5d8a4e] py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#4d7c3f]"
+              className={`group flex min-h-[120px] flex-col items-stretch gap-2 rounded-xl border bg-white p-3 text-left transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md dark:bg-zinc-900 ${
+                isSolved
+                  ? "border-emerald-200 dark:border-emerald-900/50"
+                  : "border-zinc-200 dark:border-zinc-700"
+              }`}
             >
-              <span aria-hidden className="text-base leading-none">♞</span> Solve
+              <div className="flex items-start justify-between gap-2">
+                {/* Big rating badge — the dominant feature of the card. */}
+                <span className="inline-flex items-baseline gap-1 font-mono text-2xl font-black leading-none text-zinc-800 dark:text-zinc-100">
+                  <Star className="h-4 w-4 self-center fill-amber-400 text-amber-400" aria-hidden />
+                  {p.rating}
+                </span>
+                {isSolved ? (
+                  <span
+                    className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm ring-2 ring-white dark:ring-zinc-900"
+                    aria-label="Solved"
+                  >
+                    <Check className="h-3 w-3 stroke-[3]" />
+                  </span>
+                ) : (
+                  <span className="font-mono text-[10px] text-zinc-300 dark:text-zinc-600">
+                    #{p.id}
+                  </span>
+                )}
+              </div>
+              <div>
+                <span
+                  className={`inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium ${LEVEL_COLORS[p.level]}`}
+                >
+                  {LEVEL_LABELS[p.level]}
+                </span>
+              </div>
+              {themeTags.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {themeTags.map((t) => (
+                    <span
+                      key={t}
+                      className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${puzzleTagAccentClasses(t, themeToGroup)}`}
+                    >
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {openingDisplay.length > 0 && (
+                <p className="truncate text-[11px] italic text-zinc-500 dark:text-zinc-400">
+                  {openingDisplay.join(", ")}
+                </p>
+              )}
             </button>
-          </div>
-        ))}
+          );
+        })}
         {loading &&
           puzzles.length === 0 &&
-          Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="flex flex-col gap-2 rounded-2xl border border-zinc-100 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
-              <div className="mx-auto h-[120px] w-[120px] animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
-              <div className="h-5 w-24 animate-pulse rounded-full bg-zinc-200 dark:bg-zinc-700" />
-              <div className="h-3 w-16 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
-              <div className="mt-auto h-9 animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-700" />
+          Array.from({ length: 8 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex min-h-[120px] flex-col gap-2 rounded-xl border border-zinc-100 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/50"
+            >
+              <div className="h-7 w-20 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
+              <div className="h-4 w-16 animate-pulse rounded-full bg-zinc-200 dark:bg-zinc-700" />
+              <div className="h-3 w-32 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
             </div>
           ))}
       </div>
 
-      {/* Pagination */}
-      {total > 0 && (
-        <div className="flex flex-col items-center gap-3 border-t border-zinc-100 px-4 py-4 dark:border-zinc-800">
-          <div className="flex w-full max-w-md items-center justify-center gap-2">
-            <button
-              type="button"
-              disabled={safePage <= 1 || loading}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="flex items-center gap-1 rounded-lg border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Previous
-            </button>
-            <div className="hidden min-w-0 flex-1 items-center justify-center gap-1 md:flex">
-              {visiblePages.map((item, idx) =>
-                item === "gap" ? (
-                  <span key={`g-${idx}`} className="px-1 text-zinc-400">
-                    …
-                  </span>
-                ) : (
-                  <button
-                    key={item}
-                    type="button"
-                    disabled={loading}
-                    onClick={() => setPage(item)}
-                    className={`min-w-[2.25rem] rounded-lg px-2 py-1.5 text-sm font-medium transition ${
-                      item === safePage
-                        ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                        : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                    }`}
-                  >
-                    {item}
-                  </button>
-                ),
-              )}
-            </div>
-            <button
-              type="button"
-              disabled={safePage >= totalPages || loading}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className="flex items-center gap-1 rounded-lg border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
-            >
-              Next
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-          <p className="text-center text-xs text-zinc-400 md:hidden">
-            Page {safePage} of {totalPages}
-          </p>
-        </div>
-      )}
+        </main>
+      </div>
     </div>
   );
 }
 
-// ─── Theme → human-readable description ──────────────────────────────────────
-
-const THEME_DESC: Record<string, string> = {
-  fork:              "A single piece attacks two of the opponent's pieces at the same time.",
-  pin:               "A piece can't move because it would expose a more valuable piece behind it.",
-  skewer:            "A high-value piece is attacked, and moving it reveals a lesser piece to be captured.",
-  discoveredAttack:  "Moving one piece unmasks an attack from a different piece hiding behind it.",
-  backRankMate:      "The king is stuck on its back rank with no escape — a rook or queen can deliver checkmate.",
-  hangingPiece:      "An undefended piece can be captured for free with no recapture threat.",
-  sacrifice:         "Giving up material (like a bishop or rook) to create a devastating follow-up.",
-  deflection:        "A defending piece is lured or forced away from the square it's protecting.",
-  decoy:             "The opponent's piece is drawn to a bad square where it can be exploited.",
-  quietMove:         "A non-capture, non-check move that sets up an unstoppable threat.",
-  mateIn1:           "There's one move that delivers immediate checkmate.",
-  mateIn2:           "A two-move combination forces checkmate no matter how the opponent responds.",
-  mateIn3:           "A three-move forced sequence leading to checkmate.",
-  crushing:          "Look for a forcing tactic using your pieces against the opponent's king or a loose target — name a file, rank, or diagonal you can exploit.",
-  trappedPiece:      "A piece has no safe squares to move — it's about to be captured.",
-  advancedPawn:      "A passed pawn close to promotion creates a decisive threat.",
-  exposedKing:       "The opponent's king is in an open position, vulnerable to attack.",
-  xRayAttack:        "A piece attacks through another piece to hit a target behind it.",
-  zwischenzug:       "An 'in-between' move that ignores the expected response to create a bigger threat.",
-  zugzwang:          "The opponent is in a position where any move they make worsens their situation.",
-};
-
-function themeToHint(themes: string[]): string {
-  for (const t of themes) {
-    if (THEME_DESC[t]) return THEME_DESC[t];
-  }
-  return themes.length > 0
-    ? `Look for a ${themes[0].replace(/([A-Z])/g, " $1").toLowerCase()} tactic.`
-    : "Look for a forcing move that creates multiple threats.";
-}
+// Hint copy now lives in lib/puzzleHints.ts (THEME_INFO) and powers the
+// progressive 3-level hint flow inside PuzzleSolve.
 
 // ─── Puzzle Solve ─────────────────────────────────────────────────────────────
 
@@ -2718,14 +3747,13 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
   const [fen, setFen]                     = useState(puzzle.fen);
   const [moveIdx, setMoveIdx]             = useState(0);
   const [result, setResult]               = useState<"idle" | "wrong" | "solved">("idle");
-  const [showHint, setShowHint]           = useState(false);
-  const [aiHint, setAiHint]               = useState("");
-  const [loadingHint, setLoadingHint]     = useState(false);
-  const hintReqRef = useRef(0);
+  /** Progressive hint reveal: 0 = none, 1..HINT_MAX_LEVEL = revealed levels. */
+  const [hintLevel, setHintLevel]         = useState(0);
   const [lastMove, setLastMove]           = useState<[string, string] | null>(null);
   const [wrongSquares, setWrongSquares]   = useState<[string, string] | null>(null);
   const [wrongExpl, setWrongExpl]         = useState("");
-  const [wrongHint, setWrongHint]         = useState("");
+  // Wrong-move "why this is wrong" copy comes from /api/chess/puzzles/explain
+  // and is no longer surfaced — the progressive hint flow handles guidance.
   const [loadingWrong, setLoadingWrong]   = useState(false);
   const [explanation, setExplanation]     = useState("");
   const [loadingExpl, setLoadingExpl]     = useState(false);
@@ -2742,16 +3770,10 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
   const wrongExplGenRef = useRef(0);
   const libraryWrongAttemptsRef = useRef(0);
   const [wrongAttempts, setWrongAttempts] = useState(0);
+  // Used to compute durationMs in the attempt log: time from the first
+  // render of this puzzle until the result is decided (solved or wrong).
+  const startedAtRef = useRef<number>(Date.now());
 
-  // Inactivity hint — surfaces a tip after 10s without a move so the player
-  // doesn't sit staring at an empty panel.
-  const [inactivityHintVisible, setInactivityHintVisible] = useState(false);
-  useEffect(() => {
-    setInactivityHintVisible(false);
-    if (result === "solved") return;
-    const t = setTimeout(() => setInactivityHintVisible(true), 10_000);
-    return () => clearTimeout(t);
-  }, [puzzle.fen, fen, result]);
   // TTS
   const [speaking, setSpeaking] = useState(false);
   const [paused, setPaused]     = useState(false);
@@ -2856,7 +3878,6 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
     const requestId = ++wrongExplGenRef.current;
     setLoadingWrong(true);
     setWrongExpl("");
-    setWrongHint("");
     try {
       const res = await fetch("/api/chess/puzzles/explain", {
         method: "POST",
@@ -2874,7 +3895,6 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
       const data = await res.json() as { explanation: string; hint?: string };
       if (requestId !== wrongExplGenRef.current) return;
       setWrongExpl(data.explanation ?? "");
-      setWrongHint(data.hint ?? "");
     } finally {
       if (requestId === wrongExplGenRef.current) setLoadingWrong(false);
     }
@@ -2915,54 +3935,35 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
 
   useEffect(() => {
     libraryWrongAttemptsRef.current = 0;
+    startedAtRef.current = Date.now();
   }, [isLibrary, libraryPuzzleId]);
 
-  async function recordLibraryProgressIfNeeded(attempts: number) {
+  /** Persist a single attempt to progress.sqlite. Includes duration since
+   *  this puzzle mounted and the highest hint level revealed. Called on
+   *  both solved and wrong (give-up) paths. */
+  async function recordAttempt(solved: boolean): Promise<void> {
     if (!isLibrary) return;
     const p = puzzle as LibraryPuzzle;
-    await authFetch("/api/chess/puzzles/library/progress", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ puzzleId: p.id, level: p.level, attempts }),
-    }).catch(() => {});
+    const durationMs = Math.max(0, Date.now() - startedAtRef.current);
+    try {
+      await fetch(`/api/chess/puzzles/${encodeURIComponent(p.id)}/attempt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          solved,
+          hintsUsed: hintLevel,
+          durationMs,
+        }),
+      });
+    } catch (e) {
+      // Attempts log is best-effort — a network blip shouldn't break the
+      // solve flow.
+      console.warn("[puzzle attempt]", e);
+    }
   }
 
-  // Position-specific hint (library puzzles) when hint panel is visible
-  useEffect(() => {
-    if (!showHint || result === "solved") return;
-    const builtInHintLocal = "hint" in puzzle ? (puzzle as BuiltInPuzzle).hint : "";
-    if (builtInHintLocal || !isLibrary) return;
-
-    let cancelled = false;
-    const requestId = ++hintReqRef.current;
-    setLoadingHint(true);
-    setAiHint("");
-
-    void (async () => {
-      try {
-        const res = await fetch("/api/chess/puzzles/explain", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            mode:          "position_hint",
-            fen,
-            themes:        libraryThemes,
-            level:         puzzle.level,
-            studentColor:  playerColor,
-          }),
-        });
-        const data = await res.json() as { explanation?: string };
-        if (cancelled || requestId !== hintReqRef.current) return;
-        setAiHint((data.explanation ?? "").trim());
-      } finally {
-        if (!cancelled && requestId === hintReqRef.current) setLoadingHint(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [showHint, fen, moveIdx, result, isLibrary, libraryPuzzleId, libraryThemesKey, playerColor, puzzle.level]);
+  // Hints are now fully derived from puzzle themes + the solution UCI; no
+  // server-side hint fetch is needed. See lib/puzzleHints.ts.
 
   // Auto-speak when explanation arrives (respect mute)
   useEffect(() => {
@@ -2984,6 +3985,7 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
   const { legalMoveStyles: puzzleLegalStyles, handlers: puzzleLegalHandlers, clearSelection: clearPuzzleSelection } = useChessLegalMoves(chessRef, onDrop, result !== "solved");
 
   function onDrop(sourceSquare: string, targetSquare: string): boolean {
+    if (sourceSquare === targetSquare) return false;
     if (result === "solved") return false;
     const expectedUci = solMoves[moveIdx];
     if (!expectedUci) return false;
@@ -3012,7 +4014,8 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
       }, 500);
 
       setResult("wrong");
-      setShowHint(true);
+      // After a wrong move, reveal at least the motif if no hints have been shown yet.
+      setHintLevel((lvl) => Math.max(lvl, 1));
       setWrongSquares([sourceSquare, targetSquare]);
       const fenNow = fenBeforeDropRef.current;
       fetchWrongExplanation(fenNow, actualUci, newAttempts);
@@ -3041,7 +4044,6 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
     setLastMove([sourceSquare, targetSquare]);
     setWrongSquares(null);
     setWrongExpl("");
-    setWrongHint("");
     setResult("idle");
 
     const nextIdx = moveIdx + 1;
@@ -3051,7 +4053,7 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
       setResult("solved");
       playSound("notify", muted);
       fetchExplanation();
-      void recordLibraryProgressIfNeeded(libraryWrongAttemptsRef.current + 1);
+      void recordAttempt(true);
       incrementChessPuzzleCounter();
       return true;
     }
@@ -3094,9 +4096,6 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
     setResult("idle");
     setWrongSquares(null);
     setWrongExpl("");
-    setWrongHint("");
-    setShowHint(false);
-    setAiHint("");
     const f = chessRef.current.fen();
     setFen(f);
     fenBeforeDropRef.current = f;
@@ -3121,8 +4120,6 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
     setLoadingWrong(false);
     setWrongSquares(null);
     setWrongExpl("");
-    setWrongHint("");
-    setShowHint(false);
     setMoveArrows([]);
     setResult("idle");
 
@@ -3132,10 +4129,13 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
 
     const playOne = (idx: number) => {
       if (idx >= solMoves.length) {
-        // Done — flip to solved state.
+        // Done — flip to solved state visually, but log this attempt as a
+        // failure (`solved: false`) since the user asked for the solution
+        // rather than finding it. Hint level is whatever they had revealed.
         setResult("solved");
         playSound("notify", mutedRef.current);
         fetchExplanation();
+        void recordAttempt(false);
         giveUpRunningRef.current = false;
         return;
       }
@@ -3187,13 +4187,11 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
     fenBeforeDropRef.current = puzzle.fen;
     setMoveIdx(0);
     setResult("idle");
-    setShowHint(false);
-    setAiHint("");
+    setHintLevel(0);
     setLastMove(null);
     setLastMoveSide(null);
     setWrongSquares(null);
     setWrongExpl("");
-    setWrongHint("");
     setExplanation("");
     if (setupMove) {
       setTimeout(() => {
@@ -3233,9 +4231,33 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
   const title   = "title" in puzzle ? puzzle.title : `Puzzle #${(puzzle as LibraryPuzzle).id}`;
   const level   = puzzle.level;
   const themes  = isLibrary ? (puzzle as LibraryPuzzle).themes : [];
-  const builtInHint = "hint" in puzzle ? (puzzle as BuiltInPuzzle).hint : "";
-  const hintText =
-    wrongHint || builtInHint || (isLibrary ? (aiHint || (loadingHint ? "" : themeToHint(themes))) : themeToHint(themes));
+
+  // ── Progressive hints (theme-derived) ──────────────────────────────────
+  // Level 1: motif name. Level 2: piece + origin. Level 3: file/rank hint.
+  // After level 3, the button becomes "Show solution".
+  const playerSolutionUci = solMoves[moveIdx] ?? solMoves[0] ?? "";
+  const playerSolutionFen = useMemo(() => {
+    try {
+      const b = new Chess(puzzle.fen);
+      // Walk solution moves up to (but not including) the user's current ply.
+      for (let i = 0; i < moveIdx && i < solMoves.length; i++) {
+        b.move(solMoves[i]);
+      }
+      return b.fen();
+    } catch {
+      return puzzle.fen;
+    }
+  }, [puzzle.fen, moveIdx, solMoves]);
+
+  const builtHints = useMemo<PuzzleHint[]>(() => {
+    if (!playerSolutionUci) return [];
+    return [
+      buildLevel1Hint(themes),
+      buildLevel2Hint(playerSolutionFen, playerSolutionUci),
+      buildLevel3Hint(playerSolutionFen, playerSolutionUci),
+    ];
+  }, [themes, playerSolutionFen, playerSolutionUci]);
+  const visibleHints = builtHints.slice(0, hintLevel);
   const totalPlayerMoves   = Math.ceil(solMoves.length / 2);
   const currentPlayerMove  = Math.min(Math.floor(moveIdx / 2) + 1, totalPlayerMoves);
   const progressPct        = result === "solved" ? 100 : Math.round((moveIdx / solMoves.length) * 100);
@@ -3380,25 +4402,50 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
                   </div>
                 )}
 
-                {/* Inactivity hint — appears after 10s without a move while idle */}
-                {inactivityHintVisible && result !== "solved" && result !== "wrong" && (
-                  <div className="rounded-md border border-amber-200/80 bg-amber-50/70 px-2 py-1.5 text-[11px] leading-snug text-amber-800 dark:border-amber-800/80 dark:bg-amber-950/25 dark:text-amber-300">
-                    <p className="flex items-start gap-1.5">
-                      <Lightbulb className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
-                      <span>{hintText || themeToHint(themes)}</span>
-                    </p>
+                {/* Progressive hints — derived from puzzle.themes + solution UCI */}
+                {visibleHints.length > 0 && result !== "solved" && (
+                  <div className="flex flex-col gap-1.5 rounded-md border border-amber-200/80 bg-amber-50/70 px-2.5 py-2 text-[11px] leading-snug text-amber-900 dark:border-amber-800/80 dark:bg-amber-950/25 dark:text-amber-200">
+                    {visibleHints.map((h) => (
+                      <div key={h.level} className="flex items-start gap-1.5">
+                        <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-amber-200 text-[9px] font-bold text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                          {h.level}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          {h.level === 1 ? (
+                            <>
+                              <span className="font-semibold">Motif: {h.label}</span>
+                              {" — "}
+                              {h.description}
+                            </>
+                          ) : (
+                            h.text
+                          )}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 )}
 
-                {/* Give Up — always available during play (not when solved) */}
+                {/* Hint / Show solution — progressive button */}
                 {result !== "solved" && result !== "wrong" && (
-                  <button
-                    type="button"
-                    onClick={handleGiveUp}
-                    className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-zinc-300 bg-transparent py-2 text-[12px] font-semibold text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-800 dark:border-zinc-600 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-                  >
-                    <Flag className="h-3.5 w-3.5" /> Show solution
-                  </button>
+                  hintLevel < HINT_MAX_LEVEL ? (
+                    <button
+                      type="button"
+                      onClick={() => setHintLevel((l) => Math.min(HINT_MAX_LEVEL, l + 1))}
+                      className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 py-2 text-[12px] font-semibold text-amber-800 transition hover:bg-amber-100 dark:border-amber-800/70 dark:bg-amber-950/30 dark:text-amber-200 dark:hover:bg-amber-900/40"
+                    >
+                      <Lightbulb className="h-3.5 w-3.5" />
+                      Hint ({hintLevel + 1}/{HINT_MAX_LEVEL})
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleGiveUp}
+                      className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-zinc-300 bg-transparent py-2 text-[12px] font-semibold text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-800 dark:border-zinc-600 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                    >
+                      <Flag className="h-3.5 w-3.5" /> Show solution
+                    </button>
+                  )
                 )}
 
               </div>

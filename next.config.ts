@@ -1,8 +1,49 @@
 import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
-    /** Ensure JSON under `data/` is bundled for API routes that read from disk. */
+    /** Ensure data files are bundled for API routes that read from disk.
+     *  `puzzles-prod.sqlite` is the small (~80 MB) sampled subset committed
+     *  to the repo; the runtime falls back to the full local-only file when
+     *  it exists. */
     outputFileTracingIncludes: {
-        "/api/chess/puzzles/library": ["./data/chess-puzzles.json"],
+        "/api/chess/puzzles/library": [
+            "./data/puzzles-prod.sqlite",
+            "./data/chess-puzzles.json",
+            "./data/themes.json",
+            "./data/openings.json",
+        ],
+        "/api/chess/puzzles/next": [
+            "./data/puzzles-prod.sqlite",
+            "./data/chess-puzzles.json",
+            "./data/themes.json",
+            "./data/openings.json",
+        ],
+        "/api/chess/puzzles/by-id": ["./data/puzzles-prod.sqlite"],
+        "/api/chess/puzzles/[puzzleId]/attempt": ["./data/puzzles-prod.sqlite"],
+        "/api/chess/progress": ["./data/puzzles-prod.sqlite"],
+        "/api/chess/game-puzzles": ["./data/puzzles-prod.sqlite"],
+        "/api/chess/game-puzzles/extract": ["./data/puzzles-prod.sqlite"],
+        "/api/chess/game-puzzles/summary": ["./data/puzzles-prod.sqlite"],
+        "/api/chess/themes": [
+            "./data/puzzles-prod.sqlite",
+            "./data/themes.json",
+            "./data/chess-puzzles.json",
+        ],
+        "/api/chess/themes/[key]": [
+            "./data/puzzles-prod.sqlite",
+            "./data/themes.json",
+            "./data/chess-puzzles.json",
+            "./data/openings.json",
+        ],
+        "/api/chess/openings": [
+            "./data/puzzles-prod.sqlite",
+            "./data/openings.json",
+            "./data/chess-puzzles.json",
+        ],
+        "/api/chess/openings/[key]": [
+            "./data/puzzles-prod.sqlite",
+            "./data/openings.json",
+            "./data/chess-puzzles.json",
+        ],
         "/api/search-suggestions": ["./data/common-words.json"],
     },
     /**
@@ -28,6 +69,8 @@ const nextConfig: NextConfig = {
         "jsdom",
         "linkedom",
         "@mozilla/readability",
+        // Native bindings — must not be webpacked.
+        "better-sqlite3",
     ],
     turbopack: {},
     async headers() {

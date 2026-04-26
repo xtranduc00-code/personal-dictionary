@@ -64,3 +64,16 @@ yarn-error.log*
 # Local Netlify folder
 .netlify
 .claude/
+
+# Lichess puzzle dataset + local SQLite (regenerable; large)
+data/lichess_db_puzzle.csv
+data/lichess_db_puzzle.csv.zst
+data/puzzles.sqlite
+data/puzzles.sqlite-*
+data/progress.sqlite
+data/progress.sqlite-*
+# `puzzles-prod.sqlite` is the deployable subset built by
+# scripts/build-puzzles-prod.ts — small enough to commit and bundle into
+# Netlify Functions. Only the matching journal/wal sidecars are excluded.
+!data/puzzles-prod.sqlite
+data/puzzles-prod.sqlite-*

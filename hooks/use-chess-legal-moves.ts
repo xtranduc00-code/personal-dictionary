@@ -87,7 +87,7 @@ export function useChessLegalMoves(
       }
 
       // If clicking a legal target (capture own piece scenario won't happen - chess.js filters)
-      if (selectedSquare && legalSquares.has(square)) {
+      if (selectedSquare && selectedSquare !== square && legalSquares.has(square)) {
         const ok = makeMoveRef.current(selectedSquare, square);
         clearSelection();
         if (ok) return;
@@ -109,7 +109,7 @@ export function useChessLegalMoves(
       if (!enabled) return;
       if (!selectedSquare) return;
 
-      if (legalSquares.has(square)) {
+      if (selectedSquare !== square && legalSquares.has(square)) {
         makeMoveRef.current(selectedSquare, square);
         clearSelection();
       } else {

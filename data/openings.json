@@ -1,0 +1,732 @@
+{
+  "openings": [
+    {
+      "family": "Italian Game",
+      "key": "Italian_Game",
+      "color": "white",
+      "ecoRange": [
+        "C50",
+        "C54"
+      ],
+      "variations": [
+        {
+          "key": "Italian_Game_Two_Knights_Defense",
+          "name": "Two Knights Defense"
+        },
+        {
+          "key": "Italian_Game_Classical_Variation",
+          "name": "Classical Variation"
+        },
+        {
+          "key": "Italian_Game_Giuoco_Pianissimo",
+          "name": "Giuoco Pianissimo"
+        },
+        {
+          "key": "Italian_Game_Anti-Fried_Liver_Defense",
+          "name": "Anti-Fried Liver Defense"
+        },
+        {
+          "key": "Italian_Game_Giuoco_Piano",
+          "name": "Giuoco Piano"
+        }
+      ]
+    },
+    {
+      "family": "Ruy Lopez",
+      "key": "Ruy_Lopez",
+      "color": "white",
+      "ecoRange": [
+        "C60",
+        "C99"
+      ],
+      "variations": [
+        {
+          "key": "Ruy_Lopez_Morphy_Defense",
+          "name": "Morphy Defense"
+        },
+        {
+          "key": "Ruy_Lopez_Berlin_Defense",
+          "name": "Berlin Defense"
+        },
+        {
+          "key": "Ruy_Lopez_Steinitz_Defense",
+          "name": "Steinitz Defense"
+        },
+        {
+          "key": "Ruy_Lopez_Classical_Variation",
+          "name": "Classical Variation"
+        },
+        {
+          "key": "Ruy_Lopez_Exchange_Variation",
+          "name": "Exchange Variation"
+        },
+        {
+          "key": "Ruy_Lopez_Schliemann_Defense",
+          "name": "Schliemann Defense"
+        }
+      ]
+    },
+    {
+      "family": "Scotch Game",
+      "key": "Scotch_Game",
+      "color": "white",
+      "ecoRange": [
+        "C44",
+        "C45"
+      ],
+      "variations": [
+        {
+          "key": "Scotch_Game_Other_variations",
+          "name": "Other variations"
+        },
+        {
+          "key": "Scotch_Game_Scotch_Gambit",
+          "name": "Scotch Gambit"
+        },
+        {
+          "key": "Scotch_Game_Classical_Variation",
+          "name": "Classical Variation"
+        },
+        {
+          "key": "Scotch_Game_Schmidt_Variation",
+          "name": "Schmidt Variation"
+        }
+      ]
+    },
+    {
+      "family": "King's Gambit",
+      "key": "Kings_Gambit",
+      "color": "white",
+      "ecoRange": [
+        "C30",
+        "C39"
+      ],
+      "variations": [
+        {
+          "key": "Kings_Gambit_Accepted",
+          "name": "Accepted"
+        },
+        {
+          "key": "Kings_Gambit_Declined",
+          "name": "Declined"
+        },
+        {
+          "key": "Kings_Gambit_Declined_Queens_Knight_Defense",
+          "name": "Declined Queens Knight Defense"
+        },
+        {
+          "key": "Kings_Gambit_Other_variations",
+          "name": "Other variations"
+        }
+      ]
+    },
+    {
+      "family": "Vienna Game",
+      "key": "Vienna_Game",
+      "color": "white",
+      "ecoRange": [
+        "C25",
+        "C29"
+      ],
+      "variations": [
+        {
+          "key": "Vienna_Game_Vienna_Gambit",
+          "name": "Vienna Gambit"
+        },
+        {
+          "key": "Vienna_Game_Stanley_Variation",
+          "name": "Stanley Variation"
+        },
+        {
+          "key": "Vienna_Game_Other_variations",
+          "name": "Other variations"
+        }
+      ]
+    },
+    {
+      "family": "Queen's Gambit",
+      "key": "Queens_Gambit",
+      "color": "white",
+      "ecoRange": [
+        "D06",
+        "D69"
+      ],
+      "variations": [
+        {
+          "key": "Queens_Gambit_Declined",
+          "name": "Declined"
+        },
+        {
+          "key": "Queens_Gambit_Accepted",
+          "name": "Accepted"
+        },
+        {
+          "key": "Queens_Gambit_Declined_Other_variations",
+          "name": "Declined Other variations"
+        },
+        {
+          "key": "Queens_Gambit_Declined_Marshall_Defense",
+          "name": "Declined Marshall Defense"
+        },
+        {
+          "key": "Queens_Gambit_Declined_Albin_Countergambit",
+          "name": "Declined Albin Countergambit"
+        },
+        {
+          "key": "Queens_Gambit_Accepted_Old_Variation",
+          "name": "Accepted Old Variation"
+        }
+      ]
+    },
+    {
+      "family": "London System",
+      "key": "London_System",
+      "color": "white",
+      "ecoRange": [
+        "D02"
+      ],
+      "variations": [
+        {
+          "key": "London_System_Other_variations",
+          "name": "Other variations"
+        },
+        {
+          "key": "London_System_Poisoned_Pawn_Variation",
+          "name": "Poisoned Pawn Variation"
+        },
+        {
+          "key": "London_System_with_Bd3",
+          "name": "with Bd3"
+        }
+      ]
+    },
+    {
+      "family": "English Opening",
+      "key": "English_Opening",
+      "color": "white",
+      "ecoRange": [
+        "A10",
+        "A39"
+      ],
+      "variations": [
+        {
+          "key": "English_Opening_Kings_English_Variation",
+          "name": "Kings English Variation"
+        },
+        {
+          "key": "English_Opening_Symmetrical_Variation",
+          "name": "Symmetrical Variation"
+        },
+        {
+          "key": "English_Opening_Anglo-Indian_Defense",
+          "name": "Anglo-Indian Defense"
+        },
+        {
+          "key": "English_Opening_Agincourt_Defense",
+          "name": "Agincourt Defense"
+        },
+        {
+          "key": "English_Opening_Anglo-Scandinavian_Defense",
+          "name": "Anglo-Scandinavian Defense"
+        }
+      ]
+    },
+    {
+      "family": "Réti Opening",
+      "key": "Reti_Opening",
+      "color": "white",
+      "ecoRange": [
+        "A04",
+        "A09"
+      ],
+      "variations": [
+        {
+          "key": "Reti_Opening_Reti_Accepted",
+          "name": "Reti Accepted"
+        },
+        {
+          "key": "Reti_Opening_Advance_Variation",
+          "name": "Advance Variation"
+        },
+        {
+          "key": "Reti_Opening_Other_variations",
+          "name": "Other variations"
+        }
+      ]
+    },
+    {
+      "family": "Catalan Opening",
+      "key": "Catalan_Opening",
+      "color": "white",
+      "ecoRange": [
+        "E00",
+        "E09"
+      ],
+      "variations": [
+        {
+          "key": "Catalan_Opening_Closed",
+          "name": "Closed"
+        },
+        {
+          "key": "Catalan_Opening_Open_Defense",
+          "name": "Open Defense"
+        },
+        {
+          "key": "Catalan_Opening_Other_variations",
+          "name": "Other variations"
+        }
+      ]
+    },
+    {
+      "family": "Trompowsky Attack",
+      "key": "Trompowsky_Attack",
+      "color": "white",
+      "ecoRange": [
+        "A45"
+      ],
+      "variations": [
+        {
+          "key": "Trompowsky_Attack_Other_variations",
+          "name": "Other variations"
+        },
+        {
+          "key": "Trompowsky_Attack_Classical_Defense",
+          "name": "Classical Defense"
+        }
+      ]
+    },
+    {
+      "family": "Sicilian Defense",
+      "key": "Sicilian_Defense",
+      "color": "black",
+      "ecoRange": [
+        "B20",
+        "B99"
+      ],
+      "variations": [
+        {
+          "key": "Sicilian_Defense_Alapin_Variation",
+          "name": "Alapin Variation"
+        },
+        {
+          "key": "Sicilian_Defense_Closed",
+          "name": "Closed"
+        },
+        {
+          "key": "Sicilian_Defense_Old_Sicilian",
+          "name": "Old Sicilian"
+        },
+        {
+          "key": "Sicilian_Defense_Bowdler_Attack",
+          "name": "Bowdler Attack"
+        },
+        {
+          "key": "Sicilian_Defense_Najdorf_Variation",
+          "name": "Najdorf Variation"
+        },
+        {
+          "key": "Sicilian_Defense_Modern_Variations",
+          "name": "Modern Variations"
+        },
+        {
+          "key": "Sicilian_Defense_Smith-Morra_Gambit",
+          "name": "Smith-Morra Gambit"
+        },
+        {
+          "key": "Sicilian_Defense_McDonnell_Attack",
+          "name": "McDonnell Attack"
+        }
+      ]
+    },
+    {
+      "family": "French Defense",
+      "key": "French_Defense",
+      "color": "black",
+      "ecoRange": [
+        "C00",
+        "C19"
+      ],
+      "variations": [
+        {
+          "key": "French_Defense_Advance_Variation",
+          "name": "Advance Variation"
+        },
+        {
+          "key": "French_Defense_Exchange_Variation",
+          "name": "Exchange Variation"
+        },
+        {
+          "key": "French_Defense_Knight_Variation",
+          "name": "Knight Variation"
+        },
+        {
+          "key": "French_Defense_Tarrasch_Variation",
+          "name": "Tarrasch Variation"
+        },
+        {
+          "key": "French_Defense_Normal_Variation",
+          "name": "Normal Variation"
+        },
+        {
+          "key": "French_Defense_Rubinstein_Variation",
+          "name": "Rubinstein Variation"
+        }
+      ]
+    },
+    {
+      "family": "Caro-Kann Defense",
+      "key": "Caro-Kann_Defense",
+      "color": "black",
+      "ecoRange": [
+        "B10",
+        "B19"
+      ],
+      "variations": [
+        {
+          "key": "Caro-Kann_Defense_Other_variations",
+          "name": "Other variations"
+        },
+        {
+          "key": "Caro-Kann_Defense_Advance_Variation",
+          "name": "Advance Variation"
+        },
+        {
+          "key": "Caro-Kann_Defense_Exchange_Variation",
+          "name": "Exchange Variation"
+        },
+        {
+          "key": "Caro-Kann_Defense_Two_Knights_Attack",
+          "name": "Two Knights Attack"
+        },
+        {
+          "key": "Caro-Kann_Defense_Classical_Variation",
+          "name": "Classical Variation"
+        }
+      ]
+    },
+    {
+      "family": "Pirc Defense",
+      "key": "Pirc_Defense",
+      "color": "black",
+      "ecoRange": [
+        "B07",
+        "B09"
+      ],
+      "variations": [
+        {
+          "key": "Pirc_Defense_Other_variations",
+          "name": "Other variations"
+        },
+        {
+          "key": "Pirc_Defense_Classical_Variation",
+          "name": "Classical Variation"
+        },
+        {
+          "key": "Pirc_Defense_Austrian_Attack",
+          "name": "Austrian Attack"
+        }
+      ]
+    },
+    {
+      "family": "Modern Defense",
+      "key": "Modern_Defense",
+      "color": "black",
+      "ecoRange": [
+        "B06"
+      ],
+      "variations": [
+        {
+          "key": "Modern_Defense_Other_variations",
+          "name": "Other variations"
+        },
+        {
+          "key": "Modern_Defense_Standard_Defense",
+          "name": "Standard Defense"
+        }
+      ]
+    },
+    {
+      "family": "Scandinavian Defense",
+      "key": "Scandinavian_Defense",
+      "color": "black",
+      "ecoRange": [
+        "B01"
+      ],
+      "variations": [
+        {
+          "key": "Scandinavian_Defense_Mieses-Kotroc_Variation",
+          "name": "Mieses-Kotroc Variation"
+        },
+        {
+          "key": "Scandinavian_Defense_Modern_Variation",
+          "name": "Modern Variation"
+        },
+        {
+          "key": "Scandinavian_Defense_Main_Line",
+          "name": "Main Line"
+        },
+        {
+          "key": "Scandinavian_Defense_Other_variations",
+          "name": "Other variations"
+        }
+      ]
+    },
+    {
+      "family": "Alekhine Defense",
+      "key": "Alekhine_Defense",
+      "color": "black",
+      "ecoRange": [
+        "B02",
+        "B05"
+      ],
+      "variations": [
+        {
+          "key": "Alekhine_Defense_Scandinavian_Variation",
+          "name": "Scandinavian Variation"
+        },
+        {
+          "key": "Alekhine_Defense_Other_variations",
+          "name": "Other variations"
+        },
+        {
+          "key": "Alekhine_Defense_Modern_Variation",
+          "name": "Modern Variation"
+        },
+        {
+          "key": "Alekhine_Defense_Normal_Variation",
+          "name": "Normal Variation"
+        }
+      ]
+    },
+    {
+      "family": "Petroff Defense",
+      "key": "Russian_Game",
+      "color": "black",
+      "ecoRange": [
+        "C42",
+        "C43"
+      ],
+      "variations": [
+        {
+          "key": "Russian_Game_Stafford_Gambit",
+          "name": "Stafford Gambit"
+        },
+        {
+          "key": "Russian_Game_Italian_Variation",
+          "name": "Italian Variation"
+        },
+        {
+          "key": "Russian_Game_Three_Knights_Game",
+          "name": "Three Knights Game"
+        }
+      ]
+    },
+    {
+      "family": "Philidor Defense",
+      "key": "Philidor_Defense",
+      "color": "black",
+      "ecoRange": [
+        "C41"
+      ],
+      "variations": [
+        {
+          "key": "Philidor_Defense_Other_variations",
+          "name": "Other variations"
+        },
+        {
+          "key": "Philidor_Defense_Exchange_Variation",
+          "name": "Exchange Variation"
+        },
+        {
+          "key": "Philidor_Defense_Lion_Variation",
+          "name": "Lion Variation"
+        }
+      ]
+    },
+    {
+      "family": "King's Indian Defense",
+      "key": "Kings_Indian_Defense",
+      "color": "black",
+      "ecoRange": [
+        "E60",
+        "E99"
+      ],
+      "variations": [
+        {
+          "key": "Kings_Indian_Defense_Normal_Variation",
+          "name": "Normal Variation"
+        },
+        {
+          "key": "Kings_Indian_Defense_Other_variations",
+          "name": "Other variations"
+        },
+        {
+          "key": "Kings_Indian_Defense_Orthodox_Variation",
+          "name": "Orthodox Variation"
+        },
+        {
+          "key": "Kings_Indian_Defense_Fianchetto_Variation",
+          "name": "Fianchetto Variation"
+        },
+        {
+          "key": "Kings_Indian_Defense_Samisch_Variation",
+          "name": "Samisch Variation"
+        },
+        {
+          "key": "Kings_Indian_Defense_Four_Pawns_Attack",
+          "name": "Four Pawns Attack"
+        }
+      ]
+    },
+    {
+      "family": "Nimzo-Indian Defense",
+      "key": "Nimzo-Indian_Defense",
+      "color": "black",
+      "ecoRange": [
+        "E20",
+        "E59"
+      ],
+      "variations": [
+        {
+          "key": "Nimzo-Indian_Defense_Classical_Variation",
+          "name": "Classical Variation"
+        },
+        {
+          "key": "Nimzo-Indian_Defense_Other_variations",
+          "name": "Other variations"
+        },
+        {
+          "key": "Nimzo-Indian_Defense_Three_Knights_Variation",
+          "name": "Three Knights Variation"
+        },
+        {
+          "key": "Nimzo-Indian_Defense_Leningrad_Variation",
+          "name": "Leningrad Variation"
+        },
+        {
+          "key": "Nimzo-Indian_Defense_Normal_Variation",
+          "name": "Normal Variation"
+        }
+      ]
+    },
+    {
+      "family": "Queen's Indian Defense",
+      "key": "Queens_Indian_Defense",
+      "color": "black",
+      "ecoRange": [
+        "E12",
+        "E19"
+      ],
+      "variations": [
+        {
+          "key": "Queens_Indian_Defense_Classical_Variation",
+          "name": "Classical Variation"
+        },
+        {
+          "key": "Queens_Indian_Defense_Kasparov_Variation",
+          "name": "Kasparov Variation"
+        },
+        {
+          "key": "Queens_Indian_Defense_Fianchetto_Variation",
+          "name": "Fianchetto Variation"
+        }
+      ]
+    },
+    {
+      "family": "Grünfeld Defense",
+      "key": "Grunfeld_Defense",
+      "color": "black",
+      "ecoRange": [
+        "D70",
+        "D99"
+      ],
+      "variations": [
+        {
+          "key": "Grunfeld_Defense_Exchange_Variation",
+          "name": "Exchange Variation"
+        },
+        {
+          "key": "Grunfeld_Defense_Three_Knights_Variation",
+          "name": "Three Knights Variation"
+        },
+        {
+          "key": "Grunfeld_Defense_Stockholm_Variation",
+          "name": "Stockholm Variation"
+        },
+        {
+          "key": "Grunfeld_Defense_Other_variations",
+          "name": "Other variations"
+        }
+      ]
+    },
+    {
+      "family": "Benoni Defense",
+      "key": "Benoni_Defense",
+      "color": "black",
+      "ecoRange": [
+        "A60",
+        "A79"
+      ],
+      "variations": [
+        {
+          "key": "Benoni_Defense_Old_Benoni",
+          "name": "Old Benoni"
+        },
+        {
+          "key": "Benoni_Defense_Benoni_Gambit_Accepted",
+          "name": "Benoni Gambit Accepted"
+        },
+        {
+          "key": "Benoni_Defense_French_Benoni",
+          "name": "French Benoni"
+        }
+      ]
+    },
+    {
+      "family": "Dutch Defense",
+      "key": "Dutch_Defense",
+      "color": "black",
+      "ecoRange": [
+        "A80",
+        "A99"
+      ],
+      "variations": [
+        {
+          "key": "Dutch_Defense_Other_variations",
+          "name": "Other variations"
+        },
+        {
+          "key": "Dutch_Defense_Queens_Knight_Variation",
+          "name": "Queens Knight Variation"
+        },
+        {
+          "key": "Dutch_Defense_Raphael_Variation",
+          "name": "Raphael Variation"
+        },
+        {
+          "key": "Dutch_Defense_Rubinstein_Variation",
+          "name": "Rubinstein Variation"
+        }
+      ]
+    },
+    {
+      "family": "Old Indian Defense",
+      "key": "Old_Indian_Defense",
+      "color": "black",
+      "ecoRange": [
+        "A53",
+        "A55"
+      ],
+      "variations": [
+        {
+          "key": "Old_Indian_Defense_Other_variations",
+          "name": "Other variations"
+        },
+        {
+          "key": "Old_Indian_Defense_Czech_Variation",
+          "name": "Czech Variation"
+        }
+      ]
+    }
+  ]
+}

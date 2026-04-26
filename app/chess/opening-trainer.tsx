@@ -665,6 +665,7 @@ function PracticeBoardView({
   }
 
   function handleUserDrop(from: string, to: string): boolean {
+    if (from === to) return false;
     if (phase !== "user" || finished) return false;
 
     const chess = chessRef.current;
@@ -986,6 +987,7 @@ function DrillSession({
   }
 
   function handleDrop(from: string, to: string): boolean {
+    if (from === to) return false;
     if (finished || !isUserTurn) return false;
     const played = (from + to).slice(0, 4).toLowerCase();
     const match = currentNode.children.find(

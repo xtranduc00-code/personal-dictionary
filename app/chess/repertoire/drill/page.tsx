@@ -317,6 +317,7 @@ function DrillSession({
   }
 
   function handleDrop(from: string, to: string): boolean {
+    if (from === to) return false;
     if (!line || locked || transRef.current) return false;
     const chess = chessRef.current;
     if (step >= line.moves.length) return false;

@@ -1,0 +1,103 @@
+{
+  "groups": [
+    {
+      "id": "phases",
+      "name": "Phases",
+      "themes": [
+        { "key": "opening", "name": "Opening", "description": "A tactic during the first phase of the game." },
+        { "key": "middlegame", "name": "Middlegame", "description": "A tactic during the second phase of the game." },
+        { "key": "endgame", "name": "Endgame", "description": "A tactic during the last phase of the game." },
+        { "key": "rookEndgame", "name": "Rook endgame", "description": "An endgame with only rooks and pawns." },
+        { "key": "bishopEndgame", "name": "Bishop endgame", "description": "An endgame with only bishops and pawns." },
+        { "key": "pawnEndgame", "name": "Pawn endgame", "description": "An endgame with only pawns." },
+        { "key": "knightEndgame", "name": "Knight endgame", "description": "An endgame with only knights and pawns." },
+        { "key": "queenEndgame", "name": "Queen endgame", "description": "An endgame with only queens and pawns." },
+        { "key": "queenRookEndgame", "name": "Queen and rook", "description": "An endgame with only queens, rooks and pawns." }
+      ]
+    },
+    {
+      "id": "motifs",
+      "name": "Motifs",
+      "themes": [
+        { "key": "advancedPawn", "name": "Advanced pawn", "description": "A pawn that advances deep into the opponent's position to threaten promotion." },
+        { "key": "attackingF2F7", "name": "Attacking f2 / f7", "description": "An attack focused on the f2 or f7 pawn, often during the opening." },
+        { "key": "attraction", "name": "Attraction", "description": "Sacrifice or threat that lures an opponent's piece to a vulnerable square." },
+        { "key": "capturingDefender", "name": "Capture the defender", "description": "Remove a piece that defends another piece, allowing it to be captured next." },
+        { "key": "discoveredAttack", "name": "Discovered attack", "description": "Move a piece to reveal an attack from another piece behind it." },
+        { "key": "doubleCheck", "name": "Double check", "description": "Two pieces check the king on the same move." },
+        { "key": "exposedKing", "name": "Exposed king", "description": "A king that is missing its pawn shelter is more vulnerable to attack." },
+        { "key": "fork", "name": "Fork", "description": "A move where one piece attacks two opponent pieces at once." },
+        { "key": "hangingPiece", "name": "Hanging piece", "description": "An undefended piece that can be captured for free." },
+        { "key": "kingsideAttack", "name": "Kingside attack", "description": "An attack on the opponent's king on the kingside." },
+        { "key": "pin", "name": "Pin", "description": "A piece that cannot move without exposing a more valuable piece behind it." },
+        { "key": "queensideAttack", "name": "Queenside attack", "description": "An attack on the opponent's king after it has castled queenside." },
+        { "key": "sacrifice", "name": "Sacrifice", "description": "Give up material short-term to gain a stronger advantage." },
+        { "key": "skewer", "name": "Skewer", "description": "Attack a valuable piece, forcing it to move and exposing a less valuable piece behind." },
+        { "key": "trappedPiece", "name": "Trapped piece", "description": "A piece with no escape squares, ready to be captured." },
+        { "key": "deflection", "name": "Deflection", "description": "Force a defender off a key square or duty." },
+        { "key": "decoy", "name": "Decoy", "description": "Lure an opponent's piece onto a square where it becomes vulnerable." },
+        { "key": "interference", "name": "Interference", "description": "Place a piece between two of your opponent's pieces, breaking their coordination." },
+        { "key": "intermezzo", "name": "Zwischenzug", "description": "Insert an unexpected move that's stronger than continuing the obvious line." },
+        { "key": "xRayAttack", "name": "X-ray attack", "description": "An attack through one piece to another." },
+        { "key": "defensiveMove", "name": "Defensive move", "description": "Find the precise move to defend a worse position." },
+        { "key": "quietMove", "name": "Quiet move", "description": "A move that's not a check or capture but creates devastating threats." },
+        { "key": "zugzwang", "name": "Zugzwang", "description": "Any move worsens the position — but the player must move." }
+      ]
+    },
+    {
+      "id": "advanced",
+      "name": "Advanced",
+      "themes": [
+        { "key": "advantage", "name": "Advantage", "description": "Seize your chance to get a decisive advantage. (200cp ≤ eval ≤ 600cp)" },
+        { "key": "crushing", "name": "Crushing", "description": "Spot the opponent's blunder and convert your overwhelming advantage. (eval ≥ 600cp)" },
+        { "key": "equality", "name": "Equality", "description": "Find the right move to escape and equalize a losing position. (eval ≤ 200cp)" },
+        { "key": "promotion", "name": "Promotion", "description": "Promote a pawn to gain decisive material." },
+        { "key": "underPromotion", "name": "Underpromotion", "description": "Promote to a knight, bishop, or rook for tactical reasons." },
+        { "key": "castling", "name": "Castling", "description": "Castle to safety and start a counterattack." },
+        { "key": "enPassant", "name": "En passant", "description": "A pawn-capture rule that arises only after a 2-square pawn move." }
+      ]
+    },
+    {
+      "id": "mates",
+      "name": "Mates",
+      "themes": [
+        { "key": "mate", "name": "Checkmate", "description": "Win the game with style." },
+        { "key": "mateIn1", "name": "Mate in 1", "description": "Deliver checkmate in one move." },
+        { "key": "mateIn2", "name": "Mate in 2", "description": "Deliver checkmate in 2 moves." },
+        { "key": "mateIn3", "name": "Mate in 3", "description": "Deliver checkmate in 3 moves." },
+        { "key": "mateIn4", "name": "Mate in 4", "description": "Deliver checkmate in 4 moves." },
+        { "key": "mateIn5", "name": "Mate in 5+", "description": "Figure out a long mating sequence." },
+        { "key": "backRankMate", "name": "Back rank mate", "description": "Checkmate the king on the home rank, when blocked by its own pieces." },
+        { "key": "anastasiaMate", "name": "Anastasia's mate", "description": "Knight and rook (or queen) trap the king between the rim and a friendly piece." },
+        { "key": "arabianMate", "name": "Arabian mate", "description": "Knight and rook combine to mate the king on a corner square." },
+        { "key": "bodenMate", "name": "Boden's mate", "description": "Two crossing bishops deliver mate to a castled king blocked by friendly pieces." },
+        { "key": "doubleBishopMate", "name": "Double bishop mate", "description": "Two bishops on adjacent diagonals deliver mate to a castled king." },
+        { "key": "dovetailMate", "name": "Dovetail mate", "description": "A queen mates the king with the king's escape squares blocked by friendly pieces." },
+        { "key": "hookMate", "name": "Hook mate", "description": "Rook, knight, and pawn combine to trap the king on the rim." },
+        { "key": "killBoxMate", "name": "Kill box mate", "description": "Rook and queen trap the king in a 3×3 box." },
+        { "key": "smotheredMate", "name": "Smothered mate", "description": "A knight delivers mate to a king completely blocked in by friendly pieces." },
+        { "key": "vukovicMate", "name": "Vukovic mate", "description": "A rook supported by a knight mates the king on the rim." }
+      ]
+    },
+    {
+      "id": "lengths",
+      "name": "Lengths",
+      "themes": [
+        { "key": "oneMove", "name": "One-move puzzle", "description": "A puzzle that solves in a single move." },
+        { "key": "short", "name": "Short puzzle", "description": "Two-move puzzle." },
+        { "key": "long", "name": "Long puzzle", "description": "Three-move puzzle." },
+        { "key": "veryLong", "name": "Very long puzzle", "description": "Four moves or more to solve." }
+      ]
+    },
+    {
+      "id": "origin",
+      "name": "Origin",
+      "themes": [
+        { "key": "master", "name": "Master games", "description": "Puzzles from games played by titled players." },
+        { "key": "masterVsMaster", "name": "Master vs master", "description": "Both players in the source game are titled." },
+        { "key": "superGM", "name": "Super GM games", "description": "Puzzles from games played by the world's best players." },
+        { "key": "playerGames", "name": "Player games", "description": "Puzzles from games played on Lichess by players in the source database." }
+      ]
+    }
+  ]
+}

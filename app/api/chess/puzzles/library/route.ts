@@ -1,153 +1,172 @@
-import { readFile } from "fs/promises";
-import { join } from "path";
 import { NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/get-auth-user";
-import { supabaseForUserData } from "@/lib/supabase-server";
-
 import type { LibraryPuzzle } from "@/lib/chess-types";
+import {
+  LibraryQuerySchema,
+  flatZodError,
+} from "@/lib/chess/puzzles-api/schemas";
+import {
+  resolveRatingRange,
+  validateRatingRange,
+  queryLibrary,
+} from "@/lib/chess/puzzles-api/service";
+import {
+  NO_STORE_HEADERS,
+  type Level,
+} from "@/lib/chess/puzzles-api/constants";
+import { getDb, PuzzleDbMissingError } from "@/lib/chess/puzzles-api/db";
 export type { LibraryPuzzle };
 
-const VALID_LEVELS = new Set(["beginner", "intermediate", "hard", "expert"]);
-const VALID_SORT = new Set(["rating_asc", "rating_desc", "newest"]);
-const VALID_PROGRESS = new Set(["all", "unsolved", "solved"]);
-
-async function loadSolvedForLevel(
-  userId: string,
-  level: string,
-): Promise<{ ids: Set<string>; count: number }> {
-  const db = supabaseForUserData();
-  const { data, error } = await db
-    .from("user_puzzle_progress")
-    .select("puzzle_id")
-    .eq("user_id", userId)
-    .eq("puzzle_level", level);
-  if (error) {
-    console.warn("[chess/puzzles/library] user_puzzle_progress:", error.message);
-    return { ids: new Set(), count: 0 };
-  }
-  const ids = new Set((data ?? []).map((r) => String((r as { puzzle_id: string }).puzzle_id)));
-  return { ids, count: ids.size };
-}
-
-let _allPromise: Promise<LibraryPuzzle[]> | null = null;
-/** Per-level subsets (insertion order from JSON preserved for "newest"). */
-const _byLevel = new Map<string, LibraryPuzzle[]>();
-let _idOrder: Map<string, number> | null = null;
-
-async function loadPuzzles(): Promise<LibraryPuzzle[]> {
-  if (!_allPromise) {
-    const path = join(process.cwd(), "data", "chess-puzzles.json");
-    _allPromise = readFile(path, "utf-8").then((raw) => JSON.parse(raw) as LibraryPuzzle[]);
-  }
-  return _allPromise;
-}
-
-async function getIdOrder(): Promise<Map<string, number>> {
-  if (_idOrder) return _idOrder;
-  const all = await loadPuzzles();
-  _idOrder = new Map(all.map((p, i) => [p.id, i]));
-  return _idOrder;
-}
-
-async function getPuzzlesForLevel(level: string): Promise<LibraryPuzzle[]> {
-  if (_byLevel.has(level)) return _byLevel.get(level)!;
-  const all = await loadPuzzles();
-  const subset = all.filter((p) => p.level === level);
-  _byLevel.set(level, subset);
-  return subset;
-}
-
-function applySearch(puzzles: LibraryPuzzle[], q: string): LibraryPuzzle[] {
-  const raw = q.trim();
-  if (!raw) return puzzles;
-  const needle = raw.replace(/^#/, "").trim().toLowerCase();
-  if (!needle) return puzzles;
-  return puzzles.filter((p) => {
-    if (p.id.toLowerCase().includes(needle)) return true;
-    return p.themes.some((t) => t.toLowerCase().includes(needle));
-  });
-}
-
-export async function GET(req: Request) {
+/**
+ * GET /api/chess/puzzles/library
+ *
+ * Filter + paginate puzzles from the local SQLite mirror of Lichess's
+ * dataset.
+ *
+ * Auth was removed in pass 2 — this is a single-user app, so per-user
+ * solved tracking is reading from `progress.attempts` (added in pass 5)
+ * rather than Supabase. Until then, `solvedPuzzleIds` is empty.
+ *
+ * Response includes `totalIsCapped`: when true the actual match count is
+ * larger than `total` (the materialised-count fast path didn't apply, so
+ * we used a probe that stops at 1000). UI should display "1000+ puzzles"
+ * in that case.
+ */
+export async function GET(req: Request): Promise<NextResponse> {
   const url = new URL(req.url);
-  const rawLevel = url.searchParams.get("level") ?? "beginner";
-  const level = VALID_LEVELS.has(rawLevel) ? rawLevel : "beginner";
-  const theme = url.searchParams.get("theme") ?? "";
-  const q = url.searchParams.get("q") ?? "";
-  const sortRaw = url.searchParams.get("sort") ?? "newest";
-  const sort = VALID_SORT.has(sortRaw) ? sortRaw : "newest";
-  const progressRaw = url.searchParams.get("progress") ?? "all";
-  const progress = VALID_PROGRESS.has(progressRaw) ? progressRaw : "all";
-  const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit") ?? "20", 10), 1), 50);
-  const offset = Math.max(0, parseInt(url.searchParams.get("offset") ?? "0", 10));
+  const t0 = Date.now();
+  const parsed = LibraryQuerySchema.safeParse(
+    Object.fromEntries(url.searchParams),
+  );
+  if (!parsed.success) {
+    return NextResponse.json(flatZodError(parsed.error), { status: 400 });
+  }
+  const q = parsed.data;
+
+  // Combine legacy single-theme `theme` with the new multi-theme `themes`
+  // param. Search-by-id / search-by-keyword was removed — it duplicated
+  // sidebar filters and was rarely useful for personal training.
+  const themes = [...(q.themes ?? [])];
+  if (q.theme) themes.push(q.theme);
+  const level = (q.level ?? "beginner") as Level;
+
+  const range = resolveRatingRange(level, q.ratingMin, q.ratingMax);
+  const rangeError = validateRatingRange(range);
+  if (rangeError) {
+    return NextResponse.json(
+      { error: rangeError, fields: { ratingMin: rangeError } },
+      { status: 400 },
+    );
+  }
 
   try {
-    const user = await getAuthUser(req);
-    let solvedIds = new Set<string>();
-    let solvedCount = 0;
+    // Per-level grand total — the badge reads "X / 500 solved" for the
+    // active difficulty, and that denominator should NOT shift with active
+    // theme/opening filters. Single tiny query against the materialised
+    // level count (sub-millisecond).
+    const baseQuery = await queryLibrary(
+      { level },
+      { sort: "popular", limit: 1, offset: 0 },
+    );
+    const levelGrandTotal = baseQuery.total;
 
-    let puzzles = await getPuzzlesForLevel(level);
-    const levelGrandTotal = puzzles.length;
+    const result = await queryLibrary(
+      {
+        level,
+        ratingMin: range.ratingMin,
+        ratingMax: range.ratingMax,
+        themes,
+        openings: q.openings,
+      },
+      { sort: q.sort, limit: q.limit, offset: q.offset },
+    );
 
-    if (user) {
-      const s = await loadSolvedForLevel(user.id, level);
-      solvedIds = s.ids;
-      solvedCount = s.count;
+    // Solved tracking lives in progress.sqlite (pass 4). A puzzle is
+    // "solved" if there is any attempt row with solved=1. We fetch:
+    //   solvedCount  — distinct solved puzzles in the active level
+    //   solvedIds    — solved IDs that intersect with the current page,
+    //                  so the FE can flag them with a checkmark without
+    //                  loading the entire solved set.
+    const db = getDb();
+    const solvedCountRow = db
+      .prepare(
+        `SELECT COUNT(DISTINCT a.puzzle_id) AS n
+           FROM progress.attempts a
+           JOIN puzzles p ON p.puzzle_id = a.puzzle_id
+          WHERE a.solved = 1 AND p.level = ?`,
+      )
+      .get(level) as { n: number };
+    const solvedCount = solvedCountRow.n;
+
+    const pageIds = result.items.map((p) => p.id);
+    let solvedPuzzleIds: string[] = [];
+    if (pageIds.length > 0) {
+      const ph = pageIds.map(() => "?").join(",");
+      const rows = db
+        .prepare(
+          `SELECT DISTINCT puzzle_id FROM progress.attempts
+            WHERE solved = 1 AND puzzle_id IN (${ph})`,
+        )
+        .all(...pageIds) as { puzzle_id: string }[];
+      solvedPuzzleIds = rows.map((r) => r.puzzle_id);
     }
 
-    if (theme) {
-      puzzles = puzzles.filter((p) => p.themes.includes(theme));
+    // Apply the solved/unsolved client-side filter against this page only.
+    // For exact accuracy across a 1.69M-row level we'd push the filter
+    // into SQL via a LEFT JOIN, but the spec says "personal use, simple",
+    // and the page-only filter matches what the user sees.
+    let items = result.items;
+    if (q.progress === "solved") {
+      const set = new Set(solvedPuzzleIds);
+      items = items.filter((p) => set.has(p.id));
+    } else if (q.progress === "unsolved") {
+      const set = new Set(solvedPuzzleIds);
+      items = items.filter((p) => !set.has(p.id));
     }
 
-    puzzles = applySearch(puzzles, q);
-
-    if (user && progress === "solved") {
-      puzzles = puzzles.filter((p) => solvedIds.has(p.id));
-    } else if (user && progress === "unsolved") {
-      puzzles = puzzles.filter((p) => !solvedIds.has(p.id));
-    }
-
-    const orderMap = await getIdOrder();
-    const puzzlesCopy = [...puzzles];
-
-    switch (sort) {
-      case "rating_asc":
-        puzzlesCopy.sort((a, b) => a.rating - b.rating || a.id.localeCompare(b.id));
-        break;
-      case "rating_desc":
-        puzzlesCopy.sort((a, b) => b.rating - a.rating || a.id.localeCompare(b.id));
-        break;
-      case "newest":
-      default:
-        puzzlesCopy.sort(
-          (a, b) => (orderMap.get(b.id) ?? 0) - (orderMap.get(a.id) ?? 0),
-        );
-        break;
-    }
-
-    const total = puzzlesCopy.length;
-    const items = puzzlesCopy.slice(offset, offset + limit);
-
-    const payload: Record<string, unknown> = {
+    const payload = {
       items,
-      total,
-      offset,
-      limit,
+      total: result.total,
+      totalIsCapped: result.totalIsCapped,
+      offset: q.offset,
+      limit: q.limit,
+      hasMore: q.offset + items.length < result.total || result.totalIsCapped,
       level,
-      sort,
-      progress,
+      sort: q.sort,
+      progress: q.progress,
       levelGrandTotal,
+      appliedFilters: {
+        themes,
+        openings: q.openings ?? [],
+        ratingMin: range.ratingMin,
+        ratingMax: range.ratingMax,
+      },
+      solvedCount,
+      solvedPuzzleIds,
     };
-    if (user) {
-      payload.solvedCount = solvedCount;
-      payload.solvedPuzzleIds = [...solvedIds];
-    }
-
-    return NextResponse.json(payload);
+    console.log(
+      `[chess/puzzles/library] ok level=${level} sort=${q.sort} themes=${themes.length} openings=${q.openings?.length ?? 0} ` +
+        `count=${result.items.length}/${result.total}${result.totalIsCapped ? "+" : ""} duration=${Date.now() - t0}ms`,
+    );
+    // No-store: the response embeds per-user solved status which changes
+    // after every attempt POST. A 10-second client cache made the library
+    // return stale data after a solve until the user F5'd.
+    return NextResponse.json(payload, { headers: NO_STORE_HEADERS });
   } catch (e) {
+    if (e instanceof PuzzleDbMissingError) {
+      return NextResponse.json(
+        { error: e.message, dbMissing: true },
+        { status: 503 },
+      );
+    }
     console.error("[chess/puzzles/library]", e);
     return NextResponse.json(
-      { items: [], total: 0, offset, limit, error: "Failed to load puzzle library" },
+      {
+        items: [],
+        total: 0,
+        offset: q.offset,
+        limit: q.limit,
+        error: "Failed to load puzzle library",
+      },
       { status: 500 },
     );
   }

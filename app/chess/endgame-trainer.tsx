@@ -509,6 +509,7 @@ function LessonBoard({
   }
 
   function handleDrop(from: string, to: string): boolean {
+    if (from === to) return false;
     if (finished || isOpponentTurn || processingRef.current) return false;
 
     const chess = chessRef.current;

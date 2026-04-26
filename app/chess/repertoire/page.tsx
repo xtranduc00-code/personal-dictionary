@@ -821,7 +821,7 @@ function RepertoireBoardCanvas({
   fen: string;
 }) {
   function handleDrop(from: string, to: string): boolean {
-    if (!to) return false;
+    if (!to || from === to) return false;
     const chess = chessRef.current;
     const move = chess.move({ from: from as never, to: to as never, promotion: "q" });
     if (!move) return false;
