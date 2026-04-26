@@ -35,7 +35,12 @@ function mapNoteRow(
     },
     org: { folderName: string | null; labels: { id: string; name: string }[] },
 ) {
-    const nt = r.note_type === "diary" ? "diary" : "note";
+    const nt =
+        r.note_type === "diary"
+            ? "diary"
+            : r.note_type === "pdf"
+                ? "pdf"
+                : "note";
     return {
         id: r.id,
         title: r.title ?? "",

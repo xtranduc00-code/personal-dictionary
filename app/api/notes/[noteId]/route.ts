@@ -12,6 +12,7 @@ import {
 import { enrichNotesWithFoldersAndLabels } from "@/lib/notes-enrich";
 import { getAuthUser } from "@/lib/get-auth-user";
 import { getNoteAccess } from "@/lib/notes-access";
+import { NOTES_PDF_BUCKET, notesPdfStoragePath } from "@/lib/notes-pdf-storage";
 import { supabaseForUserData } from "@/lib/supabase-server";
 
 type Ctx = { params: Promise<{ noteId: string }> };
@@ -83,7 +84,12 @@ export async function GET(req: Request, ctx: Ctx) {
             note_type?: string | null;
             diary_date?: string | null;
         };
-        const noteType = row.note_type === "diary" ? "diary" : "note";
+        const noteType =
+            row.note_type === "diary"
+                ? "diary"
+                : row.note_type === "pdf"
+                    ? "pdf"
+                    : "note";
         const diaryDate = row.diary_date ?? null;
         const { folderNameById, labelsByNoteId } = await enrichNotesWithFoldersAndLabels(db, [
             { id: String(row.id), folder_id: row.folder_id ?? null },
@@ -352,7 +358,12 @@ export async function PATCH(req: Request, ctx: Ctx) {
             { id: typed.id, folder_id: typed.folder_id ?? null },
         ]);
         const fid = typed.folder_id != null ? String(typed.folder_id) : null;
-        const noteType = typed.note_type === "diary" ? "diary" : "note";
+        const noteType =
+            typed.note_type === "diary"
+                ? "diary"
+                : typed.note_type === "pdf"
+                    ? "pdf"
+                    : "note";
         const diaryDate = typed.diary_date ?? null;
         return NextResponse.json({
             id: typed.id,
@@ -386,9 +397,28 @@ export async function DELETE(req: Request, ctx: Ctx) {
         return NextResponse.json({ error: "Only the owner can delete this note" }, { status: 403 });
     }
     try {
+        // For PDF notes, also remove the file from Storage. Best-effort:
+        // a stale storage object is harmless, so we don't fail the delete.
+        const pre = await db
+            .from("notes")
+            .select("note_type")
+            .eq("id", noteId)
+            .eq("user_id", user.id)
+            .maybeSingle();
+        const isPdf = !pre.error && pre.data && (pre.data as { note_type?: string }).note_type === "pdf";
+
         const { error } = await db.from("notes").delete().eq("id", noteId).eq("user_id", user.id);
         if (error) {
             throw error;
+        }
+        if (isPdf) {
+            try {
+                await db.storage
+                    .from(NOTES_PDF_BUCKET)
+                    .remove([notesPdfStoragePath(String(user.id), noteId)]);
+            } catch (storageErr) {
+                console.warn("[notes DELETE] storage cleanup failed", storageErr);
+            }
         }
         return NextResponse.json({ ok: true });
     }

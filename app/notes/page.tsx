@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FileText,
+  FileType2,
   Folder,
   Loader2,
   Pencil,
@@ -77,6 +78,7 @@ type Note = {
   access: NoteAccess;
   role?: "viewer" | "editor";
   ownerUsername?: string;
+  noteType?: "note" | "diary" | "pdf";
 };
 
 type ShareRow = {
@@ -149,6 +151,9 @@ function normalizeNote(raw: Record<string, unknown>): Note {
     ...(typeof raw.ownerUsername === "string"
       ? { ownerUsername: raw.ownerUsername }
       : {}),
+    ...(raw.noteType === "diary" || raw.noteType === "pdf"
+      ? { noteType: raw.noteType as "diary" | "pdf" }
+      : { noteType: "note" as const }),
   };
 }
 
@@ -1022,6 +1027,122 @@ export default function NotesPage() {
     [saveCurrentIfDirty, onTreeSelectFilter, isNarrow],
   );
 
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+  const pdfTargetFolderRef = useRef<string | null>(null);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [pdfBlobError, setPdfBlobError] = useState<string | null>(null);
+
+  // Fetch the PDF binary via authFetch (Bearer token can't be attached to a
+  // bare <iframe src>) and feed the iframe a blob: URL. Re-runs whenever
+  // the selected PDF changes; revokes prior URLs to avoid leaks.
+  useEffect(() => {
+    const isPdfNote =
+      !!selectedNote &&
+      selectedNote.noteType === "pdf" &&
+      !!selectedId;
+    if (!isPdfNote) {
+      setPdfBlobUrl(null);
+      setPdfBlobError(null);
+      return;
+    }
+    let cancelled = false;
+    let createdUrl: string | null = null;
+    setPdfBlobError(null);
+    setPdfBlobUrl(null);
+    void (async () => {
+      try {
+        const res = await authFetch(`/api/notes/${selectedId}/pdf`);
+        if (!res.ok) {
+          if (!cancelled) setPdfBlobError(`HTTP ${res.status}`);
+          return;
+        }
+        const blob = await res.blob();
+        if (cancelled) return;
+        createdUrl = URL.createObjectURL(blob);
+        setPdfBlobUrl(createdUrl);
+      } catch (e) {
+        if (!cancelled) {
+          setPdfBlobError(e instanceof Error ? e.message : "load failed");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
+    };
+  }, [selectedId, selectedNote]);
+
+  const handleUploadPdfInFolder = useCallback(
+    (folderId: string) => {
+      pdfTargetFolderRef.current = folderId;
+      const el = pdfInputRef.current;
+      if (!el) return;
+      el.value = "";
+      el.click();
+    },
+    [],
+  );
+
+  const handlePdfFileSelected = useCallback(
+    async (file: File) => {
+      const folderId = pdfTargetFolderRef.current;
+      pdfTargetFolderRef.current = null;
+      if (!file) return;
+      if (!/\.pdf$/i.test(file.name)) {
+        toast.error(t("notesPdfOnlyError"));
+        return;
+      }
+      await saveCurrentIfDirty();
+      const pending = toast.loading(t("notesPdfUploading"));
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        if (folderId) fd.append("folderId", folderId);
+        const res = await authFetch("/api/notes/pdf", { method: "POST", body: fd });
+        if (!res.ok) {
+          const msg = await res
+            .json()
+            .then((j) => (j && typeof j.error === "string" ? j.error : ""))
+            .catch(() => "");
+          toast.update(pending, {
+            render: msg || t("notesPdfUploadFailed"),
+            type: "error",
+            isLoading: false,
+            autoClose: 4000,
+          });
+          return;
+        }
+        const created = normalizeNote((await res.json()) as Record<string, unknown>);
+        setNotes((prev) => [created, ...prev]);
+        lastServerByNoteIdRef.current.set(created.id, {
+          title: created.title,
+          body: created.body,
+          updatedAt: created.updatedAt,
+        });
+        if (folderId) onTreeSelectFilter(folderId);
+        setSelectedId(created.id);
+        setTitle(created.title);
+        setBody(created.body);
+        setHydratedNoteId(created.id);
+        if (isNarrow) setMobileEditorOpen(true);
+        toast.update(pending, {
+          render: t("notesPdfUploaded"),
+          type: "success",
+          isLoading: false,
+          autoClose: 2000,
+        });
+      } catch {
+        toast.update(pending, {
+          render: t("notesPdfUploadFailed"),
+          type: "error",
+          isLoading: false,
+          autoClose: 4000,
+        });
+      }
+    },
+    [saveCurrentIfDirty, onTreeSelectFilter, isNarrow, t],
+  );
+
   const handleSaveTitleFromList = useCallback(
     async (noteId: string, newTitle: string) => {
       const n = notes.find((x) => x.id === noteId);
@@ -1717,11 +1838,19 @@ export default function NotesPage() {
           onClick={() => void openNoteOnMobile(note.id)}
           className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left"
         >
-          <FileText
-            className="h-3.5 w-3.5 shrink-0 text-zinc-400 dark:text-zinc-500"
-            strokeWidth={2}
-            aria-hidden
-          />
+          {note.noteType === "pdf" ? (
+            <FileType2
+              className="h-3.5 w-3.5 shrink-0 text-rose-500 dark:text-rose-400"
+              strokeWidth={2}
+              aria-hidden
+            />
+          ) : (
+            <FileText
+              className="h-3.5 w-3.5 shrink-0 text-zinc-400 dark:text-zinc-500"
+              strokeWidth={2}
+              aria-hidden
+            />
+          )}
           <span className="min-w-0 flex-1">
             {editingTitleId === note.id ? (
               <input
@@ -1920,6 +2049,7 @@ export default function NotesPage() {
               onToggleExpand={toggleFolderExpand}
               canOrganize
               onNewNoteInFolder={(fid) => void handleNewNoteInFolder(fid)}
+              onUploadPdfInFolder={(fid) => handleUploadPdfInFolder(fid)}
               onCreateSubfolderQuick={createSubfolderQuick}
               onNoteDroppedOnFolder={(noteId, folderId) => {
                 void patchNoteOrg(noteId, { folderId });
@@ -1937,6 +2067,7 @@ export default function NotesPage() {
                 folderPlusMenuAria: t("notesFolderPlusMenuAria"),
                 folderMenuSubfolder: t("notesFolderMenuSubfolder"),
                 folderMenuNote: t("notesFolderMenuNote"),
+                folderMenuPdf: t("notesFolderMenuPdf"),
                 quickSubfolderHeading: t("notesFolderQuickSubfolderHeading"),
                 folderNamePlaceholder: t("notesNewFolderPlaceholder"),
                 add: t("notesFolderAdd"),
@@ -2059,16 +2190,35 @@ export default function NotesPage() {
                   {t("noteReadOnlyHint")}
                 </p>
               ) : null}
-              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 sm:px-5 sm:py-4">
-                <RichTextEditor
-                  key={selectedId}
-                  value={body}
-                  onChange={onBodyChange}
-                  placeholder={t("bodyPlaceholder")}
-                  minHeightClassName="min-h-[min(45dvh,280px)] md:min-h-[260px]"
-                  readOnly={isViewerOnly(selectedNote)}
-                />
-              </div>
+              {selectedNote.noteType === "pdf" ? (
+                <div className="min-h-0 flex-1 bg-zinc-100 dark:bg-zinc-950">
+                  {pdfBlobUrl ? (
+                    <iframe
+                      key={selectedId}
+                      src={pdfBlobUrl}
+                      className="h-full w-full border-0"
+                      title={selectedNote.title || "PDF"}
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-sm text-zinc-500 dark:text-zinc-400">
+                      {pdfBlobError
+                        ? `${t("notesPdfUploadFailed")} (${pdfBlobError})`
+                        : t("notesPdfUploading")}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 sm:px-5 sm:py-4">
+                  <RichTextEditor
+                    key={selectedId}
+                    value={body}
+                    onChange={onBodyChange}
+                    placeholder={t("bodyPlaceholder")}
+                    minHeightClassName="min-h-[min(45dvh,280px)] md:min-h-[260px]"
+                    readOnly={isViewerOnly(selectedNote)}
+                  />
+                </div>
+              )}
             </>
           ) : showEditorPanel ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-5 px-4 py-12">
@@ -2094,6 +2244,17 @@ export default function NotesPage() {
           ) : null}
         </main>
       </div>
+
+      <input
+        ref={pdfInputRef}
+        type="file"
+        accept="application/pdf,.pdf"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.currentTarget.files?.[0];
+          if (f) void handlePdfFileSelected(f);
+        }}
+      />
 
       {folderInputOpen ? (
         <div

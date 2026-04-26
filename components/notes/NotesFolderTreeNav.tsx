@@ -3,6 +3,7 @@
 import {
   ChevronRight,
   FileText,
+  FileUp,
   Folder,
   FolderOpen,
   FolderPlus,
@@ -39,6 +40,7 @@ export type NotesTreeNote = {
   access: "owner" | "shared";
   role?: "viewer" | "editor";
   ownerUsername?: string;
+  noteType?: "note" | "diary" | "pdf";
 };
 
 type Labels = {
@@ -47,6 +49,7 @@ type Labels = {
   folderPlusMenuAria: string;
   folderMenuSubfolder: string;
   folderMenuNote: string;
+  folderMenuPdf: string;
   quickSubfolderHeading: string;
   folderNamePlaceholder: string;
   add: string;
@@ -63,6 +66,7 @@ type Props = {
   onToggleExpand: (id: string) => void;
   canOrganize: boolean;
   onNewNoteInFolder: (folderId: string) => void | Promise<void>;
+  onUploadPdfInFolder: (folderId: string) => void | Promise<void>;
   onCreateSubfolderQuick: (
     parentId: string,
     name: string,
@@ -115,6 +119,7 @@ function TreeFolderRow({
   | "notes"
   | "emptyTreeFooter"
   | "onNewNoteInFolder"
+  | "onUploadPdfInFolder"
   | "onCreateSubfolderQuick"
 > & {
     selectedFilter: "all" | string;
@@ -269,6 +274,7 @@ export function NotesFolderTreeNav({
   onToggleExpand,
   canOrganize,
   onNewNoteInFolder,
+  onUploadPdfInFolder,
   onCreateSubfolderQuick,
   onNoteDroppedOnFolder,
   onNoteDroppedUncategorized,
@@ -396,6 +402,21 @@ export function NotesFolderTreeNav({
               strokeWidth={2}
             />
             {labels.folderMenuNote}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-100 dark:text-zinc-100 dark:hover:bg-zinc-800"
+            onClick={() => {
+              void onUploadPdfInFolder(popover.folderId);
+              closePopover();
+            }}
+          >
+            <FileUp
+              className="h-4 w-4 shrink-0 text-zinc-500 dark:text-zinc-400"
+              strokeWidth={2}
+            />
+            {labels.folderMenuPdf}
           </button>
         </div>,
         document.body,
