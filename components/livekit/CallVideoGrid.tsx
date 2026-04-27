@@ -19,6 +19,8 @@ import {
 import { Pin } from "lucide-react";
 import { Track } from "livekit-client";
 import { useI18n } from "@/components/i18n-provider";
+import { NetworkQualityIcon } from "@/components/livekit/NetworkQualityIcon";
+import { useNetworkQuality } from "@/hooks/use-network-quality";
 import { avatarColor, getInitials } from "@/lib/meets-avatar";
 import {
     type MeetsVideoSubscriptionProfile,
@@ -103,6 +105,7 @@ const VideoCell = memo(function VideoCell({
 
     const isScreen = trackRef.source === Track.Source.ScreenShare;
     const cameraOff = isCameraOff(trackRef);
+    const networkQuality = useNetworkQuality(trackRef.participant);
     const frame = fillStage
         ? "relative flex h-full min-h-0 w-full flex-1 items-center justify-center overflow-hidden bg-black"
         : `relative flex items-center justify-center w-full overflow-hidden rounded-lg border border-zinc-200 bg-black ${minHeightClass ?? "min-h-0"}`;
@@ -124,6 +127,9 @@ const VideoCell = memo(function VideoCell({
                 />
             ) : (
                 <CameraOffBadge name={name} size={badgeSize} />
+            )}
+            {trackRef.source === Track.Source.Camera && (
+                <NetworkQualityIcon quality={networkQuality} />
             )}
             {!hideLabel && !cameraOff && (
                 <div className="pointer-events-none absolute bottom-3 left-3 max-w-[calc(100%-24px)] truncate rounded-md bg-black/55 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm">
@@ -226,6 +232,7 @@ const LocalSelfPip = memo(function LocalSelfPip({
 
     const cameraOff = !isTrackReference(trackRef) || isCameraOff(trackRef);
     const pipName = displayName(trackRef);
+    const networkQuality = useNetworkQuality(trackRef.participant);
     return (
         <div
             ref={pipOuterRef}
@@ -269,6 +276,7 @@ const LocalSelfPip = memo(function LocalSelfPip({
                         style={{ objectFit: fit }}
                     />
                 )}
+                <NetworkQualityIcon quality={networkQuality} small />
             </div>
         </div>
     );

@@ -1,14 +1,21 @@
 /**
- * Puzzle repository — direct SQLite queries against the imported Lichess
- * dataset. Replaces the previous mock implementation. There is no longer
- * a swappable "data source" abstraction; this is the one and only
- * implementation, by design.
+ * Puzzle repository — Postgres-backed reads against the Lichess subset
+ * imported into Supabase (`chess_lib_*` tables).
  *
- * All functions are sync at the SQLite level (better-sqlite3) but exposed
- * as async to match the existing service-layer call sites.
+ * This is a port of the original `better-sqlite3` repository. The query
+ * shapes (multi-theme AND, opening OR, popularity sort, count probe) are
+ * preserved verbatim, with two adjustments for Postgres:
+ *   1. Parameter syntax `?` → `$1, $2 …` (pg uses positional $-args).
+ *   2. `RANDOM()` is the same in Postgres; rowid-jump trick is gone — we
+ *      just `ORDER BY random() LIMIT N`. For the dataset scale here (200K
+ *      puzzles) the planner walks `idx_chess_lib_puzzles_level_rating`
+ *      and the random sort is fast enough.
+ *
+ * Repo functions are async (pg is fundamentally async) — callers were
+ * already `async` in the previous implementation, so signatures match.
  */
 import type { LibraryPuzzle } from "@/lib/chess-types";
-import { getDb } from "./db";
+import { pgOne, pgRows } from "./db";
 import { RATING_BUCKETS, type Level } from "./constants";
 
 // ─── Public types ───────────────────────────────────────────────────────────
@@ -79,69 +86,64 @@ interface PuzzleRow {
   level: Level;
 }
 
-/** Threshold below which `ORDER BY RANDOM()` materialises fast enough to be
- *  fine. Above it we switch to a rowid-range sample. Picked from
- *  benchmarking notes; revisit with `EXPLAIN QUERY PLAN` if it ever feels
- *  slow. */
-const RANDOM_FULLSCAN_LIMIT = 50_000;
-
-function buildWhere(filters: PuzzleQueryFilters): { sql: string; params: unknown[] } {
-  const clauses: string[] = ["1=1"];
+/** Build a parameterised WHERE clause for a filter set.
+ *
+ *  Returns `{ sql, params, nextIndex }` where `nextIndex` is the next
+ *  available `$N` placeholder so callers can append additional bindings
+ *  (LIMIT / OFFSET) without recomputing indexes. */
+function buildWhere(filters: PuzzleQueryFilters): {
+  sql: string;
+  params: unknown[];
+  next: number;
+} {
+  const clauses: string[] = ["TRUE"];
   const params: unknown[] = [];
+  let i = 1;
 
   if (filters.level) {
-    clauses.push("p.level = ?");
+    clauses.push(`p.level = $${i++}`);
     params.push(filters.level);
   }
   if (filters.ratingMin != null) {
-    clauses.push("p.rating >= ?");
+    clauses.push(`p.rating >= $${i++}`);
     params.push(filters.ratingMin);
   }
   if (filters.ratingMax != null) {
-    clauses.push("p.rating <= ?");
+    clauses.push(`p.rating <= $${i++}`);
     params.push(filters.ratingMax);
   }
 
   // EXISTS-per-theme rather than `IN (SELECT … GROUP BY … HAVING COUNT)`.
-  // Lets the planner walk `puzzles(level, popularity DESC)` in order and
-  // short-circuit per row at the first failed EXISTS — single-theme drops
-  // from ~470 ms to <1 ms; AND of two themes from ~880 ms to ~330 ms.
-  // `mix` is a Lichess meta-tag meaning "any puzzle" — treat it as a
-  // no-op rather than a real EXISTS check (no rows are tagged `mix`, so
-  // the EXISTS would always fail).
+  // Lets the planner walk the (level, popularity) index in order and
+  // short-circuit per row at the first failed EXISTS.
+  // `mix` is a Lichess meta-tag meaning "any puzzle" — treat as no-op.
   if (filters.themes && filters.themes.length > 0) {
     for (const theme of filters.themes) {
       if (theme === "mix") continue;
       clauses.push(
-        `EXISTS (SELECT 1 FROM puzzle_themes t WHERE t.puzzle_id = p.puzzle_id AND t.theme = ?)`,
+        `EXISTS (SELECT 1 FROM public.chess_lib_themes t
+                  WHERE t.puzzle_id = p.puzzle_id AND t.theme = $${i++})`,
       );
       params.push(theme);
     }
   }
 
-  // Openings have OR semantics across selected keys (a Sicilian-or-French
-  // filter, not Sicilian-AND-French — that combination is empty).
+  // Openings have OR semantics across selected keys.
   if (filters.openings && filters.openings.length > 0) {
-    const placeholders = filters.openings.map(() => "?").join(",");
     clauses.push(
-      `EXISTS (SELECT 1 FROM puzzle_openings o
-                 WHERE o.puzzle_id = p.puzzle_id
-                   AND o.opening_tag IN (${placeholders}))`,
+      `EXISTS (SELECT 1 FROM public.chess_lib_openings o
+                WHERE o.puzzle_id = p.puzzle_id
+                  AND o.opening_tag = ANY($${i++}::text[]))`,
     );
-    params.push(...filters.openings);
+    params.push(filters.openings);
   }
-
-  // Search-by-id / search-by-theme-keyword was removed — searching by
-  // puzzle ID is rarely useful in personal training and theme keyword
-  // search duplicates the sidebar filter.
 
   if (filters.excludeIds && filters.excludeIds.length > 0) {
-    const placeholders = filters.excludeIds.map(() => "?").join(",");
-    clauses.push(`p.puzzle_id NOT IN (${placeholders})`);
-    params.push(...filters.excludeIds);
+    clauses.push(`p.puzzle_id <> ALL($${i++}::text[])`);
+    params.push(filters.excludeIds);
   }
 
-  return { sql: clauses.join(" AND "), params };
+  return { sql: clauses.join(" AND "), params, next: i };
 }
 
 function orderByClause(sort: SortKey): string {
@@ -156,20 +158,19 @@ function orderByClause(sort: SortKey): string {
     case "rating_asc":
       return "p.rating ASC, p.puzzle_id";
     case "random":
-      return "RANDOM()";
+      return "random()";
   }
 }
 
 /** Decorate puzzle rows with their themes (and openings, when callers need
  *  it). Single round-trip per request rather than N+1. */
-function loadThemesFor(ids: string[]): Map<string, string[]> {
+async function loadThemesFor(ids: string[]): Promise<Map<string, string[]>> {
   if (ids.length === 0) return new Map();
-  const placeholders = ids.map(() => "?").join(",");
-  const rows = getDb()
-    .prepare(
-      `SELECT puzzle_id, theme FROM puzzle_themes WHERE puzzle_id IN (${placeholders})`,
-    )
-    .all(...ids) as { puzzle_id: string; theme: string }[];
+  const rows = await pgRows<{ puzzle_id: string; theme: string }>(
+    `SELECT puzzle_id, theme FROM public.chess_lib_themes
+      WHERE puzzle_id = ANY($1::text[])`,
+    [ids],
+  );
   const out = new Map<string, string[]>();
   for (const r of rows) {
     const list = out.get(r.puzzle_id);
@@ -179,14 +180,13 @@ function loadThemesFor(ids: string[]): Map<string, string[]> {
   return out;
 }
 
-function loadOpeningsFor(ids: string[]): Map<string, string[]> {
+async function loadOpeningsFor(ids: string[]): Promise<Map<string, string[]>> {
   if (ids.length === 0) return new Map();
-  const placeholders = ids.map(() => "?").join(",");
-  const rows = getDb()
-    .prepare(
-      `SELECT puzzle_id, opening_tag FROM puzzle_openings WHERE puzzle_id IN (${placeholders})`,
-    )
-    .all(...ids) as { puzzle_id: string; opening_tag: string }[];
+  const rows = await pgRows<{ puzzle_id: string; opening_tag: string }>(
+    `SELECT puzzle_id, opening_tag FROM public.chess_lib_openings
+      WHERE puzzle_id = ANY($1::text[])`,
+    [ids],
+  );
   const out = new Map<string, string[]>();
   for (const r of rows) {
     const list = out.get(r.puzzle_id);
@@ -210,23 +210,22 @@ function rowToPuzzle(row: PuzzleRow, themes: string[]): LibraryPuzzle {
 // ─── Repo implementation ────────────────────────────────────────────────────
 
 async function getById(id: string): Promise<LibraryPuzzle | null> {
-  const row = getDb()
-    .prepare(
-      `SELECT puzzle_id, fen, moves, rating, level FROM puzzles WHERE puzzle_id = ?`,
-    )
-    .get(id) as PuzzleRow | undefined;
+  const row = await pgOne<PuzzleRow>(
+    `SELECT puzzle_id, fen, moves, rating, level
+       FROM public.chess_lib_puzzles WHERE puzzle_id = $1`,
+    [id],
+  );
   if (!row) return null;
-  const themes = loadThemesFor([row.puzzle_id]).get(row.puzzle_id) ?? [];
-  return rowToPuzzle(row, themes);
+  const themesMap = await loadThemesFor([row.puzzle_id]);
+  return rowToPuzzle(row, themesMap.get(row.puzzle_id) ?? []);
 }
 
 /** Fast-path total count for filter shapes that hit a materialised lookup.
- *  For anything else returns null and the caller falls back to a live
+ *  For anything else returns null and the caller falls back to a probe
  *  COUNT(*) over the WHERE expression. */
-function fastTotal(
-  db: ReturnType<typeof getDb>,
+async function fastTotal(
   filters: PuzzleQueryFilters,
-): number | null {
+): Promise<number | null> {
   if (
     (filters.excludeIds?.length ?? 0) > 0 ||
     filters.ratingMin != null ||
@@ -238,34 +237,37 @@ function fastTotal(
   const openings = filters.openings ?? [];
 
   if (filters.level && themes.length === 1 && openings.length === 0) {
-    const r = db
-      .prepare(`SELECT count FROM theme_counts WHERE theme = ? AND level = ?`)
-      .get(themes[0], filters.level) as { count: number } | undefined;
+    const r = await pgOne<{ count: number }>(
+      `SELECT count FROM public.chess_lib_theme_counts
+        WHERE theme = $1 AND level = $2`,
+      [themes[0], filters.level],
+    );
     return r?.count ?? 0;
   }
   if (filters.level && themes.length === 0 && openings.length === 1) {
-    const r = db
-      .prepare(`SELECT count FROM opening_counts WHERE opening_tag = ? AND level = ?`)
-      .get(openings[0], filters.level) as { count: number } | undefined;
+    const r = await pgOne<{ count: number }>(
+      `SELECT count FROM public.chess_lib_opening_counts
+        WHERE opening_tag = $1 AND level = $2`,
+      [openings[0], filters.level],
+    );
     return r?.count ?? 0;
   }
   if (filters.level && themes.length === 0 && openings.length === 0) {
-    // Plain level filter: index-only count over (level, popularity, …).
-    const r = db
-      .prepare(`SELECT COUNT(*) AS n FROM puzzles WHERE level = ?`)
-      .get(filters.level) as { n: number };
-    return r.n;
+    // Plain level filter: the materialised count tables have one row per
+    // (theme, level), and SUMing is cheap, but a direct `pg_class` reltuples
+    // estimate would be even cheaper. Use the count table SUM — exact and
+    // sub-millisecond at this scale.
+    const r = await pgOne<{ n: string | number }>(
+      `SELECT COUNT(*) AS n FROM public.chess_lib_puzzles WHERE level = $1`,
+      [filters.level],
+    );
+    return Number(r?.n ?? 0);
   }
   if (!filters.level && themes.length === 0 && openings.length === 0) {
-    // No filters at all — read the row_count we stamped at import time
-    // rather than running COUNT over 5.8 M rows. Falls through to live
-    // COUNT(*) only if the meta row is missing (older imports).
-    const m = db
-      .prepare(`SELECT value FROM meta WHERE key = 'row_count'`)
-      .get() as { value: string } | undefined;
-    if (m) return parseInt(m.value, 10);
-    const r = db.prepare(`SELECT COUNT(*) AS n FROM puzzles`).get() as { n: number };
-    return r.n;
+    const r = await pgOne<{ n: string | number }>(
+      `SELECT COUNT(*) AS n FROM public.chess_lib_puzzles`,
+    );
+    return Number(r?.n ?? 0);
   }
   return null;
 }
@@ -274,42 +276,37 @@ async function query(
   filters: PuzzleQueryFilters,
   options: PuzzleQueryOptions,
 ): Promise<QueryResult> {
-  // Strip the "mix" meta-tag everywhere (fastTotal + WHERE) so the filter
-  // semantically degrades to "no theme filter" the way Lichess models it.
+  // Strip the "mix" meta-tag everywhere so the filter semantically degrades
+  // to "no theme filter" the way Lichess models it.
   const themesNoMix = (filters.themes ?? []).filter((t) => t !== "mix");
   filters = {
     ...filters,
     themes: themesNoMix.length > 0 ? themesNoMix : undefined,
   };
 
-  const db = getDb();
-  const { sql: where, params } = buildWhere(filters);
+  const { sql: where, params, next } = buildWhere(filters);
 
-  // Use the materialised lookup when we can; otherwise short-circuit at
-  // COUNT_CAP+1 rather than scanning the full result set. A live COUNT(*)
-  // for multi-theme AND has to materialise every match (~2 s for hot
-  // combinations); the probe walks the same rows but the engine stops as
-  // soon as it has 1001 of them.
   let total: number;
   let totalIsCapped: boolean;
-  const fast = fastTotal(db, filters);
+  const fast = await fastTotal(filters);
   if (fast != null) {
     total = fast;
     totalIsCapped = false;
   } else {
-    // Scalar COUNT over a LIMIT subquery: SQLite short-circuits at COUNT_CAP+1
-    // and we only marshal a single number back to JS (vs. the 1001-element
-    // array a `SELECT 1 … LIMIT 1001` would produce).
-    const r = db
-      .prepare(
-        `SELECT COUNT(*) AS n FROM (SELECT 1 FROM puzzles p WHERE ${where} LIMIT ?)`,
-      )
-      .get(...params, COUNT_CAP + 1) as { n: number };
-    if (r.n > COUNT_CAP) {
+    // 1001-row probe — Postgres short-circuits on LIMIT, so we never
+    // materialise more than the cap+1.
+    const probe = await pgOne<{ n: string | number }>(
+      `SELECT COUNT(*) AS n FROM (
+         SELECT 1 FROM public.chess_lib_puzzles p WHERE ${where} LIMIT $${next}
+       ) AS probe`,
+      [...params, COUNT_CAP + 1],
+    );
+    const n = Number(probe?.n ?? 0);
+    if (n > COUNT_CAP) {
       total = COUNT_CAP;
       totalIsCapped = true;
     } else {
-      total = r.n;
+      total = n;
       totalIsCapped = false;
     }
   }
@@ -318,90 +315,62 @@ async function query(
     return { items: [], total: 0, totalIsCapped: false };
   }
 
-  // Random sort over the *unfiltered* puzzles table: use a rowid-jump,
-  // which is O(LIMIT) regardless of table size. Picking a random rowid and
-  // taking `LIMIT N` consecutive rows is uniform enough for our purposes.
-  // For filtered random (themes/openings/etc.), `ORDER BY RANDOM() LIMIT N`
-  // is fine because the planner only materialises the matched subset, which
-  // we've already verified stays under the 50k threshold for typical filters.
-  let rows: PuzzleRow[];
-  const onlyLevelOrEmpty =
-    !filters.themes?.length &&
-    !filters.openings?.length &&
-    !filters.excludeIds?.length &&
-    filters.ratingMin == null &&
-    filters.ratingMax == null;
-
-  if (
-    options.sort === "random" &&
-    onlyLevelOrEmpty &&
-    total > RANDOM_FULLSCAN_LIMIT
-  ) {
-    // Pick a random rowid floor inside the table, scan forward.
-    const maxRowidRow = db
-      .prepare(`SELECT MAX(rowid) AS m FROM puzzles${filters.level ? " WHERE level = ?" : ""}`)
-      .get(...(filters.level ? [filters.level] : [])) as { m: number };
-    const target = 1 + Math.floor(Math.random() * (maxRowidRow.m || 1));
-    rows = db
-      .prepare(
-        `SELECT p.puzzle_id, p.fen, p.moves, p.rating, p.level
-           FROM puzzles p
-          WHERE ${where} AND p.rowid >= ?
-          LIMIT ?`,
-      )
-      .all(...params, target, options.limit) as PuzzleRow[];
-  } else {
-    rows = db
-      .prepare(
-        `SELECT p.puzzle_id, p.fen, p.moves, p.rating, p.level
-           FROM puzzles p
-          WHERE ${where}
-          ORDER BY ${orderByClause(options.sort)}
-          LIMIT ? OFFSET ?`,
-      )
-      .all(...params, options.limit, options.offset) as PuzzleRow[];
-  }
+  const limitIdx = next;
+  const offsetIdx = next + 1;
+  const rows = await pgRows<PuzzleRow>(
+    `SELECT p.puzzle_id, p.fen, p.moves, p.rating, p.level
+       FROM public.chess_lib_puzzles p
+      WHERE ${where}
+      ORDER BY ${orderByClause(options.sort)}
+      LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+    [...params, options.limit, options.offset],
+  );
 
   const ids = rows.map((r) => r.puzzle_id);
-  const themesMap = loadThemesFor(ids);
+  const themesMap = await loadThemesFor(ids);
   const items = rows.map((r) => rowToPuzzle(r, themesMap.get(r.puzzle_id) ?? []));
   return { items, total, totalIsCapped };
 }
 
 async function getOpeningTags(puzzleId: string): Promise<string[]> {
-  return loadOpeningsFor([puzzleId]).get(puzzleId) ?? [];
+  return (await loadOpeningsFor([puzzleId])).get(puzzleId) ?? [];
 }
 
 // Theme/opening counts read from the materialised lookup tables built by
-// the import script. Live aggregation over 5.8M puzzles + 26M theme rows
-// takes hundreds of ms per chip, which doesn't fit a 64-chip browse page;
-// the materialised tables turn each lookup into a sub-microsecond PK hit.
+// the import script. Live aggregation over 200K puzzles + 900K theme rows
+// is ~50ms; the materialised tables turn each lookup into a sub-millisecond
+// PK hit.
 async function getThemeCount(themeKey: string, level?: Level): Promise<number> {
-  const db = getDb();
   if (level) {
-    const r = db
-      .prepare(`SELECT count FROM theme_counts WHERE theme = ? AND level = ?`)
-      .get(themeKey, level) as { count: number } | undefined;
+    const r = await pgOne<{ count: number }>(
+      `SELECT count FROM public.chess_lib_theme_counts
+        WHERE theme = $1 AND level = $2`,
+      [themeKey, level],
+    );
     return r?.count ?? 0;
   }
-  const r = db
-    .prepare(`SELECT SUM(count) AS n FROM theme_counts WHERE theme = ?`)
-    .get(themeKey) as { n: number | null };
-  return r.n ?? 0;
+  const r = await pgOne<{ n: string | number | null }>(
+    `SELECT SUM(count) AS n FROM public.chess_lib_theme_counts WHERE theme = $1`,
+    [themeKey],
+  );
+  return Number(r?.n ?? 0);
 }
 
 async function getOpeningCount(openingKey: string, level?: Level): Promise<number> {
-  const db = getDb();
   if (level) {
-    const r = db
-      .prepare(`SELECT count FROM opening_counts WHERE opening_tag = ? AND level = ?`)
-      .get(openingKey, level) as { count: number } | undefined;
+    const r = await pgOne<{ count: number }>(
+      `SELECT count FROM public.chess_lib_opening_counts
+        WHERE opening_tag = $1 AND level = $2`,
+      [openingKey, level],
+    );
     return r?.count ?? 0;
   }
-  const r = db
-    .prepare(`SELECT SUM(count) AS n FROM opening_counts WHERE opening_tag = ?`)
-    .get(openingKey) as { n: number | null };
-  return r.n ?? 0;
+  const r = await pgOne<{ n: string | number | null }>(
+    `SELECT SUM(count) AS n FROM public.chess_lib_opening_counts
+      WHERE opening_tag = $1`,
+    [openingKey],
+  );
+  return Number(r?.n ?? 0);
 }
 
 async function getInsertionOrder(): Promise<Map<string, number>> {

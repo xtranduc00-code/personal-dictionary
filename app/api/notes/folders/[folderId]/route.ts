@@ -170,15 +170,49 @@ export async function DELETE(req: Request, ctx: Ctx) {
   const { folderId } = await ctx.params;
   const db = supabaseForUserData();
   try {
-    const { error } = await db
+    // Cascade: collect every descendant folder id (BFS over the user's
+    // own folders) so we can wipe their notes + the folders themselves
+    // in one shot. Single-user app — no RLS gymnastics needed.
+    const allFolders = await loadUserFolders(db, user.id);
+    const childrenByParent = new Map<string | null, string[]>();
+    for (const f of allFolders) {
+      const arr = childrenByParent.get(f.parentId) ?? [];
+      arr.push(f.id);
+      childrenByParent.set(f.parentId, arr);
+    }
+    const idsToDelete: string[] = [folderId];
+    for (let i = 0; i < idsToDelete.length; i++) {
+      const kids = childrenByParent.get(idsToDelete[i]);
+      if (kids) {
+        idsToDelete.push(...kids);
+      }
+    }
+
+    // Notes first — drop everything inside any of the doomed folders.
+    const { error: notesErr, count: deletedNotes } = await db
+      .from("notes")
+      .delete({ count: "exact" })
+      .eq("user_id", user.id)
+      .in("folder_id", idsToDelete);
+    if (notesErr) {
+      throw notesErr;
+    }
+
+    // Then folders. With no NOT NULL parent constraint, deleting in any
+    // order is fine; we delete by id list directly.
+    const { error: foldersErr } = await db
       .from("note_folders")
       .delete()
-      .eq("id", folderId)
-      .eq("user_id", user.id);
-    if (error) {
-      throw error;
+      .eq("user_id", user.id)
+      .in("id", idsToDelete);
+    if (foldersErr) {
+      throw foldersErr;
     }
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({
+      ok: true,
+      deletedFolderIds: idsToDelete,
+      deletedNoteCount: deletedNotes ?? 0,
+    });
   } catch (e) {
     console.error("note_folders DELETE", e);
     return NextResponse.json({ error: "Failed to delete folder" }, {

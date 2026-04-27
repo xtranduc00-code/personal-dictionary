@@ -4,7 +4,7 @@ import {
   VALID_LEVELS,
   type Level,
 } from "@/lib/chess/puzzles-api/constants";
-import { getPuzzleRepo } from "@/lib/chess/puzzles-api/repo";
+import { pgRows } from "@/lib/chess/puzzles-api/db";
 import { getOpeningsCatalogue } from "@/lib/chess/puzzles-api/openings-data";
 
 /**
@@ -25,23 +25,33 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   try {
     const file = await getOpeningsCatalogue();
-    const repo = getPuzzleRepo();
 
-    const openings = await Promise.all(
-      file.openings.map(async (o) => ({
-        family: o.family,
-        key: o.key,
-        color: o.color,
-        ecoRange: o.ecoRange,
-        count: await repo.getOpeningCount(o.key, level),
-        variations: await Promise.all(
-          o.variations.map(async (v) => ({
-            ...v,
-            count: await repo.getOpeningCount(v.key, level),
-          })),
-        ),
-      })),
+    // Bulk-load every opening_tag count in one query — there are ~1.1k
+    // tags in the subset; doing one round-trip per chip would be hundreds
+    // of round-trips per page render.
+    const countRows = level
+      ? await pgRows<{ opening_tag: string; count: number }>(
+          `SELECT opening_tag, count FROM public.chess_lib_opening_counts WHERE level = $1`,
+          [level],
+        )
+      : await pgRows<{ opening_tag: string; count: string | number }>(
+          `SELECT opening_tag, SUM(count) AS count FROM public.chess_lib_opening_counts GROUP BY opening_tag`,
+        );
+    const countByKey = new Map<string, number>(
+      countRows.map((r) => [r.opening_tag, Number(r.count)]),
     );
+
+    const openings = file.openings.map((o) => ({
+      family: o.family,
+      key: o.key,
+      color: o.color,
+      ecoRange: o.ecoRange,
+      count: countByKey.get(o.key) ?? 0,
+      variations: o.variations.map((v) => ({
+        ...v,
+        count: countByKey.get(v.key) ?? 0,
+      })),
+    }));
 
     console.log(
       `[chess/openings] ok level=${level ?? "all"} families=${openings.length} duration=${Date.now() - t0}ms`,

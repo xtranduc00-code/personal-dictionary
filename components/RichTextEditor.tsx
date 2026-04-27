@@ -1215,8 +1215,11 @@ export function RichTextEditor({
           pointer-events: none;
         }
 
-        .tiptap > * + * {
-          margin-top: 0.75em;
+        /* Single source of truth for inter-block spacing in the editor.
+           !important wins over the per-element \`margin-top: 0 !important\`
+           reset below. */
+        .tiptap-notes-editor-wrap .tiptap > * + * {
+          margin-top: 0.75em !important;
         }
 
         .tiptap h1 {
@@ -1241,6 +1244,32 @@ export function RichTextEditor({
           font-family: inherit;
           line-height: var(--tiptap-line-height, 1.65);
           text-align: start;
+        }
+
+        /* Pasted/legacy content frequently carries inline \`line-height\`
+           and \`margin\` on text nodes (Word, Google Docs, web HTML).
+           Inline styles win over our wrap-level rules, producing the
+           over-tall paragraphs and the giant gaps before bullet lists the
+           user reported. Force inheritance + zero margins on every text
+           block so spacing comes from a single source: the
+           \`.tiptap > * + *\` rule below. Headings keep their explicit
+           line-height defined above; blockquote keeps its own margin. */
+        .tiptap-notes-editor-wrap .tiptap p,
+        .tiptap-notes-editor-wrap .tiptap li,
+        .tiptap-notes-editor-wrap .tiptap span,
+        .tiptap-notes-editor-wrap .tiptap div {
+          line-height: inherit !important;
+        }
+
+        .tiptap-notes-editor-wrap .tiptap p,
+        .tiptap-notes-editor-wrap .tiptap ul,
+        .tiptap-notes-editor-wrap .tiptap ol,
+        .tiptap-notes-editor-wrap .tiptap li,
+        .tiptap-notes-editor-wrap .tiptap h1,
+        .tiptap-notes-editor-wrap .tiptap h2,
+        .tiptap-notes-editor-wrap .tiptap h3 {
+          margin-top: 0 !important;
+          margin-bottom: 0 !important;
         }
 
         .tiptap p {

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { NO_STORE_HEADERS } from "@/lib/chess/puzzles-api/constants";
-import { PuzzleDbMissingError } from "@/lib/chess/puzzles-api/db";
 import {
   NextQuerySchema,
   flatZodError,
@@ -42,15 +41,9 @@ export async function GET(req: Request): Promise<NextResponse> {
     );
     return NextResponse.json(result.puzzle, { headers: NO_STORE_HEADERS });
   } catch (e) {
-    if (e instanceof PuzzleDbMissingError) {
-      return NextResponse.json(
-        { error: e.message, dbMissing: true },
-        { status: 503 },
-      );
-    }
     console.error("[chess/puzzles/next]", e);
     return NextResponse.json(
-      { error: "Failed to pick next puzzle" },
+      { error: e instanceof Error ? e.message : "Failed to pick next puzzle" },
       { status: 500 },
     );
   }

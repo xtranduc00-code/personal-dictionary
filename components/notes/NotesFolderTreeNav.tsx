@@ -8,6 +8,7 @@ import {
   FolderOpen,
   FolderPlus,
   Plus,
+  Trash2,
 } from "lucide-react";
 import {
   useCallback,
@@ -52,8 +53,16 @@ type Labels = {
   folderMenuPdf: string;
   quickSubfolderHeading: string;
   folderNamePlaceholder: string;
+  folderDelete: string;
   add: string;
   cancel: string;
+};
+
+export type DeletableFolder = {
+  id: string;
+  name: string;
+  parentId: string | null;
+  sortOrder: number;
 };
 
 type Props = {
@@ -77,6 +86,7 @@ type Props = {
     folderId: string,
     newParentId: string | null,
   ) => void | Promise<void>;
+  onDeleteFolder?: (folder: DeletableFolder) => void;
   disabled?: boolean;
   labels: Labels;
   emptyTreeFooter?: ReactNode;
@@ -103,6 +113,7 @@ function TreeFolderRow({
   onOpenPlusMenu,
   onNoteDroppedOnFolder,
   onFolderMoved,
+  onDeleteFolder,
   disabled,
   labels,
   getNotesInFolder,
@@ -218,6 +229,25 @@ function TreeFolderRow({
         ) : (
           <span className="w-7 shrink-0" aria-hidden />
         )}
+        {canOrganize && !disabled && onDeleteFolder ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteFolder({
+                id: node.id,
+                name: node.name,
+                parentId: node.parentId,
+                sortOrder: node.sortOrder,
+              });
+            }}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-400 opacity-0 hover:bg-red-100 hover:text-red-600 group-hover:opacity-100 dark:hover:bg-red-900/30"
+            title={labels.folderDelete}
+            aria-label={labels.folderDelete}
+          >
+            <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
+          </button>
+        ) : null}
       </div>
       {expanded && hasChildren
         ? node.children.map((ch) => (
@@ -234,6 +264,7 @@ function TreeFolderRow({
               onOpenPlusMenu={onOpenPlusMenu}
               onNoteDroppedOnFolder={onNoteDroppedOnFolder}
               onFolderMoved={onFolderMoved}
+              onDeleteFolder={onDeleteFolder}
               disabled={disabled}
               labels={labels}
               renderCompactNoteRow={renderCompactNoteRow}
@@ -279,6 +310,7 @@ export function NotesFolderTreeNav({
   onNoteDroppedOnFolder,
   onNoteDroppedUncategorized,
   onFolderMoved,
+  onDeleteFolder,
   disabled,
   labels,
   emptyTreeFooter,
@@ -537,6 +569,7 @@ export function NotesFolderTreeNav({
             onOpenPlusMenu={onOpenPlusMenu}
             onNoteDroppedOnFolder={onNoteDroppedOnFolder}
             onFolderMoved={onFolderMoved}
+            onDeleteFolder={onDeleteFolder}
             disabled={disabled}
             labels={labels}
             renderCompactNoteRow={renderCompactNoteRow}

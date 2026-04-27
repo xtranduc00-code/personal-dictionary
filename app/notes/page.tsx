@@ -1529,12 +1529,37 @@ export default function NotesPage() {
         toast.error(t("notesFolderDeleteFailed"));
         return;
       }
-      setNoteFolders((prev) => prev.filter((f) => f.id !== fd.id));
-      setListFolderFilter((prev) => (prev === fd.id ? "all" : prev));
-      setNotes((prev) =>
-        prev.map((n) =>
-          n.folderId === fd.id ? { ...n, folderId: null, folderName: null } : n,
-        ),
+      const payload = (await res.json().catch(() => null)) as
+        | { deletedFolderIds?: string[] }
+        | null;
+      // Server cascades: every descendant folder + every note inside any
+      // of them is gone. Mirror that locally instead of moving notes to
+      // uncategorized.
+      const deletedSet = new Set<string>(
+        Array.isArray(payload?.deletedFolderIds)
+          ? payload.deletedFolderIds
+          : [fd.id],
+      );
+      setNoteFolders((prev) => prev.filter((f) => !deletedSet.has(f.id)));
+      setListFolderFilter((prev) =>
+        typeof prev === "string" && deletedSet.has(prev) ? "all" : prev,
+      );
+      setNotes((prev) => {
+        const survivors = prev.filter(
+          (n) => !(n.folderId && deletedSet.has(n.folderId)),
+        );
+        for (const n of prev) {
+          if (n.folderId && deletedSet.has(n.folderId)) {
+            lastServerByNoteIdRef.current.delete(n.id);
+          }
+        }
+        return survivors;
+      });
+      setSelectedId((prev) =>
+        prev &&
+        notes.some((n) => n.id === prev && n.folderId && deletedSet.has(n.folderId))
+          ? null
+          : prev,
       );
       setFolderPendingDelete(null);
       toast.success(t("notesFolderDeleted"));
@@ -1543,7 +1568,7 @@ export default function NotesPage() {
     } finally {
       setFolderModalBusy(false);
     }
-  }, [folderPendingDelete, t]);
+  }, [folderPendingDelete, notes, t]);
 
   const handleConfirmDelete = async () => {
     const id = noteToDelete?.id;
@@ -2060,6 +2085,7 @@ export default function NotesPage() {
               onFolderMoved={(fid, newParent) => {
                 void moveFolderToParent(fid, newParent);
               }}
+              onDeleteFolder={(fd) => setFolderPendingDelete(fd)}
               disabled={orgBusy}
               labels={{
                 navAriaLabel: t("notes"),
@@ -2070,6 +2096,7 @@ export default function NotesPage() {
                 folderMenuPdf: t("notesFolderMenuPdf"),
                 quickSubfolderHeading: t("notesFolderQuickSubfolderHeading"),
                 folderNamePlaceholder: t("notesNewFolderPlaceholder"),
+                folderDelete: t("notesFolderDelete"),
                 add: t("notesFolderAdd"),
                 cancel: t("cancel"),
               }}
@@ -2562,7 +2589,7 @@ export default function NotesPage() {
         </div>
       ) : null}
 
-      {folderManagerOpen ? (
+      {folderManagerOpen || folderPendingDelete ? (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
           onClick={() => closeFolderManager()}

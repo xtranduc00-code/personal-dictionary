@@ -54,11 +54,18 @@ const START_AUDIO_BTN_MINI =
 const STAGE_VIGNETTE =
     "relative z-0 flex min-h-[min(52vh,560px)] flex-1 flex-col lg:min-h-0 after:pointer-events-none after:absolute after:inset-0 after:z-[2] after:rounded-xl after:shadow-[inset_0_0_48px_rgba(0,0,0,0.05)]";
 
+// 360–400 px is the comfortable width band for chat — narrower truncates
+// filenames and hides the input cursor while typing Vietnamese. Stays
+// mounted and animates `max-width` from 0 → 400 px on open so we get a
+// 200 ms slide-in without unmounting the chat (which would lose draft
+// state and re-fire the empty-state animation each toggle).
 const CHAT_DESKTOP_BASE =
-    "hidden h-full min-h-0 w-full max-w-[300px] shrink-0 flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm";
+    "hidden h-full min-h-0 shrink-0 flex-col overflow-hidden rounded-xl bg-white shadow-sm transition-[max-width,opacity,border-width] duration-200 ease-out lg:flex";
+const CHAT_DESKTOP_OPEN = "w-full max-w-[400px] border border-zinc-200 opacity-100";
+const CHAT_DESKTOP_CLOSED = "w-0 max-w-0 border-0 opacity-0";
 
 const MOBILE_CHAT_DRAWER =
-    "relative z-10 flex h-full w-[min(100%,320px)] flex-col border-l border-zinc-200 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.12)]";
+    "relative z-10 flex h-full w-[min(100%,320px)] flex-col border-l border-zinc-200 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.12)] animate-in slide-in-from-right duration-200 ease-out";
 
 function useMeetRoomElapsedSec() {
     const room = useRoomContext();
@@ -446,7 +453,7 @@ function CallRoomInner({
     );
 
     const desktopChatClass = useMemo(
-        () => `${CHAT_DESKTOP_BASE} ${chatOpen ? "lg:flex" : "lg:hidden"}`,
+        () => `${CHAT_DESKTOP_BASE} ${chatOpen ? CHAT_DESKTOP_OPEN : CHAT_DESKTOP_CLOSED}`,
         [chatOpen],
     );
 
@@ -525,9 +532,9 @@ function CallRoomInner({
 
                 <CallChatPanel
                     variant="watch"
-                    showChatHint
                     roomDisplayName={roomDisplayName}
                     className={desktopChatClass}
+                    onToggle={toggleChat}
                 />
             </div>
 
@@ -547,9 +554,9 @@ function CallRoomInner({
                     >
                         <CallChatPanel
                             variant="watch"
-                            showChatHint
                             roomDisplayName={roomDisplayName}
                             className="flex min-h-0 flex-1 rounded-none border-0"
+                            onToggle={closeMobileChat}
                         />
                     </div>
                 </div>

@@ -13,23 +13,19 @@ import {
   NO_STORE_HEADERS,
   type Level,
 } from "@/lib/chess/puzzles-api/constants";
-import { getDb, PuzzleDbMissingError } from "@/lib/chess/puzzles-api/db";
+import { pgOne, pgRows } from "@/lib/chess/puzzles-api/db";
+import { getAuthUser } from "@/lib/get-auth-user";
 export type { LibraryPuzzle };
 
 /**
  * GET /api/chess/puzzles/library
  *
- * Filter + paginate puzzles from the local SQLite mirror of Lichess's
- * dataset.
+ * Filter + paginate puzzles from the Supabase mirror of Lichess's dataset.
  *
- * Auth was removed in pass 2 — this is a single-user app, so per-user
- * solved tracking is reading from `progress.attempts` (added in pass 5)
- * rather than Supabase. Until then, `solvedPuzzleIds` is empty.
- *
- * Response includes `totalIsCapped`: when true the actual match count is
- * larger than `total` (the materialised-count fast path didn't apply, so
- * we used a probe that stops at 1000). UI should display "1000+ puzzles"
- * in that case.
+ * Per-user solve tracking comes from `chess_attempts`. When the request is
+ * unauthenticated (no Bearer token), `solvedCount` and `solvedPuzzleIds`
+ * fall back to empty — the library still browses, just without the solved
+ * checkmarks.
  */
 export async function GET(req: Request): Promise<NextResponse> {
   const url = new URL(req.url);
@@ -42,9 +38,6 @@ export async function GET(req: Request): Promise<NextResponse> {
   }
   const q = parsed.data;
 
-  // Combine legacy single-theme `theme` with the new multi-theme `themes`
-  // param. Search-by-id / search-by-keyword was removed — it duplicated
-  // sidebar filters and was rarely useful for personal training.
   const themes = [...(q.themes ?? [])];
   if (q.theme) themes.push(q.theme);
   const level = (q.level ?? "beginner") as Level;
@@ -58,11 +51,13 @@ export async function GET(req: Request): Promise<NextResponse> {
     );
   }
 
+  const user = await getAuthUser(req);
+
   try {
     // Per-level grand total — the badge reads "X / 500 solved" for the
     // active difficulty, and that denominator should NOT shift with active
     // theme/opening filters. Single tiny query against the materialised
-    // level count (sub-millisecond).
+    // level count.
     const baseQuery = await queryLibrary(
       { level },
       { sort: "popular", limit: 1, offset: 0 },
@@ -80,40 +75,35 @@ export async function GET(req: Request): Promise<NextResponse> {
       { sort: q.sort, limit: q.limit, offset: q.offset },
     );
 
-    // Solved tracking lives in progress.sqlite (pass 4). A puzzle is
-    // "solved" if there is any attempt row with solved=1. We fetch:
-    //   solvedCount  — distinct solved puzzles in the active level
-    //   solvedIds    — solved IDs that intersect with the current page,
-    //                  so the FE can flag them with a checkmark without
-    //                  loading the entire solved set.
-    const db = getDb();
-    const solvedCountRow = db
-      .prepare(
-        `SELECT COUNT(DISTINCT a.puzzle_id) AS n
-           FROM progress.attempts a
-           JOIN puzzles p ON p.puzzle_id = a.puzzle_id
-          WHERE a.solved = 1 AND p.level = ?`,
-      )
-      .get(level) as { n: number };
-    const solvedCount = solvedCountRow.n;
-
-    const pageIds = result.items.map((p) => p.id);
+    // Solved tracking. A puzzle is "solved" if any attempt row for the
+    // current user has solved=true. For the level-scoped count we join
+    // attempts to puzzles so we can constrain by level. For the page-only
+    // ID list we just intersect against the rendered IDs.
+    let solvedCount = 0;
     let solvedPuzzleIds: string[] = [];
-    if (pageIds.length > 0) {
-      const ph = pageIds.map(() => "?").join(",");
-      const rows = db
-        .prepare(
-          `SELECT DISTINCT puzzle_id FROM progress.attempts
-            WHERE solved = 1 AND puzzle_id IN (${ph})`,
-        )
-        .all(...pageIds) as { puzzle_id: string }[];
-      solvedPuzzleIds = rows.map((r) => r.puzzle_id);
+    if (user) {
+      const solvedCountRow = await pgOne<{ n: string | number }>(
+        `SELECT COUNT(DISTINCT a.lib_puzzle_id) AS n
+           FROM public.chess_attempts a
+           JOIN public.chess_lib_puzzles p ON p.puzzle_id = a.lib_puzzle_id
+          WHERE a.user_id = $1 AND a.solved = TRUE AND p.level = $2`,
+        [user.id, level],
+      );
+      solvedCount = Number(solvedCountRow?.n ?? 0);
+
+      const pageIds = result.items.map((p) => p.id);
+      if (pageIds.length > 0) {
+        const rows = await pgRows<{ lib_puzzle_id: string }>(
+          `SELECT DISTINCT lib_puzzle_id FROM public.chess_attempts
+            WHERE user_id = $1 AND solved = TRUE
+              AND lib_puzzle_id = ANY($2::text[])`,
+          [user.id, pageIds],
+        );
+        solvedPuzzleIds = rows.map((r) => r.lib_puzzle_id);
+      }
     }
 
-    // Apply the solved/unsolved client-side filter against this page only.
-    // For exact accuracy across a 1.69M-row level we'd push the filter
-    // into SQL via a LEFT JOIN, but the spec says "personal use, simple",
-    // and the page-only filter matches what the user sees.
+    // Page-level filter against the solved set.
     let items = result.items;
     if (q.progress === "solved") {
       const set = new Set(solvedPuzzleIds);
@@ -147,17 +137,8 @@ export async function GET(req: Request): Promise<NextResponse> {
       `[chess/puzzles/library] ok level=${level} sort=${q.sort} themes=${themes.length} openings=${q.openings?.length ?? 0} ` +
         `count=${result.items.length}/${result.total}${result.totalIsCapped ? "+" : ""} duration=${Date.now() - t0}ms`,
     );
-    // No-store: the response embeds per-user solved status which changes
-    // after every attempt POST. A 10-second client cache made the library
-    // return stale data after a solve until the user F5'd.
     return NextResponse.json(payload, { headers: NO_STORE_HEADERS });
   } catch (e) {
-    if (e instanceof PuzzleDbMissingError) {
-      return NextResponse.json(
-        { error: e.message, dbMissing: true },
-        { status: 503 },
-      );
-    }
     console.error("[chess/puzzles/library]", e);
     return NextResponse.json(
       {
@@ -165,7 +146,7 @@ export async function GET(req: Request): Promise<NextResponse> {
         total: 0,
         offset: q.offset,
         limit: q.limit,
-        error: "Failed to load puzzle library",
+        error: e instanceof Error ? e.message : "Failed to load puzzle library",
       },
       { status: 500 },
     );

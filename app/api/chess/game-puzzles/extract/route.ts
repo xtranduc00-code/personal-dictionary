@@ -9,8 +9,8 @@ import {
 import {
   persistExtracted,
 } from "@/lib/chess/puzzles-api/game-puzzles-repo";
-import { PuzzleDbMissingError } from "@/lib/chess/puzzles-api/db";
 import { NO_STORE_HEADERS } from "@/lib/chess/puzzles-api/constants";
+import { getAuthUser } from "@/lib/get-auth-user";
 
 /**
  * POST /api/chess/game-puzzles/extract
@@ -116,6 +116,10 @@ function relinkParents(
 }
 
 export async function POST(req: Request): Promise<NextResponse> {
+  const user = await getAuthUser(req);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   let body: unknown;
   try {
     body = await req.json();
@@ -148,7 +152,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       );
     }
 
-    const { inserted, existed } = persistExtracted({
+    const { inserted, existed } = await persistExtracted(user.id, {
       pgn,
       sourceUrl: sourceUrl ?? null,
       whiteName: whiteName ?? null,
@@ -179,15 +183,9 @@ export async function POST(req: Request): Promise<NextResponse> {
       { headers: NO_STORE_HEADERS },
     );
   } catch (e) {
-    if (e instanceof PuzzleDbMissingError) {
-      return NextResponse.json(
-        { error: e.message, dbMissing: true },
-        { status: 503 },
-      );
-    }
     console.error("[chess/game-puzzles/extract]", e);
     return NextResponse.json(
-      { error: "Failed to extract puzzles" },
+      { error: e instanceof Error ? e.message : "Failed to extract puzzles" },
       { status: 500 },
     );
   }

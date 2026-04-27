@@ -4,8 +4,8 @@ import {
   listGamePuzzles,
   type GamePuzzleQuery,
 } from "@/lib/chess/puzzles-api/game-puzzles-repo";
-import { PuzzleDbMissingError } from "@/lib/chess/puzzles-api/db";
 import { QUERY_CACHE_HEADERS } from "@/lib/chess/puzzles-api/constants";
+import { getAuthUser } from "@/lib/get-auth-user";
 
 /**
  * GET /api/chess/game-puzzles
@@ -44,6 +44,10 @@ const QuerySchema = z.object({
 });
 
 export async function GET(req: Request): Promise<NextResponse> {
+  const user = await getAuthUser(req);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   const url = new URL(req.url);
   const parsed = QuerySchema.safeParse(Object.fromEntries(url.searchParams));
   if (!parsed.success) {
@@ -65,7 +69,7 @@ export async function GET(req: Request): Promise<NextResponse> {
       limit: q.limit,
       offset: q.offset,
     };
-    const { items, total } = listGamePuzzles(query);
+    const { items, total } = await listGamePuzzles(user.id, query);
 
     console.log(
       `[chess/game-puzzles] ok total=${total} returned=${items.length} duration=${Date.now() - t0}ms`,
@@ -92,15 +96,9 @@ export async function GET(req: Request): Promise<NextResponse> {
       { headers: QUERY_CACHE_HEADERS },
     );
   } catch (e) {
-    if (e instanceof PuzzleDbMissingError) {
-      return NextResponse.json(
-        { error: e.message, dbMissing: true },
-        { status: 503 },
-      );
-    }
     console.error("[chess/game-puzzles]", e);
     return NextResponse.json(
-      { error: "Failed to list game puzzles" },
+      { error: e instanceof Error ? e.message : "Failed to list game puzzles" },
       { status: 500 },
     );
   }

@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
 import { getPuzzleRepo } from "@/lib/chess/puzzles-api/repo";
 import { decorateWithOpenings } from "@/lib/chess/puzzles-api/service";
-import { PuzzleDbMissingError } from "@/lib/chess/puzzles-api/db";
 import { getGamePuzzleById } from "@/lib/chess/puzzles-api/game-puzzles-repo";
+import { getAuthUser } from "@/lib/get-auth-user";
 
 /**
  * GET /api/chess/puzzles/by-id?id=<puzzleId>
  *
  * Look up a single puzzle by id, transparent across both sources:
- *  - `gp_*`  → game-extracted puzzle in `progress.game_puzzles`
- *  - else    → Lichess puzzle in `puzzles.puzzles`
+ *  - `gp_*`  → game-extracted puzzle in `public.chess_game_puzzles` (user-scoped)
+ *  - else    → Lichess puzzle in `public.chess_lib_puzzles` (public)
  *
  * Both return the same `{ puzzle }` envelope so the solve UI doesn't
- * need to know which path produced it.
+ * need to know which path produced it. Game puzzles require auth.
  */
 export async function GET(req: Request): Promise<NextResponse> {
   const id = new URL(req.url).searchParams.get("id")?.trim();
@@ -22,7 +22,11 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   try {
     if (id.startsWith("gp_")) {
-      const puzzle = getGamePuzzleById(id);
+      const user = await getAuthUser(req);
+      if (!user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      const puzzle = await getGamePuzzleById(user.id, id);
       if (!puzzle) {
         return NextResponse.json({ error: "Game puzzle not found", id }, { status: 404 });
       }
@@ -37,13 +41,10 @@ export async function GET(req: Request): Promise<NextResponse> {
     const [decorated] = await decorateWithOpenings([puzzle]);
     return NextResponse.json({ puzzle: decorated });
   } catch (e) {
-    if (e instanceof PuzzleDbMissingError) {
-      return NextResponse.json(
-        { error: e.message, dbMissing: true },
-        { status: 503 },
-      );
-    }
     console.error("[chess/puzzles/by-id]", e);
-    return NextResponse.json({ error: "Failed to load puzzle" }, { status: 500 });
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Failed to load puzzle" },
+      { status: 500 },
+    );
   }
 }

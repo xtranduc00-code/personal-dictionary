@@ -476,7 +476,6 @@ export const translations = {
     meetsRoomConnected: "Connected",
     meetsShareRoomLink: "Share invite",
     meetsChatTitle: "Chat",
-    meetsChatHint: "Messages are visible only to people in this call.",
     meetsChatEmpty: "No messages yet.",
     meetsChatStartConversation: "Start the conversation",
     meetsChatStartHint: "Say hi to everyone in the room.",
@@ -1163,7 +1162,7 @@ export const translations = {
     notesFolderDeleteFailed: "Couldn’t delete folder.",
     notesFolderDeleteConfirmTitle: "Delete this folder?",
     notesFolderDeleteConfirmBody:
-      "Delete “{name}”? Notes in this folder will move to uncategorized.",
+      "Delete “{name}”? All notes inside, and any subfolders with their notes, will be permanently deleted.",
     notesLabelCreateFailed: "Couldn’t create label.",
     notesOrgUpdating: "Updating…",
 
@@ -1933,7 +1932,6 @@ export const translations = {
     meetsRoomConnected: "Đã kết nối",
     meetsShareRoomLink: "Chia sẻ lời mời",
     meetsChatTitle: "Chat",
-    meetsChatHint: "Tin nhắn chỉ hiển thị cho người trong cuộc gọi.",
     meetsChatEmpty: "Chưa có tin nhắn.",
     meetsChatStartConversation: "Bắt đầu trò chuyện",
     meetsChatStartHint: "Chào mọi người trong phòng nhé.",
@@ -2616,7 +2614,7 @@ export const translations = {
     notesFolderDeleteFailed: "Không xóa được thư mục.",
     notesFolderDeleteConfirmTitle: "Xóa thư mục?",
     notesFolderDeleteConfirmBody:
-      "Xóa “{name}”? Ghi chú trong thư mục sẽ chuyển sang chưa phân loại.",
+      "Xóa “{name}”? Toàn bộ ghi chú bên trong và mọi thư mục con (kèm ghi chú) sẽ bị xoá vĩnh viễn.",
     notesLabelCreateFailed: "Không tạo được nhãn.",
     notesOrgUpdating: "Đang cập nhật…",
     noteShareSuccess: "Đã chia sẻ ghi chú.",

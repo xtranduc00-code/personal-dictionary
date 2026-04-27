@@ -4,7 +4,7 @@ import {
   VALID_LEVELS,
   type Level,
 } from "@/lib/chess/puzzles-api/constants";
-import { getPuzzleRepo } from "@/lib/chess/puzzles-api/repo";
+import { pgRows } from "@/lib/chess/puzzles-api/db";
 import { getThemesCatalogue } from "@/lib/chess/puzzles-api/themes-data";
 
 /**
@@ -29,20 +29,29 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   try {
     const file = await getThemesCatalogue();
-    const repo = getPuzzleRepo();
 
-    const groups = await Promise.all(
-      file.groups.map(async (group) => ({
-        id: group.id,
-        name: group.name,
-        themes: await Promise.all(
-          group.themes.map(async (t) => ({
-            ...t,
-            count: await repo.getThemeCount(t.key, level),
-          })),
-        ),
-      })),
+    // Bulk-load all (theme, level) counts in one query so 64 chips become
+    // one round-trip instead of 64. Filtering happens client-side here.
+    const countRows = level
+      ? await pgRows<{ theme: string; count: number }>(
+          `SELECT theme, count FROM public.chess_lib_theme_counts WHERE level = $1`,
+          [level],
+        )
+      : await pgRows<{ theme: string; count: string | number }>(
+          `SELECT theme, SUM(count) AS count FROM public.chess_lib_theme_counts GROUP BY theme`,
+        );
+    const countByKey = new Map<string, number>(
+      countRows.map((r) => [r.theme, Number(r.count)]),
     );
+
+    const groups = file.groups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      themes: group.themes.map((t) => ({
+        ...t,
+        count: countByKey.get(t.key) ?? 0,
+      })),
+    }));
 
     console.log(
       `[chess/themes] ok level=${level ?? "all"} groups=${groups.length} duration=${Date.now() - t0}ms`,

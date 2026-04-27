@@ -1,57 +1,38 @@
 import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
-    /** Ensure data files are bundled for API routes that read from disk.
-     *  `puzzles-prod.sqlite` is the small (~80 MB) sampled subset committed
-     *  to the repo; the runtime falls back to the full local-only file when
-     *  it exists. */
+    /** Bundle the catalogue + word-list JSONs into the routes that read
+     *  them from disk at runtime. The chess library itself moved to
+     *  Supabase Postgres, so no SQLite files are bundled anymore. */
     outputFileTracingIncludes: {
-        "/api/chess/puzzles/library": [
-            "./data/puzzles-prod.sqlite",
-            "./data/chess-puzzles.json",
-            "./data/themes.json",
-            "./data/openings.json",
-        ],
-        "/api/chess/puzzles/next": [
-            "./data/puzzles-prod.sqlite",
-            "./data/chess-puzzles.json",
-            "./data/themes.json",
-            "./data/openings.json",
-        ],
-        "/api/chess/puzzles/by-id": ["./data/puzzles-prod.sqlite"],
-        "/api/chess/puzzles/[puzzleId]/attempt": ["./data/puzzles-prod.sqlite"],
-        "/api/chess/progress": ["./data/puzzles-prod.sqlite"],
-        "/api/chess/game-puzzles": ["./data/puzzles-prod.sqlite"],
-        "/api/chess/game-puzzles/extract": ["./data/puzzles-prod.sqlite"],
-        "/api/chess/game-puzzles/summary": ["./data/puzzles-prod.sqlite"],
         "/api/chess/themes": [
-            "./data/puzzles-prod.sqlite",
             "./data/themes.json",
             "./data/chess-puzzles.json",
         ],
         "/api/chess/themes/[key]": [
-            "./data/puzzles-prod.sqlite",
             "./data/themes.json",
             "./data/chess-puzzles.json",
             "./data/openings.json",
         ],
         "/api/chess/openings": [
-            "./data/puzzles-prod.sqlite",
             "./data/openings.json",
             "./data/chess-puzzles.json",
         ],
         "/api/chess/openings/[key]": [
-            "./data/puzzles-prod.sqlite",
             "./data/openings.json",
             "./data/chess-puzzles.json",
+        ],
+        "/api/chess/puzzles/library": [
+            "./data/themes.json",
+            "./data/openings.json",
+        ],
+        "/api/chess/puzzles/next": [
+            "./data/themes.json",
+            "./data/openings.json",
         ],
         "/api/search-suggestions": ["./data/common-words.json"],
     },
     /**
      * Keep serverless traces small on Netlify (faster packaging + less upload).
-     * Static assets under `public/` are deployed separately; puzzle JSON lives in `data/`.
-     * Dev-only puzzle source files (full SQLite + raw Lichess CSV) must NOT be
-     * bundled — they push the function past Netlify's 250 MB limit and the
-     * upload fails with a 500.
      */
     outputFileTracingExcludes: {
         "*": [
@@ -61,9 +42,14 @@ const nextConfig: NextConfig = {
             "**/stockfish.wasm",
             "**/stockfish.*.wasm",
             "**/node_modules/**/*.wasm",
+            // Belt-and-suspenders: dev-only Lichess source files. Should
+            // never be reachable now that the chess code path doesn't read
+            // from `data/`, but excluding them costs nothing.
             "**/data/puzzles.sqlite",
             "**/data/puzzles.sqlite-shm",
             "**/data/puzzles.sqlite-wal",
+            "**/data/puzzles-prod.sqlite",
+            "**/data/progress.sqlite",
             "**/data/lichess_db_puzzle.csv",
             "**/data/lichess_db_puzzle.csv.zst",
         ],
@@ -77,8 +63,10 @@ const nextConfig: NextConfig = {
         "jsdom",
         "linkedom",
         "@mozilla/readability",
-        // Native bindings — must not be webpacked.
-        "better-sqlite3",
+        // pg has its own native binding (pg-native is optional, default is
+        // pure JS, but we keep it external so webpack doesn't try to
+        // bundle the connection-pool internals).
+        "pg",
     ],
     turbopack: {},
     async headers() {
