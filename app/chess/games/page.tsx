@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Loader2, Star, Trophy, X as XIcon } from "lucide-react";
+import { authFetch } from "@/lib/auth-context";
 
 /**
  * /chess/games — list view for puzzles extracted from my analysed games.
@@ -83,7 +84,7 @@ function GamesPageInner() {
     });
     if (classification) p.set("classification", classification);
     if (gameId) p.set("gameId", gameId);
-    fetch(`/api/chess/game-puzzles?${p}`)
+    authFetch(`/api/chess/game-puzzles?${p}`)
       .then(async (r) => {
         const data = (await r.json()) as ListResponse | { error?: string };
         if (!alive) return;

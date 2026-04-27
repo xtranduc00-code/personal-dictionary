@@ -10,6 +10,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 
+import { authFetch } from "@/lib/auth-context";
 import { ChessBoardWrapper } from "@/components/chess/ChessBoardWrapper";
 import { SidebarDominant, SidebarTitle } from "@/components/chess/board-workspace";
 import { ClassificationBadge, CLASSIFICATION_STYLES } from "@/components/chess/analysis/ClassificationBadge";
@@ -264,7 +265,7 @@ export default function AnalysisWorkspace() {
       // game analysis UI still works without the train-this affordance.
       try {
         const stripped = stripParents(rootNode);
-        const res = await fetch("/api/chess/game-puzzles/extract", {
+        const res = await authFetch("/api/chess/game-puzzles/extract", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

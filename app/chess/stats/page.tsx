@@ -14,6 +14,7 @@ import {
   Flame,
   CalendarCheck,
 } from "lucide-react";
+import { authFetch } from "@/lib/auth-context";
 
 interface ThemeStat {
   theme: string;
@@ -81,7 +82,7 @@ export default function StatsPage() {
 
   useEffect(() => {
     let alive = true;
-    fetch("/api/chess/progress")
+    authFetch("/api/chess/progress")
       .then(async (r) => {
         const data = (await r.json()) as ProgressStats | { error?: string };
         if (!alive) return;

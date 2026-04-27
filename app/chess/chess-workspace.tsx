@@ -6,8 +6,8 @@ import { Chess } from "chess.js";
 import { toast } from "react-toastify";
 import {
   ArrowLeft, BookOpen, Calendar, Check, ChevronDown, ChevronLeft, ChevronRight, Copy,
-  Crown, Filter, Flag, Lightbulb, Loader2, MessageSquare, Mic, MicOff, Microscope, Pause, Play,
-  RefreshCw, Send, Square, Star, Swords, Trophy, Undo2, Users,
+  Crown, Filter, Flag, Lightbulb, Loader2, MessageSquare, Mic, MicOff, Microscope, Play,
+  RefreshCw, Send, Star, Swords, Trophy, Undo2, Users,
   Volume2, VolumeX, X, Zap,
 } from "lucide-react";
 import Link from "next/link";
@@ -3755,8 +3755,6 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
   // Wrong-move "why this is wrong" copy comes from /api/chess/puzzles/explain
   // and is no longer surfaced — the progressive hint flow handles guidance.
   const [loadingWrong, setLoadingWrong]   = useState(false);
-  const [explanation, setExplanation]     = useState("");
-  const [loadingExpl, setLoadingExpl]     = useState(false);
   const [muted, setMuted]                 = useState(false);
   const mutedRef = useRef(muted);
   useEffect(() => {
@@ -3774,10 +3772,6 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
   // render of this puzzle until the result is decided (solved or wrong).
   const startedAtRef = useRef<number>(Date.now());
 
-  // TTS
-  const [speaking, setSpeaking] = useState(false);
-  const [paused, setPaused]     = useState(false);
-  const utterRef = useRef<SpeechSynthesisUtterance | null>(null);
   // FEN at the moment the player is about to move (before their drop)
   const fenBeforeDropRef = useRef(puzzle.fen);
   const chessRef = useRef(chess);
@@ -3850,29 +3844,6 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setupMove]);
 
-  // Fetch AI explanation after solving
-  async function fetchExplanation() {
-    setLoadingExpl(true);
-    try {
-      const res = await fetch("/api/chess/puzzles/explain", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode:   "solve",
-          fen:    puzzle.fen,
-          moves:  isLibrary ? (puzzle as LibraryPuzzle).moves : solMoves,
-          themes: isLibrary ? (puzzle as LibraryPuzzle).themes : [],
-          level:  puzzle.level,
-          rating: isLibrary ? (puzzle as LibraryPuzzle).rating : undefined,
-        }),
-      });
-      const data = await res.json() as { explanation: string };
-      setExplanation(data.explanation ?? "");
-    } finally {
-      setLoadingExpl(false);
-    }
-  }
-
   // Fetch wrong-move explanation from AI (non-blocking)
   async function fetchWrongExplanation(currentFen: string, wrongMove: string, attempt: number) {
     const requestId = ++wrongExplGenRef.current;
@@ -3898,35 +3869,6 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
     } finally {
       if (requestId === wrongExplGenRef.current) setLoadingWrong(false);
     }
-  }
-
-  // ── TTS helpers ──────────────────────────────────────────────────────────
-  function speakText(text: string) {
-    if (typeof window === "undefined" || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.rate = 1.1;
-    utter.pitch = 1.0;
-    utter.lang  = "en-US";
-    utter.onstart = () => { setSpeaking(true); setPaused(false); };
-    utter.onend   = () => { setSpeaking(false); setPaused(false); };
-    utter.onerror  = () => { setSpeaking(false); setPaused(false); };
-    utterRef.current = utter;
-    window.speechSynthesis.speak(utter);
-  }
-
-  function pauseResumeSpeech() {
-    if (typeof window === "undefined" || !window.speechSynthesis) return;
-    if (paused) { window.speechSynthesis.resume(); setPaused(false); }
-    else        { window.speechSynthesis.pause();  setPaused(true);  }
-  }
-
-  function stopSpeech() {
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
-    setSpeaking(false);
-    setPaused(false);
   }
 
   const libraryPuzzleId = isLibrary ? (puzzle as LibraryPuzzle).id : "";
@@ -3964,22 +3906,6 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
 
   // Hints are now fully derived from puzzle themes + the solution UCI; no
   // server-side hint fetch is needed. See lib/puzzleHints.ts.
-
-  // Auto-speak when explanation arrives (respect mute)
-  useEffect(() => {
-    if (explanation && result === "solved" && !muted) {
-      speakText(explanation);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [explanation]);
-
-  // Stop speech when muted or on unmount
-  useEffect(() => {
-    if (muted) stopSpeech();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [muted]);
-
-  useEffect(() => () => stopSpeech(), []);
 
   // ── Legal move indicators + click-to-move ─────────────────────────────────
   const { legalMoveStyles: puzzleLegalStyles, handlers: puzzleLegalHandlers, clearSelection: clearPuzzleSelection } = useChessLegalMoves(chessRef, onDrop, result !== "solved");
@@ -4052,7 +3978,6 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
     if (nextIdx >= solMoves.length) {
       setResult("solved");
       playSound("notify", muted);
-      fetchExplanation();
       void recordAttempt(true);
       incrementChessPuzzleCounter();
       return true;
@@ -4104,7 +4029,7 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
   /**
    * Reveal the full solution: replays remaining solMoves on the board with a
    * 500ms delay between plies, then triggers the solved state so the
-   * "Why this works" explanation and Next Puzzle button appear.
+   * Next Puzzle button appears.
    */
   const giveUpRunningRef = useRef(false);
   function handleGiveUp() {
@@ -4134,7 +4059,6 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
         // rather than finding it. Hint level is whatever they had revealed.
         setResult("solved");
         playSound("notify", mutedRef.current);
-        fetchExplanation();
         void recordAttempt(false);
         giveUpRunningRef.current = false;
         return;
@@ -4172,7 +4096,6 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
   }
 
   function handleReset() {
-    stopSpeech();
     wrongExplGenRef.current++;
     libraryWrongAttemptsRef.current = 0;
     setWrongAttempts(0);
@@ -4192,7 +4115,6 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
     setLastMoveSide(null);
     setWrongSquares(null);
     setWrongExpl("");
-    setExplanation("");
     if (setupMove) {
       setTimeout(() => {
         const m = chessRef.current.move({ from: setupMove.slice(0, 2), to: setupMove.slice(2, 4), promotion: setupMove[4] ?? "q" });
@@ -4366,40 +4288,6 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
                       <p className="opacity-80">Try a stronger threat.</p>
                     )}
                   </FeedbackPanel>
-                )}
-
-                {result === "solved" && (
-                  <div className="rounded-md border border-zinc-200/90 bg-white px-1.5 py-1 dark:border-zinc-700 dark:bg-zinc-900">
-                    <div className="mb-1 flex items-center gap-1">
-                      <BookOpen className="h-3 w-3 text-zinc-400" />
-                      <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400">Why this works</p>
-                      <div className="ml-auto flex items-center gap-px">
-                        {speaking ? (
-                          <>
-                            <button onClick={pauseResumeSpeech} title={paused ? "Resume" : "Pause"} className="rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800">
-                              {paused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
-                            </button>
-                            <button onClick={stopSpeech} title="Stop" className="rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-red-500 dark:hover:bg-zinc-800">
-                              <Square className="h-3 w-3" />
-                            </button>
-                          </>
-                        ) : explanation && !loadingExpl ? (
-                          <button onClick={() => speakText(explanation)} title="Read aloud" className="rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800">
-                            <Volume2 className="h-3 w-3" />
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                    {loadingExpl ? (
-                      <div className="flex items-center gap-1 text-[11px] text-zinc-400">
-                        <Loader2 className="h-3 w-3 animate-spin" /> Analyzing…
-                      </div>
-                    ) : explanation ? (
-                      <p className="text-[10px] leading-snug text-zinc-700 dark:text-zinc-300 sm:text-[11px] sm:leading-relaxed">{explanation}</p>
-                    ) : (
-                      <p className="text-[10px] text-zinc-400">Solution: <span className="font-mono">{solMoves.join(" ")}</span></p>
-                    )}
-                  </div>
                 )}
 
                 {/* Progressive hints — derived from puzzle.themes + solution UCI */}
@@ -4600,7 +4488,6 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
                 type="button"
                 disabled={nextPuzzleLoading}
                 onClick={async () => {
-                  stopSpeech();
                   if (onNextPuzzle) {
                     setNextPuzzleLoading(true);
                     try {
