@@ -7,6 +7,7 @@ import { ChessBoardWrapper } from "@/components/chess/ChessBoardWrapper";
 import { BoardLayoutShell } from "@/components/chess/board-layout-shell";
 import { squareStylesForLastMove } from "@/components/chess/move-highlight-styles";
 import { useChessLegalMoves } from "@/hooks/use-chess-legal-moves";
+import { authFetch } from "@/lib/auth-context";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -145,7 +146,7 @@ function shuffleInPlace<T>(arr: T[]): T[] {
 async function fetchPuzzleBatch(level: PuzzleLevel, count = 20): Promise<LibraryPuzzle[]> {
   const params = new URLSearchParams({ level, limit: String(count), offset: "0" });
   try {
-    const res = await fetch(`/api/chess/puzzles/library?${params}`);
+    const res = await authFetch(`/api/chess/puzzles/library?${params}`);
     if (!res.ok) return [];
     const data = (await res.json()) as { items?: LibraryPuzzle[] };
     const items = (data.items ?? []).filter((p) => p.level === level) as LibraryPuzzle[];

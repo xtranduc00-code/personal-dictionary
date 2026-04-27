@@ -476,7 +476,7 @@ export function ChessWorkspace({
       if (nav.themes.length) params.set("themes", nav.themes.join(","));
       if (nav.openings.length) params.set("openings", nav.openings.join(","));
 
-      const res = await fetch(`/api/chess/puzzles/library?${params}`);
+      const res = await authFetch(`/api/chess/puzzles/library?${params}`);
       const data = (await res.json()) as { items: LibraryPuzzle[]; total: number; error?: string };
       if (!res.ok) {
         toast.error(data.error ?? "Could not load the next page.");
@@ -3946,7 +3946,7 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
     const p = puzzle as LibraryPuzzle;
     const durationMs = Math.max(0, Date.now() - startedAtRef.current);
     try {
-      await fetch(`/api/chess/puzzles/${encodeURIComponent(p.id)}/attempt`, {
+      await authFetch(`/api/chess/puzzles/${encodeURIComponent(p.id)}/attempt`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
