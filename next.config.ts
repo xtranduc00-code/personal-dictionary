@@ -49,6 +49,9 @@ const nextConfig: NextConfig = {
     /**
      * Keep serverless traces small on Netlify (faster packaging + less upload).
      * Static assets under `public/` are deployed separately; puzzle JSON lives in `data/`.
+     * Dev-only puzzle source files (full SQLite + raw Lichess CSV) must NOT be
+     * bundled — they push the function past Netlify's 250 MB limit and the
+     * upload fails with a 500.
      */
     outputFileTracingExcludes: {
         "*": [
@@ -58,6 +61,11 @@ const nextConfig: NextConfig = {
             "**/stockfish.wasm",
             "**/stockfish.*.wasm",
             "**/node_modules/**/*.wasm",
+            "**/data/puzzles.sqlite",
+            "**/data/puzzles.sqlite-shm",
+            "**/data/puzzles.sqlite-wal",
+            "**/data/lichess_db_puzzle.csv",
+            "**/data/lichess_db_puzzle.csv.zst",
         ],
     },
     serverExternalPackages: [
