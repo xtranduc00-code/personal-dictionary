@@ -8,6 +8,15 @@
 -- Single-user use: only inserts for users that already have *some* templates,
 -- so we don't accidentally seed accounts that haven't initialized yet.
 
+-- Drop the legacy CHECK constraint on daily_tasks.task_key if it's still
+-- there. The original daily_tasks.sql hardcoded an enum-like list that
+-- didn't include meditation_10min, so manual ticks would fail silently
+-- with a DB error and the optimistic UI would revert on reload. The
+-- daily_tasks_flexible_key.sql migration removes it; doing it again here
+-- is a no-op when already dropped, but ensures users who only ran this
+-- seed file don't get stuck.
+alter table public.daily_tasks drop constraint if exists daily_tasks_task_key_check;
+
 insert into public.daily_task_templates (user_id, id, label, href, sort_order)
 select distinct
   t.user_id,

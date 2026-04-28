@@ -35,26 +35,29 @@ export async function GET(req: Request) {
 
 /**
  * POST /api/daily-tasks/counters — increment a counter by +1.
- * Body: { counterKey, threshold, taskKey, date? }
- * If the new value reaches `threshold`, also marks the backing task as complete.
+ * Body: { counterKey, taskKey, date? }
+ *
+ * Threshold is now read server-side from daily_task_templates.target_count
+ * (no longer trusted from the client). The legacy `threshold` body field is
+ * still accepted as a fallback for any caller that hasn't been updated, but
+ * the DB row wins when present.
+ *
+ * If the new value reaches threshold, the backing task is marked complete.
  */
 export async function POST(req: Request) {
   const user = await getAuthUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { counterKey, threshold, taskKey } = body as {
+  const { counterKey, taskKey } = body as {
     counterKey: string;
-    threshold: number;
     taskKey: string;
+    threshold?: number;
     date?: string;
   };
 
   if (!counterKey || typeof counterKey !== "string" || counterKey.length > 50) {
     return NextResponse.json({ error: "Invalid counterKey" }, { status: 400 });
-  }
-  if (!Number.isFinite(threshold) || threshold <= 0) {
-    return NextResponse.json({ error: "Invalid threshold" }, { status: 400 });
   }
   if (!taskKey || typeof taskKey !== "string" || taskKey.length > 100) {
     return NextResponse.json({ error: "Invalid taskKey" }, { status: 400 });
@@ -62,6 +65,23 @@ export async function POST(req: Request) {
 
   const today = getLocalDate(req, body);
   const db = supabaseForUserData();
+
+  // Look up template-defined threshold (single source of truth).
+  const { data: tmpl } = await db
+    .from("daily_task_templates")
+    .select("target_count")
+    .eq("user_id", user.id)
+    .eq("id", taskKey)
+    .maybeSingle();
+
+  const fallback =
+    typeof body.threshold === "number" && Number.isFinite(body.threshold) && body.threshold > 0
+      ? body.threshold
+      : null;
+  const threshold = tmpl?.target_count ?? fallback;
+  if (!threshold || threshold <= 0) {
+    return NextResponse.json({ error: "No threshold configured for this task" }, { status: 400 });
+  }
 
   const { data: newValue, error: rpcErr } = await db.rpc(
     "increment_daily_task_counter",
@@ -85,11 +105,7 @@ export async function POST(req: Request) {
       { onConflict: "user_id,task_date,task_key", ignoreDuplicates: false },
     );
     if (!taskErr) completed = true;
-    // The streak refresh used to call the legacy `daily_tasks_streak()` RPC
-    // here, but no client reads `streak` from this endpoint — the GET on
-    // `/api/daily-tasks` re-runs the TS computeStreak() right after this
-    // returns. Removed the orphan call.
   }
 
-  return NextResponse.json({ value, completed });
+  return NextResponse.json({ value, completed, threshold });
 }

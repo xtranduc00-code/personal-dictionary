@@ -7,6 +7,9 @@ export type TaskTemplate = {
   id: string;
   label: string;
   href: string;
+  sortOrder: number;
+  targetCount: number | null;
+  isDefault: boolean;
 };
 
 export type DailyTask = { taskKey: string; completedAt: string | null };
@@ -44,17 +47,20 @@ const EMPTY_STREAK: StreakStatus = {
 type DailyTasksState = {
   templates: TaskTemplate[];
   tasks: DailyTask[];
-  /** Numeric current streak — kept for backward compat with sidebar. */
   streak: number;
-  /** Full streak payload (status, longest, freezes, recovery prompt). */
   streakStatus: StreakStatus;
   loading: boolean;
   counters: Record<string, number>;
   markTask: (key: string, autoDetected?: boolean) => Promise<void>;
   unmarkTask: (key: string) => Promise<void>;
   refresh: () => Promise<void>;
-  saveTemplates: (templates: TaskTemplate[]) => Promise<void>;
   dismissRecoveryPrompt: (action: "skip" | "make_up" | "dont_ask_again") => Promise<void>;
+  // CRUD
+  updateTemplate: (id: string, patch: { label?: string; targetCount?: number | null; sortOrder?: number }) => Promise<void>;
+  deleteTemplate: (id: string) => Promise<void>;
+  addManualTemplate: (label: string, targetCount?: number | null) => Promise<void>;
+  reorderTemplates: (orderedIds: string[]) => Promise<void>;
+  resetTemplates: () => Promise<void>;
 };
 
 const Ctx = createContext<DailyTasksState>({
@@ -67,8 +73,12 @@ const Ctx = createContext<DailyTasksState>({
   markTask: async () => {},
   unmarkTask: async () => {},
   refresh: async () => {},
-  saveTemplates: async () => {},
   dismissRecoveryPrompt: async () => {},
+  updateTemplate: async () => {},
+  deleteTemplate: async () => {},
+  addManualTemplate: async () => {},
+  reorderTemplates: async () => {},
+  resetTemplates: async () => {},
 });
 
 export function useDailyTasks() {
@@ -117,7 +127,6 @@ export function DailyTasksProvider({ children }: { children: React.ReactNode }) 
       if (res.ok) {
         const data = await res.json();
         setTasks(data.tasks);
-        // Backward-compat: API used to return streak as number; now an object.
         if (data.streak && typeof data.streak === "object") {
           setStreakStatus(data.streak as StreakStatus);
         } else if (typeof data.streak === "number") {
@@ -175,7 +184,6 @@ export function DailyTasksProvider({ children }: { children: React.ReactNode }) 
     return () => window.removeEventListener("daily-task-auto-detected", handler);
   }, []);
 
-  // Counter updates from auto-detect (after server increments)
   useEffect(() => {
     const handler = (e: Event) => {
       const { counterKey, value } = (e as CustomEvent).detail ?? {};
@@ -195,7 +203,13 @@ export function DailyTasksProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   const markTask = useCallback(async (key: string, autoDetected = false) => {
-    setTasks((prev) => prev.map((t) => (t.taskKey === key ? { ...t, completedAt: new Date().toISOString() } : t)));
+    const now = new Date().toISOString();
+    setTasks((prev) => {
+      const has = prev.some((t) => t.taskKey === key);
+      return has
+        ? prev.map((t) => (t.taskKey === key ? { ...t, completedAt: now } : t))
+        : [...prev, { taskKey: key, completedAt: now }];
+    });
     try {
       const res = await authFetch("/api/daily-tasks", {
         method: "POST",
@@ -207,7 +221,12 @@ export function DailyTasksProvider({ children }: { children: React.ReactNode }) 
   }, [applyStreakResponse]);
 
   const unmarkTask = useCallback(async (key: string) => {
-    setTasks((prev) => prev.map((t) => (t.taskKey === key ? { ...t, completedAt: null } : t)));
+    setTasks((prev) => {
+      const has = prev.some((t) => t.taskKey === key);
+      return has
+        ? prev.map((t) => (t.taskKey === key ? { ...t, completedAt: null } : t))
+        : [...prev, { taskKey: key, completedAt: null }];
+    });
     try {
       const res = await authFetch("/api/daily-tasks", {
         method: "POST",
@@ -220,7 +239,6 @@ export function DailyTasksProvider({ children }: { children: React.ReactNode }) 
 
   const dismissRecoveryPrompt = useCallback(
     async (action: "skip" | "make_up" | "dont_ask_again") => {
-      // Optimistically hide the banner; server is source of truth on next refresh.
       setStreakStatus((prev) => ({ ...prev, needsSkipRecoveryPrompt: false }));
       try {
         const res = await authFetch("/api/streak/skip-recovery/dismiss", {
@@ -234,24 +252,121 @@ export function DailyTasksProvider({ children }: { children: React.ReactNode }) 
     [applyStreakResponse],
   );
 
-  const saveTemplates = useCallback(async (newTemplates: TaskTemplate[]) => {
-    setTemplates(newTemplates);
-    templatesRef.current = newTemplates;
-    // Sync tasks list for new template set
-    setTasks((prev) => {
-      const ids = new Set(newTemplates.map((t) => t.id));
-      const existing = prev.filter((t) => ids.has(t.taskKey));
-      const newKeys = newTemplates.filter((t) => !prev.some((p) => p.taskKey === t.id));
-      return [...existing, ...newKeys.map((t) => ({ taskKey: t.id, completedAt: null }))];
-    });
-    try {
-      await authFetch("/api/daily-tasks/templates", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newTemplates),
+  // ── CRUD ────────────────────────────────────────────────────────────────
+
+  const updateTemplate = useCallback(
+    async (id: string, patch: { label?: string; targetCount?: number | null; sortOrder?: number }) => {
+      // Optimistic
+      setTemplates((prev) => {
+        const next = prev.map((t) => {
+          if (t.id !== id) return t;
+          return {
+            ...t,
+            ...(patch.label !== undefined ? { label: patch.label } : {}),
+            ...("targetCount" in patch ? { targetCount: patch.targetCount ?? null } : {}),
+            ...(patch.sortOrder !== undefined ? { sortOrder: patch.sortOrder } : {}),
+          };
+        });
+        templatesRef.current = next;
+        return next;
       });
+      try {
+        await authFetch(`/api/daily-tasks/templates/${encodeURIComponent(id)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...patch, clientDate: dateRef.current }),
+        });
+        // If targetCount changed, server may have re-ticked or un-ticked today's
+        // task — re-fetch so the sidebar reflects the new completion state.
+        if ("targetCount" in patch) {
+          await fetchTasks(templatesRef.current);
+        }
+      } catch { /* ignore */ }
+    },
+    [fetchTasks],
+  );
+
+  const deleteTemplate = useCallback(async (id: string) => {
+    setTemplates((prev) => {
+      const next = prev.filter((t) => t.id !== id);
+      templatesRef.current = next;
+      return next;
+    });
+    setTasks((prev) => prev.filter((t) => t.taskKey !== id));
+    try {
+      await authFetch(`/api/daily-tasks/templates/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      // Refresh streak — total tasks just dropped, may flip status.
+      await fetchTasks(templatesRef.current);
+    } catch { /* ignore */ }
+  }, [fetchTasks]);
+
+  const addManualTemplate = useCallback(
+    async (label: string, targetCount: number | null = null) => {
+      try {
+        const res = await authFetch("/api/daily-tasks/templates", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ label, targetCount }),
+        });
+        if (!res.ok) return;
+        const created = (await res.json()) as TaskTemplate;
+        setTemplates((prev) => {
+          const next = [...prev, created];
+          templatesRef.current = next;
+          return next;
+        });
+        // Add the empty completion row so optimistic ticks find it.
+        setTasks((prev) => [...prev, { taskKey: created.id, completedAt: null }]);
+        await fetchTasks(templatesRef.current);
+      } catch { /* ignore */ }
+    },
+    [fetchTasks],
+  );
+
+  const reorderTemplates = useCallback(async (orderedIds: string[]) => {
+    // Optimistic local reorder
+    let reordered: TaskTemplate[] = [];
+    setTemplates((prev) => {
+      const map = new Map(prev.map((t) => [t.id, t]));
+      reordered = orderedIds
+        .map((id, i) => {
+          const t = map.get(id);
+          return t ? { ...t, sortOrder: i } : null;
+        })
+        .filter((t): t is TaskTemplate => t !== null);
+      // Append any templates not in orderedIds (defensive — shouldn't happen)
+      for (const t of prev) {
+        if (!orderedIds.includes(t.id)) reordered.push({ ...t, sortOrder: reordered.length });
+      }
+      templatesRef.current = reordered;
+      return reordered;
+    });
+    // Persist each affected row's sort_order. Fire in parallel; don't block UI.
+    try {
+      await Promise.all(
+        reordered.map((t) =>
+          authFetch(`/api/daily-tasks/templates/${encodeURIComponent(t.id)}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sortOrder: t.sortOrder }),
+          }),
+        ),
+      );
     } catch { /* ignore */ }
   }, []);
+
+  const resetTemplates = useCallback(async () => {
+    try {
+      const res = await authFetch("/api/daily-tasks/templates/reset", {
+        method: "POST",
+      });
+      if (!res.ok) return;
+      const tmpls = await fetchTemplates();
+      await fetchTasks(tmpls);
+    } catch { /* ignore */ }
+  }, [fetchTemplates, fetchTasks]);
 
   const value = useMemo(() => ({
     templates,
@@ -263,12 +378,17 @@ export function DailyTasksProvider({ children }: { children: React.ReactNode }) 
     markTask,
     unmarkTask,
     refresh: fetchTasks,
-    saveTemplates,
     dismissRecoveryPrompt,
+    updateTemplate,
+    deleteTemplate,
+    addManualTemplate,
+    reorderTemplates,
+    resetTemplates,
   }), [
     templates, tasks, streakStatus, loading, counters,
-    markTask, unmarkTask, fetchTasks, saveTemplates,
+    markTask, unmarkTask, fetchTasks,
     dismissRecoveryPrompt,
+    updateTemplate, deleteTemplate, addManualTemplate, reorderTemplates, resetTemplates,
   ]);
 
   return (

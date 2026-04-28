@@ -746,7 +746,7 @@ function SiteNavInner() {
             <nav className="flex flex-1 flex-col gap-1 pb-6">
               {!navFilter.fq && (
                 <>
-                  <DailyTasksSidebar isOpen={dailyTasksOpen} onToggle={toggleDailyTasksSection} locale={locale} onLinkClick={() => { clearQuickSearch(); setMobileOpen(false); }} />
+                  <DailyTasksSidebar isOpen={dailyTasksOpen} onToggle={toggleDailyTasksSection} locale={locale} />
                   <div className="my-1 shrink-0 border-t border-zinc-200 dark:border-zinc-700" />
                 </>
               )}
@@ -980,7 +980,7 @@ function SiteNavInner() {
           <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
             {!navFilter.fq && (
               <>
-                <DailyTasksSidebar isOpen={dailyTasksOpen} onToggle={toggleDailyTasksSection} locale={locale} onLinkClick={clearQuickSearch} />
+                <DailyTasksSidebar isOpen={dailyTasksOpen} onToggle={toggleDailyTasksSection} locale={locale} />
                 <div className="my-1 shrink-0 border-t border-zinc-200 dark:border-zinc-700" />
               </>
             )}

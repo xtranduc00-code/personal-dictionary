@@ -27,19 +27,21 @@ export function markDailyTask(taskKey: string): void {
   });
 }
 
-/** Map of counter-backed task keys to their config (for UI progress display). */
-export const COUNTER_TASKS: Record<string, { counterKey: string; threshold: number }> = {
-  vocab_10: { counterKey: "vocab", threshold: 5 },
-  chess_puzzles_10: { counterKey: "chess", threshold: 10 },
+/** Map of counter-backed task ids to their counter key. The threshold lives
+ *  on the template row (`target_count` in the DB) and is owned by the server
+ *  now — clients no longer pass it. */
+export const COUNTER_TASKS: Record<string, { counterKey: string }> = {
+  vocab_10: { counterKey: "vocab" },
+  chess_puzzles_10: { counterKey: "chess" },
 };
 
-async function incrementDailyCounter(counterKey: string, threshold: number, taskKey: string): Promise<void> {
+async function incrementDailyCounter(counterKey: string, taskKey: string): Promise<void> {
   if (typeof window === "undefined") return;
   try {
     const res = await authFetch("/api/daily-tasks/counters", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ counterKey, threshold, taskKey, date: localDate() }),
+      body: JSON.stringify({ counterKey, taskKey, date: localDate() }),
     });
     if (!res.ok) return;
     const data = (await res.json()) as { value: number; completed: boolean };
@@ -58,12 +60,12 @@ async function incrementDailyCounter(counterKey: string, threshold: number, task
   }
 }
 
-/** Count +1 vocab entry today (speaking vocab or flashcard). Marks `vocab_10` at 5. */
+/** Count +1 vocab entry today. Threshold is owned by the template's target_count. */
 export function incrementVocabCounter(): void {
-  void incrementDailyCounter("vocab", 5, "vocab_10");
+  void incrementDailyCounter("vocab", "vocab_10");
 }
 
-/** Count +1 chess puzzle solved today. Marks `chess_puzzles_10` at 10. */
+/** Count +1 chess puzzle solved today. Threshold from template's target_count. */
 export function incrementChessPuzzleCounter(): void {
-  void incrementDailyCounter("chess", 10, "chess_puzzles_10");
+  void incrementDailyCounter("chess", "chess_puzzles_10");
 }
