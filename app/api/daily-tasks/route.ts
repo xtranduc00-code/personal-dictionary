@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/get-auth-user";
 import { supabaseForUserData } from "@/lib/supabase-server";
+import { getStreakStatus } from "@/lib/streak-status";
 
 function getLocalDate(req: Request, body?: { date?: string }): string {
   const fromBody = body?.date;
@@ -11,7 +12,15 @@ function getLocalDate(req: Request, body?: { date?: string }): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-/** GET /api/daily-tasks?date=YYYY-MM-DD&keys=a,b,c — today's completions + streak */
+/**
+ * GET /api/daily-tasks?date=YYYY-MM-DD&keys=a,b,c
+ *   → today's completions + full streak status object
+ *
+ * `streak` is now the rich StreakStatusPayload (current/longest/status/
+ * needsSkipRecoveryPrompt/freezesRemaining/...). Old callers reading
+ * `streak` as a number will silently get NaN — adjacent commit updates the
+ * single client (DailyTasksContext) to consume the new shape.
+ */
 export async function GET(req: Request) {
   const user = await getAuthUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -19,31 +28,46 @@ export async function GET(req: Request) {
   const today = getLocalDate(req);
   const db = supabaseForUserData();
 
-  // Client sends the active task keys so we know what to return
   const url = new URL(req.url);
   const keysParam = url.searchParams.get("keys");
   const requestedKeys = keysParam ? keysParam.split(",").filter(Boolean) : [];
 
-  const { data: rows } = await db
-    .from("daily_tasks")
-    .select("task_key, completed_at")
-    .eq("user_id", user.id)
-    .eq("task_date", today);
+  const [tasksRes, streak] = await Promise.all([
+    db
+      .from("daily_tasks")
+      .select("task_key, completed_at")
+      .eq("user_id", user.id)
+      .eq("task_date", today),
+    getStreakStatus(user.id, today),
+  ]);
 
-  const completedMap = new Map((rows ?? []).map((r) => [r.task_key, r.completed_at]));
+  const completedMap = new Map(
+    (tasksRes.data ?? []).map((r) => [r.task_key, r.completed_at]),
+  );
 
-  // Return completions for requested keys (or all DB rows if no keys specified)
   const tasks = requestedKeys.length > 0
     ? requestedKeys.map((key) => ({ taskKey: key, completedAt: completedMap.get(key) ?? null }))
-    : (rows ?? []).map((r) => ({ taskKey: r.task_key, completedAt: r.completed_at }));
+    : (tasksRes.data ?? []).map((r) => ({ taskKey: r.task_key, completedAt: r.completed_at }));
 
-  const { data: streakRow } = await db.rpc("daily_tasks_streak", { p_user_id: user.id });
-  const streak = typeof streakRow === "number" ? streakRow : 0;
+  if (process.env.NODE_ENV === "production") {
+    console.log(
+      "[streak] status",
+      JSON.stringify({
+        user: user.id.slice(0, 8),
+        date: today,
+        current: streak.currentStreak,
+        longest: streak.longestStreak,
+        status: streak.status,
+        miss_week: streak.missCountThisWeek,
+        needs_recovery: streak.needsSkipRecoveryPrompt,
+      }),
+    );
+  }
 
   return NextResponse.json({ tasks, streak, date: today });
 }
 
-/** POST /api/daily-tasks — mark task complete/incomplete */
+/** POST /api/daily-tasks — mark task complete/incomplete (idempotent upsert) */
 export async function POST(req: Request) {
   const user = await getAuthUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -84,8 +108,20 @@ export async function POST(req: Request) {
       .eq("task_key", taskKey);
   }
 
-  const { data: streakRow } = await db.rpc("daily_tasks_streak", { p_user_id: user.id });
-  const streak = typeof streakRow === "number" ? streakRow : 0;
+  const streak = await getStreakStatus(user.id, today);
+
+  if (process.env.NODE_ENV === "production") {
+    console.log(
+      "[streak] tick",
+      JSON.stringify({
+        user: user.id.slice(0, 8),
+        task: taskKey,
+        date: today,
+        completed,
+        current: streak.currentStreak,
+      }),
+    );
+  }
 
   return NextResponse.json({ ok: true, streak });
 }
