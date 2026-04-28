@@ -14,32 +14,11 @@
 alter table public.daily_tasks
   drop constraint if exists daily_tasks_task_key_check;
 
--- ─── 2. Streak freezes (sick day / travel) ──────────────────────────────────
--- One row per (user, frozen_date). Frozen days don't count as misses in the
--- streak walker. Travel mode inserts a range of rows; sick day inserts one.
-create table if not exists public.streak_freezes (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references public.auth_users (id) on delete cascade,
-  freeze_date date not null,
-  freeze_type text not null check (freeze_type in ('sick_day', 'travel')),
-  created_at timestamptz not null default now(),
-  unique (user_id, freeze_date)
-);
-create index if not exists streak_freezes_user_date_idx
-  on public.streak_freezes (user_id, freeze_date);
+-- (sick day / travel "streak_freezes" was reverted — see
+--  scripts/sql/streak_v3_remove_freezes.sql. The 1-miss/7-day forgiveness
+--  rule covers those cases without quota tracking.)
 
-alter table public.streak_freezes enable row level security;
-do $$ begin
-  create policy "streak_freezes owner read" on public.streak_freezes for select using (user_id = auth.uid());
-exception when duplicate_object then null; end $$;
-do $$ begin
-  create policy "streak_freezes owner write" on public.streak_freezes for insert with check (user_id = auth.uid());
-exception when duplicate_object then null; end $$;
-do $$ begin
-  create policy "streak_freezes owner delete" on public.streak_freezes for delete using (user_id = auth.uid());
-exception when duplicate_object then null; end $$;
-
--- ─── 3. Skip-recovery dismissals ────────────────────────────────────────────
+-- ─── 2. Skip-recovery dismissals ────────────────────────────────────────────
 -- One row per (user, dismiss_date). Used to remember the user already saw the
 -- "you missed yesterday" prompt so we don't re-show it the same day.
 create table if not exists public.streak_recovery_dismissals (
@@ -58,7 +37,7 @@ do $$ begin
   create policy "streak_recovery owner write" on public.streak_recovery_dismissals for insert with check (user_id = auth.uid());
 exception when duplicate_object then null; end $$;
 
--- ─── 4. Persistent "skip recovery disabled" flag ────────────────────────────
+-- ─── 3. Persistent "skip recovery disabled" flag ────────────────────────────
 -- Single boolean, lives on a tiny per-user prefs table. Kept separate from
 -- daily_task_templates / daily_tasks so it can be extended (timezone,
 -- day_start_hour, threshold_pct) without touching task tables.

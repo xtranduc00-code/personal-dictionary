@@ -17,7 +17,7 @@ export type StreakStatus = {
   lastActiveDate: string | null;
   missCountThisWeek: number;
   minRequiredTasks: number;
-  status: "active" | "at_risk" | "frozen" | "broken" | "never_started";
+  status: "active" | "at_risk" | "broken" | "never_started";
   yesterdayMissed: boolean;
   needsSkipRecoveryPrompt: boolean;
   yesterdayCompletion: {
@@ -25,7 +25,6 @@ export type StreakStatus = {
     totalTasks: number;
     complete: boolean;
   };
-  freezesRemaining: { sickDaysThisMonth: number; travelDaysThisYear: number };
   today: string;
 };
 
@@ -39,7 +38,6 @@ const EMPTY_STREAK: StreakStatus = {
   yesterdayMissed: false,
   needsSkipRecoveryPrompt: false,
   yesterdayCompletion: { completedTasks: 0, totalTasks: 5, complete: false },
-  freezesRemaining: { sickDaysThisMonth: 1, travelDaysThisYear: 21 },
   today: new Date().toISOString().slice(0, 10),
 };
 
@@ -56,7 +54,6 @@ type DailyTasksState = {
   unmarkTask: (key: string) => Promise<void>;
   refresh: () => Promise<void>;
   saveTemplates: (templates: TaskTemplate[]) => Promise<void>;
-  applySickDay: () => Promise<void>;
   dismissRecoveryPrompt: (action: "skip" | "make_up" | "dont_ask_again") => Promise<void>;
 };
 
@@ -71,7 +68,6 @@ const Ctx = createContext<DailyTasksState>({
   unmarkTask: async () => {},
   refresh: async () => {},
   saveTemplates: async () => {},
-  applySickDay: async () => {},
   dismissRecoveryPrompt: async () => {},
 });
 
@@ -222,18 +218,6 @@ export function DailyTasksProvider({ children }: { children: React.ReactNode }) 
     } catch { /* ignore */ }
   }, [applyStreakResponse]);
 
-  const applySickDay = useCallback(async () => {
-    const date = localDate();
-    try {
-      const res = await authFetch("/api/streak/freeze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ freeze_type: "sick_day", start_date: date }),
-      });
-      if (res.ok) applyStreakResponse(await res.json());
-    } catch { /* ignore */ }
-  }, [applyStreakResponse]);
-
   const dismissRecoveryPrompt = useCallback(
     async (action: "skip" | "make_up" | "dont_ask_again") => {
       // Optimistically hide the banner; server is source of truth on next refresh.
@@ -280,12 +264,11 @@ export function DailyTasksProvider({ children }: { children: React.ReactNode }) 
     unmarkTask,
     refresh: fetchTasks,
     saveTemplates,
-    applySickDay,
     dismissRecoveryPrompt,
   }), [
     templates, tasks, streakStatus, loading, counters,
     markTask, unmarkTask, fetchTasks, saveTemplates,
-    applySickDay, dismissRecoveryPrompt,
+    dismissRecoveryPrompt,
   ]);
 
   return (

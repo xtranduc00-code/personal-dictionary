@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import {
   ChevronDown, Circle, CheckCircle2, Flame, Loader2,
-  ListChecks, Sparkles, Snowflake, X,
+  ListChecks, Sparkles, X,
 } from "lucide-react";
 import { useDailyTasks } from "./daily-tasks-context";
 import { useAuth } from "@/lib/auth-context";
@@ -24,10 +23,9 @@ export function DailyTasksSidebar({
   const { user } = useAuth();
   const {
     templates, tasks, streak, streakStatus, loading, counters,
-    markTask, unmarkTask, applySickDay, dismissRecoveryPrompt,
+    markTask, unmarkTask, dismissRecoveryPrompt,
   } = useDailyTasks();
   const isVi = locale === "vi";
-  const [streakMenuOpen, setStreakMenuOpen] = useState(false);
 
   if (!user) return null;
 
@@ -35,19 +33,17 @@ export function DailyTasksSidebar({
   const total = templates.length;
   const progressPct = total > 0 ? (doneCount / total) * 100 : 0;
   const allDone = doneCount === total && total > 0;
-  const isFrozen = streakStatus.status === "frozen";
   const isAtRisk = streakStatus.status === "at_risk";
-  const sickQuotaLeft = streakStatus.freezesRemaining.sickDaysThisMonth;
+  const isBroken = streakStatus.status === "broken";
 
-  const streakTooltip = isVi
-    ? `Chuỗi hiện tại: ${streak} ngày` +
-      `\nDài nhất: ${streakStatus.longestStreak} ngày` +
-      `\nTuần này: ${streakStatus.missCountThisWeek}/1 miss đã dùng` +
-      `\nTrạng thái: ${streakStatus.status}`
-    : `Current streak: ${streak} days` +
-      `\nLongest: ${streakStatus.longestStreak} days` +
-      `\nThis week: ${streakStatus.missCountThisWeek}/1 miss used` +
-      `\nStatus: ${streakStatus.status}`;
+  const statusLabel = (() => {
+    switch (streakStatus.status) {
+      case "active": return isVi ? "Đang on track" : "On track";
+      case "at_risk": return isVi ? "Sắp gãy chuỗi" : "At risk";
+      case "broken": return isVi ? "Mới gãy" : "Broken";
+      case "never_started": return isVi ? "Chưa bắt đầu" : "New";
+    }
+  })();
 
   /* ── Row style tokens (matching other nav sections) ── */
   const rowBase = "group flex items-center gap-3 rounded-r-xl py-2.5 pr-4 text-base transition-all duration-200";
@@ -84,17 +80,15 @@ export function DailyTasksSidebar({
             : (isVi ? "Nhiệm vụ hôm nay" : "Daily Tasks")}
         </span>
 
-        {/* Progress + streak badges */}
+        {/* Progress + streak badges. Hover the streak badge → tooltip with
+            current/longest/this-week/status breakdown. No click handler — the
+            sidebar header below already toggles task list expansion. */}
         <div className="relative flex items-center gap-1.5">
-          <button
-            type="button"
-            title={streakTooltip}
-            onClick={(e) => { e.stopPropagation(); setStreakMenuOpen((s) => !s); }}
-            className={[
-              "flex items-center gap-1 rounded-full px-2 py-1 text-[12px] font-bold tabular-nums transition-all",
-              isFrozen
-                ? "bg-sky-100 text-sky-600 ring-1 ring-sky-200 dark:bg-sky-900/40 dark:text-sky-300 dark:ring-sky-800/60"
-                : streak >= 30
+          <div className="group relative">
+            <span
+              className={[
+                "flex items-center gap-1 rounded-full px-2 py-1 text-[12px] font-bold tabular-nums transition-all cursor-default",
+                streak >= 30
                   ? "bg-gradient-to-r from-rose-500 via-orange-500 to-amber-400 text-white shadow-md shadow-orange-400/50 dark:shadow-rose-900/50"
                   : streak >= 7
                     ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-sm shadow-orange-300/50 dark:shadow-rose-900/40"
@@ -103,46 +97,54 @@ export function DailyTasksSidebar({
                       : streak >= 1
                         ? "bg-orange-50 text-orange-500 dark:bg-orange-900/25 dark:text-orange-400"
                         : "bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500",
-              streak >= 7 && !isFrozen ? "animate-pulse" : "",
-            ].join(" ")}
-          >
-            {isFrozen ? (
-              <Snowflake className="h-4 w-4" />
-            ) : (
-              <Flame className={`h-4 w-4 ${streak === 0 ? "" : streak >= 7 ? "drop-shadow-[0_0_4px_rgba(255,140,0,0.7)]" : ""}`} fill={streak >= 3 ? "currentColor" : "none"} />
-            )}
-            <span>{streak}</span>
-            {isAtRisk && <span className="text-amber-500" aria-hidden>⚠</span>}
-          </button>
-          {streakMenuOpen && (
-            <div
-              className="absolute right-0 top-full z-30 mt-1 w-60 rounded-xl border border-zinc-200 bg-white py-1.5 text-sm shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
-              onClick={(e) => e.stopPropagation()}
+                streak >= 7 ? "animate-pulse" : "",
+              ].join(" ")}
             >
-              <div className="px-3 py-2 border-b border-zinc-100 dark:border-zinc-800">
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-                  {isVi ? "Chuỗi" : "Streak"}
-                </div>
-                <div className="mt-1 text-zinc-700 dark:text-zinc-300 whitespace-pre-line text-[12px]">
-                  {streakTooltip}
-                </div>
+              <Flame
+                className={`h-4 w-4 ${streak === 0 ? "" : streak >= 7 ? "drop-shadow-[0_0_4px_rgba(255,140,0,0.7)]" : ""}`}
+                fill={streak >= 3 ? "currentColor" : "none"}
+              />
+              <span>{streak}</span>
+              {isAtRisk && <span className="text-amber-500" aria-hidden>⚠</span>}
+            </span>
+            {/* Hover tooltip: instant, styled. Pointer-events-none so it
+                doesn't intercept clicks on the parent toggle. */}
+            <div className="pointer-events-none absolute right-0 top-full z-40 mt-1.5 w-56 rounded-lg border border-zinc-200 bg-white p-3 text-[12px] leading-tight text-zinc-700 opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                {isVi ? "Chuỗi" : "Streak"}
               </div>
-              <button
-                type="button"
-                disabled={isFrozen || sickQuotaLeft === 0}
-                onClick={() => { setStreakMenuOpen(false); applySickDay(); }}
-                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:text-zinc-300 dark:text-zinc-200 dark:hover:bg-zinc-800 dark:disabled:text-zinc-600"
+              <div className="mt-1.5 flex justify-between">
+                <span>{isVi ? "Hiện tại" : "Current"}</span>
+                <span className="font-semibold tabular-nums">{streak} {isVi ? "ngày" : "days"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>{isVi ? "Dài nhất" : "Longest"}</span>
+                <span className="font-semibold tabular-nums">{streakStatus.longestStreak} {isVi ? "ngày" : "days"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>{isVi ? "Miss tuần này" : "This week"}</span>
+                <span className="font-semibold tabular-nums">{streakStatus.missCountThisWeek}/1</span>
+              </div>
+              <div
+                className={`mt-1.5 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                  isAtRisk
+                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                    : isBroken
+                      ? "bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300"
+                      : streak > 0
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                        : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+                }`}
               >
-                <span>{isVi ? "Hôm nay tôi ốm" : "I'm sick today"}</span>
-                <span className="text-[11px] text-zinc-400">{sickQuotaLeft}/1</span>
-              </button>
-              <div className="px-3 py-1.5 text-[11px] text-zinc-400">
+                {statusLabel}
+              </div>
+              <div className="mt-1.5 text-[11px] text-zinc-400">
                 {isVi
-                  ? `Du lịch còn ${streakStatus.freezesRemaining.travelDaysThisYear} ngày năm nay`
-                  : `${streakStatus.freezesRemaining.travelDaysThisYear} travel days left this year`}
+                  ? "1 miss/7 ngày được tha. 2 miss liên tiếp → gãy."
+                  : "1 miss/7 days forgiven. 2 in a row breaks."}
               </div>
             </div>
-          )}
+          </div>
           <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${
             allDone
               ? "bg-emerald-500 text-white dark:bg-emerald-600"

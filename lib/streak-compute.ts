@@ -1,29 +1,31 @@
 /**
  * Forgiving streak algorithm — computes a user's current/longest streak from
- * raw daily completion counts and freeze records. Pure function so it can be
- * unit-tested without a DB.
+ * raw daily completion counts. Pure function so it can be unit-tested without
+ * a DB.
  *
  * Rules (matches the spec in components/daily-tasks):
  *   - A day is "complete" if completedTaskCount >= ceil(templateCount * threshold / 100)
  *     (default threshold 100% — every task done).
- *   - A day in the freezes set never breaks the streak (skipped over, not
- *     counted as miss). Sick day / travel mode mark days here.
  *   - Walking back from `today` (today inclusive):
  *       - Today incomplete is OK (mid-day) — anchor effective start at yesterday
  *         instead of breaking immediately.
- *       - 2 consecutive non-frozen non-complete days → break.
+ *       - 2 consecutive non-complete days → break.
  *       - 1 miss inside any rolling 7-day window is OK; a 2nd miss inside the
  *         same window → break. ("Never miss twice" / Atomic Habits.)
  *   - Status:
- *       'active'     — last activity was today or yesterday, no warning
- *       'at_risk'    — used the 7-day window's 1 miss budget (one more = break)
- *       'frozen'     — today is in the freezes set
- *       'broken'     — current_streak === 0 AND there was activity in the
- *                      last 14 days (otherwise 'active' for new users)
+ *       'active'        — last activity was today or yesterday, no warning
+ *       'at_risk'       — used the 7-day window's 1 miss budget
+ *       'broken'        — current_streak === 0 AND there was activity in the
+ *                         last 14 days
+ *       'never_started' — no recent activity (new user)
  *
  * Caller is responsible for converting to the user's local date *before*
  * passing into this function — everything here is in plain `YYYY-MM-DD`
  * strings, no timezone math.
+ *
+ * Sick day / travel mode were intentionally removed (see streak_v3_remove_freezes.sql)
+ * because the 1-miss/7-day rule already covers those cases for personal use,
+ * and quota tracking added complexity with little value at single-user scale.
  */
 
 export type DayCompletion = {
@@ -36,7 +38,6 @@ export type DayCompletion = {
 export type StreakInput = {
     today: string; // YYYY-MM-DD
     completionsByDate: Map<string, number>; // date -> distinctCompletedTaskCount
-    frozenDates: Set<string>; // dates marked sick_day or travel
     templateCount: number; // current number of tasks in the user's template
     thresholdPct?: number; // default 100
     /** How many calendar days back to scan. 90 covers ~3 months which is plenty
@@ -47,7 +48,6 @@ export type StreakInput = {
 export type StreakStatus =
     | "active"
     | "at_risk"
-    | "frozen"
     | "broken"
     | "never_started";
 
@@ -81,7 +81,6 @@ export function computeStreak(input: StreakInput): StreakOutput {
     const {
         today,
         completionsByDate,
-        frozenDates,
         templateCount,
         thresholdPct = 100,
         lookbackDays = 90,
@@ -118,14 +117,9 @@ export function computeStreak(input: StreakInput): StreakOutput {
         // Walked past the user's first-ever activity → stop, the user wasn't
         // around earlier so don't count those days as misses.
         if (oldestActivity !== null && day < oldestActivity) break;
-        const frozen = frozenDates.has(day);
         const complete = isComplete(completionsByDate, day, minRequired);
 
-        if (frozen) {
-            // Frozen days don't break the streak and don't count toward the run
-            // (they're "paused"). Reset consecutive-miss counter.
-            consecutiveMisses = 0;
-        } else if (complete) {
+        if (complete) {
             currentRun += 1;
             consecutiveMisses = 0;
             if (lastActive === null) lastActive = day;
@@ -157,12 +151,9 @@ export function computeStreak(input: StreakInput): StreakOutput {
     cursor = today;
     for (let i = 0; i < lookbackDays; i += 1) {
         const day = cursor;
-        const frozen = frozenDates.has(day);
         const complete = isComplete(completionsByDate, day, minRequired);
 
-        if (frozen) {
-            consecMissHere = 0;
-        } else if (complete) {
+        if (complete) {
             runHere += 1;
             if (runHere > longestRun) longestRun = runHere;
             consecMissHere = 0;
@@ -185,7 +176,7 @@ export function computeStreak(input: StreakInput): StreakOutput {
     }
     if (currentRun > longestRun) longestRun = currentRun;
 
-    // --- Misses in last 7 days (today inclusive), excluding frozen ---
+    // --- Misses in last 7 days (today inclusive) ---
     // Only count *forgiven* misses inside the active run window — not "pre-
     // streak" days where the user simply hadn't started using the app yet.
     // (Otherwise a brand-new "5 in a row" user would show as `at_risk`
@@ -195,13 +186,14 @@ export function computeStreak(input: StreakInput): StreakOutput {
         (d) => d >= windowStart,
     ).length;
 
-    const yesterdayMissed =
-        !frozenDates.has(addDays(today, -1)) &&
-        !isComplete(completionsByDate, addDays(today, -1), minRequired);
+    const yesterdayMissed = !isComplete(
+        completionsByDate,
+        addDays(today, -1),
+        minRequired,
+    );
 
     let status: StreakStatus;
-    if (frozenDates.has(today)) status = "frozen";
-    else if (currentRun === 0) {
+    if (currentRun === 0) {
         const recentActivity = (() => {
             for (let i = 0; i < 14; i += 1) {
                 if ((completionsByDate.get(addDays(today, -i)) ?? 0) > 0) return true;
