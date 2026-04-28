@@ -234,8 +234,10 @@ function GuardianReadInner() {
         setTitle(data.title ?? "Article");
         setHtml(data.html ?? "");
         setSourceUrl(data.url ?? urlParam);
-        // Auto-detect daily task
-        import("@/components/daily-tasks/daily-tasks-auto-detect").then(({ markDailyTask }) => markDailyTask("read_guardian")).catch(() => {});
+        // (No daily-task auto-detect here — `read_guardian` was removed from
+        //  DEFAULT_TEMPLATES, so this call inserted orphan rows that didn't
+        //  count toward streak completion. Daily News task fires from Engoo
+        //  lessons; HBR task from smart-reader. Guardian reads are bonus.)
       } catch {
         if (!cancelled) setError(t("networkErrorTryAgain"));
       } finally {

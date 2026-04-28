@@ -73,7 +73,6 @@ export async function POST(req: Request) {
   const value = typeof newValue === "number" ? newValue : 0;
 
   let completed = false;
-  let streak = 0;
   if (value >= threshold) {
     const { error: taskErr } = await db.from("daily_tasks").upsert(
       {
@@ -86,9 +85,11 @@ export async function POST(req: Request) {
       { onConflict: "user_id,task_date,task_key", ignoreDuplicates: false },
     );
     if (!taskErr) completed = true;
-    const { data: streakRow } = await db.rpc("daily_tasks_streak", { p_user_id: user.id });
-    streak = typeof streakRow === "number" ? streakRow : 0;
+    // The streak refresh used to call the legacy `daily_tasks_streak()` RPC
+    // here, but no client reads `streak` from this endpoint — the GET on
+    // `/api/daily-tasks` re-runs the TS computeStreak() right after this
+    // returns. Removed the orphan call.
   }
 
-  return NextResponse.json({ value, completed, streak });
+  return NextResponse.json({ value, completed });
 }
