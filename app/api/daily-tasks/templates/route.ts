@@ -8,6 +8,10 @@ const DEFAULT_TEMPLATES = [
   { id: "vocab_10", label: "5 vocab", href: "/flashcards", sort_order: 2 },
   { id: "chess_puzzles_10", label: "10 Chess Puzzles", href: "/chess", sort_order: 3 },
   { id: "diary_write", label: "Write diary", href: "/notes/diary", sort_order: 4 },
+  // Manual-check task — no auto-detect, user clicks the checkbox after they
+  // actually meditated. Keeps the streak honest and exercises the manual-tick
+  // path without any new schema/types.
+  { id: "meditation_10min", label: "10 min meditation", href: "/", sort_order: 5 },
 ];
 
 /** GET — fetch user's task templates (seed defaults on first use) */
