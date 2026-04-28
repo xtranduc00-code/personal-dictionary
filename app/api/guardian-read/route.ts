@@ -4,6 +4,10 @@ import {
   normalizeGuardianArticleUrl,
 } from "@/lib/guardian-article-url";
 import { sanitizeGuardianArticleHtml } from "@/lib/sanitize-html-app";
+import {
+  logArticleExtract,
+  measureArticleHtml,
+} from "@/lib/article-html-validator";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -120,6 +124,15 @@ export async function GET(req: NextRequest) {
   if (!htmlSanitized.trim() || htmlSanitized.length < 40) {
     return jsonErr(422, "Article content was empty after processing.", "sanitized_empty");
   }
+
+  // Cross-source semantic validator — same shape of log as the HBR pipeline.
+  // Surfaces "only-paragraphs" articles in production logs so the team can
+  // spot Guardian Content API regressions or sanitizer over-stripping.
+  logArticleExtract({
+    source: "guardian",
+    url: articleUrl.toString(),
+    metrics: measureArticleHtml(htmlSanitized),
+  });
 
   return new NextResponse(
     JSON.stringify({

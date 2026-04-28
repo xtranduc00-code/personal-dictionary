@@ -10,9 +10,9 @@ import { useI18n } from "@/components/i18n-provider";
 import { formatRelativeDaysAgo } from "@/lib/format-relative-days-ago";
 import { Pagination } from "@/components/pagination";
 import {
-  buildGuardianListEpubBlob,
+  buildKindleEpubBlob,
   fetchGuardianArticlesForKindleEpub,
-  GUARDIAN_KINDLE_EPUB_MAX_ARTICLES,
+  KINDLE_EPUB_MAX_ARTICLES,
   triggerEpubDownload,
 } from "@/lib/guardian-kindle-epub";
 
@@ -282,11 +282,11 @@ export function GuardianDailyNewsPanel({
       const articles = await fetchGuardianArticlesForKindleEpub(
         filteredSport,
         3,
-        GUARDIAN_KINDLE_EPUB_MAX_ARTICLES,
+        KINDLE_EPUB_MAX_ARTICLES,
       );
       const day = new Date().toISOString().slice(0, 10);
       const bookTitle = `Guardian Sport — ${day}`;
-      const blob = await buildGuardianListEpubBlob(articles, bookTitle);
+      const blob = await buildKindleEpubBlob(articles, bookTitle);
       const safeDay = day.replace(/-/g, "");
       triggerEpubDownload(blob, `guardian-sport-${safeDay}.epub`);
     } catch {

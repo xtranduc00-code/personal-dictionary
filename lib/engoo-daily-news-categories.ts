@@ -1,4 +1,5 @@
 import { ENGOO_DEFAULT_CATEGORY_ID } from "@/lib/engoo-api-config";
+import type { GuardianListSection } from "@/lib/guardian-list-fetch";
 
 /**
  * Daily News sub-tabs on engoo.com use URL segments like
@@ -55,6 +56,28 @@ export function getEngooDailyNewsCategoryBySlug(
  * `category` query for `/api/engoo/list`: UUID → Engoo API as-is; known slug →
  * parent Daily News UUID + topic filter; `all` / empty → parent only.
  */
+/**
+ * Daily News tab slug → Guardian Content API section ID for the Kindle EPUB
+ * download. Tab-rendered list items are Engoo lessons (not articles), so the
+ * EPUB content intentionally diverges from what's on screen — pull fresh from
+ * Guardian on click.
+ *
+ * Single-section per tab on purpose: simpler than merging+deduping multiple
+ * sections, and a personal Kindle reader doesn't need the breadth.
+ */
+export const KINDLE_EPUB_TAB_GUARDIAN_SECTION: Record<
+  EngooDailyNewsCategoryDef["slug"],
+  GuardianListSection
+> = {
+  all: "world",
+  "business-politics": "business",
+  "science-technology": "technology",
+  "health-lifestyle": "lifeandstyle",
+  "culture-society": "culture",
+  "travel-experiences": "travel",
+  sport: "sport",
+};
+
 export function parseEngooListCategoryQueryParam(
   raw: string | null | undefined,
 ): { apiCategoryId: string; topicSlug: string | null } {

@@ -5,8 +5,13 @@
  * text, structured metadata, and the canonical hero image with zero guessing.
  */
 
+import * as cheerio from "cheerio";
 import { sanitizeHbrArticleHtml } from "@/lib/sanitize-html-app";
 import { cleanHbrArticleHtml } from "@/lib/hbr-content-cleaner";
+import {
+    logArticleExtract,
+    measureArticleHtml,
+} from "@/lib/article-html-validator";
 
 type HbrAuthor = { name?: string; bio?: string };
 
@@ -47,26 +52,62 @@ export type HbrExtractedArticle = {
     category: string | null;
 };
 
-function decodeEntities(s: string): string {
+// HBR's CMS sometimes double-encodes ("Pok&amp;eacute;mon" instead of
+// "Pok&eacute;mon") and uses Latin-1 named entities (&eacute;, &ouml;, ...) the
+// original short table didn't cover — the title rendered literally as
+// "Pok&amp;eacute;mon" in the reader. Looping until the string stops changing
+// handles double encoding; the table covers the named accented characters HBR
+// uses in titles, bylines, and body.
+const NAMED_ENTITIES: Record<string, string> = {
+    amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'", nbsp: " ",
+    rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“",
+    ndash: "–", mdash: "—", hellip: "…",
+    middot: "·", bull: "•", copy: "©", reg: "®",
+    trade: "™", deg: "°", laquo: "«", raquo: "»",
+    iexcl: "¡", iquest: "¿",
+    eacute: "é", aacute: "á", iacute: "í", oacute: "ó",
+    uacute: "ú", yacute: "ý",
+    egrave: "è", agrave: "à", igrave: "ì", ograve: "ò",
+    ugrave: "ù",
+    ecirc: "ê", acirc: "â", icirc: "î", ocirc: "ô",
+    ucirc: "û",
+    euml: "ë", auml: "ä", iuml: "ï", ouml: "ö",
+    uuml: "ü", yuml: "ÿ",
+    ntilde: "ñ", atilde: "ã", otilde: "õ",
+    Eacute: "É", Aacute: "Á", Iacute: "Í", Oacute: "Ó",
+    Uacute: "Ú",
+    Egrave: "È", Agrave: "À", Ecirc: "Ê", Acirc: "Â",
+    Ocirc: "Ô",
+    Euml: "Ë", Auml: "Ä", Ouml: "Ö", Uuml: "Ü",
+    Ntilde: "Ñ",
+    ccedil: "ç", Ccedil: "Ç",
+    szlig: "ß", oslash: "ø", Oslash: "Ø", aring: "å",
+    Aring: "Å",
+    aelig: "æ", AElig: "Æ", oelig: "œ", OElig: "Œ",
+};
+
+function decodeEntitiesOnce(s: string): string {
     return s
-        .replace(/&amp;/g, "&")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/&quot;/g, '"')
-        .replace(/&apos;/g, "'")
-        .replace(/&#39;/g, "'")
-        .replace(/&nbsp;/g, " ")
-        .replace(/&rsquo;/g, "\u2019")
-        .replace(/&lsquo;/g, "\u2018")
-        .replace(/&rdquo;/g, "\u201D")
-        .replace(/&ldquo;/g, "\u201C")
-        .replace(/&ndash;/g, "\u2013")
-        .replace(/&mdash;/g, "\u2014")
-        .replace(/&hellip;/g, "\u2026")
+        .replace(/&([a-zA-Z][a-zA-Z0-9]+);/g, (m, name: string) =>
+            NAMED_ENTITIES[name] ?? m,
+        )
         .replace(/&#(\d+);/g, (_, n: string) => String.fromCharCode(Number(n)))
         .replace(/&#x([0-9a-f]+);/gi, (_, n: string) =>
             String.fromCharCode(parseInt(n, 16)),
         );
+}
+
+function decodeEntities(s: string): string {
+    if (!s || !s.includes("&")) return s;
+    let prev = "";
+    let curr = s;
+    let iters = 0;
+    while (curr !== prev && iters < 5) {
+        prev = curr;
+        curr = decodeEntitiesOnce(curr);
+        iters += 1;
+    }
+    return curr;
 }
 
 function stripHtml(s: string): string {
@@ -84,75 +125,282 @@ function escapeHtml(s: string): string {
         .replace(/'/g, "&#39;");
 }
 
-/**
- * `articleBody` from HBR's __NEXT_DATA__ is a single long string with
- * section titles embedded inline — no newlines, no terminator, no marker.
- * General heading detection (regex + length heuristics) is unreliable on
- * that, so we use an explicit allow-list of known HBR section titles
- * gathered from observed articles. Anything that matches becomes <h2>;
- * everything between matches is sentence-split into ~4-sentence paragraphs
- * wrapped in <p>.
- *
- * Add new titles to HBR_SECTION_TITLES as we encounter them — this is a
- * pragmatic stopgap until HBR exposes structured headings in __NEXT_DATA__.
- */
 const SENTENCES_PER_PARAGRAPH = 4;
 
-const HBR_SECTION_TITLES: string[] = [
-    "The Erosion of Revenue",
-    "Advertising revenue",
-    "Transaction fees",
-    "Subscriptions and membership fees",
-    "Ecosystem services",
-    "The Erosion of Competitive Advantage",
-    "What Can Platforms Do?",
-    "Resist",
-    "Adapt",
-    "Reinvent",
-    "Waiting is No Longer a Good Strategy",
-    "The Commitment Paradox",
-    "Where Flexibility Works—and Where It Fails",
-    "Boundary Conditions Matter",
-    "Rethinking Corporate Advantage",
-];
-
-function escapeRegex(s: string): string {
-    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/**
+ * Pull all `<h2>`/`<h3>`/`<h4>` text from HBR's rich HTML body. Even when the
+ * rich HTML is paywall-truncated to ~half the prose, the heading scaffolding
+ * usually survives — and those headings are the most reliable way to find
+ * section boundaries in `articleBody` (a single newline-free string).
+ */
+function extractHeadingsFromHtml(html: string): string[] {
+    if (!html || !html.trim()) return [];
+    try {
+        const $ = cheerio.load(`<div id="__hbr_h__">${html}</div>`);
+        const titles = new Set<string>();
+        $("#__hbr_h__ h2, #__hbr_h__ h3, #__hbr_h__ h4").each((_, el) => {
+            const t = decodeEntities(
+                $(el).text().replace(/\s+/g, " ").trim(),
+            );
+            if (t && t.length > 0 && t.length <= 200) titles.add(t);
+        });
+        return Array.from(titles);
+    } catch {
+        return [];
+    }
 }
 
-function articleBodyToHtml(text: string): string {
-    if (!text) return "";
+/**
+ * Title-Case heading detection inside HBR's flat `articleBody` plain text.
+ *
+ * Why this exists: HBR's CMS doesn't always include `<h2>` markers in
+ * `article.content` — articles like "The Future Is Shrouded in an AI Fog"
+ * have all headings ("The Human Capital Dilemma", "Corporate Math", etc.)
+ * inline as Title-Case phrases concatenated between sentences, with no
+ * structured field anywhere in `__NEXT_DATA__`. hbr.org's React layer
+ * parses these client-side; we replicate that on the server.
+ *
+ * The detector is structural (not vocabulary-based — "Principle"/"Step" lists
+ * are a dead end). At every sentence boundary it asks: does the text right
+ * after the boundary look like a Title-Case heading?
+ *
+ * Acceptance rule (tuned against AI Fog, Walkman, Tim Cook, Negotiating):
+ *
+ *   STRONG signal (always accept):
+ *     - Cut is followed by `:` then a Cap+lower sentence start. Catches
+ *       numbered headings like "Principle 1: Convenience always trumps...".
+ *
+ *   WEAK signal (accept only if ≥ 3 content words):
+ *     - Cut ends on a Title-Case content word, lookahead is `[A-Z][a-z]`,
+ *       run has ≥ 3 content words (Title-Case AND not in stopword list).
+ *
+ *   Trade-off: 2-word "The Solution" / "Corporate Math" / "Buy Outcomes"
+ *   headings get dropped to keep "Engineer Gunpei Yokoi"-style person names
+ *   from being promoted to <h2>. Conservative on purpose — better to under-
+ *   detect headings (clean reading) than over-detect (jarring noise).
+ *
+ *   Always reject: transition-stopword starts (But/And/However/...), trailing
+ *   possessives ('s), candidates outside 8–80 chars, runs < 2 words.
+ */
+const HEADING_LEADING_ARTICLES = new Set(["the", "a", "an", "this"]);
+const HEADING_INNER_STOPWORDS = new Set([
+    "a", "an", "the", "of", "in", "on", "at", "to", "for", "and", "or", "with",
+    "as", "by", "vs", "from", "into", "that", "this", "these", "those",
+]);
+const HEADING_TRANSITION_STOPWORDS = new Set([
+    "but", "and", "or", "so", "yet", "now", "then", "however", "therefore",
+    "indeed", "nevertheless", "meanwhile", "besides", "also", "further",
+    "furthermore", "moreover", "thus", "hence", "consequently", "accordingly",
+    "still", "additionally", "specifically", "similarly", "conversely",
+]);
 
-    // Longest titles first so the alternation in the split regex picks the
-    // most specific match (e.g. "The Erosion of Competitive Advantage" beats
-    // "The Erosion of Revenue" at a position where they share a prefix).
-    const sortedTitles = [...HBR_SECTION_TITLES].sort(
-        (a, b) => b.length - a.length,
-    );
-    const titlePattern = sortedTitles.map(escapeRegex).join("|");
-    const splitRegex = new RegExp(`(${titlePattern})`, "g");
-    const titleSet = new Set(HBR_SECTION_TITLES);
+function isTitleCaseWord(w: string): boolean {
+    if (!w) return false;
+    return /^[A-Z][A-Za-z]*$/.test(w);
+}
 
-    const parts = text.split(splitRegex);
-    let html = "";
+function isDigitOrRoman(w: string): boolean {
+    if (!w) return false;
+    return /^\d{1,3}$/.test(w) || /^[IVXLCDM]+$/.test(w);
+}
 
-    for (const raw of parts) {
-        const part = raw.trim();
-        if (!part) continue;
+type DetectedHeading = { start: number; end: number; text: string };
 
-        if (titleSet.has(part)) {
-            html += `<h2>${escapeHtml(part)}</h2>`;
+function detectInlineHeadings(text: string): DetectedHeading[] {
+    if (!text) return [];
+    const out: DetectedHeading[] = [];
+
+    // Candidate sentence-start positions (incl. very start of text).
+    const candidatePositions: number[] = [0];
+    const boundaryRe = /[.?!][”’"']?\s+/g;
+    let bm: RegExpExecArray | null;
+    while ((bm = boundaryRe.exec(text)) !== null) {
+        candidatePositions.push(bm.index + bm[0].length);
+    }
+
+    for (const start of candidatePositions) {
+        const slice = text.slice(start, start + 200);
+        const tokens: { w: string; end: number }[] = [];
+        const wordRe = /\S+/g;
+        let wm: RegExpExecArray | null;
+        while ((wm = wordRe.exec(slice)) !== null) {
+            tokens.push({ w: wm[0], end: wm.index + wm[0].length });
+            if (tokens.length >= 12) break;
+        }
+        if (tokens.length < 2) continue;
+
+        const stripTrailingPunct = (w: string) => w.replace(/[,;:]+$/, "");
+        const firstClean = stripTrailingPunct(tokens[0].w);
+        const firstLower = firstClean.toLowerCase();
+        if (HEADING_TRANSITION_STOPWORDS.has(firstLower)) continue;
+        if (
+            !isTitleCaseWord(firstClean) &&
+            !HEADING_LEADING_ARTICLES.has(firstLower)
+        ) {
             continue;
         }
 
-        const sentences = part.match(/[^.!?]+[.!?]+/g) ?? [part];
-        for (let i = 0; i < sentences.length; i += SENTENCES_PER_PARAGRAPH) {
-            const para = sentences
-                .slice(i, i + SENTENCES_PER_PARAGRAPH)
-                .join(" ")
-                .trim();
-            if (para) html += `<p>${escapeHtml(para)}</p>`;
+        // Walk the run: Title-Case, digit/Roman, OR inner stopword.
+        type RunEntry = {
+            end: number;
+            isTitleCase: boolean;
+            isContent: boolean; // Title-Case AND not stopword
+            isDigit: boolean;
+            endsWithColon: boolean; // raw token ended in `:` (e.g. "1:")
+        };
+        const run: RunEntry[] = [];
+        for (let i = 0; i < tokens.length; i++) {
+            const tok = tokens[i];
+            const cleanW = stripTrailingPunct(tok.w);
+            const lower = cleanW.toLowerCase();
+            const isTC = isTitleCaseWord(cleanW);
+            const isStop = HEADING_INNER_STOPWORDS.has(lower);
+            const isDigit = isDigitOrRoman(cleanW);
+            if (!isTC && !isStop && !isDigit) break;
+            run.push({
+                end: tok.end,
+                isTitleCase: isTC,
+                isContent: isTC && !isStop,
+                isDigit,
+                endsWithColon: /:$/.test(tok.w),
+            });
         }
+        if (run.length < 2) continue;
+
+        let bestEnd = -1;
+        let bestText = "";
+        for (let cut = 1; cut < run.length; cut++) {
+            const r = run[cut];
+            // Cut must end at a content word OR a digit (numbered heading).
+            if (!r.isContent && !r.isDigit) continue;
+
+            // Look ahead: skip optional `:` glued to the cut token, optional
+            // whitespace + `:` separator, optional opening quote, then expect Cap+low.
+            // Quote handling catches Walkman's `Principle 2: "The street finds...`.
+            let j = r.end;
+            let isStrongColon = r.endsWithColon;
+            while (j < slice.length && /\s/.test(slice[j])) j += 1;
+            if (slice[j] === ":") {
+                isStrongColon = true;
+                j += 1;
+                while (j < slice.length && /\s/.test(slice[j])) j += 1;
+            }
+            while (j < slice.length && /[“”‘’"']/.test(slice[j])) j += 1;
+            if (j + 1 >= slice.length) continue;
+            if (!/[A-Z]/.test(slice[j]) || !/[a-z]/.test(slice[j + 1])) continue;
+
+            const candidate = slice.slice(0, r.end).trim().replace(/[,;:]$/, "");
+            if (candidate.length < 8 || candidate.length > 80) continue;
+            if (/['’]/.test(candidate)) continue;
+
+            const contentCount = run
+                .slice(0, cut + 1)
+                .filter((x) => x.isContent).length;
+
+            // STRONG signal: colon-after with at least 1 content/digit word.
+            // WEAK signal: 3+ content words, OR 2 content words at ≥20 chars
+            // (rescues "Optimizing for the Unknown"-style headings without
+            //  promoting "Engineer Gunpei"/"Sara Jones" two-word person names).
+            const strongOk = isStrongColon && (contentCount >= 1 || r.isDigit);
+            const weakOk =
+                contentCount >= 3 ||
+                (contentCount >= 2 && candidate.length >= 20);
+            if (!strongOk && !weakOk) continue;
+
+            bestEnd = r.end;
+            bestText = candidate;
+        }
+
+        if (bestEnd > 0) {
+            out.push({ start, end: start + bestEnd, text: bestText });
+        }
+    }
+
+    // Drop overlaps (e.g. consecutive matches at boundary positions inside a
+    // detected heading). Keep the earliest match for each region.
+    const sorted = out.sort((a, b) => a.start - b.start);
+    const merged: DetectedHeading[] = [];
+    for (const h of sorted) {
+        const prev = merged[merged.length - 1];
+        if (prev && h.start < prev.end) continue;
+        merged.push(h);
+    }
+    return merged;
+}
+
+function splitIntoParagraphs(part: string): string {
+    let html = "";
+    const sentences = part.match(/[^.!?]+[.!?]+/g) ?? [part];
+    for (let i = 0; i < sentences.length; i += SENTENCES_PER_PARAGRAPH) {
+        const para = sentences
+            .slice(i, i + SENTENCES_PER_PARAGRAPH)
+            .join(" ")
+            .trim();
+        if (para) html += `<p>${escapeHtml(para)}</p>`;
+    }
+    return html;
+}
+
+/**
+ * Build semantic HTML from HBR's flat `articleBody`. Cuts the body at every
+ * heading position (from `knownHeadings` extracted from rich HTML PLUS
+ * Title-Case phrases detected via `detectInlineHeadings`), emitting `<h2>`
+ * for each heading and sentence-grouped `<p>` for the body chunks between.
+ *
+ * Positional (not regex-split) so identical strings appearing inside body
+ * prose don't get accidentally promoted to headings.
+ */
+function articleBodyToHtml(text: string, knownHeadings: string[] = []): string {
+    if (!text) return "";
+
+    type Marker = { start: number; end: number; text: string };
+    const markers: Marker[] = [];
+
+    // Headings extracted from rich HTML — match each as a substring (first
+    // occurrence) so we can position them in articleBody.
+    for (const h of knownHeadings) {
+        const trimmed = h.trim();
+        if (!trimmed) continue;
+        const idx = text.indexOf(trimmed);
+        if (idx < 0) continue;
+        markers.push({ start: idx, end: idx + trimmed.length, text: trimmed });
+    }
+
+    // Heuristic Title-Case headings inside the plain text.
+    for (const h of detectInlineHeadings(text)) {
+        markers.push(h);
+    }
+
+    if (markers.length === 0) {
+        return splitIntoParagraphs(text) || `<p>${escapeHtml(text)}</p>`;
+    }
+
+    // Sort by start, drop overlaps (prefer the longer marker when overlapping).
+    markers.sort((a, b) => a.start - b.start || b.end - a.end);
+    const finalMarkers: Marker[] = [];
+    for (const m of markers) {
+        const prev = finalMarkers[finalMarkers.length - 1];
+        if (prev && m.start < prev.end) {
+            // Overlap: keep whichever covers the most ground.
+            if (m.end - m.start > prev.end - prev.start) {
+                finalMarkers[finalMarkers.length - 1] = m;
+            }
+            continue;
+        }
+        finalMarkers.push(m);
+    }
+
+    let html = "";
+    let cursor = 0;
+    for (const m of finalMarkers) {
+        if (m.start > cursor) {
+            html += splitIntoParagraphs(text.slice(cursor, m.start).trim());
+        }
+        html += `<h2>${escapeHtml(m.text)}</h2>`;
+        cursor = m.end;
+    }
+    if (cursor < text.length) {
+        html += splitIntoParagraphs(text.slice(cursor).trim());
     }
 
     return html || `<p>${escapeHtml(text)}</p>`;
@@ -238,51 +486,55 @@ export function extractHbrArticleFromHtml(
     }
     // ". . ." appears in HBR copy as a section divider — collapse to a
     // single ellipsis so it doesn't get sentence-split into 3 empty <p>s.
-    textContent = textContent.replace(/\.\s\.\s\.\s?/g, "\u2026 ");
+    textContent = textContent.replace(/\.\s\.\s\.\s?/g, "… ");
 
     // `article.content` is the rendered HTML (paragraphs, links, headings,
     // figures). Sanitize first, then strip HBR-specific cruft (share buttons,
-    // image-credit lines, empty bullets) so the reader stays clean. When the
-    // rendered HTML is suspiciously short (paywall stub: only the lede
-    // paragraph survived) but `articleBody` still has the full prose, fall
-    // back to wrapping the plain text in <p> tags so the reader shows the
-    // whole article — losing inline figures is preferable to losing 95% of
-    // the body.
+    // image-credit lines, empty bullets) so the reader stays clean.
+    //
+    // Three reconstruction paths, picked by inspecting cleanedHtml:
+    //
+    //   1. Paywall stub (cleaned text < 50% of articleBody): rebuild from
+    //      articleBody + heading detection. We lose inline figures but keep
+    //      the full prose — preferable to losing 95% of the body.
+    //   2. cleanedHtml has structural headings (Walkman: 5×<h2>, Negotiating:
+    //      1×<h2>): use cleanedHtml as-is.
+    //   3. cleanedHtml has full prose but ZERO structural headings (AI Fog,
+    //      Tim Cook): rebuild from articleBody + heading detection. HBR's
+    //      CMS doesn't always include <h2> in `article.content`; the same
+    //      headings exist as Title-Case phrases inline in articleBody.
     const rawHtml = typeof article.content === "string" ? article.content : "";
     const sanitized = rawHtml ? sanitizeHbrArticleHtml(rawHtml) : "";
     const cleanedHtml = sanitized ? cleanHbrArticleHtml(sanitized) : "";
     const renderedTextLength = cleanedHtml ? stripHtml(cleanedHtml).length : 0;
-    const usingFallback = renderedTextLength < textContent.length * 0.5;
+    const richHeadings = extractHeadingsFromHtml(cleanedHtml || sanitized || rawHtml);
+    const isPaywallStub = renderedTextLength < textContent.length * 0.5;
+    const cleanedHasNoStructuralHeadings =
+        !!cleanedHtml && richHeadings.length === 0;
+    const usingFallback = isPaywallStub || cleanedHasNoStructuralHeadings;
     const content = usingFallback
-        ? articleBodyToHtml(textContent)
+        ? articleBodyToHtml(textContent, richHeadings)
         : cleanedHtml;
 
-    // Pipeline length tracker — lets us see in Netlify logs exactly where
-    // the body shrinks. Drop "5–15 random char gaps" usually means the
-    // upstream `articleBody` was already corrupt (paywall degraded payload),
-    // because every transform below this only removes *whole elements*.
-    if (typeof process !== "undefined" && process.env.NODE_ENV === "production") {
-        try {
-            const finalTextLen = stripHtml(content).length;
-            console.log(
-                "[hbr-extract] lengths",
-                JSON.stringify({
-                    url,
-                    rawArticleBodyLen: rawArticleBody.length,
-                    decodedTextContentLen: textContent.length,
-                    rawContentHtmlLen: rawHtml.length,
-                    sanitizedHtmlLen: sanitized.length,
-                    cleanedHtmlLen: cleanedHtml.length,
-                    cleanedTextLen: renderedTextLength,
-                    finalContentHtmlLen: content.length,
-                    finalContentTextLen: finalTextLen,
-                    usedFallback: usingFallback,
-                }),
-            );
-        } catch {
-            /* ignore */
-        }
-    }
+    // Unified extract metric log — visible in Netlify for regression hunting.
+    // Length deltas (raw articleBody vs final HTML text) used to be in a
+    // separate `[hbr-extract] lengths` log; folded into the single validator
+    // emission so production grep stays simple. The same logger emits a WARN
+    // for "only paragraphs" articles (extract layer flatten smell).
+    const metrics = measureArticleHtml(content);
+    logArticleExtract({
+        source: "hbr",
+        url,
+        metrics,
+        extra: {
+            rawArticleBodyLen: rawArticleBody.length,
+            cleanedHtmlLen: cleanedHtml.length,
+            usedFallback: usingFallback,
+            richHeadingCount: richHeadings.length,
+            isPaywallStub,
+            cleanedHasNoStructuralHeadings,
+        },
+    });
     const byline = joinAuthors(article.authors);
     const excerpt =
         decodeEntities((article.dek ?? "").trim()) ||

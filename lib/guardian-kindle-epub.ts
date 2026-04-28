@@ -1,6 +1,10 @@
 import JSZip from "jszip";
 import type { GuardianListItem } from "@/lib/guardian-content-types";
 import { htmlFragmentToArticleParagraphs } from "@/lib/guardian-engoo-tutor-payload";
+import {
+  shouldSkipForKindleEpub,
+  type GuardianKindleSkipReason,
+} from "@/lib/guardian-article-url";
 
 function escapeXml(s: string): string {
   return s
@@ -27,10 +31,7 @@ body {
   padding: 1.25rem 1rem 2.5rem;
   background: #faf7f1;
   color: #262626;
-  hyphens: auto;
-  -webkit-hyphens: auto;
   overflow-wrap: break-word;
-  text-rendering: optimizeLegibility;
 }
 p {
   margin-top: 0;
@@ -67,7 +68,7 @@ ol.toc-list li { margin-bottom: 0.45rem; }
 const GUARDIAN_EPUB_IMAGE_API = "/api/guardian-epub-image";
 
 /** Max articles packed into one Kindle EPUB (each item = full HTML fetch + chapter). */
-export const GUARDIAN_KINDLE_EPUB_MAX_ARTICLES = 15;
+export const KINDLE_EPUB_MAX_ARTICLES = 15;
 
 /**
  * Strip obvious script/style blobs before DOM parse (parser quirks + escaped markup).
@@ -128,11 +129,21 @@ function stripKindleUnsafeAttributes(root: HTMLElement): void {
         el.removeAttribute(name);
         continue;
       }
+      if (n.startsWith("aria-")) {
+        el.removeAttribute(name);
+        continue;
+      }
       if (n === "style") {
         el.removeAttribute(name);
         continue;
       }
       if (n === "class" || n === "id") {
+        el.removeAttribute(name);
+        continue;
+      }
+      // Non-structural attributes — Kindle ignores these but parses them anyway.
+      // `datetime` on live-blog <time> tags carries millisecond precision (kBs/chapter).
+      if (n === "datetime" || n === "role" || n === "tabindex") {
         el.removeAttribute(name);
         continue;
       }
@@ -149,6 +160,26 @@ function stripKindleUnsafeAttributes(root: HTMLElement): void {
       }
     }
   }
+}
+
+// Cheap depth probe — counts max simultaneously-open <div> tags via a single regex pass.
+// Self-closing <div/> (rare but valid XHTML) doesn't increment depth.
+function measureMaxDivDepth(html: string): number {
+  let depth = 0;
+  let maxDepth = 0;
+  const re = /<(\/)?div\b([^>]*)>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    const isClose = m[1] === "/";
+    const isSelfClose = !isClose && m[2].trimEnd().endsWith("/");
+    if (isSelfClose) continue;
+    if (isClose) depth = Math.max(0, depth - 1);
+    else {
+      depth += 1;
+      if (depth > maxDepth) maxDepth = depth;
+    }
+  }
+  return maxDepth;
 }
 
 function plainParagraphsToXhtmlFragment(paragraphs: string[]): string {
@@ -189,7 +220,7 @@ function manifestMediaTypeForExt(ext: string): string {
   }
 }
 
-export type GuardianEpubArticle = {
+export type KindleEpubArticle = {
   title: string;
   paragraphs: string[];
   /** Sanitized reader HTML from `/api/guardian-read` (includes figures/images). */
@@ -201,10 +232,39 @@ export type GuardianEpubArticle = {
 export async function fetchGuardianArticlesForKindleEpub(
   items: GuardianListItem[],
   concurrency = 3,
-  maxArticles: number = GUARDIAN_KINDLE_EPUB_MAX_ARTICLES,
-): Promise<GuardianEpubArticle[]> {
-  const capped = items.slice(0, Math.max(0, maxArticles));
-  const mapOne = async (item: GuardianListItem): Promise<GuardianEpubArticle> => {
+  maxArticles: number = KINDLE_EPUB_MAX_ARTICLES,
+): Promise<KindleEpubArticle[]> {
+  // Skip Kindle-unfriendly URLs BEFORE fetch — saves Guardian API calls and avoids
+  // emitting chapters that lag (live blogs) or have near-zero text (audio/video/gallery/etc).
+  const skippedByReason = new Map<GuardianKindleSkipReason, GuardianListItem[]>();
+  const readable: GuardianListItem[] = [];
+  for (const it of items) {
+    const reason = shouldSkipForKindleEpub(it.webUrl);
+    if (reason) {
+      const list = skippedByReason.get(reason) ?? [];
+      list.push(it);
+      skippedByReason.set(reason, list);
+    } else {
+      readable.push(it);
+    }
+  }
+  if (skippedByReason.size > 0) {
+    let total = 0;
+    const breakdown: string[] = [];
+    for (const [reason, list] of skippedByReason) {
+      total += list.length;
+      breakdown.push(`${list.length} ${reason}`);
+    }
+    console.log(`[epub] skipped ${total} articles: ${breakdown.join(", ")}`);
+    for (const [reason, list] of skippedByReason) {
+      console.log(
+        `  ${reason}:`,
+        list.map((it) => it.webUrl),
+      );
+    }
+  }
+  const capped = readable.slice(0, Math.max(0, maxArticles));
+  const mapOne = async (item: GuardianListItem): Promise<KindleEpubArticle> => {
     try {
       const res = await fetch(
         `/api/guardian-read?url=${encodeURIComponent(item.webUrl)}`,
@@ -274,7 +334,7 @@ export async function fetchGuardianArticlesForKindleEpub(
     }
   };
 
-  const out: GuardianEpubArticle[] = [];
+  const out: KindleEpubArticle[] = [];
   for (let i = 0; i < capped.length; i += concurrency) {
     const chunk = capped.slice(i, i + concurrency);
     const part = await Promise.all(chunk.map(mapOne));
@@ -397,7 +457,13 @@ async function buildChapterBodyXhtml(
       }
     }
   }
-  const serialized = parts.join("");
+  // XMLSerializer re-emits `xmlns="http://www.w3.org/1999/xhtml"` on every detached
+  // top-level node — for live blogs that's 100+ redundant decls per chapter. Wrapper
+  // <html> already declares the namespace, so strip it everywhere else in the body.
+  // (Caller never inserts this serialized string anywhere except inside <body>.)
+  const serialized = parts
+    .join("")
+    .replace(/\s+xmlns="http:\/\/www\.w3\.org\/1999\/xhtml"/g, "");
   if (serialized.trim()) return serialized;
 
   return plainParagraphsToXhtmlFragment(plainParagraphs);
@@ -406,9 +472,10 @@ async function buildChapterBodyXhtml(
 /**
  * EPUB 3 zip: chapters include embedded images; no “Original article” link.
  */
-export async function buildGuardianListEpubBlob(
-  articles: GuardianEpubArticle[],
+export async function buildKindleEpubBlob(
+  articles: KindleEpubArticle[],
   bookTitle: string,
+  categorySlug?: string,
 ): Promise<Blob> {
   const zip = new JSZip();
   zip.file("mimetype", "application/epub+zip", { compression: "STORE" });
@@ -443,6 +510,13 @@ export async function buildGuardianListEpubBlob(
   ];
   const tocEntries: string[] = [];
 
+  // Build-time metrics — Guardian DOM shifts unannounced; logging makes regressions
+  // visible without setting up infra.
+  let totalDivs = 0;
+  let maxDepth = 0;
+  let maxBytes = 0;
+  let maxBytesFile = "";
+
   for (let i = 0; i < articles.length; i++) {
     const art = articles[i]!;
     const num = String(i + 1).padStart(3, "0");
@@ -466,9 +540,7 @@ export async function buildGuardianListEpubBlob(
     );
     manifestItems.push(...imageManifestChunk);
 
-    oebps.file(
-      fname,
-      `<?xml version="1.0" encoding="UTF-8"?>
+    const chapterXhtml = `<?xml version="1.0" encoding="UTF-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="en" lang="en">
 <head>
   <title>${safeTitle}</title>
@@ -478,7 +550,32 @@ export async function buildGuardianListEpubBlob(
   <h1>${safeTitle}</h1>
   ${bodyInner}
 </body>
-</html>`,
+</html>`;
+    oebps.file(fname, chapterXhtml);
+
+    const bytes = chapterXhtml.length;
+    if (bytes > maxBytes) {
+      maxBytes = bytes;
+      maxBytesFile = fname;
+    }
+    totalDivs += (bodyInner.match(/<div\b/gi) ?? []).length;
+    maxDepth = Math.max(maxDepth, measureMaxDivDepth(bodyInner));
+  }
+
+  if (categorySlug) console.log(`[epub] category=${categorySlug}`);
+  console.log(
+    `[epub] chapters=${articles.length} max-chapter-size=${(maxBytes / 1024).toFixed(1)}KB (${maxBytesFile}) total-divs=${totalDivs} max-nesting-depth=${maxDepth}`,
+  );
+  if (maxDepth > 8) {
+    console.warn(`[epub] max-nesting-depth=${maxDepth} > 8 — chapters may render slowly on Kindle`);
+  }
+  if (totalDivs > 200) {
+    console.warn(`[epub] total-divs=${totalDivs} > 200 — source DOM may have drifted`);
+  }
+  // HBR long-reads can legitimately exceed 25 KB; keep the warn at 30 KB.
+  if (maxBytes > 30 * 1024) {
+    console.warn(
+      `[epub] max-chapter-size=${(maxBytes / 1024).toFixed(1)}KB > 30KB (${maxBytesFile}) — may flip slowly on Kindle`,
     );
   }
 

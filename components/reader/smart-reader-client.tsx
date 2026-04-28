@@ -10,7 +10,7 @@ import {
     ExternalLink,
 } from "lucide-react";
 import { toast } from "react-toastify";
-import { GUARDIAN_READ_BODY_CLASS } from "@/lib/guardian-read-body-class";
+import { ARTICLE_READ_BODY_CLASS } from "@/lib/article-read-body-class";
 import { EngooReadingTutorPanel } from "@/components/engoo/engoo-reading-tutor-panel";
 import { AddFlashcardModal, HighlightToolbar } from "@/components/ielts";
 import { storeEngooCallContext } from "@/lib/engoo-call-context";
@@ -418,7 +418,7 @@ const handleFlashcard = useCallback((word: string) => {
                                 ) : null}
                                 <div
                                     ref={articleBodyRef}
-                                    className={`${GUARDIAN_READ_BODY_CLASS} select-text`}
+                                    className={`${ARTICLE_READ_BODY_CLASS} select-text`}
                                     dangerouslySetInnerHTML={{ __html: article.content }}
                                 />
                             </article>

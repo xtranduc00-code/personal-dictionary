@@ -27,6 +27,7 @@ import { engooLevelBadgeBackground } from "@/lib/engoo-level-style";
 import {
   ENGOO_DAILY_NEWS_CATEGORIES,
   ENGOO_DAILY_NEWS_TOPIC_SLUG_TO_LABEL,
+  KINDLE_EPUB_TAB_GUARDIAN_SECTION,
   getEngooDailyNewsCategoryBySlug,
 } from "@/lib/engoo-daily-news-categories";
 import { formatRelativeDaysAgo } from "@/lib/format-relative-days-ago";
@@ -34,9 +35,9 @@ import { parseResponseJson } from "@/lib/read-response-json";
 import { useI18n } from "@/components/i18n-provider";
 import { Pagination } from "@/components/pagination";
 import {
-  buildGuardianListEpubBlob,
+  buildKindleEpubBlob,
   fetchGuardianArticlesForKindleEpub,
-  GUARDIAN_KINDLE_EPUB_MAX_ARTICLES,
+  KINDLE_EPUB_MAX_ARTICLES,
   triggerEpubDownload,
 } from "@/lib/guardian-kindle-epub";
 
@@ -742,27 +743,58 @@ export function EngooDailyNewsHomeInner({
 
   const sportListReturnTo = "/news?category=sport";
 
-  const downloadSportKindleEpub = useCallback(async () => {
-    if (!isSportTab || filteredSport.length === 0) return;
+  const downloadCategoryKindleEpub = useCallback(async () => {
     setKindleError(null);
     setKindleBusy(true);
     try {
+      const slug = activeCategory.slug;
+      const guardianSection = KINDLE_EPUB_TAB_GUARDIAN_SECTION[slug];
+      // Sport tab already has a freshly-loaded Guardian list in state; for the
+      // other tabs the on-screen items are Engoo lessons, so fetch the mapped
+      // Guardian section on click instead.
+      let items: GuardianListItem[];
+      if (isSportTab) {
+        items = filteredSport;
+      } else {
+        const res = await fetch(
+          `/api/guardian/list?section=${guardianSection}&pageSize=50`,
+          { credentials: "same-origin" },
+        );
+        if (res.status === 503) {
+          setKindleError(t("dailyNewsGuardianNoKey"));
+          return;
+        }
+        if (!res.ok) {
+          setKindleError(t("dailyNewsSportKindleError"));
+          return;
+        }
+        const json = (await res.json()) as { items?: GuardianListItem[] };
+        items = json.items ?? [];
+      }
+      if (items.length === 0) {
+        setKindleError(t("dailyNewsSportKindleError"));
+        return;
+      }
       const articles = await fetchGuardianArticlesForKindleEpub(
-        filteredSport,
+        items,
         3,
-        GUARDIAN_KINDLE_EPUB_MAX_ARTICLES,
+        KINDLE_EPUB_MAX_ARTICLES,
       );
       const day = new Date().toISOString().slice(0, 10);
-      const bookTitle = `Guardian Sport — ${day}`;
-      const blob = await buildGuardianListEpubBlob(articles, bookTitle);
+      const bookTitle = `Guardian ${activeCategory.label} — ${day}`;
+      const blob = await buildKindleEpubBlob(
+        articles,
+        bookTitle,
+        guardianSection,
+      );
       const safeDay = day.replace(/-/g, "");
-      triggerEpubDownload(blob, `guardian-sport-${safeDay}.epub`);
+      triggerEpubDownload(blob, `guardian-${guardianSection}-${safeDay}.epub`);
     } catch {
       setKindleError(t("dailyNewsSportKindleError"));
     } finally {
       setKindleBusy(false);
     }
-  }, [isSportTab, filteredSport, t]);
+  }, [activeCategory, isSportTab, filteredSport, t]);
 
   const { featured, spotlights, gridItems } = useMemo(() => {
     const list = pageItems;
@@ -824,14 +856,11 @@ export function EngooDailyNewsHomeInner({
                 className="min-w-0 flex-1 bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus-visible:ring-0 dark:text-zinc-100 dark:placeholder:text-zinc-500"
               />
             </label>
-            {isSportTab &&
-            !sportLoading &&
-            !sportNoKey &&
-            filteredSport.length > 0 ? (
+            {!isSportTab || (!sportLoading && !sportNoKey && filteredSport.length > 0) ? (
               <div className="flex w-full flex-col gap-1 sm:w-auto sm:shrink-0">
                 <button
                   type="button"
-                  onClick={() => void downloadSportKindleEpub()}
+                  onClick={() => void downloadCategoryKindleEpub()}
                   disabled={kindleBusy}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-rose-900 shadow-sm transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-800/80 dark:bg-zinc-900 dark:text-rose-100 dark:hover:bg-rose-950/40 sm:w-auto sm:whitespace-nowrap"
                 >
@@ -851,7 +880,7 @@ export function EngooDailyNewsHomeInner({
             ) : null}
           </div>
         </div>
-        {isSportTab && kindleError ? (
+        {kindleError ? (
           <p className="border-t border-rose-100/80 px-4 py-2 text-center text-sm text-red-600 dark:border-rose-900/40 dark:text-red-400 sm:px-6">
             {kindleError}
           </p>

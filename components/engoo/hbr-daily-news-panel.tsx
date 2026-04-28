@@ -4,12 +4,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LayoutGrid, Newspaper, Search } from "lucide-react";
+import { BookDown, LayoutGrid, Loader2, Newspaper, Search } from "lucide-react";
 import { useI18n } from "@/components/i18n-provider";
 import { formatRelativeDaysAgo } from "@/lib/format-relative-days-ago";
 import { Pagination } from "@/components/pagination";
 import { clearHbrCookies } from "@/lib/clear-hbr-cookies";
 import type { RssItem } from "@/app/api/rss/route";
+import {
+    buildKindleEpubBlob,
+    KINDLE_EPUB_MAX_ARTICLES,
+    triggerEpubDownload,
+} from "@/lib/guardian-kindle-epub";
+import { fetchHbrArticlesForKindleEpub } from "@/lib/hbr-kindle-epub";
 
 const HBR_PILL =
     "border-amber-200/90 bg-amber-50 text-amber-950 dark:border-amber-800/80 dark:bg-amber-950/50 dark:text-amber-100";
@@ -175,6 +181,8 @@ export function HBRDailyNewsPanel({
     const [slow, setSlow] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
+    const [kindleBusy, setKindleBusy] = useState(false);
+    const [kindleError, setKindleError] = useState<string | null>(null);
     const abortRef = useRef<AbortController | null>(null);
 
     const loadTabProgressive = useCallback(
@@ -338,6 +346,37 @@ export function HBRDailyNewsPanel({
 
     const returnTo = "/news?src=hbr";
 
+    const downloadHbrTabKindleEpub = useCallback(async () => {
+        if (filtered.length === 0) return;
+        setKindleError(null);
+        setKindleBusy(true);
+        try {
+            const articles = await fetchHbrArticlesForKindleEpub(
+                filtered,
+                3,
+                KINDLE_EPUB_MAX_ARTICLES,
+            );
+            const day = new Date().toISOString().slice(0, 10);
+            const tabLabel = HBR_TABS.find((x) => x.id === tab)?.label ?? "Latest";
+            const bookTitle = `Harvard Business Review ${tabLabel} — ${day}`;
+            const blob = await buildKindleEpubBlob(
+                articles,
+                bookTitle,
+                `hbr-${tab}`,
+            );
+            const safeDay = day.replace(/-/g, "");
+            triggerEpubDownload(blob, `hbr-${tab}-${safeDay}.epub`);
+        } catch {
+            setKindleError(t("dailyNewsSportKindleError"));
+        } finally {
+            setKindleBusy(false);
+        }
+    }, [tab, filtered, t]);
+
+    useEffect(() => {
+        setKindleError(null);
+    }, [tab]);
+
     return (
         <div className="min-h-screen w-full bg-[#F6F7F9] pb-12 font-sans text-[#111827] dark:bg-zinc-950 dark:text-zinc-100">
             <header className="mx-auto mb-3 max-w-6xl overflow-hidden rounded-2xl border border-zinc-200/90 bg-white shadow-md shadow-zinc-200/40 ring-1 ring-black/[0.03] dark:border-zinc-800 dark:bg-zinc-900/90 dark:shadow-none dark:ring-white/[0.04]">
@@ -347,20 +386,49 @@ export function HBRDailyNewsPanel({
                             {t("dailyNewsSourceHBR")}
                         </h1>
                     </div>
-                    <label className="flex w-full flex-1 items-center gap-2 rounded-xl border border-zinc-200/90 bg-zinc-50/90 px-3 py-2.5 shadow-inner shadow-zinc-200/20 sm:w-auto sm:min-w-[22rem] sm:flex-none dark:border-zinc-600 dark:bg-zinc-950/50 dark:shadow-none">
-                        <Search
-                            className="h-4 w-4 shrink-0 text-zinc-400 dark:text-zinc-500"
-                            aria-hidden
-                        />
-                        <input
-                            type="search"
-                            placeholder={t("dailyNewsSearchPlaceholder")}
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="min-w-0 flex-1 bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus-visible:ring-0 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-                        />
-                    </label>
+                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[22rem] sm:flex-row sm:items-stretch sm:gap-3">
+                        <label className="flex w-full flex-1 items-center gap-2 rounded-xl border border-zinc-200/90 bg-zinc-50/90 px-3 py-2.5 shadow-inner shadow-zinc-200/20 dark:border-zinc-600 dark:bg-zinc-950/50 dark:shadow-none">
+                            <Search
+                                className="h-4 w-4 shrink-0 text-zinc-400 dark:text-zinc-500"
+                                aria-hidden
+                            />
+                            <input
+                                type="search"
+                                placeholder={t("dailyNewsSearchPlaceholder")}
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="min-w-0 flex-1 bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus-visible:ring-0 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                            />
+                        </label>
+                        {!loading && !error && filtered.length > 0 ? (
+                            <div className="flex w-full flex-col gap-1 sm:w-auto sm:shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={() => void downloadHbrTabKindleEpub()}
+                                    disabled={kindleBusy}
+                                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-rose-900 shadow-sm transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-800/80 dark:bg-zinc-900 dark:text-rose-100 dark:hover:bg-rose-950/40 sm:w-auto sm:whitespace-nowrap"
+                                >
+                                    {kindleBusy ? (
+                                        <Loader2
+                                            className="h-4 w-4 shrink-0 animate-spin"
+                                            aria-hidden
+                                        />
+                                    ) : (
+                                        <BookDown className="h-4 w-4 shrink-0" aria-hidden />
+                                    )}
+                                    {kindleBusy
+                                        ? t("dailyNewsSportKindleBuilding")
+                                        : t("dailyNewsSportKindleDownload")}
+                                </button>
+                            </div>
+                        ) : null}
+                    </div>
                 </div>
+                {kindleError ? (
+                    <p className="border-t border-rose-100/80 px-4 py-2 text-center text-sm text-red-600 dark:border-rose-900/40 dark:text-red-400 sm:px-6">
+                        {kindleError}
+                    </p>
+                ) : null}
                 <nav
                     className="flex gap-0.5 overflow-x-auto border-t border-zinc-100/90 bg-zinc-50/40 px-2 pb-1.5 pt-2 [-ms-overflow-style:none] [scrollbar-width:none] dark:border-zinc-800 dark:bg-zinc-950/30 sm:gap-1 sm:px-4 [&::-webkit-scrollbar]:hidden"
                     aria-label="HBR sections"

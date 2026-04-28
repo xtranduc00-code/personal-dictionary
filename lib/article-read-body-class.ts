@@ -1,6 +1,10 @@
-/** Tailwind utility string for scraped Guardian article HTML (no React deps). */
-export const GUARDIAN_READ_BODY_CLASS = [
-  "guardian-read-content not-prose w-full max-w-none",
+/**
+ * Tailwind utility string for scraped article reader HTML (no React deps).
+ * Shared by every reader source (Guardian, HBR, future), since they all flow
+ * through the same sanitized-HTML rendering path.
+ */
+export const ARTICLE_READ_BODY_CLASS = [
+  "article-read-content not-prose w-full max-w-none",
   "text-[17px] font-normal leading-7 text-zinc-700 dark:text-zinc-300",
   "[&_p]:mb-6 [&_p]:mt-0 [&_p+p]:mt-0",
   "[&_p:has(>strong:only-child)]:mb-3 [&_p:has(>strong:only-child)]:mt-10 [&_p:has(>strong:only-child):first-child]:mt-0",

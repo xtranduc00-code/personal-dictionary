@@ -424,8 +424,8 @@ body {
  * Wayback snapshots and HBR's rendered content) ships inline `user-select:
  * none` or pointer-events tweaks; this overrides them at the cascade.
  */
-.guardian-read-content,
-.guardian-read-content * {
+.article-read-content,
+.article-read-content * {
   user-select: text !important;
   -webkit-user-select: text !important;
   -webkit-touch-callout: default !important;

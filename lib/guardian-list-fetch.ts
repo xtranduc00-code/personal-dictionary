@@ -26,17 +26,33 @@ function stripHtml(s: string): string {
 }
 
 /**
+ * Sections we accept from callers. `sport` is remapped to Guardian's `football`
+ * section under the hood; the rest pass through 1:1 to Guardian's section IDs.
+ * Sourced from Daily News tab → Guardian section mapping for the Kindle EPUB
+ * download (see `categorySlugToGuardianSection` in engoo-daily-news-categories.ts).
+ */
+export type GuardianListSection =
+  | "world"
+  | "sport"
+  | "business"
+  | "technology"
+  | "lifeandstyle"
+  | "culture"
+  | "travel";
+
+/**
  * Fetch from the Guardian Content API and return normalized items.
  * Throws on network / upstream errors — callers should `.catch(() => [])`.
  */
 export async function fetchGuardianListItems(
-  section: "world" | "sport",
+  section: GuardianListSection,
   pageSize = 30,
 ): Promise<GuardianListItem[]> {
   const key = process.env.GUARDIAN_API_KEY?.trim();
   if (!key) throw new Error("GUARDIAN_API_KEY not set");
 
-  const guardianSection = section === "sport" ? "football" : "world";
+  const guardianSection = section === "sport" ? "football" : section;
+  // Sport over-fetches because the women's-football filter drops a chunk of results.
   const apiPageSize =
     section === "sport" ? Math.min(200, Math.max(pageSize * 2, 36)) : pageSize;
 

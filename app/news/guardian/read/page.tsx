@@ -9,7 +9,7 @@ import { useI18n } from "@/components/i18n-provider";
 import { AddFlashcardModal, HighlightToolbar } from "@/components/ielts";
 import { storeEngooCallContext } from "@/lib/engoo-call-context";
 import { buildGuardianEngooTutorPayload } from "@/lib/guardian-engoo-tutor-payload";
-import { GUARDIAN_READ_BODY_CLASS } from "@/lib/guardian-read-body-class";
+import { ARTICLE_READ_BODY_CLASS } from "@/lib/article-read-body-class";
 
 const GUARDIAN_MARK_CLASS =
   "guardian-highlight bg-yellow-200/80 dark:bg-yellow-500/30 text-inherit rounded px-0.5";
@@ -332,7 +332,7 @@ function GuardianReadInner() {
                 <hr className="my-8 border-0 border-t border-zinc-200/80 dark:border-zinc-700/80 sm:my-10" />
                 <div
                   ref={articleBodyRef}
-                  className={GUARDIAN_READ_BODY_CLASS}
+                  className={ARTICLE_READ_BODY_CLASS}
                   dangerouslySetInnerHTML={{ __html: html ?? "" }}
                 />
               </article>
