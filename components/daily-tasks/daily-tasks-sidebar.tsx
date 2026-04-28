@@ -1,13 +1,97 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ChevronDown, Circle, CheckCircle2, Flame, Loader2,
   ListChecks, Sparkles, X,
 } from "lucide-react";
-import { useDailyTasks } from "./daily-tasks-context";
+import { useDailyTasks, type StreakStatus as StreakStatusType } from "./daily-tasks-context";
 import { useAuth } from "@/lib/auth-context";
 import { COUNTER_TASKS } from "./daily-tasks-auto-detect";
+
+/**
+ * Hover tooltip for the streak badge. Rendered through a portal into
+ * document.body so it escapes the sidebar's `overflow-hidden` (used for the
+ * collapse animation, lines 939/943/945 of site-nav.tsx) — without the portal
+ * the tooltip's right/left edges get clipped by the sidebar boundary.
+ *
+ * Position is computed from the badge's bounding rect: tooltip's right edge
+ * aligns with badge's right edge, sitting just below it.
+ */
+function StreakHoverTooltip({
+  anchorRef,
+  visible,
+  status,
+  isVi,
+  statusLabel,
+}: {
+  anchorRef: React.RefObject<HTMLElement | null>;
+  visible: boolean;
+  status: StreakStatusType;
+  isVi: boolean;
+  statusLabel: string;
+}) {
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+
+  useEffect(() => {
+    if (!visible || !anchorRef.current || typeof window === "undefined") return;
+    const rect = anchorRef.current.getBoundingClientRect();
+    setPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
+  }, [visible, anchorRef]);
+
+  if (!visible || !pos || typeof document === "undefined") return null;
+
+  const isAtRisk = status.status === "at_risk";
+  const isBroken = status.status === "broken";
+
+  return createPortal(
+    <div
+      className="pointer-events-none fixed z-[100] w-56 rounded-lg border border-zinc-200 bg-white p-3 text-[12px] leading-tight text-zinc-700 shadow-lg dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+      style={{ top: pos.top, right: pos.right }}
+    >
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+        {isVi ? "Chuỗi" : "Streak"}
+      </div>
+      <div className="mt-1.5 flex justify-between">
+        <span>{isVi ? "Hiện tại" : "Current"}</span>
+        <span className="font-semibold tabular-nums">
+          {status.currentStreak} {isVi ? "ngày" : "days"}
+        </span>
+      </div>
+      <div className="flex justify-between">
+        <span>{isVi ? "Dài nhất" : "Longest"}</span>
+        <span className="font-semibold tabular-nums">
+          {status.longestStreak} {isVi ? "ngày" : "days"}
+        </span>
+      </div>
+      <div className="flex justify-between">
+        <span>{isVi ? "Miss tuần này" : "This week"}</span>
+        <span className="font-semibold tabular-nums">{status.missCountThisWeek}/1</span>
+      </div>
+      <div
+        className={`mt-1.5 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+          isAtRisk
+            ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+            : isBroken
+              ? "bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300"
+              : status.currentStreak > 0
+                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+        }`}
+      >
+        {statusLabel}
+      </div>
+      <div className="mt-1.5 text-[11px] text-zinc-400">
+        {isVi
+          ? "1 miss/7 ngày được tha. 2 miss liên tiếp → gãy."
+          : "1 miss/7 days forgiven. 2 in a row breaks."}
+      </div>
+    </div>,
+    document.body,
+  );
+}
 
 export function DailyTasksSidebar({
   isOpen,
@@ -26,6 +110,8 @@ export function DailyTasksSidebar({
     markTask, unmarkTask, dismissRecoveryPrompt,
   } = useDailyTasks();
   const isVi = locale === "vi";
+  const streakBadgeRef = useRef<HTMLSpanElement>(null);
+  const [streakHovered, setStreakHovered] = useState(false);
 
   if (!user) return null;
 
@@ -80,71 +166,42 @@ export function DailyTasksSidebar({
             : (isVi ? "Nhiệm vụ hôm nay" : "Daily Tasks")}
         </span>
 
-        {/* Progress + streak badges. Hover the streak badge → tooltip with
-            current/longest/this-week/status breakdown. No click handler — the
-            sidebar header below already toggles task list expansion. */}
-        <div className="relative flex items-center gap-1.5">
-          <div className="group relative">
-            <span
-              className={[
-                "flex items-center gap-1 rounded-full px-2 py-1 text-[12px] font-bold tabular-nums transition-all cursor-default",
-                streak >= 30
-                  ? "bg-gradient-to-r from-rose-500 via-orange-500 to-amber-400 text-white shadow-md shadow-orange-400/50 dark:shadow-rose-900/50"
-                  : streak >= 7
-                    ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-sm shadow-orange-300/50 dark:shadow-rose-900/40"
-                    : streak >= 3
-                      ? "bg-orange-100 text-orange-600 ring-1 ring-orange-200 dark:bg-orange-900/40 dark:text-orange-300 dark:ring-orange-800/60"
-                      : streak >= 1
-                        ? "bg-orange-50 text-orange-500 dark:bg-orange-900/25 dark:text-orange-400"
-                        : "bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500",
-                streak >= 7 ? "animate-pulse" : "",
-              ].join(" ")}
-            >
-              <Flame
-                className={`h-4 w-4 ${streak === 0 ? "" : streak >= 7 ? "drop-shadow-[0_0_4px_rgba(255,140,0,0.7)]" : ""}`}
-                fill={streak >= 3 ? "currentColor" : "none"}
-              />
-              <span>{streak}</span>
-              {isAtRisk && <span className="text-amber-500" aria-hidden>⚠</span>}
-            </span>
-            {/* Hover tooltip: instant, styled. Pointer-events-none so it
-                doesn't intercept clicks on the parent toggle. */}
-            <div className="pointer-events-none absolute right-0 top-full z-40 mt-1.5 w-56 rounded-lg border border-zinc-200 bg-white p-3 text-[12px] leading-tight text-zinc-700 opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-                {isVi ? "Chuỗi" : "Streak"}
-              </div>
-              <div className="mt-1.5 flex justify-between">
-                <span>{isVi ? "Hiện tại" : "Current"}</span>
-                <span className="font-semibold tabular-nums">{streak} {isVi ? "ngày" : "days"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>{isVi ? "Dài nhất" : "Longest"}</span>
-                <span className="font-semibold tabular-nums">{streakStatus.longestStreak} {isVi ? "ngày" : "days"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>{isVi ? "Miss tuần này" : "This week"}</span>
-                <span className="font-semibold tabular-nums">{streakStatus.missCountThisWeek}/1</span>
-              </div>
-              <div
-                className={`mt-1.5 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                  isAtRisk
-                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
-                    : isBroken
-                      ? "bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300"
-                      : streak > 0
-                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                        : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
-                }`}
-              >
-                {statusLabel}
-              </div>
-              <div className="mt-1.5 text-[11px] text-zinc-400">
-                {isVi
-                  ? "1 miss/7 ngày được tha. 2 miss liên tiếp → gãy."
-                  : "1 miss/7 days forgiven. 2 in a row breaks."}
-              </div>
-            </div>
-          </div>
+        {/* Progress + streak badges. Hover the badge → tooltip rendered via
+            portal (escapes sidebar's overflow-hidden). No click — the sidebar
+            header below already toggles task list expansion. */}
+        <div className="flex items-center gap-1.5">
+          <span
+            ref={streakBadgeRef}
+            onMouseEnter={() => setStreakHovered(true)}
+            onMouseLeave={() => setStreakHovered(false)}
+            className={[
+              "flex items-center gap-1 rounded-full px-2 py-1 text-[12px] font-bold tabular-nums transition-all cursor-default",
+              streak >= 30
+                ? "bg-gradient-to-r from-rose-500 via-orange-500 to-amber-400 text-white shadow-md shadow-orange-400/50 dark:shadow-rose-900/50"
+                : streak >= 7
+                  ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-sm shadow-orange-300/50 dark:shadow-rose-900/40"
+                  : streak >= 3
+                    ? "bg-orange-100 text-orange-600 ring-1 ring-orange-200 dark:bg-orange-900/40 dark:text-orange-300 dark:ring-orange-800/60"
+                    : streak >= 1
+                      ? "bg-orange-50 text-orange-500 dark:bg-orange-900/25 dark:text-orange-400"
+                      : "bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500",
+              streak >= 7 ? "animate-pulse" : "",
+            ].join(" ")}
+          >
+            <Flame
+              className={`h-4 w-4 ${streak === 0 ? "" : streak >= 7 ? "drop-shadow-[0_0_4px_rgba(255,140,0,0.7)]" : ""}`}
+              fill={streak >= 3 ? "currentColor" : "none"}
+            />
+            <span>{streak}</span>
+            {isAtRisk && <span className="text-amber-500" aria-hidden>⚠</span>}
+          </span>
+          <StreakHoverTooltip
+            anchorRef={streakBadgeRef}
+            visible={streakHovered}
+            status={streakStatus}
+            isVi={isVi}
+            statusLabel={statusLabel}
+          />
           <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${
             allDone
               ? "bg-emerald-500 text-white dark:bg-emerald-600"

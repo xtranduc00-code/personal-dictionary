@@ -191,6 +191,7 @@ export function computeStreak(input: StreakInput): StreakOutput {
         addDays(today, -1),
         minRequired,
     );
+    const todayComplete = isComplete(completionsByDate, today, minRequired);
 
     let status: StreakStatus;
     if (currentRun === 0) {
@@ -201,8 +202,12 @@ export function computeStreak(input: StreakInput): StreakOutput {
             return false;
         })();
         status = recentActivity ? "broken" : "never_started";
-    } else if (missCountThisWeek >= 1) status = "at_risk";
-    else status = "active";
+    } else if (!todayComplete && missCountThisWeek >= 1) {
+        // Only flag at_risk when today is still incomplete AND the 7-day
+        // miss budget has been used. Once today is done, the user is back
+        // on track regardless of past misses inside the forgiveness window.
+        status = "at_risk";
+    } else status = "active";
 
     return {
         currentStreak: currentRun,

@@ -94,9 +94,18 @@ export async function getStreakStatus(
     const yesterday = addDays(today, -1);
     const yesterdayKeys = perDateKeys.get(yesterday)?.size ?? 0;
     const yesterdayComplete = yesterdayKeys >= streak.minRequiredTasks;
+    // If today is already complete, the recovery prompt is moot — user is
+    // back on track, no need to remind them about yesterday's miss.
+    const todayKeys = perDateKeys.get(today)?.size ?? 0;
+    const todayComplete = todayKeys >= streak.minRequiredTasks;
 
     let needsSkipRecoveryPrompt = false;
-    if (skipRecoveryEnabled && streak.yesterdayMissed && !yesterdayComplete) {
+    if (
+        skipRecoveryEnabled &&
+        streak.yesterdayMissed &&
+        !yesterdayComplete &&
+        !todayComplete
+    ) {
         const { data: dismissed } = await db
             .from("streak_recovery_dismissals")
             .select("action")
