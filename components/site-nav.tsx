@@ -12,7 +12,7 @@ import {
 import { NavAccountFooter } from "@/components/nav-account-footer";
 import { ProfileModal } from "@/components/profile-modal";
 import { SecurityModal } from "@/components/security-modal";
-import { BookHeart, BookOpen, BookMarked, BookText, Bot, CalendarClock, CalendarDays, ChessKing, ChevronLeft, ChevronRight, Clapperboard, FileText, FolderOpen, GraduationCap, Headphones, History, Home, Languages, LayoutDashboard, LibraryBig, LogIn, LogOut, Mail, Menu, Mic, Moon, Newspaper, NotebookText, PartyPopper, PenLine, PhoneCall, School, Search, Sparkles, Sun, Table2, UserCircle, X, Youtube, type LucideIcon, } from "lucide-react";
+import { BookHeart, BookOpen, BookMarked, BookText, Bot, CalendarClock, CalendarDays, ChessKing, ChevronLeft, ChevronRight, Clapperboard, FileText, FolderOpen, GraduationCap, Headphones, History, Home, Languages, LayoutDashboard, LibraryBig, LogIn, LogOut, Mail, Menu, MessagesSquare, Mic, Moon, Newspaper, NotebookText, PartyPopper, PenLine, PhoneCall, School, Search, Sparkles, Sun, Table2, UserCircle, X, Youtube, type LucideIcon, } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { DailyTasksSidebar } from "@/components/daily-tasks/daily-tasks-sidebar";
 import { useMeetCallOptional } from "@/lib/meet-call-context";
@@ -99,6 +99,7 @@ const preplySectionLinks: {
     icon: LucideIcon;
 }[] = [
     { href: "/study-schedule", labelKey: "studySchedule", icon: Table2 },
+    { href: "/preply-chats", labelKey: "preplyChats", icon: MessagesSquare },
     { href: "/notes", labelKey: "notes", icon: FileText },
 ];
 const portfolioSectionLinks: {

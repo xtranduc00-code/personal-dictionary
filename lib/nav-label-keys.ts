@@ -29,6 +29,7 @@ export const NAV_LABEL_KEYS = [
     "studyKitSavedFolder",
     "calendar",
     "meets",
+    "preplyChats",
     "notes",
     "notesDiary",
     "articleHomeNav",
