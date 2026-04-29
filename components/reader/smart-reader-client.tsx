@@ -12,7 +12,7 @@ import {
 import { toast } from "react-toastify";
 import { ARTICLE_READ_BODY_CLASS } from "@/lib/article-read-body-class";
 import { EngooReadingTutorPanel } from "@/components/engoo/engoo-reading-tutor-panel";
-import { AddFlashcardModal, HighlightToolbar } from "@/components/ielts";
+import { AddFlashcardModal } from "@/components/ielts";
 import { storeEngooCallContext } from "@/lib/engoo-call-context";
 import { buildSmartReaderEngooTutorPayload } from "@/lib/smart-reader-tutor-payload";
 
@@ -110,9 +110,6 @@ export function SmartReaderClient() {
     const [error, setError] = useState<string | null>(null);
     const [bookmarked, setBookmarked] = useState(false);
     const [tutorOpen, setTutorOpen] = useState(false);
-    const [toolbar, setToolbar] = useState<
-        { x: number; y: number; selectedText: string } | null
-    >(null);
     const [flashcardWord, setFlashcardWord] = useState<string | null>(null);
     const abortRef = useRef<AbortController | null>(null);
     const articleBodyRef = useRef<HTMLDivElement>(null);
@@ -202,20 +199,17 @@ export function SmartReaderClient() {
     }, [url]);
 
 
-    // Show the highlight toolbar on text selection inside the article body.
+    // Open the Vocab note modal directly when the user selects text inside
+    // the article body — no intermediate toolbar.
     useEffect(() => {
         const onMouseUp = () => {
-            // Defer state read + update by a tick so the browser has time to
-            // finalize the selection — and so the React re-render from
-            // setToolbar happens AFTER the selection is committed, not
-            // synchronously inside the mouseup event (which has been
-            // observed to drop the selection on some configurations).
+            // Defer one tick: Chromium hasn't always committed the final
+            // selection at the moment mouseup fires, so reading
+            // `getSelection().toString()` synchronously can truncate the
+            // captured text mid-word.
             setTimeout(() => {
                 const sel = window.getSelection();
-                if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
-                    setToolbar(null);
-                    return;
-                }
+                if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
                 const range = sel.getRangeAt(0);
                 const root = articleBodyRef.current;
                 if (
@@ -223,41 +217,16 @@ export function SmartReaderClient() {
                     (!root.contains(range.startContainer) &&
                         !root.contains(range.endContainer))
                 ) {
-                    setToolbar(null);
                     return;
                 }
                 const text = sel.toString().trim();
-                if (!text) {
-                    setToolbar(null);
-                    return;
-                }
-                const rect = range.getBoundingClientRect();
-                if (rect.width === 0 && rect.height === 0) {
-                    setToolbar(null);
-                    return;
-                }
-                setToolbar({
-                    x: rect.left + rect.width / 2,
-                    y: rect.top - 8,
-                    selectedText: text,
-                });
+                if (!text) return;
+                sel.removeAllRanges();
+                setFlashcardWord(text);
             }, 0);
         };
         document.addEventListener("mouseup", onMouseUp);
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") setToolbar(null);
-        };
-        document.addEventListener("keydown", onKey);
-        return () => {
-            document.removeEventListener("mouseup", onMouseUp);
-            document.removeEventListener("keydown", onKey);
-        };
-    }, []);
-
-const handleFlashcard = useCallback((word: string) => {
-        setFlashcardWord(word);
-        window.getSelection()?.removeAllRanges();
-        setToolbar(null);
+        return () => document.removeEventListener("mouseup", onMouseUp);
     }, []);
 
     const tutorPayload = useMemo(() => {
@@ -338,7 +307,7 @@ const handleFlashcard = useCallback((word: string) => {
                         // Optimistic UI: while the body is being fetched
                         // (Wayback round-trip ~10s), paint the header + hero
                         // image + a skeleton body so the page feels instant.
-                        <div className="overflow-hidden rounded-3xl border border-zinc-200/70 bg-white px-5 py-8 shadow-[0_4px_32px_-8px_rgba(15,23,42,0.08)] dark:border-zinc-800 dark:bg-zinc-900/85 sm:px-8 sm:py-10">
+                        <div className="rounded-3xl border border-zinc-200/70 bg-white px-5 py-8 shadow-[0_4px_32px_-8px_rgba(15,23,42,0.08)] dark:border-zinc-800 dark:bg-zinc-900/85 sm:px-8 sm:py-10">
                             <article className="w-full min-w-0">
                                 <h1 className="text-balance text-[1.65rem] font-bold leading-snug tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-3xl">
                                     {optimisticTitle}
@@ -387,7 +356,7 @@ const handleFlashcard = useCallback((word: string) => {
                             </a>
                         </div>
                     ) : (
-                        <div className="overflow-hidden rounded-3xl border border-zinc-200/70 bg-white px-5 py-8 shadow-[0_4px_32px_-8px_rgba(15,23,42,0.08)] dark:border-zinc-800 dark:bg-zinc-900/85 sm:px-8 sm:py-10">
+                        <div className="rounded-3xl border border-zinc-200/70 bg-white px-5 py-8 shadow-[0_4px_32px_-8px_rgba(15,23,42,0.08)] dark:border-zinc-800 dark:bg-zinc-900/85 sm:px-8 sm:py-10">
                             <article className="w-full min-w-0">
                                 <h1 className="text-balance text-[1.65rem] font-bold leading-snug tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-3xl">
                                     {article.title}
@@ -453,20 +422,6 @@ const handleFlashcard = useCallback((word: string) => {
                 masterId={tutorPayload?.masterId ?? ""}
                 payload={tutorPayload}
             />
-
-            {toolbar ? (
-                <HighlightToolbar
-                    x={toolbar.x}
-                    y={toolbar.y}
-                    hasHighlightId={false}
-                    selectedText={toolbar.selectedText}
-                    onHighlight={() => setToolbar(null)}
-                    onUnhighlight={() => setToolbar(null)}
-                    onFlashcard={handleFlashcard}
-                    showHighlightButtons={false}
-                    preserveEditorSelectionOnToolbarMouseDown
-                />
-            ) : null}
 
             {flashcardWord ? (
                 <AddFlashcardModal

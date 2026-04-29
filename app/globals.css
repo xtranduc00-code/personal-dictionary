@@ -432,6 +432,23 @@ body {
   pointer-events: auto !important;
 }
 
+/*
+ * Explicit ::selection paint — Chromium occasionally drops the native
+ * selection layer for article-read-content (compositor + clip + shadow
+ * interaction). Force a visible highlight regardless of UA default.
+ */
+.article-read-content ::selection,
+.article-read-content *::selection {
+  background-color: rgba(59, 130, 246, 0.35) !important;
+  color: inherit !important;
+}
+
+.dark .article-read-content ::selection,
+.dark .article-read-content *::selection {
+  background-color: rgba(96, 165, 250, 0.45) !important;
+  color: inherit !important;
+}
+
 .ielts-transcript .transcript-content,
 .ielts-transcript .highlight-segment {
   cursor: text;
