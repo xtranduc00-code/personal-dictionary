@@ -45,10 +45,10 @@ export const SUBJECT_GROUP: Record<Subject, SubjectGroup> = {
  * another ~5 bubbles.
  */
 export const BUBBLE_RANGE: Record<SubjectGroup, [number, number]> = {
-  languages: [10, 17],
-  stem_formula: [14, 22],
+  languages: [10, 19],
+  stem_formula: [14, 23],
   code: [16, 23],
-  theory: [10, 17],
+  theory: [10, 21],
 };
 
 export function bubbleRangeFor(
@@ -173,6 +173,10 @@ const TUTOR_FRAMING_POOL: Record<FramingHint, readonly string[]> = {
 
 // =============================================================================
 // D. TUTOR_REACTION_POOL — after student answer
+// "exactly" and "there you go" intentionally OMITTED from correct: they read
+// as praise (caps under rule A1 already at <=2) AND empirically dominated
+// cross-thread variety (~20% of all reactions in 72-thread sample). The 10
+// remaining options are minimal/casual.
 // =============================================================================
 const TUTOR_REACTION_POOL = {
   correct: [
@@ -183,8 +187,6 @@ const TUTOR_REACTION_POOL = {
     "yeah",
     "yeah that's it",
     "👍",
-    "exactly",
-    "there you go",
     "uh-huh",
     "ok good",
     "yes",

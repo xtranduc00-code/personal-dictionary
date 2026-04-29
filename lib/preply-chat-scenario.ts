@@ -875,11 +875,11 @@ const BIOLOGY_SUB_DOMAINS: Record<string, SubDomain> = {
       "DNA replication steps don't stick",
     ],
     exercises: [
-      "label the 4 stages of mitosis in order",
+      "fill the 4 stages of mitosis in order: prophase -> ___ -> ___ -> ___",
       "punnett square: Bb x Bb - what's the genotype ratio?",
-      "match: mitochondria does ___ , ribosome does ___",
-      "name 3 differences between mitosis and meiosis",
-      "in 1 line: what does mRNA do in protein synthesis?",
+      "match: mitochondria does ___ , ribosome does ___ (energy / protein synthesis)",
+      "fill the table - mitosis: daughter cells = ___ , chromosomes = ___ ; meiosis: daughter cells = ___ , chromosomes = ___",
+      "fill the protein synthesis flow: DNA -> ___ -> protein (which step does mRNA do?)",
       "punnett square: AA x aa - genotypes of offspring?",
     ],
     lastLessonTopics: [
@@ -913,10 +913,10 @@ const BIOLOGY_SUB_DOMAINS: Record<string, SubDomain> = {
     ],
     exercises: [
       "in food chain: grass -> rabbit -> fox - what's the producer?",
-      "name 2 features of a temperate forest biome",
+      "fill the temperate forest: rainfall = ___ (low/med/high), temp variation = ___ (low/med/high), dominant trees = ___",
       "fill: ___ % of energy passes from one trophic level to the next",
-      "name 3 biomes and 1 feature each",
-      "name the 2 main steps of the nitrogen cycle",
+      "match biomes to features: tundra = ___ , desert = ___ , rainforest = ___ (cold / dry / wet+hot)",
+      "fill the nitrogen cycle: N2 (atmosphere) -> ___ -> NH3/NH4+ -> ___ -> NO3- -> back to N2",
       "match: producer = ___ , consumer = ___ , decomposer = ___ (give 1 example each)",
     ],
     lastLessonTopics: [
@@ -949,11 +949,11 @@ const BIOLOGY_SUB_DOMAINS: Record<string, SubDomain> = {
       "muscle groups confuse me",
     ],
     exercises: [
-      "name the 4 chambers of the heart",
+      "fill blood flow through the heart: body -> ___ atrium -> ___ ventricle -> lungs -> ___ atrium -> ___ ventricle -> body",
       "match: alveoli = ___ , nephron = ___ , villi = ___ (organ + role)",
-      "name the 3 parts of the small intestine in order",
-      "name 3 bones of the lower limb",
-      "in 1 line: what's the function of the pancreas?",
+      "fill the small intestine in order: stomach -> ___ -> ___ -> ___ -> large intestine",
+      "label the lower limb: hip -> ___ (thigh bone) -> knee -> ___ + ___ (lower leg bones) -> ankle",
+      "match: pancreas secretes ___ ; liver makes ___ ; salivary glands make ___ (insulin / bile / amylase)",
       "match: cardiac, smooth, skeletal - which muscle is voluntary?",
     ],
     lastLessonTopics: [
@@ -987,9 +987,9 @@ const BIOLOGY_SUB_DOMAINS: Record<string, SubDomain> = {
     ],
     exercises: [
       "balance photosynthesis: 6CO2 + 6H2O -> ___ + ___",
-      "name the 3 main steps of cellular respiration in order",
-      "in 1 line: what's the role of ATP?",
-      "what does an enzyme do to activation energy?",
+      "fill the respiration steps in order: glucose -> ___ -> ___ -> ___ (final step: ETC)",
+      "fill: ATP = ___ + 3 phosphates; energy released when ___ phosphate breaks off",
+      "fill: enzymes ___ activation energy (raise / lower / no effect)",
       "match: glycolysis happens in ___ , Krebs in ___ , ETC in ___",
       "balance respiration: C6H12O6 + 6O2 -> ___ + ___",
     ],
@@ -1227,7 +1227,7 @@ const PHYSICS_SUB_DOMAINS: Record<string, SubDomain> = {
       "find current: V=12V, R=6 ohm",
       "two 6 ohm resistors in series - total?",
       "power: P=VI. find P if V=10V, I=2A",
-      "kirchhoff's voltage rule in 1 line",
+      "fill kirchhoff's voltage rule: sum of voltages around any closed loop = ___",
     ],
     lastLessonTopics: [
       "Ohm's law",
@@ -1378,11 +1378,11 @@ const HISTORY_SUB_DOMAINS: Record<string, SubDomain> = {
     ],
     exercises: [
       "place in order: Cuban Missile Crisis, Korean War, fall of Berlin Wall",
-      "name 2 causes of WWI",
-      "what year did WWII end in Europe?",
-      "match: Truman doctrine = ___ , Marshall plan = ___",
-      "name 3 countries that decolonized after 1945",
-      "in 1 sentence: what was the Iron Curtain?",
+      "fill the WWI causes acronym MAIN: M = ___ , A = ___ , I = ___ , N = ___",
+      "fill the WWII end date in Europe: V-E Day = ___ ___ , 1945 (month + day)",
+      "match: Truman doctrine = ___ , Marshall plan = ___ (containment / economic aid)",
+      "from this list, pick 3 that decolonized after 1945: India, Brazil, Algeria, Italy, Vietnam, Spain, Indonesia",
+      "fill the Iron Curtain: ___ border between ___ Europe and ___ Europe (cold war divide)",
     ],
     lastLessonTopics: [
       "WWI causes",
@@ -1459,10 +1459,10 @@ const LITERATURE_SUB_DOMAINS: Record<string, SubDomain> = {
     ],
     exercises: [
       "identify the narrator: 'I had been awake for hours' - first or third person?",
-      "name 2 themes in The Great Gatsby",
+      "spot the theme in this Gatsby line: 'So we beat on, boats against the current, borne back ceaselessly into the past.'",
       "what does the green light symbolize in Gatsby?",
       "spot the unreliable narrator clue: 'I'm sure I locked the door'",
-      "in 1 line: what's stream of consciousness?",
+      "spot stream of consciousness: 'rain on the window made me think of paris and the trains were always late and i never got used to'",
       "identify the theme: 'Time is a flat circle' (one-line analysis)",
     ],
     lastLessonTopics: [
@@ -1496,10 +1496,10 @@ const LITERATURE_SUB_DOMAINS: Record<string, SubDomain> = {
     ],
     exercises: [
       "identify the device: 'A horse, a horse, my kingdom for a horse'",
-      "in 1 line: what's a soliloquy?",
-      "give a 1-line example of dramatic irony",
+      "spot the soliloquy clue: 'To be or not to be, that is the question - whether 'tis nobler in the mind...'",
+      "spot the dramatic irony: 'Othello calls Iago honest, but the audience knows Iago has been lying to him the whole time.'",
       "what does 'wherefore art thou Romeo' mean?",
-      "name a comic relief character in Hamlet",
+      "match comic relief in Hamlet: gravediggers / Polonius / Osric (which is the comic foil scene?)",
       "identify the rhyme: 'love is blind, and lovers cannot see / The pretty follies that themselves commit'",
     ],
     lastLessonTopics: [
@@ -1542,7 +1542,7 @@ const ECONOMICS_SUB_DOMAINS: Record<string, SubDomain> = {
       "if Q drops 10% and P rises 5%, find PED",
       "is this a supply shift or demand shift: 'oil prices rise' (which curve?)",
       "match: perfect competition = ___ , monopoly = ___ , oligopoly = ___ (which has price-takers?)",
-      "in 1 line: effect of a price ceiling on quantity?",
+      "fill price ceiling effect (set below market): Q supplied = ___ , Q demanded = ___ , result = ___ (shortage / surplus)",
       "supply shifts right means: P ___ , Q ___",
       "PED of a luxury good is usually: elastic or inelastic?",
     ],
@@ -1576,7 +1576,7 @@ const ECONOMICS_SUB_DOMAINS: Record<string, SubDomain> = {
       "phillips curve scares me",
     ],
     exercises: [
-      "name 2 differences between GDP and GNP",
+      "fill GDP vs GNP: GDP measures output within ___ borders; GNP measures output by ___ citizens (location / nationality)",
       "if nominal GDP = 110, deflator = 1.1, real GDP = ?",
       "central bank raises interest rates - effect on inflation?",
       "match: expansionary fiscal = ___ , contractionary fiscal = ___ (gov spending up/down)",
@@ -1614,11 +1614,11 @@ const ECONOMICS_SUB_DOMAINS: Record<string, SubDomain> = {
     ],
     exercises: [
       "spot the bias: 'I'll keep this stock because i bought it at 100'",
-      "name 2 examples of nudges",
+      "match nudges: opt-out organ donation = ___ ; default 401k enrollment = ___ ; cafeteria placing salads first = ___ (default / friction / saliency)",
       "loss aversion means: people feel loss ___ x more than gain",
       "match: anchoring = ___ , confirmation bias = ___ , sunk cost = ___ (give 1-line example each)",
       "spot the bias: 'this brand is always in the news, must be popular'",
-      "in 1 line: what's the endowment effect?",
+      "spot the endowment effect: 'I bought this mug for $5 but I would not sell it for less than $15'",
     ],
     lastLessonTopics: [
       "common biases",
@@ -1652,7 +1652,7 @@ const ECONOMICS_SUB_DOMAINS: Record<string, SubDomain> = {
     exercises: [
       "FRQ structure: ___ + body + ___ (fill the 2 missing parts)",
       "spot the trap MCQ: which answer has the wrong direction in 'price ceiling -> quantity ___'?",
-      "name 2 things to label on every macro graph",
+      "label this macro graph: y-axis = ___ , x-axis = ___ , equilibrium point = ___ (price level / real GDP / where AD meets AS)",
       "rewrite this short FRQ answer to be more complete: 'Yes, raising interest rates reduces inflation.'",
       "AP macro: roughly how many MCQs in section 1?",
       "IB econ paper 1 has ___ questions",
@@ -1695,11 +1695,11 @@ const GEOGRAPHY_SUB_DOMAINS: Record<string, SubDomain> = {
     ],
     exercises: [
       "what does a closed loop of contour lines mean?",
-      "name 3 features of a temperate climate",
-      "name 2 erosion features of rivers",
+      "fill the temperate climate: rainfall = ___ (low/med/high), temp variation = ___ (low/med/high), 4 ___ (number of seasons)",
+      "match river erosion features: V-shaped valley = ___ ; waterfall = ___ ; gorge = ___ (vertical / step / narrow-deep)",
       "match: convergent = ___ , divergent = ___ , transform = ___ (plate boundaries)",
       "feature: V-shaped valley - usually formed by ___ ?",
-      "in 1 line: what causes the rain shadow effect?",
+      "fill rain shadow: wind hits mountain -> ___ side gets rain (windward), ___ side stays dry (leeward)",
     ],
     lastLessonTopics: [
       "contour lines",
@@ -1733,7 +1733,7 @@ const GEOGRAPHY_SUB_DOMAINS: Record<string, SubDomain> = {
     exercises: [
       "give 2 push factors for migration",
       "stage 4 of demographic transition: birth rate ___ , death rate ___",
-      "name 2 features of urbanisation in megacities",
+      "match megacity features: informal housing = ___ ; commute time = ___ ; air quality = ___ (slums / long / poor)",
       "match: brain drain = ___ , chain migration = ___ (1-line definition each)",
       "approx % of world population that is urban?",
       "spot the human geo concept: 'people move to cities for jobs'",
@@ -1850,11 +1850,11 @@ const ART_MUSIC_SUB_DOMAINS: Record<string, SubDomain> = {
     ],
     exercises: [
       "complementary color of red is ___",
-      "name 2 warm colors",
-      "in 1 line: what does watercolor wet-on-wet mean?",
+      "match warm/cool: red = ___ ; blue = ___ ; yellow = ___ ; green = ___",
+      "spot wet-on-wet technique: 'paper is ___ first, paint applied wet -> colors ___ together at the edges'",
       "to lighten oil paint, mix with ___ (white or yellow?)",
       "high value = ___ (light or dark?)",
-      "name 2 cool colors",
+      "fill cool colors from this list: red, blue, orange, green, yellow, purple",
     ],
     lastLessonTopics: [
       "color theory basics",
@@ -1928,7 +1928,7 @@ const ART_MUSIC_SUB_DOMAINS: Record<string, SubDomain> = {
       "fingering for D major scale on right hand: 1-2-3, then ___",
       "common time = ___ / ___ ?",
       "rhythm: dotted quarter = quarter + ___ ?",
-      "name the 5 lines of the treble staff (bottom to top)",
+      "fill the treble staff lines bottom to top using mnemonic 'Every Good Boy Does Fine': ___ ___ ___ ___ ___",
     ],
     lastLessonTopics: [
       "C major scale fingering",

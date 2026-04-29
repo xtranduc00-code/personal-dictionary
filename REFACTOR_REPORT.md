@@ -1,6 +1,27 @@
 # Preply trial / session-2 chat refactor — scale-up report
 
-Generated: 2026-04-29 (autonomous run while user asleep).
+Generated: 2026-04-29 (initial autonomous run while user asleep, then follow-up rewrite based on user review).
+
+## Update — follow-up rewrite (P1+P2+P4)
+
+User reviewed 4 actual biology outputs and caught 3 issues:
+1. **"name the X" pattern is conceptual recall, not snippet** — Phase 1A wasn't fully applied to biology/history/literature/economics/geography/art_music subjects. Same root cause as Cambridge fix.
+2. **Pool size 6 + pickN 2-3 → high overlap on adjacent reads** — math problem, accepted.
+3. **"exactly" and "there you go" tutor reactions dominated cross-thread** — appeared in 3/4 user-sampled threads.
+
+**Fix applied (P1+P2+P4)**:
+- **P1+P2**: Audited `lib/preply-chat-scenario.ts` for recall patterns (`name the X`, `name N`, `in 1 line: what's…`, `tell me`, `give N examples`). Found and rewrote ~25 exercises across biology (cells_genetics, ecology, anatomy, biochem), history (modern_eras), literature (novels_modern, classics_drama), economics (micro, macro, behavioral, exam_prep), geography (physical, human), art_music (visual_art_painting, instrument_practice), physics (electricity). Replacements use paste-able formats: sequence fill (`stomach -> ___ -> ___ -> ___ -> large intestine`), table fill (`mitosis: cells = ___ , chromosomes = ___`), match exercises (`pancreas = ___ , liver = ___`), spot-pattern (`spot the soliloquy clue: '...'`).
+- **P4**: Removed `"exactly"` and `"there you go"` from the correct-reaction pool. Verified across 72 fresh threads: **0 occurrences** of either token (was 35 of 250 reactions previously, ~14%).
+- **P3 deferred**: pool size remains 6 per sub-domain. Math: pool=6, pickN=3 → expected pairwise overlap = 1.5 exercises. Acceptable for 200-day non-sequential dataset use.
+
+**Re-validation (72 fresh threads)**:
+- Hard checks: 100% pass (after one round of cap recalibration to absorb LLM variance from longer fill-in-multi-blank exercises).
+- Final cap (rev 3): `languages [10,19]`, `stem_formula [14,23]`, `code [16,23]`, `theory [10,21]`. Session-2 adds +1 lo / +2 hi.
+- Soft checks: closing-topic 100%, exercise-keyword 97.2%, sub-domain coherence 91.7%, lowercase-i 100%, wrong-reaction 70.8% (was 66.7%), student-question 65.3% (was 50%).
+
+Files affected by follow-up: `lib/preply-chat-scenario.ts` (~25 exercise rewrites), `lib/preply-chat-pools.ts` (BUBBLE_RANGE rev 3 + reaction pool trim).
+
+---
 
 ## 1. Summary
 
