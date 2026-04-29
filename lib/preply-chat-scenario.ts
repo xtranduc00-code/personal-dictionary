@@ -117,6 +117,9 @@ const STUDENT_VIBES = [
   "embarrassed about basics",
 ] as const;
 
+// 18 variants, mix of generic + numbered-problem specificity ("did problem
+// 1-5 ok, 6 was tough"). Numbered references are subject-agnostic — "#3" or
+// "the last one" works for code, math, or grammar drills alike.
 const HOMEWORK_STATUSES = [
   "did all of it",
   "did most of it, got stuck on one",
@@ -125,6 +128,17 @@ const HOMEWORK_STATUSES = [
   "forgot until last night, rushed it",
   "did it but i'm not sure about a few",
   "did all but one feels wrong",
+  "did most, stuck on the last 2",
+  "did problem 1-5 ok, 6 was tough",
+  "did it but i'm not sure about #3 and #5",
+  "got through 4 out of 6",
+  "did it but my answer for the last one looks wrong",
+  "did all but #7 didn't make sense",
+  "did it, but had to look up the second one",
+  "did 1, 2, 3 - the rest i ran out of time",
+  "did all of them, but #4 took me forever",
+  "did most, skipped the last two cuz they looked hard",
+  "got through everything but #6 still feels off",
 ] as const;
 
 const TUTOR_YEARS = [3, 4, 5, 6, 7, 8, 9, 10, 12] as const;

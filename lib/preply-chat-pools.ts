@@ -292,6 +292,8 @@ const STUDENT_REACTION_POOL = {
 
 // =============================================================================
 // SESSION 2 — homework opener variants (Phase 1 only differs from trial)
+// 18 variants. Random pick gives ~5.5% chance of identical phrasing across any
+// 2 threads — well below the previous 7-item pool's 14%.
 // =============================================================================
 const TUTOR_HOMEWORK_OPENERS: readonly string[] = [
   "how'd the homework go?",
@@ -301,6 +303,17 @@ const TUTOR_HOMEWORK_OPENERS: readonly string[] = [
   "homework went ok?",
   "managed the homework?",
   "did the homework work out?",
+  "got through the homework?",
+  "any luck with the practice?",
+  "did you finish the practice from last time?",
+  "homework done?",
+  "any progress on the homework?",
+  "did the practice problems work out?",
+  "got time for the homework?",
+  "anything left from last week's homework?",
+  "did the practice from last time stick?",
+  "manage to finish the practice?",
+  "homework all wrapped up?",
 ];
 
 // =============================================================================
