@@ -67,6 +67,7 @@ const nextConfig: NextConfig = {
         // pure JS, but we keep it external so webpack doesn't try to
         // bundle the connection-pool internals).
         "pg",
+        "playwright-core",
     ],
     turbopack: {},
     async headers() {

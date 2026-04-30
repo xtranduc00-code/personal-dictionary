@@ -86,6 +86,10 @@ const ExtractRequestSchema = z.object({
   sourceUrl: z.string().url().optional().nullable(),
   whiteName: z.string().optional().nullable(),
   blackName: z.string().optional().nullable(),
+  // Chess.com username — used to identify which side is the user's so we
+  // only persist the user's own mistakes (opponent blunders are noise).
+  // Passed explicitly because it is unrelated to the app account username.
+  chessUsername: z.string().optional().nullable(),
 });
 
 /** Re-link parent refs after JSON round-trip. The localStorage helper does
@@ -134,11 +138,28 @@ export async function POST(req: Request): Promise<NextResponse> {
       { status: 400 },
     );
   }
-  const { pgn, initialFen, rootNode, sourceUrl, whiteName, blackName } = parsed.data;
+  const { pgn, initialFen, rootNode, sourceUrl, whiteName, blackName, chessUsername } = parsed.data;
 
   try {
     const tree = relinkParents(rootNode);
-    const puzzles = extractTrainablePuzzles(tree, { pgn, initialFen });
+    const allPuzzles = extractTrainablePuzzles(tree, { pgn, initialFen });
+
+    // Only keep puzzles where the user is the side that played the bad move.
+    // We want training data of *the user's* mistakes — opponent blunders are
+    // free wins, not lessons. The match is against the chess.com username
+    // the client provides (NOT the app account username — those are
+    // unrelated). When the chess.com username is missing or matches
+    // neither header (e.g. analysing a 3rd-party game) we keep everything
+    // so the tool stays useful as a generic analysis aid.
+    const norm = (s: string | null | undefined) => s?.trim().toLowerCase() ?? "";
+    const chessName = norm(chessUsername);
+    let userSide: "w" | "b" | null = null;
+    if (chessName && norm(whiteName) === chessName) userSide = "w";
+    else if (chessName && norm(blackName) === chessName) userSide = "b";
+
+    const puzzles = userSide
+      ? allPuzzles.filter((p) => p.side === userSide)
+      : allPuzzles;
 
     if (puzzles.length === 0) {
       // Common case: clean game, nothing to train. Skip the DB roundtrip

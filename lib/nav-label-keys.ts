@@ -30,6 +30,7 @@ export const NAV_LABEL_KEYS = [
     "calendar",
     "meets",
     "preplyChats",
+    "dolphin",
     "notes",
     "notesDiary",
     "articleHomeNav",

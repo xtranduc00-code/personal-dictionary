@@ -119,7 +119,6 @@ export type LibraryPuzzleNav = {
 };
 
 const PUZZLE_NAV_STORAGE_KEY = "ken_chess_puzzle_library_nav";
-const CHESS_OPEN_STORAGE_KEY = "ken_chess_open";
 /** Last chess feature used (for home “resume session”). */
 const CHESS_LAST_ACTIVITY_KEY = "ken_chess_last_activity";
 
@@ -497,17 +496,6 @@ export function ChessWorkspace({
   }, [router]);
 
   useEffect(() => {
-    if (initialLibraryPuzzleId) return;
-    try {
-      const o = sessionStorage.getItem(CHESS_OPEN_STORAGE_KEY);
-      if (o === "puzzles") {
-        setMode("puzzles");
-        sessionStorage.removeItem(CHESS_OPEN_STORAGE_KEY);
-      }
-    } catch { /* ignore */ }
-  }, [initialLibraryPuzzleId]);
-
-  useEffect(() => {
     const act = mapModeToHomeActivity(mode);
     if (!act) return;
     try {
@@ -534,7 +522,7 @@ export function ChessWorkspace({
 
     void (async () => {
       try {
-        const res = await fetch(
+        const res = await authFetch(
           `/api/chess/puzzles/by-id?id=${encodeURIComponent(initialLibraryPuzzleId)}`,
         );
         const data = (await res.json()) as { puzzle?: LibraryPuzzle; error?: string };
@@ -709,9 +697,6 @@ export function ChessWorkspace({
               clearPuzzleLibraryNav();
               setPuzzleNav(null);
               setActivePuzzle(null);
-              try {
-                sessionStorage.setItem(CHESS_OPEN_STORAGE_KEY, "puzzles");
-              } catch { /* ignore */ }
               router.push("/chess");
             }}
             onNextPuzzle={puzzleNav ? advanceToNextLibraryPuzzle : undefined}
@@ -4314,8 +4299,10 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
                   </div>
                 )}
 
-                {/* Hint / Show solution — progressive button */}
-                {result !== "solved" && result !== "wrong" && (
+                {/* Hint / Show solution — progressive button. Stays
+                    available after a wrong move so the player can keep
+                    learning instead of being forced to give up. */}
+                {result !== "solved" && (
                   hintLevel < HINT_MAX_LEVEL ? (
                     <button
                       type="button"

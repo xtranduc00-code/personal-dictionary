@@ -206,7 +206,13 @@ function GamesPageInner() {
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {items.map((p) => (
-          <GamePuzzleCard key={p.id} puzzle={p} onOpen={(id) => router.push(`/chess/puzzles/${encodeURIComponent(id)}`)} />
+          <GamePuzzleCard
+            key={p.id}
+            puzzle={p}
+            // Replace, not push — once the user opens a puzzle they want
+            // browser-back to return to the chess hub, not the games list.
+            onOpen={(id) => router.replace(`/chess/puzzles/${encodeURIComponent(id)}`)}
+          />
         ))}
         {loading && items.length === 0 && (
           <div className="col-span-full flex items-center justify-center py-12">

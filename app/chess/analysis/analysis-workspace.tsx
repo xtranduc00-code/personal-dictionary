@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft,
   BarChart3,
+  FlipVertical2,
   Loader2,
   Play,
   RotateCcw,
@@ -103,6 +104,10 @@ export default function AnalysisWorkspace() {
   // `source_url` for any game-puzzles extracted from this analysis so the
   // user can deep-link back to the source position.
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
+  // Chess.com username being browsed. Persisted alongside the game so the
+  // extract endpoint can identify which side belongs to the user when
+  // deciding which mistakes to keep — independent of the app account.
+  const [chessUsername, setChessUsername] = useState<string | null>(null);
   // Last extract result — fuels the small "✓ N trainable positions saved"
   // indicator AND the per-move "Train this" button (looked up by ply).
   const [extractInfo, setExtractInfo] = useState<{
@@ -112,6 +117,7 @@ export default function AnalysisWorkspace() {
     gameId: string;
     puzzles: { id: string; ply: number; classification: "mistake" | "blunder"; swingCp: number }[];
   } | null>(null);
+  const [orientation, setOrientation] = useState<"white" | "black">("white");
 
   const cancellerRef = useRef<(() => void) | null>(null);
 
@@ -189,12 +195,17 @@ export default function AnalysisWorkspace() {
   // `gameUrl` is optional — the chess.com loader passes it through; manual
   // PGN paste leaves it unset. Stored so the extract endpoint can record a
   // back-link on each game-puzzle.
-  const loadPgnString = useCallback((source: string, gameUrl?: string | null) => {
+  const loadPgnString = useCallback((
+    source: string,
+    gameUrl?: string | null,
+    pickedUsername?: string | null,
+  ) => {
     setError(null);
     setStats(null);
     setAnalyzed(false);
     setExtractInfo(null);
     setSourceUrl(gameUrl ?? null);
+    setChessUsername(pickedUsername?.trim() || null);
     try {
       const parsed = parsePgnToStateTree(source);
       if (parsed.moveCount === 0) {
@@ -275,6 +286,7 @@ export default function AnalysisWorkspace() {
             sourceUrl: sourceUrl ?? null,
             whiteName: players.whiteName,
             blackName: players.blackName,
+            chessUsername: chessUsername ?? null,
           }),
         });
         if (res.ok) {
@@ -398,9 +410,9 @@ export default function AnalysisWorkspace() {
         progress={progress}
         error={error}
         extractInfo={extractInfo}
-        onLoadPgn={(p, url) => {
+        onLoadPgn={(p, url, name) => {
           setPgn(p);
-          loadPgnString(p, url);
+          loadPgnString(p, url, name);
         }}
         onAnalyze={analyze}
         onCancel={cancelAnalysis}
@@ -414,6 +426,8 @@ export default function AnalysisWorkspace() {
           if (n) setSelectedNodeId(n.id);
         }}
         onSelectNodeId={setSelectedNodeId}
+        orientation={orientation}
+        onFlipBoard={() => setOrientation((o) => (o === "white" ? "black" : "white"))}
       />
     </div>
   );
@@ -1024,6 +1038,8 @@ function AnalysisShell({
   stats,
   onSelectIndex,
   onSelectNodeId,
+  orientation,
+  onFlipBoard,
 }: {
   hasGame: boolean;
   fen: string;
@@ -1043,7 +1059,11 @@ function AnalysisShell({
     gameId: string;
     puzzles: { id: string; ply: number; classification: "mistake" | "blunder"; swingCp: number }[];
   } | null;
-  onLoadPgn: (pgn: string, sourceUrl?: string | null) => void;
+  onLoadPgn: (
+    pgn: string,
+    sourceUrl?: string | null,
+    chessUsername?: string | null,
+  ) => void;
   onAnalyze: () => void;
   onCancel: () => void;
   onReset: () => void;
@@ -1053,6 +1073,8 @@ function AnalysisShell({
   stats: AnalysisStats | null;
   onSelectIndex: (i: number) => void;
   onSelectNodeId: (id: string) => void;
+  orientation: "white" | "black";
+  onFlipBoard: () => void;
 }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const topRef = useRef<HTMLDivElement>(null);
@@ -1143,7 +1165,9 @@ function AnalysisShell({
                 {!hasGame ? (
                   <>
                     <ChessComLoader
-                      onPick={(g) => onLoadPgn(g.pgn, g.url || null)}
+                      onPick={(g, chessUsername) =>
+                        onLoadPgn(g.pgn, g.url || null, chessUsername)
+                      }
                     />
                     {error ? (
                       <p className="rounded-md bg-red-50 p-2 text-xs text-red-700 dark:bg-red-950/40 dark:text-red-200">
@@ -1263,22 +1287,29 @@ function AnalysisShell({
           </div>
         </aside>
 
-        {/* ── CENTER: black chip → eval+board → white chip → nav ─────── */}
+        {/* ── CENTER: top chip → eval+board → bottom chip ──
+             When orientation === "white" the bottom belongs to white (default
+             chess view). Flipping swaps which player sits on each edge so the
+             chip + board orientation always agree. */}
         <div
           className="flex min-h-0 min-w-0 flex-col items-stretch bg-white dark:bg-[#262421]"
           style={{ padding: SHELL_BOARD_PAD }}
         >
           <div ref={topRef} style={{ paddingLeft: EVAL_BAR_RESERVE }}>
             <PlayerLabel
-              name={players.blackName}
-              elo={players.blackElo}
-              colour="black"
+              name={orientation === "white" ? players.blackName : players.whiteName}
+              elo={orientation === "white" ? players.blackElo : players.whiteElo}
+              colour={orientation === "white" ? "black" : "white"}
             />
           </div>
 
           {edge > 0 ? (
             <div className="flex" style={{ height: edge, width: edge + EVAL_BAR_RESERVE }}>
-              <EvaluationBar evaluation={evaluation} height={edge} />
+              <EvaluationBar
+                evaluation={evaluation}
+                height={edge}
+                flipped={orientation === "black"}
+              />
               <div
                 className="relative shrink-0"
                 style={{ width: edge, height: edge }}
@@ -1292,6 +1323,7 @@ function AnalysisShell({
                     allowDragging: false,
                     squareStyles,
                     arrows,
+                    boardOrientation: orientation,
                     // Disable react-chessboard's tween animations. Jumping
                     // a few plies (clicking a non-adjacent move) makes the
                     // diff drop pieces without a clean 1:1 candidate match
@@ -1305,18 +1337,32 @@ function AnalysisShell({
                     size={edge}
                     square={badge.square}
                     classification={badge.classification}
+                    flipped={orientation === "black"}
                   />
                 ) : null}
               </div>
             </div>
           ) : null}
 
-          <div ref={botRef} style={{ paddingLeft: EVAL_BAR_RESERVE }}>
+          <div
+            ref={botRef}
+            className="flex items-center justify-between"
+            style={{ paddingLeft: EVAL_BAR_RESERVE }}
+          >
             <PlayerLabel
-              name={players.whiteName}
-              elo={players.whiteElo}
-              colour="white"
+              name={orientation === "white" ? players.whiteName : players.blackName}
+              elo={orientation === "white" ? players.whiteElo : players.blackElo}
+              colour={orientation === "white" ? "white" : "black"}
             />
+            <button
+              type="button"
+              onClick={onFlipBoard}
+              title="Flip board"
+              aria-label="Flip board"
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            >
+              <FlipVertical2 className="h-4 w-4" aria-hidden />
+            </button>
           </div>
         </div>
 
@@ -1371,16 +1417,19 @@ function BoardClassificationBadge({
   size,
   square,
   classification,
+  flipped = false,
 }: {
   size: number;
   square: string;
   classification: Classification;
+  flipped?: boolean;
 }) {
   const style = CLASSIFICATION_STYLES[classification];
   const Icon = style.icon;
 
-  // Square geometry: white-orientation, file a→h is left→right, rank 1→8 is
-  // bottom→top. We position from the top-left of the (square) board container.
+  // Square geometry. Default (white-orientation): file a→h is left→right,
+  // rank 1→8 is bottom→top. When flipped (black-orientation) the board is
+  // rotated 180°, so file a is on the right and rank 1 is at the top.
   const file = square.charCodeAt(0) - 97; // a=0
   const rank = parseInt(square[1] ?? "0", 10);
   if (Number.isNaN(rank) || file < 0 || file > 7 || rank < 1 || rank > 8) {
@@ -1390,9 +1439,11 @@ function BoardClassificationBadge({
   const badgeSize = Math.max(14, Math.round(squareSize * 0.34));
   const inset = Math.max(2, Math.round(squareSize * 0.06));
 
-  // Top-right corner of the destination square.
-  const left = (file + 1) * squareSize - badgeSize - inset;
-  const top = (8 - rank) * squareSize + inset;
+  // Top-right corner of the destination square (visual, after orientation).
+  const visualFile = flipped ? 7 - file : file;
+  const visualRowFromTop = flipped ? rank - 1 : 8 - rank;
+  const left = (visualFile + 1) * squareSize - badgeSize - inset;
+  const top = visualRowFromTop * squareSize + inset;
 
   return (
     <div

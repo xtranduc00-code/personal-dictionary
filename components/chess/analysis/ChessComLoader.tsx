@@ -68,7 +68,10 @@ export function ChessComLoader({
   onPick,
 }: {
   initialUsername?: string;
-  onPick: (game: ChessComGame) => void;
+  /** Called with the picked game and the chess.com username being browsed.
+   *  The username is needed to identify which side belongs to the user when
+   *  extracting trainable puzzles — it is unrelated to the app account. */
+  onPick: (game: ChessComGame, chessUsername: string) => void;
 }) {
   // Hydrate from localStorage on first client render.
   const [username, setUsername] = useState(initialUsername ?? "");
@@ -225,7 +228,7 @@ function GameRow({
 }: {
   game: ChessComGame;
   username: string;
-  onPick: (game: ChessComGame) => void;
+  onPick: (game: ChessComGame, chessUsername: string) => void;
 }) {
   const playerIsWhite =
     game.whiteName.toLowerCase() === username.toLowerCase();
@@ -239,7 +242,7 @@ function GameRow({
   return (
     <button
       type="button"
-      onClick={() => onPick(game)}
+      onClick={() => onPick(game, username)}
       className="group flex items-start gap-2 rounded-md border border-transparent bg-zinc-50 p-2 text-left text-xs transition hover:border-emerald-300 hover:bg-emerald-50 dark:bg-zinc-900/40 dark:hover:border-emerald-700 dark:hover:bg-emerald-950/30"
     >
       {/* W/D/L letter chip — colour-coded so a quick scan reads results at

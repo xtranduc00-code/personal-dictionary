@@ -25,6 +25,12 @@ export const MIN_SWING_CP = 150;
  *  mate is the same magnitude — finite cp anywhere on the other side
  *  produces a swing well over the 150-cp threshold. */
 const MATE_CP = 10_000;
+/** Cap the engine PV to this many plies (≈ 3 user moves). Past that the
+ *  position has drifted far from the original tactic, branching gets wide,
+ *  and the user spends working memory replaying the engine instead of
+ *  internalising the lesson. Stockfish PVs at depth 14 routinely reach
+ *  16+ plies; trimming keeps each puzzle a focused punch line. */
+const MAX_SOLUTION_PLIES = 6;
 
 export interface ExtractedGamePuzzle {
   id: string;             // gp_<gameId12>_<ply>
@@ -122,7 +128,7 @@ export function extractTrainablePuzzles(
     const ply = i;
     const fullmove = Math.floor((ply - 1) / 2) + 1;
     const side = sideToMoveFromFen(parent.state.fen);
-    const solutionMoves = parentTop.moves.map((m) => m.uci);
+    const solutionMoves = parentTop.moves.slice(0, MAX_SOLUTION_PLIES).map((m) => m.uci);
     if (solutionMoves.length === 0) continue; // no PV → can't grade attempts
 
     const themes: string[] = ["from-my-games"];

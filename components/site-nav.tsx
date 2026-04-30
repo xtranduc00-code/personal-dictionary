@@ -100,6 +100,7 @@ const preplySectionLinks: {
 }[] = [
     { href: "/study-schedule", labelKey: "studySchedule", icon: Table2 },
     { href: "/preply-chats", labelKey: "preplyChats", icon: MessagesSquare },
+    { href: "/dolphin/bulk-create", labelKey: "dolphin", icon: Sparkles },
     { href: "/notes", labelKey: "notes", icon: FileText },
 ];
 const portfolioSectionLinks: {
@@ -230,6 +231,7 @@ function isSchedulePath(pathname: string) {
     });
 }
 function isPreplyPath(pathname: string) {
+    if (pathname === "/dolphin" || pathname.startsWith("/dolphin/")) return true;
     return preplySectionLinks.some((link) => {
         if (link.href === "/notes") {
             return pathname === "/notes";
