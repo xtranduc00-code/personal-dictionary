@@ -79,6 +79,7 @@ const PUZZLE_ARROW_WRONG = "rgba(239, 68, 68, 0.95)";
 import type { LibraryPuzzle, PuzzleLevel } from "@/lib/chess-types";
 import type { GamePuzzleNav } from "@/lib/chess/game-puzzle-nav";
 import {
+  CHESS_PUZZLE_PROGRESS_EVENT,
   clearGamePuzzleNav,
   GAME_PUZZLES_PAGE_SIZE,
   readGamePuzzleNav,
@@ -3174,11 +3175,16 @@ function PuzzleLibrary({ onBack, onSolve }: { onBack: () => void; onSolve: (p: L
     const onPageShow = (e: PageTransitionEvent) => {
       if (e.persisted) refresh();
     };
+    const onPuzzleProgress = () => {
+      refresh();
+    };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("pageshow", onPageShow);
+    window.addEventListener(CHESS_PUZZLE_PROGRESS_EVENT, onPuzzleProgress);
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener(CHESS_PUZZLE_PROGRESS_EVENT, onPuzzleProgress);
     };
   }, []);
 
@@ -3251,7 +3257,7 @@ function PuzzleLibrary({ onBack, onSolve }: { onBack: () => void; onSolve: (p: L
         <aside
           className={`fixed inset-y-0 left-0 z-40 w-72 overflow-y-auto border-r border-zinc-200 bg-white px-4 py-4 transition-transform dark:border-zinc-800 dark:bg-zinc-900 lg:static lg:inset-auto lg:z-auto lg:flex lg:w-[280px] lg:translate-x-0 lg:flex-col ${
             filtersDrawerOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-          }`}
+          } ${filtersDrawerOpen ? "" : "pointer-events-none lg:pointer-events-auto"}`}
         >
           <div className="mb-3 flex items-center justify-between gap-2">
             <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
@@ -3810,6 +3816,32 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
     ? (puzzle as LibraryPuzzle).moves.slice(1)
     : (puzzle as BuiltInPuzzle).solutionMoves;
 
+  const playFens = useMemo(() => {
+    try {
+      const b = new Chess(puzzle.fen);
+      if (setupMove) {
+        b.move({
+          from: setupMove.slice(0, 2),
+          to: setupMove.slice(2, 4),
+          promotion: setupMove[4] ?? "q",
+        });
+      }
+      const out: string[] = [b.fen()];
+      for (const uci of solMoves) {
+        const m = b.move({
+          from: uci.slice(0, 2),
+          to: uci.slice(2, 4),
+          promotion: uci[4] ?? "q",
+        });
+        if (!m) break;
+        out.push(b.fen());
+      }
+      return out;
+    } catch {
+      return [puzzle.fen];
+    }
+  }, [puzzle.fen, setupMove, solMoves]);
+
   const [chess]     = useState(() => new Chess(puzzle.fen));
   const [fen, setFen]                     = useState(puzzle.fen);
   const [moveIdx, setMoveIdx]             = useState(0);
@@ -3819,9 +3851,10 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
   const [lastMove, setLastMove]           = useState<[string, string] | null>(null);
   const [wrongSquares, setWrongSquares]   = useState<[string, string] | null>(null);
   const [wrongExpl, setWrongExpl]         = useState("");
-  // Wrong-move "why this is wrong" copy comes from /api/chess/puzzles/explain
-  // and is no longer surfaced — the progressive hint flow handles guidance.
+  const [wrongAiHint, setWrongAiHint]     = useState("");
   const [loadingWrong, setLoadingWrong]   = useState(false);
+  /** null = board follows live play; number = replay `playFens` index for ← / →. */
+  const [replayCursor, setReplayCursor]   = useState<number | null>(null);
   const [muted, setMuted]                 = useState(false);
   const mutedRef = useRef(muted);
   useEffect(() => {
@@ -3849,6 +3882,35 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
   const playerColor  = (setupMove
     ? (fenTurn === "w" ? "black" : "white")
     : (fenTurn === "w" ? "white" : "black")) as "white" | "black";
+
+  const maxReplayIdx = result === "solved" ? playFens.length - 1 : moveIdx;
+  const replayAtLiveTip = replayCursor === null || replayCursor === moveIdx;
+  const boardFen =
+    replayCursor !== null ? (playFens[replayCursor] ?? fen) : fen;
+
+  function goReplayPrev() {
+    setReplayCursor((prev) => {
+      if (prev === null) {
+        if (moveIdx <= 0) return null;
+        return moveIdx - 1;
+      }
+      return prev <= 0 ? 0 : prev - 1;
+    });
+  }
+
+  function goReplayNext() {
+    setReplayCursor((prev) => {
+      const cap = result === "solved" ? playFens.length - 1 : moveIdx;
+      if (prev === null) return null;
+      if (prev >= cap) return null;
+      const n = prev + 1;
+      return n >= cap ? null : n;
+    });
+  }
+
+  const canReplayPrev = moveIdx > 0 && ((replayCursor ?? moveIdx) > 0);
+  const canReplayNext =
+    replayCursor !== null && replayCursor < maxReplayIdx;
 
   function clearWrongArrowTimer() {
     if (wrongArrowClearRef.current) {
@@ -3916,6 +3978,7 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
     const requestId = ++wrongExplGenRef.current;
     setLoadingWrong(true);
     setWrongExpl("");
+    setWrongAiHint("");
     try {
       const res = await fetch("/api/chess/puzzles/explain", {
         method: "POST",
@@ -3933,6 +3996,7 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
       const data = await res.json() as { explanation: string; hint?: string };
       if (requestId !== wrongExplGenRef.current) return;
       setWrongExpl(data.explanation ?? "");
+      setWrongAiHint((data.hint ?? "").trim());
     } finally {
       if (requestId === wrongExplGenRef.current) setLoadingWrong(false);
     }
@@ -3945,6 +4009,7 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
   useEffect(() => {
     libraryWrongAttemptsRef.current = 0;
     startedAtRef.current = Date.now();
+    setReplayCursor(null);
   }, [isLibrary, libraryPuzzleId]);
 
   /** Persist a single attempt to progress.sqlite. Includes duration since
@@ -3964,6 +4029,11 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
           durationMs,
         }),
       });
+      if (typeof window !== "undefined" && solved) {
+        window.dispatchEvent(
+          new CustomEvent(CHESS_PUZZLE_PROGRESS_EVENT, { detail: { puzzleId: p.id } }),
+        );
+      }
     } catch (e) {
       // Attempts log is best-effort — a network blip shouldn't break the
       // solve flow.
@@ -3975,7 +4045,11 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
   // server-side hint fetch is needed. See lib/puzzleHints.ts.
 
   // ── Legal move indicators + click-to-move ─────────────────────────────────
-  const { legalMoveStyles: puzzleLegalStyles, handlers: puzzleLegalHandlers, clearSelection: clearPuzzleSelection } = useChessLegalMoves(chessRef, onDrop, result !== "solved");
+  const { legalMoveStyles: puzzleLegalStyles, handlers: puzzleLegalHandlers, clearSelection: clearPuzzleSelection } = useChessLegalMoves(
+    chessRef,
+    onDrop,
+    result !== "solved" && replayAtLiveTip,
+  );
 
   function onDrop(sourceSquare: string, targetSquare: string): boolean {
     if (sourceSquare === targetSquare) return false;
@@ -4037,6 +4111,7 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
     setLastMove([sourceSquare, targetSquare]);
     setWrongSquares(null);
     setWrongExpl("");
+    setWrongAiHint("");
     setResult("idle");
 
     const nextIdx = moveIdx + 1;
@@ -4088,6 +4163,8 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
     setResult("idle");
     setWrongSquares(null);
     setWrongExpl("");
+    setWrongAiHint("");
+    setReplayCursor(null);
     const f = chessRef.current.fen();
     setFen(f);
     fenBeforeDropRef.current = f;
@@ -4112,6 +4189,8 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
     setLoadingWrong(false);
     setWrongSquares(null);
     setWrongExpl("");
+    setWrongAiHint("");
+    setReplayCursor(null);
     setMoveArrows([]);
     setResult("idle");
 
@@ -4182,6 +4261,8 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
     setLastMoveSide(null);
     setWrongSquares(null);
     setWrongExpl("");
+    setWrongAiHint("");
+    setReplayCursor(null);
     if (setupMove) {
       setTimeout(() => {
         const m = chessRef.current.move({ from: setupMove.slice(0, 2), to: setupMove.slice(2, 4), promotion: setupMove[4] ?? "q" });
@@ -4204,8 +4285,26 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
   }
 
   const squareStyles: Record<string, React.CSSProperties> = {};
-  if (result !== "wrong" && lastMove && lastMoveSide) {
+  if (
+    result !== "wrong" &&
+    lastMove &&
+    lastMoveSide &&
+    replayCursor === null
+  ) {
     Object.assign(squareStyles, squareStylesForLastMove(lastMove[0], lastMove[1], lastMoveSide));
+  }
+  if (replayCursor !== null && replayCursor > 0 && result !== "wrong") {
+    const uci = solMoves[replayCursor - 1];
+    if (uci) {
+      Object.assign(
+        squareStyles,
+        squareStylesForLastMove(
+          uci.slice(0, 2),
+          uci.slice(2, 4),
+          (replayCursor - 1) % 2 === 0 ? "user" : "opponent",
+        ),
+      );
+    }
   }
   if (result === "wrong" && wrongSquares) {
     squareStyles[wrongSquares[0]] = { backgroundColor: "rgba(239, 68, 68, 0.5)" };
@@ -4247,14 +4346,44 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
     ];
   }, [themes, playerSolutionFen, playerSolutionUci]);
   const visibleHints = builtHints.slice(0, hintLevel);
-  const totalPlayerMoves   = Math.ceil(solMoves.length / 2);
+  const totalPlayerMoves   = Math.max(1, Math.ceil(solMoves.length / 2));
   const currentPlayerMove  = Math.min(Math.floor(moveIdx / 2) + 1, totalPlayerMoves);
-  const progressPct        = result === "solved" ? 100 : Math.round((moveIdx / solMoves.length) * 100);
+  const solMoveCount       = solMoves.length;
+  const lineStepLabel      = solMoveCount === 0 ? 0 : Math.min(moveIdx + 1, solMoveCount);
+  const progressPct        = result === "solved"
+    ? 100
+    : solMoveCount === 0
+      ? 0
+      : Math.round((moveIdx / solMoveCount) * 100);
 
-  const puzzleMoveHistoryVerbose = useMemo(
-    () => chess.history({ verbose: true }) as Move[],
-    [fen],
-  );
+  const puzzleMoveHistoryVerbose = useMemo(() => {
+    if (replayCursor !== null) {
+      try {
+        const b = new Chess(puzzle.fen);
+        if (setupMove) {
+          b.move({
+            from: setupMove.slice(0, 2),
+            to: setupMove.slice(2, 4),
+            promotion: setupMove[4] ?? "q",
+          });
+        }
+        const hist: Move[] = [];
+        for (let i = 0; i < replayCursor && i < solMoves.length; i++) {
+          const u = solMoves[i]!;
+          const m = b.move({
+            from: u.slice(0, 2),
+            to: u.slice(2, 4),
+            promotion: u[4] ?? "q",
+          });
+          if (m) hist.push(m as Move);
+        }
+        return hist;
+      } catch {
+        return [];
+      }
+    }
+    return chess.history({ verbose: true }) as Move[];
+  }, [replayCursor, puzzle.fen, setupMove, solMoves, fen, chess]);
 
   const sideToMove = chess.turn();
 
@@ -4321,8 +4450,36 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
                   </div>
                   <div className="mt-2">
                     <div className="mb-1 flex items-center justify-between text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">
-                      <span>Move {currentPlayerMove}/{totalPlayerMoves}</span>
+                      <span>
+                        Line {solMoveCount === 0 ? "—" : `${lineStepLabel}/${solMoveCount}`}
+                        <span className="ml-1.5 font-normal opacity-80">
+                          · your move {currentPlayerMove}/{totalPlayerMoves}
+                        </span>
+                      </span>
                       <span>{progressPct}%</span>
+                    </div>
+                    <div className="mb-1 flex items-center justify-center gap-1">
+                      <button
+                        type="button"
+                        title="Previous position"
+                        disabled={!canReplayPrev}
+                        onClick={goReplayPrev}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 transition enabled:hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-35 dark:border-zinc-600 dark:text-zinc-300 dark:enabled:hover:bg-zinc-800"
+                      >
+                        <ChevronLeft className="h-4 w-4" aria-hidden />
+                      </button>
+                      <span className="min-w-[7rem] text-center font-mono text-[10px] text-zinc-500 dark:text-zinc-400">
+                        {replayCursor === null ? "Live" : `Review ${replayCursor + 1}/${playFens.length}`}
+                      </span>
+                      <button
+                        type="button"
+                        title="Next position"
+                        disabled={!canReplayNext}
+                        onClick={goReplayNext}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 transition enabled:hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-35 dark:border-zinc-600 dark:text-zinc-300 dark:enabled:hover:bg-zinc-800"
+                      >
+                        <ChevronRight className="h-4 w-4" aria-hidden />
+                      </button>
                     </div>
                     <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700/60">
                       <div
@@ -4343,14 +4500,22 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
                   <FeedbackPanel
                     variant="warning"
                     icon={<X className="h-3 w-3" />}
-                    title="Not the best move"
+                    title="What you missed"
                   >
                     {loadingWrong ? (
                       <span className="flex items-center gap-1 opacity-80">
                         <Loader2 className="h-3 w-3 animate-spin" /> Analyzing…
                       </span>
                     ) : wrongExpl ? (
-                      <p>{wrongExpl}</p>
+                      <div className="space-y-1.5">
+                        <p>{wrongExpl}</p>
+                        {wrongAiHint ? (
+                          <p className="border-t border-amber-200/80 pt-1.5 text-[11px] leading-snug text-amber-900/90 dark:border-amber-800/50 dark:text-amber-100/90">
+                            <span className="font-semibold">Nudge: </span>
+                            {wrongAiHint}
+                          </p>
+                        ) : null}
+                      </div>
                     ) : (
                       <p className="opacity-80">Try a stronger threat.</p>
                     )}
@@ -4436,8 +4601,8 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
         <>
           <SidebarDominant
             label={result === "solved" ? "Solved" : result === "wrong" ? "Retry" : "Puzzle"}
-            value={currentPlayerMove}
-            unit={`/ ${totalPlayerMoves} moves`}
+            value={result === "solved" ? solMoveCount : lineStepLabel || "—"}
+            unit={solMoveCount === 0 ? "" : `/ ${solMoveCount} plies`}
           />
 
           <div className="mt-3">
@@ -4592,13 +4757,13 @@ function PuzzleSolve({ puzzle, onBack, onNextPuzzle }: {
             fixedEdgeNotation={false}
             className={`shrink-0 overflow-hidden ${boardShake ? "puzzle-board-shake" : ""}`}
             options={{
-              position: fen,
+              position: boardFen,
               onPieceDrop: ({ sourceSquare, targetSquare }) => {
                 clearPuzzleSelection();
                 return onDrop(sourceSquare, targetSquare ?? "");
               },
               boardOrientation: playerColor,
-              allowDragging: result !== "solved",
+              allowDragging: result !== "solved" && replayAtLiveTip,
               allowDrawingArrows: false,
               clearArrowsOnPositionChange: false,
               arrows: moveArrows,

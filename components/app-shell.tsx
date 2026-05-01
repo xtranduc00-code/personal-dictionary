@@ -68,7 +68,14 @@ export function AppShell({ children }: {
         {!isStandaloneAuth ? <MeetPersistentLayer/> : null}
         {!isStandaloneAuth ? <YouTubeDock /> : null}
         <AuthGate>
-          <div className={fullMeet ? "hidden" : "contents"}>
+          {/* Real flex box — not `display:contents` (Safari/mobile hit-testing bugs). */}
+          <div
+            className={
+              fullMeet
+                ? "hidden"
+                : "flex min-h-0 w-full min-w-0 flex-1 flex-col"
+            }
+          >
             {isStandaloneAuth ? (<div className="fixed inset-0 z-[1] box-border flex items-center justify-center overflow-x-hidden overflow-y-auto bg-zinc-50 p-4 dark:bg-zinc-950">
               {children}
             </div>) : (

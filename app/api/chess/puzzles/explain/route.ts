@@ -62,33 +62,31 @@ export async function POST(req: Request) {
       // Progressive hint levels based on attempt count
       let hintLevel: string;
       if (attempt <= 1) {
-        hintLevel = `Give a gentle nudge. Name the tactical theme (${themeList}) in plain words. Do NOT reveal the correct move or its destination square.`;
+        hintLevel = `One concrete sentence: name ONE thing the student should look for on the board (e.g. a loose piece, a back rank, a knight fork pattern) tied to themes: ${themeList}. Do NOT name the correct move or destination square.`;
       } else if (attempt === 2) {
-        hintLevel = `Be more specific. Name the piece that should move and the general idea (e.g. "your rook needs to cut off the king" or "look for a fork with the knight"). Do NOT name the exact destination square.`;
+        hintLevel = `Two short phrases: (1) which piece type should probably move (queen/rook/knight/pawn), (2) what it should attack or cut off — still no exact square, no SAN of the solution.`;
       } else {
-        // 3+ attempts — very direct, almost reveal
         hintLevel = solutionFirstSan
-          ? `The student is struggling. Tell them which piece to move and strongly hint at the idea (e.g. "move your rook along the 7th rank" or "your knight can jump to attack two pieces"). You may hint at the piece and direction but do NOT write the exact move notation "${solutionFirstSan}".`
-          : `The student is struggling. Give the most direct hint possible — name the piece and the general direction/idea. Stop just short of naming the exact square.`;
+          ? `They are stuck. Say clearly: "Try moving your ___ toward ___" using piece words and direction (file/rank/diagonal), but do NOT write the full solution move "${solutionFirstSan}" or its exact destination square.`
+          : `They are stuck. Name the best piece to activate and the target (king/pawn/empty critical square) in plain words — stop one step before naming the exact landing square.`;
       }
 
-      const prompt = `You are a patient chess teacher helping a student with a ${level} puzzle.
+      const prompt = `You are a chess coach for a ${level} puzzle. The student needs VERY concrete language (not chess engine jargon).
 Position (FEN): ${currentFen}
-The student played: ${wrongSan} (attempt #${attempt})
-Puzzle themes: ${themeList}
+The student tried: ${wrongSan} (wrong attempt #${attempt})
+Themes (metadata): ${themeList}
 
-Reply in EXACTLY this JSON format (no markdown, no code fences):
+Reply in EXACTLY this JSON (no markdown, no code fences):
 {"wrong":"...","hint":"..."}
 
-For "wrong" (max 2 short sentences, max 25 words total):
-- Sentence 1: What the student's move fails to do, in plain language. Example: "${wrongSan} doesn't create any immediate threat" or "${wrongSan} lets the opponent escape".
-- Sentence 2: What the puzzle is actually asking for — the goal. Example: "This puzzle is about trapping the king" or "You need to win material with a tactic".
-- Use everyday chess language a beginner can follow. No engine jargon.
+"wrong" — EXACTLY 2 sentences, max 22 words total, simple English:
+1) What goes wrong with their try in ONE concrete image (e.g. "Your rook checks but it can be captured" / "That knight move does not attack anything valuable").
+2) What they should be trying instead in ONE short phrase (e.g. "Look for a fork on king and rook" / "Win a piece in one move").
 
-For "hint" (max 1-2 sentences, max 20 words):
+"hint" — max 18 words, one sentence, actionable:
 ${hintLevel}
 
-FORBIDDEN: "decisive advantage", "winning move", "crushing", "strongest move", "optimal", "key squares", praise, filler.`;
+FORBIDDEN in both fields: "decisive advantage", "crushing", "optimal", "best move", "key squares", "immediate threat" without naming WHAT is missing, filler, praise.`;
 
       const completion = await openai.chat.completions.create({
         model: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",

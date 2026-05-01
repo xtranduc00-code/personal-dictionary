@@ -5,6 +5,9 @@
 
 export const GAME_PUZZLE_NAV_STORAGE_KEY = "ken_chess_game_puzzle_nav";
 
+/** Fired after a puzzle attempt is saved so lists can refresh solved state. */
+export const CHESS_PUZZLE_PROGRESS_EVENT = "ken-chess-puzzle-progress";
+
 /** Must match `PAGE_SIZE` in `app/chess/games/page.tsx`. */
 export const GAME_PUZZLES_PAGE_SIZE = 20;
 

@@ -35,12 +35,24 @@ interface GamePuzzleRow {
   themes: string;
   // Postgres returns timestamptz as Date; convert to unix-ms in `rowToLibraryPuzzle`.
   created_at: Date;
+  /** True if this user has at least one solved attempt for this game-puzzle. */
+  ever_solved?: boolean;
 }
 
 const SELECT_COLS =
   "id, game_id, ply, fullmove, side, fen, solution_moves, played_uci, " +
   "classification, eval_before_cp, eval_after_cp, swing_cp, " +
   "source_url, white_name, black_name, themes, created_at";
+
+/** Same columns plus whether the current user has ever solved this puzzle. */
+const LIST_SELECT_COLS = `${SELECT_COLS}, (
+  EXISTS (
+    SELECT 1 FROM public.chess_attempts a
+    WHERE a.user_id = chess_game_puzzles.user_id
+      AND a.game_puzzle_id = chess_game_puzzles.id
+      AND a.solved = true
+  )
+) AS ever_solved`;
 
 /** Bucket the swing magnitude into a difficulty level so game-puzzles can
  *  reuse the existing browse UI's level chips. Mirrors the Lichess buckets:
@@ -62,6 +74,7 @@ export interface GamePuzzleAsLibrary extends LibraryPuzzle {
   whiteName: string | null;
   blackName: string | null;
   openings: string[];
+  everSolved?: boolean;
 }
 
 function rowToLibraryPuzzle(r: GamePuzzleRow): GamePuzzleAsLibrary {
@@ -85,6 +98,7 @@ function rowToLibraryPuzzle(r: GamePuzzleRow): GamePuzzleAsLibrary {
     whiteName: r.white_name,
     blackName: r.black_name,
     openings: [],
+    everSolved: Boolean(r.ever_solved),
   } as GamePuzzleAsLibrary;
 }
 
@@ -171,7 +185,7 @@ export async function listGamePuzzles(
   }
 
   const rows = await pgRows<GamePuzzleRow>(
-    `SELECT ${SELECT_COLS} FROM public.chess_game_puzzles
+    `SELECT ${LIST_SELECT_COLS} FROM public.chess_game_puzzles
       WHERE ${whereSql}
       ORDER BY ${orderBy} LIMIT $${i} OFFSET $${i + 1}`,
     [...params, q.limit, q.offset],

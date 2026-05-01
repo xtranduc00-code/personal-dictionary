@@ -3,9 +3,10 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Loader2, Star, Trophy, X as XIcon } from "lucide-react";
+import { ArrowLeft, Check, Loader2, Star, Trophy, X as XIcon } from "lucide-react";
 import { authFetch } from "@/lib/auth-context";
 import {
+  CHESS_PUZZLE_PROGRESS_EVENT,
   GAME_PUZZLES_PAGE_SIZE,
   writeGamePuzzleNav,
 } from "@/lib/chess/game-puzzle-nav";
@@ -33,6 +34,7 @@ interface GamePuzzleItem {
   fullmove: number;
   whiteName: string | null;
   blackName: string | null;
+  everSolved?: boolean;
 }
 
 interface ListResponse {
@@ -62,6 +64,13 @@ function GamesPageInner() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [progressSignal, setProgressSignal] = useState(0);
+
+  useEffect(() => {
+    const bump = () => setProgressSignal((n) => n + 1);
+    window.addEventListener(CHESS_PUZZLE_PROGRESS_EVENT, bump);
+    return () => window.removeEventListener(CHESS_PUZZLE_PROGRESS_EVENT, bump);
+  }, []);
 
   // Push state to URL on change so deep-links work.
   useEffect(() => {
@@ -88,14 +97,25 @@ function GamesPageInner() {
     if (gameId) p.set("gameId", gameId);
     authFetch(`/api/chess/game-puzzles?${p}`)
       .then(async (r) => {
-        const data = (await r.json()) as ListResponse | { error?: string };
+        const data = (await r.json()) as
+          | (ListResponse & { items?: GamePuzzleItem[] })
+          | { error?: string };
         if (!alive) return;
         if (!r.ok || "error" in data) {
           setError((data as { error?: string }).error ?? "Failed to load puzzles");
           setItems([]);
           setTotal(0);
         } else {
-          setItems((data as ListResponse).items);
+          const raw = (data as ListResponse).items ?? [];
+          setItems(
+            raw.map((row) => ({
+              ...row,
+              everSolved: Boolean(
+                (row as { everSolved?: unknown }).everSolved ??
+                  (row as { ever_solved?: unknown }).ever_solved,
+              ),
+            })),
+          );
           setTotal((data as ListResponse).total);
         }
       })
@@ -104,7 +124,7 @@ function GamesPageInner() {
     return () => {
       alive = false;
     };
-  }, [classification, gameId, sort, page]);
+  }, [classification, gameId, sort, page, progressSignal]);
 
   const totalPages = Math.max(1, Math.ceil(total / GAME_PUZZLES_PAGE_SIZE) || 1);
   const safePage = Math.min(page, totalPages);
@@ -271,13 +291,26 @@ function GamePuzzleCard({
     <button
       type="button"
       onClick={() => onOpen(puzzle.id)}
-      className="group flex min-h-[120px] flex-col gap-2 rounded-xl border border-zinc-200 bg-white p-3 text-left transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900"
+      className={`group flex min-h-[120px] flex-col gap-2 rounded-xl border bg-white p-3 text-left transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md dark:bg-zinc-900 ${
+        puzzle.everSolved
+          ? "border-emerald-200 dark:border-emerald-900/50"
+          : "border-zinc-200 dark:border-zinc-700"
+      }`}
     >
       <div className="flex items-start justify-between gap-2">
         <span className="inline-flex items-baseline gap-1 font-mono text-xl font-black leading-none text-zinc-800 dark:text-zinc-100">
           <Star className="h-4 w-4 self-center fill-amber-400 text-amber-400" />
           Δ{puzzle.swingCp}
         </span>
+        <div className="flex shrink-0 items-center gap-1">
+          {puzzle.everSolved ? (
+            <span
+              className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm ring-2 ring-white dark:ring-zinc-900"
+              aria-label="Solved"
+            >
+              <Check className="h-3 w-3 stroke-[3]" />
+            </span>
+          ) : null}
         <span
           className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
             puzzle.classification === "blunder"
@@ -287,6 +320,7 @@ function GamePuzzleCard({
         >
           {puzzle.classification}
         </span>
+        </div>
       </div>
       <p className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">
         {puzzle.whiteName ?? "?"} vs {puzzle.blackName ?? "?"} · move {puzzle.fullmove}
