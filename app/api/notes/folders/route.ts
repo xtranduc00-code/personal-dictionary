@@ -37,7 +37,136 @@ export async function GET(req: Request) {
     if (error) {
       throw error;
     }
-    const list = (data ?? []).map((r) => mapFolderRow(r));
+
+    const byId = new Map<string, ReturnType<typeof mapFolderRow>>();
+    for (const r of data ?? []) {
+      const row = mapFolderRow(r);
+      if (row.id) byId.set(row.id, row);
+    }
+
+    // Include shared folder subtree structure (folders only; notes are loaded separately).
+    // If the table/migration is missing, degrade gracefully.
+    try {
+      const { data: folderShares, error: fsErr } = await db
+        .from("note_folder_shares")
+        .select("folder_id, owner_user_id")
+        .eq("shared_with_user_id", user.id);
+      if (fsErr) {
+        throw fsErr;
+      }
+
+      const shares = (folderShares ?? [])
+        .map((r) => ({
+          folderId: String((r as { folder_id?: unknown }).folder_id ?? ""),
+          ownerUserId: String((r as { owner_user_id?: unknown }).owner_user_id ?? ""),
+        }))
+        .filter((s) => s.folderId && s.ownerUserId);
+
+      if (shares.length > 0) {
+        const ownerIds = [...new Set(shares.map((s) => s.ownerUserId))];
+        const { data: allFolders, error: allErr } = await db
+          .from("note_folders")
+          .select("id,name,sort_order,created_at,parent_id,user_id")
+          .in("user_id", ownerIds);
+        if (allErr) {
+          throw allErr;
+        }
+
+        const foldersByOwner = new Map<
+          string,
+          Array<{
+            id: string;
+            parentId: string | null;
+            raw: {
+              id: unknown;
+              name: unknown;
+              sort_order?: unknown;
+              created_at?: unknown;
+              parent_id?: unknown;
+            };
+          }>
+        >();
+
+        for (const r of allFolders ?? []) {
+          const ownerId = String((r as { user_id?: unknown }).user_id ?? "");
+          const id = String((r as { id?: unknown }).id ?? "");
+          if (!ownerId || !id) continue;
+          const parentRaw = (r as { parent_id?: unknown }).parent_id;
+          const parentId =
+            parentRaw != null && parentRaw !== "" ? String(parentRaw) : null;
+          const arr = foldersByOwner.get(ownerId) ?? [];
+          arr.push({
+            id,
+            parentId,
+            raw: {
+              id: (r as { id?: unknown }).id,
+              name: (r as { name?: unknown }).name,
+              sort_order: (r as { sort_order?: unknown }).sort_order,
+              created_at: (r as { created_at?: unknown }).created_at,
+              parent_id: (r as { parent_id?: unknown }).parent_id,
+            },
+          });
+          foldersByOwner.set(ownerId, arr);
+        }
+
+        for (const { ownerUserId, folderId } of shares) {
+          const folders = foldersByOwner.get(ownerUserId) ?? [];
+          if (folders.length === 0) continue;
+
+          const parentById = new Map<string, string | null>();
+          const childrenByParent = new Map<string | null, string[]>();
+          const rawById = new Map<string, (typeof folders)[number]["raw"]>();
+
+          for (const f of folders) {
+            parentById.set(f.id, f.parentId);
+            rawById.set(f.id, f.raw);
+            const kids = childrenByParent.get(f.parentId) ?? [];
+            kids.push(f.id);
+            childrenByParent.set(f.parentId, kids);
+          }
+
+          const include = new Set<string>();
+
+          // Descendants
+          const queue: string[] = [folderId];
+          for (let i = 0; i < queue.length; i++) {
+            const cur = queue[i];
+            if (!cur || include.has(cur)) continue;
+            include.add(cur);
+            const kids = childrenByParent.get(cur);
+            if (kids) queue.push(...kids);
+          }
+
+          // Ancestors for structure
+          let cur: string | null = folderId;
+          const seen = new Set<string>();
+          while (cur && !seen.has(cur)) {
+            seen.add(cur);
+            include.add(cur);
+            cur = parentById.get(cur) ?? null;
+          }
+
+          for (const id of include) {
+            const raw = rawById.get(id);
+            if (!raw) continue;
+            const row = mapFolderRow(raw);
+            if (row.id && !byId.has(row.id)) {
+              byId.set(row.id, row);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[note_folders GET] skipping shared folders (migration missing or error)", e);
+    }
+
+    const list = [...byId.values()];
+    // Stable-ish ordering: sortOrder then name (matches old behavior for owned folders)
+    list.sort((a, b) => {
+      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+      return a.name.localeCompare(b.name);
+    });
+
     return NextResponse.json({ folders: list });
   } catch (e) {
     console.error("note_folders GET", e);

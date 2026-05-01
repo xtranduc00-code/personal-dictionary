@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import AnalysisWorkspace from "./analysis-workspace";
+import { AnalysisClient } from "./analysis-client";
 
 export const metadata: Metadata = {
   title: "Game Analysis · Ken Workspace",
@@ -13,7 +13,7 @@ export default function ChessAnalysisPage() {
   // stretches the row via align-stretch, blowing out the board container.
   return (
     <main className="flex h-[calc(100vh-3rem)] flex-col">
-      <AnalysisWorkspace />
+      <AnalysisClient />
     </main>
   );
 }

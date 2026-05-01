@@ -60,7 +60,7 @@ export function MainScrollShell({ children }: PropsWithChildren) {
     /** Notes + in-room video + videos hub: inner panes manage scroll. Home /news must scroll in this shell (md:h-screen + overflow-hidden on root). */
     if (pathname === "/notes" || pathname === "/videos" || meetInRoom || watchInRoom) {
         return (
-            <div className="flex min-h-0 min-h-[100svh] flex-1 flex-col overflow-hidden md:h-full md:min-h-0">
+            <div className="flex min-h-[100svh] min-w-0 flex-1 flex-col overflow-hidden md:h-full md:min-h-0">
                 {children}
             </div>
         );
@@ -79,7 +79,7 @@ export function MainScrollShell({ children }: PropsWithChildren) {
             <div
                 ref={containerRef}
                 data-main-scroll
-                className="flex min-h-0 min-h-[100svh] w-full max-w-full flex-1 flex-col overflow-x-hidden overflow-y-auto md:h-full md:min-h-0 md:flex-1 md:overflow-y-auto md:overflow-x-hidden md:pr-2"
+                className="flex min-h-[100svh] min-w-0 w-full max-w-full flex-1 flex-col overflow-x-hidden overflow-y-auto md:h-full md:min-h-0 md:flex-1 md:pr-2"
             >
                 {children}
             </div>
@@ -89,7 +89,7 @@ export function MainScrollShell({ children }: PropsWithChildren) {
         <div
             ref={containerRef}
             data-main-scroll
-            className="min-h-0 min-w-0 w-full max-w-full md:flex-1 md:overflow-y-auto md:overflow-x-hidden md:pr-2"
+            className="min-h-0 min-w-0 w-full max-w-full flex-1 overflow-y-auto overflow-x-hidden md:pr-2"
         >
             {children}
         </div>
