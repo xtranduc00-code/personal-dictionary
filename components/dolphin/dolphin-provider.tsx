@@ -171,6 +171,9 @@ export function DolphinProvider({ children }: { children: ReactNode }) {
         useragent: string,
         webglInfo: DolphinCreateProfilePayload["webglInfo"],
       ): DolphinCreateProfilePayload => {
+        if (!pair.proxy) {
+          throw new Error("Missing proxy (create mode requires a proxy).");
+        }
         const osVersion =
           form.platform === "windows"
             ? "10"
@@ -224,6 +227,14 @@ export function DolphinProvider({ children }: { children: ReactNode }) {
             : "Cancelled";
 
       const processOne = async (pair: ProfilePair): Promise<CreateResult> => {
+        if (!pair.proxy) {
+          return {
+            ok: false,
+            name: pair.name,
+            proxy: null,
+            reason: "Missing proxy",
+          };
+        }
         const proxySummary = {
           type: pair.proxy.type,
           host: pair.proxy.host,
@@ -443,6 +454,74 @@ export function DolphinProvider({ children }: { children: ReactNode }) {
           };
         }
       };
+
+      // Existing mode: treat "name" as profileId and only run the login routine.
+      if (form.useExistingProfiles) {
+        const tasks = pairs.map((pair) =>
+          limit(async () => {
+            const profileId = pair.name.trim();
+            if (!profileId) return;
+            const loginResult = await tryLogin(pair, profileId);
+            if (loginResult) {
+              setState((s) => ({
+                ...s,
+                results: [...s.results, { kind: "login", ...loginResult }],
+              }));
+            } else {
+              setState((s) => ({
+                ...s,
+                results: [
+                  ...s.results,
+                  {
+                    kind: "login",
+                    ok: false,
+                    name: pair.name,
+                    profileId,
+                    reason:
+                      "Missing creds in Notes. Use: email|password|recovery|totp",
+                  },
+                ],
+              }));
+            }
+          }),
+        );
+        try {
+          await Promise.all(tasks);
+        } catch (err) {
+          setState((s) => ({
+            ...s,
+            errorMessage: err instanceof Error ? err.message : "Unknown error",
+          }));
+        } finally {
+          runRef.current = null;
+          if (refs.cancelledByUser) {
+            setState((s) => ({
+              ...s,
+              status: "cancelled",
+              pauseRemainingMs: 0,
+              pauseReason: null,
+            }));
+          } else if (refs.authStopped) {
+            setState((s) => ({
+              ...s,
+              status: "failed",
+              pauseRemainingMs: 0,
+              pauseReason: null,
+              errorMessage:
+                s.errorMessage ??
+                "Authentication failed; check your Dolphin token.",
+            }));
+          } else {
+            setState((s) => ({
+              ...s,
+              status: "done",
+              pauseRemainingMs: 0,
+              pauseReason: null,
+            }));
+          }
+        }
+        return;
+      }
 
       const tasks = pairs.map((pair) =>
         limit(async () => {

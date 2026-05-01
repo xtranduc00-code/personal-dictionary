@@ -31,6 +31,18 @@ export function FormFields({
 
   return (
     <div className="space-y-4">
+      <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/40">
+        <Checkbox
+          label="Use existing profile IDs (skip create; open+login only)"
+          checked={values.useExistingProfiles}
+          onChange={(v) => set("useExistingProfiles", v)}
+          disabled={disabled}
+        />
+        <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+          When enabled, paste Dolphin <span className="font-mono">profileId</span>s
+          in “Profile names”. Proxy list is ignored.
+        </p>
+      </div>
       {SHOW_ADVANCED_FIELDS ? (
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Name prefix" htmlFor="dolphin-prefix">
@@ -132,29 +144,33 @@ export function FormFields({
           data-1p-ignore="true"
           data-lpignore="true"
           data-form-type="other"
-          placeholder={"acc_1\nacc_2"}
+          placeholder={
+            values.useExistingProfiles ? "0b8f...-uuid\n1a2b...-uuid" : "acc_1\nacc_2"
+          }
           className={`${DOLPHIN_INPUT_CLASS} font-mono`}
         />
       </Field>
 
-      <Field label="Proxy list" htmlFor="dolphin-proxies">
-        <textarea
-          id="dolphin-proxies"
-          value={values.proxiesText}
-          onChange={(e) => set("proxiesText", e.target.value)}
-          disabled={disabled}
-          rows={8}
-          spellCheck={false}
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="off"
-          data-1p-ignore="true"
-          data-lpignore="true"
-          data-form-type="other"
-          placeholder="http://160.22.174.193:27524:frfKgL:AeGtNW"
-          className={`${DOLPHIN_INPUT_CLASS} font-mono`}
-        />
-      </Field>
+      {!values.useExistingProfiles ? (
+        <Field label="Proxy list" htmlFor="dolphin-proxies">
+          <textarea
+            id="dolphin-proxies"
+            value={values.proxiesText}
+            onChange={(e) => set("proxiesText", e.target.value)}
+            disabled={disabled}
+            rows={8}
+            spellCheck={false}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            data-1p-ignore="true"
+            data-lpignore="true"
+            data-form-type="other"
+            placeholder="http://160.22.174.193:27524:frfKgL:AeGtNW"
+            className={`${DOLPHIN_INPUT_CLASS} font-mono`}
+          />
+        </Field>
+      ) : null}
 
       <Field label="Notes (optional)" htmlFor="dolphin-notes">
         <textarea

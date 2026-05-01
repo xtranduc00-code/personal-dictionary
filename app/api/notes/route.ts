@@ -146,7 +146,9 @@ export async function GET(req: Request) {
             throw sErr;
         }
 
-        const sharedIds = (shareRows ?? []).map((s) => String(s.note_id)).filter(Boolean);
+        const sharedIds = new Set<string>(
+            (shareRows ?? []).map((s) => String(s.note_id)).filter(Boolean),
+        );
         const roleByNote = new Map<string, "viewer" | "editor">(
             (shareRows ?? []).map((s) => [
                 String(s.note_id),
@@ -156,24 +158,128 @@ export async function GET(req: Request) {
 
         let sharedNotes: Array<NoteDbRow & { user_id: string }> = [];
 
-        if (sharedIds.length > 0) {
+        // Folder-shares: share all notes inside a folder subtree.
+        // If the table/migration is missing, degrade gracefully (notes still load).
+        try {
+            const { data: folderShares, error: fsErr } = await db
+                .from("note_folder_shares")
+                .select("folder_id, role, owner_user_id")
+                .eq("shared_with_user_id", userId);
+            if (fsErr) {
+                throw fsErr;
+            }
+            const shares = (folderShares ?? []).map((r) => ({
+                folderId: String((r as { folder_id?: unknown }).folder_id ?? ""),
+                role: (r as { role?: unknown }).role === "viewer" ? ("viewer" as const) : ("editor" as const),
+                ownerUserId: String((r as { owner_user_id?: unknown }).owner_user_id ?? ""),
+            })).filter((s) => s.folderId && s.ownerUserId);
+
+            if (shares.length > 0) {
+                const ownerIds = [...new Set(shares.map((s) => s.ownerUserId))];
+                const { data: allFolders, error: fErr } = await db
+                    .from("note_folders")
+                    .select("id, parent_id, user_id")
+                    .in("user_id", ownerIds);
+                if (fErr) {
+                    throw fErr;
+                }
+                const foldersByOwner = new Map<string, Array<{ id: string; parentId: string | null }>>();
+                for (const r of allFolders ?? []) {
+                    const oid = String((r as { user_id?: unknown }).user_id ?? "");
+                    if (!oid) continue;
+                    const arr = foldersByOwner.get(oid) ?? [];
+                    arr.push({
+                        id: String((r as { id?: unknown }).id ?? ""),
+                        parentId:
+                            (r as { parent_id?: unknown }).parent_id != null &&
+                                (r as { parent_id?: unknown }).parent_id !== ""
+                                ? String((r as { parent_id?: unknown }).parent_id)
+                                : null,
+                    });
+                    foldersByOwner.set(oid, arr);
+                }
+
+                const notesFolderIdsByOwner = new Map<string, Set<string>>();
+                const roleByFolderRoot = new Map<string, "viewer" | "editor">();
+
+                for (const sh of shares) {
+                    const key = `${sh.ownerUserId}:${sh.folderId}`;
+                    const prevRole = roleByFolderRoot.get(key);
+                    if (!prevRole || (prevRole === "viewer" && sh.role === "editor")) {
+                        roleByFolderRoot.set(key, sh.role);
+                    }
+                    const folders = foldersByOwner.get(sh.ownerUserId) ?? [];
+                    const childrenByParent = new Map<string | null, string[]>();
+                    for (const f of folders) {
+                        const kids = childrenByParent.get(f.parentId) ?? [];
+                        kids.push(f.id);
+                        childrenByParent.set(f.parentId, kids);
+                    }
+                    const set = notesFolderIdsByOwner.get(sh.ownerUserId) ?? new Set<string>();
+                    const queue: string[] = [sh.folderId];
+                    for (let i = 0; i < queue.length; i++) {
+                        const fid = queue[i];
+                        if (!fid || set.has(fid)) continue;
+                        set.add(fid);
+                        const kids = childrenByParent.get(fid);
+                        if (kids) queue.push(...kids);
+                    }
+                    notesFolderIdsByOwner.set(sh.ownerUserId, set);
+                }
+
+                for (const [ownerId, folderIdsSet] of notesFolderIdsByOwner) {
+                    const folderIds = [...folderIdsSet];
+                    if (folderIds.length === 0) continue;
+                    const { data: ns, error: nErr } = await db
+                        .from("notes")
+                        .select(NOTE_ROW_SHARED_EXT)
+                        .eq("user_id", ownerId)
+                        .in("folder_id", folderIds);
+                    if (nErr) {
+                        throw nErr;
+                    }
+                    for (const n of (ns ?? []) as Array<NoteDbRow & { user_id: string }>) {
+                        const nid = String(n.id);
+                        if (!nid) continue;
+                        sharedIds.add(nid);
+                        // Role resolution: pick the most permissive share root that includes this note.
+                        // (If multiple roots overlap, editor wins.)
+                        const fid = n.folder_id != null ? String(n.folder_id) : "";
+                        let best: "viewer" | "editor" = roleByNote.get(nid) ?? "viewer";
+                        for (const sh of shares) {
+                            if (sh.ownerUserId !== ownerId) continue;
+                            const set = notesFolderIdsByOwner.get(ownerId);
+                            if (!set?.has(fid)) continue;
+                            // if note is under this owner's shared subtree at all, take best role from any root
+                            if (best === "viewer" && sh.role === "editor") best = "editor";
+                        }
+                        roleByNote.set(nid, best);
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn("[notes GET] skipping folder shares (migration missing or error)", e);
+        }
+
+        if (sharedIds.size > 0) {
+            const idsArr = [...sharedIds];
             const sharedExt = await db
                 .from("notes")
                 .select(NOTE_ROW_SHARED_EXT)
-                .in("id", sharedIds);
+                .in("id", idsArr);
             const sharedAfterDiary =
                 sharedExt.error && isMissingNotesDiaryColumnsError(sharedExt.error)
                     ? await db
                           .from("notes")
                           .select(NOTE_ROW_SHARED_EXT_NO_DIARY)
-                          .in("id", sharedIds)
+                          .in("id", idsArr)
                     : sharedExt;
             const sharedFb =
                 sharedAfterDiary.error && isMissingNotesFolderIdColumnError(sharedAfterDiary.error)
                     ? await db
                           .from("notes")
                           .select(NOTE_ROW_SHARED_BASE)
-                          .in("id", sharedIds)
+                          .in("id", idsArr)
                     : null;
             const sharedRes = sharedFb ?? sharedAfterDiary;
             const { data: sn, error: nErr } = sharedRes;

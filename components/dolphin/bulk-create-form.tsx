@@ -22,6 +22,7 @@ import { FormFields } from "@/components/dolphin/form-fields";
 import { RunControls } from "@/components/dolphin/run-controls";
 
 const INITIAL_FORM: BulkCreateFormValues = {
+  useExistingProfiles: false,
   namePrefix: DEFAULT_NAME_PREFIX,
   startIndex: DEFAULT_START_INDEX,
   platform: DEFAULT_PLATFORM,
@@ -51,6 +52,17 @@ export function BulkCreateForm() {
   );
 
   const pairs = useMemo<ProfilePair[]>(() => {
+    if (values.useExistingProfiles) {
+      if (parsedNames.length === 0) return [];
+      if (parsedNotes.length > 0 && parsedNotes.length !== parsedNames.length) {
+        return [];
+      }
+      return parsedNames.map((profileId, i) => ({
+        name: profileId,
+        proxy: null,
+        notes: parsedNotes[i],
+      }));
+    }
     if (parsedNames.length !== parsedProxies.length) return [];
     if (parsedNotes.length > 0 && parsedNotes.length !== parsedNames.length) {
       return [];
@@ -60,21 +72,30 @@ export function BulkCreateForm() {
       proxy,
       notes: parsedNotes[i],
     }));
-  }, [parsedNames, parsedProxies, parsedNotes]);
+  }, [parsedNames, parsedProxies, parsedNotes, values.useExistingProfiles]);
 
   const preflightError = useMemo<string | null>(() => {
     if (proxyErrors.length > 0) return "Fix proxy parse errors first.";
     if (nameErrors.length > 0) return "Fix name parse errors first.";
     if (parsedNames.length === 0) return "Add at least one profile name.";
-    if (parsedProxies.length === 0) return "Add at least one proxy.";
-    if (parsedNames.length !== parsedProxies.length) {
-      return `Names (${parsedNames.length}) and proxies (${parsedProxies.length}) count must match.`;
+    if (!values.useExistingProfiles) {
+      if (parsedProxies.length === 0) return "Add at least one proxy.";
+      if (parsedNames.length !== parsedProxies.length) {
+        return `Names (${parsedNames.length}) and proxies (${parsedProxies.length}) count must match.`;
+      }
     }
     if (parsedNotes.length > 0 && parsedNotes.length !== parsedNames.length) {
       return `Notes (${parsedNotes.length}) and names (${parsedNames.length}) count must match (or notes empty).`;
     }
     return null;
-  }, [parsedNames, parsedProxies, parsedNotes, nameErrors, proxyErrors]);
+  }, [
+    parsedNames,
+    parsedProxies,
+    parsedNotes,
+    nameErrors,
+    proxyErrors,
+    values.useExistingProfiles,
+  ]);
 
   const isActive = state.status === "running" || state.status === "paused";
 

@@ -275,6 +275,13 @@ export default function NotesPage() {
   const [shareRole, setShareRole] = useState<"editor" | "viewer">("editor");
   const [shareList, setShareList] = useState<ShareRow[]>([]);
   const [shareBusy, setShareBusy] = useState(false);
+  const [shareForFolder, setShareForFolder] = useState<NoteFolder | null>(null);
+  const [shareFolderUsername, setShareFolderUsername] = useState("");
+  const [shareFolderRole, setShareFolderRole] = useState<"editor" | "viewer">(
+    "editor",
+  );
+  const [shareFolderList, setShareFolderList] = useState<ShareRow[]>([]);
+  const [shareFolderBusy, setShareFolderBusy] = useState(false);
   const [pdfExportBusy, setPdfExportBusy] = useState(false);
 
   const [noteFolders, setNoteFolders] = useState<NoteFolder[]>([]);
@@ -374,6 +381,16 @@ export default function NotesPage() {
     setShareList(Array.isArray(data.shares) ? data.shares : []);
   }, []);
 
+  const loadFolderShares = useCallback(async (folderId: string) => {
+    const res = await authFetch(`/api/notes/folders/${folderId}/share`);
+    if (!res.ok) {
+      setShareFolderList([]);
+      return;
+    }
+    const data = (await res.json()) as { shares?: ShareRow[] };
+    setShareFolderList(Array.isArray(data.shares) ? data.shares : []);
+  }, []);
+
   useEffect(() => {
     if (!shareForNote) {
       setShareList([]);
@@ -383,6 +400,16 @@ export default function NotesPage() {
     }
     void loadShares(shareForNote.id);
   }, [shareForNote, loadShares]);
+
+  useEffect(() => {
+    if (!shareForFolder) {
+      setShareFolderList([]);
+      setShareFolderUsername("");
+      setShareFolderRole("editor");
+      return;
+    }
+    void loadFolderShares(shareForFolder.id);
+  }, [shareForFolder, loadFolderShares]);
 
   const loadNotes = useCallback(async () => {
     const gen = ++loadNotesGenRef.current;
@@ -1703,6 +1730,85 @@ export default function NotesPage() {
     }
   };
 
+  const handleAddFolderShare = async () => {
+    if (!shareForFolder || !shareFolderUsername.trim()) {
+      return;
+    }
+    setShareFolderBusy(true);
+    try {
+      const res = await authFetch(
+        `/api/notes/folders/${shareForFolder.id}/share`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: shareFolderUsername.trim(),
+            role: shareFolderRole,
+          }),
+        },
+      );
+      const payload = (await res.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (res.status === 404) {
+        toast.error(
+          payload.error === "User not found"
+            ? t("noteShareUserNotFound")
+            : t("noteShareFailed"),
+        );
+        return;
+      }
+      if (res.status === 409) {
+        toast.error(t("noteShareAlready"));
+        return;
+      }
+      if (res.status === 400) {
+        toast.error(
+          String(payload.error ?? "")
+            .toLowerCase()
+            .includes("yourself")
+            ? t("noteShareSelf")
+            : t("noteShareFailed"),
+        );
+        return;
+      }
+      if (!res.ok) {
+        toast.error(t("noteShareFailed"));
+        return;
+      }
+      toast.success(t("noteShareSuccess"));
+      setShareFolderUsername("");
+      await loadFolderShares(shareForFolder.id);
+    } finally {
+      setShareFolderBusy(false);
+    }
+  };
+
+  const handleRevokeFolderShare = async (username: string) => {
+    if (!shareForFolder) {
+      return;
+    }
+    setShareFolderBusy(true);
+    try {
+      const res = await authFetch(
+        `/api/notes/folders/${shareForFolder.id}/share`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username }),
+        },
+      );
+      if (!res.ok) {
+        toast.error(t("noteShareFailed"));
+        return;
+      }
+      toast.success(t("noteShareRevoked"));
+      await loadFolderShares(shareForFolder.id);
+    } finally {
+      setShareFolderBusy(false);
+    }
+  };
+
   const openNoteOnMobile = async (id: string) => {
     if (selectedId === id) {
       if (isNarrow) {
@@ -2073,6 +2179,10 @@ export default function NotesPage() {
               expandedIds={expandedFolderIds}
               onToggleExpand={toggleFolderExpand}
               canOrganize
+              onShareFolder={(fd) => {
+                if (shareBusy || shareFolderBusy) return;
+                setShareForFolder(fd);
+              }}
               onNewNoteInFolder={(fid) => void handleNewNoteInFolder(fid)}
               onUploadPdfInFolder={(fid) => handleUploadPdfInFolder(fid)}
               onCreateSubfolderQuick={createSubfolderQuick}
@@ -2503,6 +2613,124 @@ export default function NotesPage() {
                 type="button"
                 disabled={shareBusy}
                 onClick={() => setShareForNote(null)}
+                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-700"
+              >
+                {t("cancel")}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {shareForFolder ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+          onClick={() => !shareFolderBusy && setShareForFolder(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="share-folder-title"
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-zinc-200 bg-white p-5 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2
+              id="share-folder-title"
+              className="text-lg font-semibold text-zinc-900 dark:text-zinc-100"
+            >
+              Share folder
+            </h2>
+            <p className="mt-1 truncate text-sm text-zinc-500 dark:text-zinc-400">
+              {noteFolderDisplayName(shareForFolder.name) ?? shareForFolder.name}
+            </p>
+
+            <div className="mt-4 space-y-2">
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                {t("noteShareUsernameLabel")}
+              </label>
+              <input
+                type="text"
+                value={shareFolderUsername}
+                onChange={(e) => setShareFolderUsername(e.target.value)}
+                placeholder={t("noteShareUsernamePlaceholder")}
+                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                autoComplete="off"
+              />
+              <div className="flex flex-wrap gap-3 text-sm">
+                <label className="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="radio"
+                    name="shareFolderRole"
+                    checked={shareFolderRole === "editor"}
+                    onChange={() => setShareFolderRole("editor")}
+                  />
+                  {t("noteShareRoleEditor")}
+                </label>
+                <label className="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="radio"
+                    name="shareFolderRole"
+                    checked={shareFolderRole === "viewer"}
+                    onChange={() => setShareFolderRole("viewer")}
+                  />
+                  {t("noteShareRoleViewer")}
+                </label>
+              </div>
+              <button
+                type="button"
+                disabled={shareFolderBusy || !shareFolderUsername.trim()}
+                onClick={() => void handleAddFolderShare()}
+                className="w-full rounded-lg bg-zinc-900 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+              >
+                {t("noteShareAdd")}
+              </button>
+            </div>
+
+            <div className="mt-6 border-t border-zinc-200 pt-4 dark:border-zinc-700">
+              <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                {t("noteShareListHeading")}
+              </h3>
+              {shareFolderList.length === 0 ? (
+                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                  {t("noteShareEmpty")}
+                </p>
+              ) : (
+                <ul className="mt-2 space-y-2">
+                  {shareFolderList.map((s) => (
+                    <li
+                      key={s.id}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-zinc-100 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800/50"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">
+                          {s.username}
+                        </p>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                          {s.role === "viewer"
+                            ? t("noteShareRoleViewer")
+                            : t("noteShareRoleEditor")}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={shareFolderBusy}
+                        onClick={() => void handleRevokeFolderShare(s.username)}
+                        className="shrink-0 rounded p-2 text-zinc-500 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30"
+                        title={t("noteShareRemove")}
+                      >
+                        <UserMinus className="h-4 w-4" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                disabled={shareFolderBusy}
+                onClick={() => setShareForFolder(null)}
                 className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-700"
               >
                 {t("cancel")}

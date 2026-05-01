@@ -93,6 +93,11 @@ const RTE_TOOLTIP_HIDE = 40;
 const RTE_TOOLTIP_OFFSET = 6;
 const clampInt = (n: number, min: number, max: number) =>
   Math.min(max, Math.max(min, Math.round(Number.isFinite(n) ? n : min)));
+function countWords(s: string): number {
+  const t = s.trim();
+  if (!t) return 0;
+  return t.split(/\s+/).filter(Boolean).length;
+}
 const nunito = Nunito({
   subsets: ["latin", "vietnamese"],
   display: "swap",
@@ -190,6 +195,10 @@ export function RichTextEditor({
     top: number;
     left: number;
   } | null>(null);
+  const [selectionStats, setSelectionStats] = useState<{
+    active: boolean;
+    words: number;
+  }>({ active: false, words: 0 });
   const [tableContextMenu, setTableContextMenu] = useState<{
     x: number;
     y: number;
@@ -600,6 +609,29 @@ export function RichTextEditor({
     });
   }, [editor, value]);
 
+  useEffect(() => {
+    if (!editor) return;
+    const update = () => {
+      const sel = editor.state.selection;
+      if (!sel || sel.empty) {
+        setSelectionStats((prev) =>
+          prev.active ? { active: false, words: 0 } : prev,
+        );
+        return;
+      }
+      const text = editor.state.doc.textBetween(sel.from, sel.to, " ");
+      const words = countWords(text);
+      setSelectionStats({ active: true, words });
+    };
+    update();
+    editor.on("selectionUpdate", update);
+    editor.on("transaction", update);
+    return () => {
+      editor.off("selectionUpdate", update);
+      editor.off("transaction", update);
+    };
+  }, [editor]);
+
   if (!editor) {
     return (
       <div className={`${nunito.className} ${className ?? ""}`}>
@@ -680,9 +712,19 @@ export function RichTextEditor({
   return (
     <div className={`${nunito.className} ${className ?? ""}`}>
       {!readOnly ? (
-        <div className="sticky top-0 z-20 rounded-t-xl border border-zinc-300 border-b-zinc-200/80 bg-zinc-50 py-1.5 pl-1 pr-0 shadow-sm dark:border-zinc-700 dark:border-b-zinc-600 dark:bg-zinc-900">
+        <div className="sticky top-0 z-20 rounded-t-xl border border-zinc-300 border-b-zinc-200/80 bg-zinc-50 py-1.5 pl-1 pr-0 shadow-sm dark:border-zinc-700 dark:border-b-zinc-600 dark:bg-zinc-900 relative">
+          {selectionStats.active && (
+            <div className="pointer-events-none absolute right-2 top-1.5 text-[11px] font-semibold tabular-nums text-zinc-500 dark:text-zinc-400">
+              {selectionStats.words} words
+            </div>
+          )}
           <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
-            <div className="flex w-max min-w-full flex-col gap-0 pr-2 sm:min-w-0">
+            <div
+              className={[
+                "flex w-max min-w-full flex-col gap-0 sm:min-w-0",
+                selectionStats.active ? "pr-20" : "pr-2",
+              ].join(" ")}
+            >
               <div className="flex w-max flex-nowrap items-center gap-0.5">
                 <RteTBtn
                   label={t("rteUndo")}

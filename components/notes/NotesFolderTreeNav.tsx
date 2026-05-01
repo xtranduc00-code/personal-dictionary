@@ -8,6 +8,7 @@ import {
   FolderOpen,
   FolderPlus,
   Plus,
+  Share2,
   Trash2,
 } from "lucide-react";
 import {
@@ -86,6 +87,7 @@ type Props = {
     folderId: string,
     newParentId: string | null,
   ) => void | Promise<void>;
+  onShareFolder?: (folder: DeletableFolder) => void;
   onDeleteFolder?: (folder: DeletableFolder) => void;
   disabled?: boolean;
   labels: Labels;
@@ -113,6 +115,7 @@ function TreeFolderRow({
   onOpenPlusMenu,
   onNoteDroppedOnFolder,
   onFolderMoved,
+  onShareFolder,
   onDeleteFolder,
   disabled,
   labels,
@@ -229,6 +232,25 @@ function TreeFolderRow({
         ) : (
           <span className="w-7 shrink-0" aria-hidden />
         )}
+        {canOrganize && !disabled && onShareFolder ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onShareFolder({
+                id: node.id,
+                name: node.name,
+                parentId: node.parentId,
+                sortOrder: node.sortOrder,
+              });
+            }}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-400 opacity-0 hover:bg-zinc-200 hover:text-zinc-700 group-hover:opacity-100 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
+            title="Share"
+            aria-label="Share"
+          >
+            <Share2 className="h-3.5 w-3.5" strokeWidth={2} />
+          </button>
+        ) : null}
         {canOrganize && !disabled && onDeleteFolder ? (
           <button
             type="button"
@@ -264,6 +286,7 @@ function TreeFolderRow({
               onOpenPlusMenu={onOpenPlusMenu}
               onNoteDroppedOnFolder={onNoteDroppedOnFolder}
               onFolderMoved={onFolderMoved}
+              onShareFolder={onShareFolder}
               onDeleteFolder={onDeleteFolder}
               disabled={disabled}
               labels={labels}
@@ -310,6 +333,7 @@ export function NotesFolderTreeNav({
   onNoteDroppedOnFolder,
   onNoteDroppedUncategorized,
   onFolderMoved,
+  onShareFolder,
   onDeleteFolder,
   disabled,
   labels,
@@ -318,10 +342,18 @@ export function NotesFolderTreeNav({
   const tree = useMemo(() => buildFolderTree(folders), [folders]);
 
   const { byFolderId, uncategorized } = useMemo(() => {
+    const folderIdSet = new Set(folders.map((f) => f.id));
     const by = new Map<string, NotesTreeNote[]>();
     const unc: NotesTreeNote[] = [];
     for (const n of notes) {
-      if (n.folderId == null || n.folderId === "") {
+      // Notes shared with you can carry the owner's folderId.
+      // If that folder doesn't exist in your tree, show it in root (uncategorized)
+      // so it doesn't "disappear" from the sidebar.
+      if (
+        n.folderId == null ||
+        n.folderId === "" ||
+        !folderIdSet.has(n.folderId)
+      ) {
         unc.push(n);
       } else {
         const arr = by.get(n.folderId);
@@ -337,7 +369,7 @@ export function NotesFolderTreeNav({
     }
     unc.sort(sortNotesForTree);
     return { byFolderId: by, uncategorized: unc };
-  }, [notes]);
+  }, [notes, folders]);
 
   const getNotesInFolder = useMemo(
     () => (folderId: string) => byFolderId.get(folderId) ?? [],
@@ -569,6 +601,7 @@ export function NotesFolderTreeNav({
             onOpenPlusMenu={onOpenPlusMenu}
             onNoteDroppedOnFolder={onNoteDroppedOnFolder}
             onFolderMoved={onFolderMoved}
+              onShareFolder={onShareFolder}
             onDeleteFolder={onDeleteFolder}
             disabled={disabled}
             labels={labels}

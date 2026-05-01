@@ -72,7 +72,9 @@ export function RunControls({
             ) : (
               <Play className="h-4 w-4" aria-hidden />
             )}
-            Create {pairs.length} profile{pairs.length === 1 ? "" : "s"}
+            {values.useExistingProfiles
+              ? `Open+login ${pairs.length} profile${pairs.length === 1 ? "" : "s"}`
+              : `Create ${pairs.length} profile${pairs.length === 1 ? "" : "s"}`}
           </button>
           {isActive ? (
             <button

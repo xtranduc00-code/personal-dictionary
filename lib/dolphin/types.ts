@@ -35,7 +35,7 @@ export type NameParseError = {
 
 export type ProfilePair = {
   name: string;
-  proxy: ParsedProxy;
+  proxy: ParsedProxy | null;
   notes?: string;
 };
 
@@ -135,6 +135,7 @@ export type LogEntry =
   | ({ kind: "login" } & LoginResult);
 
 export type BulkCreateFormValues = {
+  useExistingProfiles: boolean;
   namePrefix: string;
   startIndex: number;
   platform: DolphinPlatform;
