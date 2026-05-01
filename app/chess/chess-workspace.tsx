@@ -77,6 +77,13 @@ const PUZZLE_ARROW_WRONG = "rgba(239, 68, 68, 0.95)";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 import type { LibraryPuzzle, PuzzleLevel } from "@/lib/chess-types";
+import type { GamePuzzleNav } from "@/lib/chess/game-puzzle-nav";
+import {
+  clearGamePuzzleNav,
+  GAME_PUZZLES_PAGE_SIZE,
+  readGamePuzzleNav,
+  writeGamePuzzleNav,
+} from "@/lib/chess/game-puzzle-nav";
 export type { LibraryPuzzle };
 
 type Mode = "home" | "play-lobby" | "play-game" | "puzzles" | "puzzle-solve" | "game-review" | "opening-trainer" | "endgame-trainer" | "puzzle-rush";
@@ -402,7 +409,6 @@ export function ChessWorkspace({
   const [tc, setTc]               = useState<TimeControl>(TIME_CONTROLS_POPULAR[2]); // Blitz 5+0
   const [color, setColor]         = useState<"white" | "black" | "random">("random");
   const [activePuzzle, setActivePuzzle] = useState<LibraryPuzzle | BuiltInPuzzle | null>(null);
-  const [puzzleNav, setPuzzleNav] = useState<LibraryPuzzleNav | null>(null);
   const [puzzleRouteLoading, setPuzzleRouteLoading] = useState(!!initialLibraryPuzzleId);
   const [puzzleRouteError, setPuzzleRouteError] = useState<string | null>(null);
   const [reviewPgn, setReviewPgn]         = useState("");
@@ -444,8 +450,8 @@ export function ChessWorkspace({
     setGame(null);
     setCreatedGame(null);
     setActivePuzzle(null);
-    setPuzzleNav(null);
     clearPuzzleLibraryNav();
+    clearGamePuzzleNav();
   }
 
   const advanceToNextLibraryPuzzle = useCallback(async () => {
@@ -494,6 +500,79 @@ export function ChessWorkspace({
     writePuzzleLibraryNav(newNav);
     router.replace(`/chess/puzzles/${encodeURIComponent(nextId)}`);
   }, [router]);
+
+  const advanceToNextGamePuzzle = useCallback(async () => {
+    const nav = readGamePuzzleNav();
+    if (!nav || nav.pageItems.length === 0) {
+      toast.error("Open puzzles from the list to chain to the next puzzle.");
+      return;
+    }
+
+    let newNav: GamePuzzleNav;
+    let nextId: string;
+
+    if (nav.index + 1 < nav.pageItems.length) {
+      const next = nav.pageItems[nav.index + 1]!;
+      newNav = { ...nav, index: nav.index + 1 };
+      nextId = next.id;
+    } else {
+      const totalPages = Math.max(1, Math.ceil(nav.total / GAME_PUZZLES_PAGE_SIZE));
+      const nextPage = nav.page >= totalPages ? 1 : nav.page + 1;
+      const offset = (nextPage - 1) * GAME_PUZZLES_PAGE_SIZE;
+      const params = new URLSearchParams({
+        sort: nav.sort,
+        limit: String(GAME_PUZZLES_PAGE_SIZE),
+        offset: String(offset),
+      });
+      if (nav.classification) params.set("classification", nav.classification);
+      if (nav.gameId) params.set("gameId", nav.gameId);
+
+      const res = await authFetch(`/api/chess/game-puzzles?${params}`);
+      const data = (await res.json()) as {
+        items: { id: string }[];
+        total: number;
+        error?: string;
+      };
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not load the next page.");
+        return;
+      }
+      if (data.items.length === 0) {
+        toast.error("No more puzzles in this filter.");
+        return;
+      }
+      const next = data.items[0]!;
+      newNav = {
+        ...nav,
+        page: nextPage,
+        index: 0,
+        pageItems: data.items.map((i) => ({ id: i.id })),
+        total: data.total,
+      };
+      nextId = next.id;
+    }
+
+    writeGamePuzzleNav(newNav);
+    router.replace(`/chess/puzzles/${encodeURIComponent(nextId)}`);
+  }, [router]);
+
+  const advanceToNextPuzzle = useCallback(async () => {
+    const currentId = initialLibraryPuzzleId;
+    if (!currentId) return;
+    if (currentId.startsWith("gp_")) {
+      const gn = readGamePuzzleNav();
+      if (gn?.pageItems.some((x) => x.id === currentId)) {
+        await advanceToNextGamePuzzle();
+        return;
+      }
+    }
+    const ln = readPuzzleLibraryNav();
+    if (ln?.pageItems?.length && ln.pageItems.some((x) => x.id === currentId)) {
+      await advanceToNextLibraryPuzzle();
+      return;
+    }
+    toast.error("Open puzzles from the list to chain to the next puzzle.");
+  }, [initialLibraryPuzzleId, advanceToNextLibraryPuzzle, advanceToNextGamePuzzle]);
 
   useEffect(() => {
     const act = mapModeToHomeActivity(mode);
@@ -544,22 +623,23 @@ export function ChessWorkspace({
 
         const nav = readPuzzleLibraryNav();
         if (nav) {
-          if (nav.pageItems[nav.index]?.id === p.id) {
-            setPuzzleNav(nav);
-          } else {
+          if (nav.pageItems[nav.index]?.id !== p.id) {
             const idx = nav.pageItems.findIndex((x) => x.id === p.id);
-            if (idx >= 0) setPuzzleNav({ ...nav, index: idx });
-            else setPuzzleNav(null);
+            if (idx >= 0) writePuzzleLibraryNav({ ...nav, index: idx });
           }
-        } else {
-          setPuzzleNav(null);
+        }
+        const gn = readGamePuzzleNav();
+        if (gn && p.id.startsWith("gp_")) {
+          const gIdx = gn.pageItems.findIndex((x) => x.id === p.id);
+          if (gIdx >= 0 && gn.index !== gIdx) {
+            writeGamePuzzleNav({ ...gn, index: gIdx });
+          }
         }
         setMode("puzzle-solve");
       } catch (e) {
         if (!cancelled) {
           setPuzzleRouteError(e instanceof Error ? e.message : "Failed to load puzzle");
           setActivePuzzle(null);
-          setPuzzleNav(null);
         }
       } finally {
         if (!cancelled) setPuzzleRouteLoading(false);
@@ -694,12 +774,14 @@ export function ChessWorkspace({
             key={"id" in activePuzzle ? activePuzzle.id : "builtin"}
             puzzle={activePuzzle}
             onBack={() => {
-              clearPuzzleLibraryNav();
-              setPuzzleNav(null);
-              setActivePuzzle(null);
-              router.push("/chess");
+              const pid = "id" in activePuzzle ? activePuzzle.id : "";
+              if (pid.startsWith("gp_")) {
+                router.push("/chess/games");
+              } else {
+                router.push("/chess/puzzles");
+              }
             }}
-            onNextPuzzle={puzzleNav ? advanceToNextLibraryPuzzle : undefined}
+            onNextPuzzle={initialLibraryPuzzleId ? advanceToNextPuzzle : undefined}
           />
         )}
         {mode === "opening-trainer" && <OpeningTrainer onBack={goHome} />}

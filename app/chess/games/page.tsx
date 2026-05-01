@@ -5,6 +5,10 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Loader2, Star, Trophy, X as XIcon } from "lucide-react";
 import { authFetch } from "@/lib/auth-context";
+import {
+  GAME_PUZZLES_PAGE_SIZE,
+  writeGamePuzzleNav,
+} from "@/lib/chess/game-puzzle-nav";
 
 /**
  * /chess/games — list view for puzzles extracted from my analysed games.
@@ -36,8 +40,6 @@ interface ListResponse {
   total: number;
   hasMore: boolean;
 }
-
-const PAGE_SIZE = 20;
 
 function GamesPageInner() {
   const router = useRouter();
@@ -79,8 +81,8 @@ function GamesPageInner() {
     setError(null);
     const p = new URLSearchParams({
       sort,
-      limit: String(PAGE_SIZE),
-      offset: String((page - 1) * PAGE_SIZE),
+      limit: String(GAME_PUZZLES_PAGE_SIZE),
+      offset: String((page - 1) * GAME_PUZZLES_PAGE_SIZE),
     });
     if (classification) p.set("classification", classification);
     if (gameId) p.set("gameId", gameId);
@@ -104,10 +106,10 @@ function GamesPageInner() {
     };
   }, [classification, gameId, sort, page]);
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE) || 1);
+  const totalPages = Math.max(1, Math.ceil(total / GAME_PUZZLES_PAGE_SIZE) || 1);
   const safePage = Math.min(page, totalPages);
-  const rangeStart = total === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
-  const rangeEnd = total === 0 ? 0 : Math.min(safePage * PAGE_SIZE, total);
+  const rangeStart = total === 0 ? 0 : (safePage - 1) * GAME_PUZZLES_PAGE_SIZE + 1;
+  const rangeEnd = total === 0 ? 0 : Math.min(safePage * GAME_PUZZLES_PAGE_SIZE, total);
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 p-4 sm:p-6">
@@ -209,9 +211,19 @@ function GamesPageInner() {
           <GamePuzzleCard
             key={p.id}
             puzzle={p}
-            // Replace, not push — once the user opens a puzzle they want
-            // browser-back to return to the chess hub, not the games list.
-            onOpen={(id) => router.replace(`/chess/puzzles/${encodeURIComponent(id)}`)}
+            onOpen={(id) => {
+              const idx = items.findIndex((x) => x.id === id);
+              writeGamePuzzleNav({
+                classification,
+                gameId,
+                sort,
+                page: safePage,
+                index: idx >= 0 ? idx : 0,
+                pageItems: items.map((i) => ({ id: i.id })),
+                total,
+              });
+              router.push(`/chess/puzzles/${encodeURIComponent(id)}`);
+            }}
           />
         ))}
         {loading && items.length === 0 && (
