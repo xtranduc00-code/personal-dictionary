@@ -25,7 +25,7 @@ const SHELL_FULL_INNER = "flex min-h-0 flex-1 flex-col";
 const SHELL_MINI_INNER = "pointer-events-auto";
 
 export function MeetPersistentLayer() {
-    const pathname = usePathname();
+    const pathname = usePathname() ?? "";
     const { session, micPrecheckDone, setMicPrecheckDone } = useMeetCall();
     const miniShellRef = useRef<HTMLDivElement>(null);
     const { pos: miniShellPos, onDragHandlePointerDown } = useMeetMiniShellDrag(miniShellRef);

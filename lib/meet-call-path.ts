@@ -1,6 +1,6 @@
 /** So khớp pathname `/call/:roomSegment` với tên phòng đã decode (giống CallRoom). */
-export function meetPathMatchesRoom(pathname: string, displayName: string): boolean {
-    if (!pathname.startsWith("/call/"))
+export function meetPathMatchesRoom(pathname: string | null | undefined, displayName: string): boolean {
+    if (!pathname?.startsWith("/call/"))
         return false;
     const rest = pathname.slice("/call/".length);
     const segment = rest.split("/")[0] ?? "";

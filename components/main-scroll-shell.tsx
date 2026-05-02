@@ -3,7 +3,7 @@ import { PropsWithChildren, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 const scrollPositions = new Map<string, number>();
 export function MainScrollShell({ children }: PropsWithChildren) {
-    const pathname = usePathname();
+    const pathname = usePathname() ?? "";
     const containerRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
         const node = containerRef.current;

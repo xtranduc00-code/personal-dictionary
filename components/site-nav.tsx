@@ -386,7 +386,8 @@ export function SiteNav() {
     </NavLabelsProvider>);
 }
 function SiteNavInner() {
-    const pathname = usePathname();
+    /** Next 16: `usePathname()` can be null briefly — unsafe `.startsWith` crashes the whole shell. */
+    const pathname = usePathname() ?? "";
     const { t, locale, setLocale } = useI18n();
     const { navT } = useNavLabels();
     const { user, isLoading: authLoading, signOut, openAuthModal } = useAuth();
@@ -939,8 +940,8 @@ function SiteNavInner() {
           <ChevronRight className="h-4 w-4"/>
         </button>)}
       <aside className={[
-            "hidden h-screen shrink-0 border-r border-zinc-200/70 backdrop-blur-xl transition-[width] duration-200 dark:border-zinc-800 md:flex md:flex-col md:overflow-hidden",
-            isChessPath(pathname || "")
+            "hidden min-h-0 h-[100dvh] shrink-0 border-r border-zinc-200/70 backdrop-blur-xl transition-[width] duration-200 dark:border-zinc-800 md:flex md:h-full md:max-h-none md:flex-col md:overflow-hidden md:self-stretch",
+            isChessPath(pathname)
                 ? "bg-gradient-to-b from-amber-50/75 via-zinc-50/95 to-zinc-50 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-950"
                 : "bg-zinc-50/80 dark:bg-zinc-900/80",
             sidebarOpen ? "w-80" : "w-0 overflow-hidden border-r-0",

@@ -23,28 +23,28 @@ export function AppShell({ children }: {
     children: React.ReactNode;
 }) {
     const pathname = usePathname();
+    const path = pathname ?? "";
     const { session, micPrecheckDone } = useMeetCall();
     const fullMeet =
         Boolean(session && micPrecheckDone && meetPathMatchesRoom(pathname, session.displayName));
     const isStandaloneAuth = Boolean(pathname && STANDALONE_AUTH_PATHS.has(pathname));
-    const pathSeg = pathname?.split("/").filter(Boolean) ?? [];
+    const pathSeg = path.split("/").filter(Boolean);
     const isWatchPartyRoom = pathSeg[0] === "watch" && pathSeg.length >= 2;
     const isDailyNewsRoute =
-        pathname === "/news" ||
-        (Boolean(pathname) && pathname.startsWith("/news/"));
+        path === "/news" || path.startsWith("/news/");
     const isHubGreyShell = isDailyNewsRoute;
     const isPortfolioLanding =
-        pathname === "/" || pathname === "/portfolio";
+        path === "/" || path === "/portfolio";
     const isChessPath =
-        pathname === "/chess" || (Boolean(pathname) && pathname.startsWith("/chess/"));
+        path === "/chess" || path.startsWith("/chess/");
     const noOuterMainPadding =
         !isStandaloneAuth && (fullMeet || isWatchPartyRoom);
 
     const isMeetShell =
-        pathname === "/call" ||
-        pathname.startsWith("/call/") ||
-        pathname === "/watch" ||
-        pathname.startsWith("/watch/");
+        path === "/call" ||
+        path.startsWith("/call/") ||
+        path === "/watch" ||
+        path.startsWith("/watch/");
     const mainClass = [
         "relative flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-x-hidden",
         isStandaloneAuth ? "overflow-hidden" : "md:overflow-hidden",
@@ -62,9 +62,8 @@ export function AppShell({ children }: {
                     ? "px-4 py-6 md:px-8 md:py-8"
                     : "",
     ].filter(Boolean).join(" ");
-    return (<>
-      {!isStandaloneAuth ? <SiteNav/> : null}
-      <main className={mainClass}>
+    const mainInner = (
+      <>
         {!isStandaloneAuth ? <MeetPersistentLayer/> : null}
         {!isStandaloneAuth ? <YouTubeDock /> : null}
         <AuthGate>
@@ -85,6 +84,18 @@ export function AppShell({ children }: {
             )}
           </div>
         </AuthGate>
-      </main>
-    </>);
+      </>
+    );
+    return (
+      <>
+        {!isStandaloneAuth ? (
+          <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col md:flex-row md:overflow-hidden">
+            <SiteNav />
+            <main className={mainClass}>{mainInner}</main>
+          </div>
+        ) : (
+          <main className={mainClass}>{mainInner}</main>
+        )}
+      </>
+    );
 }
